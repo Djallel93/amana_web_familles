@@ -1,0 +1,191 @@
+name: Build and Deploy to IONOS (SFTP/SSH)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force_fresh_install:
+        description: "DANGER: force 'migrate:fresh --seed' even if this isn't the first deploy. Wipes the database. Normally leave unchecked - first deploy is auto-detected."
+        required: false
+        default: false
+        type: boolean
+      run_shared_migration:
+        description: "Run 'php artisan amana:migrate-shared' after deploy. Only needed when amana/shared ships new shared migrations - never runs automatically on a normal push. See amana_shared/README.md."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer:2
+
+      # amana/shared (Composer) et @amana/shared-ui (npm) sont des dépôts
+      # privés référencés par HTTPS (voir composer.json "repositories" et
+      # package.json "dependencies") — même mécanisme que amana_web_planning.
+      # AMANA_REPOS_PAT : Personal Access Token GitHub (fine-grained), lecture
+      # seule, scope Contents sur amana_shared + amana_shared_ui — même
+      # secret que côté Planning (les deux repos consomment le même token).
+      - name: Configure git access for private amana/* repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.AMANA_REPOS_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install PHP dependencies
+        run: composer install --optimize-autoloader --no-dev --no-interaction
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build front-end assets
+        env:
+          CI: true
+        run: npm run build
+
+      - name: Strip dev-only files from the artifact
+        run: |
+          rm -rf tests .github .deploy-now .git .gitignore .gitattributes \
+          docs .env.example README.md phpunit.xml \
+          resources/js resources/css node_modules \
+          tailwind.config.js postcss.config.js tsconfig.json vite.config.ts
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: .
+          include-hidden-files: true
+          retention-days: 1
+
+  deploy:
+    name: Deploy over SFTP/SSH
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      # Runs first so its default `git clean -ffdx` doesn't wipe out the
+      # artifact downloaded in the next step (both share GITHUB_WORKSPACE).
+      - name: Checkout (for .env template only)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/deploy/.env.production.template
+          sparse-checkout-cone-mode: false
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: deploy
+
+      - name: Render production .env
+        env:
+          APP_KEY: ${{ secrets.APP_KEY }}
+          IONOS_APP_URL: ${{ vars.APP_URL }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_COMMUN_HOST: ${{ secrets.DB_COMMUN_HOST }}
+          DB_COMMUN_NAME: ${{ secrets.DB_COMMUN_NAME }}
+          DB_COMMUN_USERNAME: ${{ secrets.DB_COMMUN_USERNAME }}
+          DB_COMMUN_PASSWORD: ${{ secrets.DB_COMMUN_PASSWORD }}
+          MAIL_HOST: ${{ secrets.MAIL_HOST }}
+          MAIL_PORT: ${{ secrets.MAIL_PORT }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAKE_GEOCODING_WEBHOOK_URL: ${{ secrets.MAKE_GEOCODING_WEBHOOK_URL }}
+          MAKE_GEOCODING_WEBHOOK_APIKEY: ${{ secrets.MAKE_GEOCODING_WEBHOOK_APIKEY }}
+          MAKE_CONTACT_WEBHOOK_URL: ${{ secrets.MAKE_CONTACT_WEBHOOK_URL }}
+          MAKE_CONTACT_WEBHOOK_APIKEY: ${{ secrets.MAKE_CONTACT_WEBHOOK_APIKEY }}
+        run: |
+          envsubst < .github/deploy/.env.production.template > deploy/.env
+          # sanity check: fail fast if a placeholder was left unresolved
+          if grep -q '\${' deploy/.env; then
+            echo "::error::One or more secrets are missing - .env still contains unresolved placeholders"
+            grep '\${' deploy/.env
+            exit 1
+          fi
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.IONOS_SSH_PRIVATE_KEY }}
+
+      - name: Add IONOS host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.IONOS_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Put application into maintenance mode
+        env:
+          PHP_BIN: ${{ vars.IONOS_PHP_CLI_PATH }}
+        run: |
+          ssh ${{ secrets.IONOS_SSH_USER }}@${{ secrets.IONOS_SSH_HOST }} \
+            "cd ${{ vars.IONOS_REMOTE_PATH }} && $PHP_BIN artisan down || true"
+
+      - name: Sync files via rsync over SSH
+        run: |
+          rsync -az --delete \
+            --exclude 'storage' \
+            -e "ssh -o StrictHostKeyChecking=accept-new" \
+            deploy/ ${{ secrets.IONOS_SSH_USER }}@${{ secrets.IONOS_SSH_HOST }}:${{ vars.IONOS_REMOTE_PATH }}/
+
+      - name: Ensure storage directory structure exists (first deploy only)
+        run: |
+          ssh ${{ secrets.IONOS_SSH_USER }}@${{ secrets.IONOS_SSH_HOST }} \
+            "cd ${{ vars.IONOS_REMOTE_PATH }} && \
+            mkdir -p storage/app/public storage/framework/{cache,sessions,testing,views} storage/logs"
+
+      - name: Run post-deploy commands
+        env:
+          FORCE_FRESH: ${{ inputs.force_fresh_install }}
+          RUN_SHARED_MIGRATION: ${{ inputs.run_shared_migration }}
+          PHP_BIN: ${{ vars.IONOS_PHP_CLI_PATH }}
+        run: |
+          ssh ${{ secrets.IONOS_SSH_USER }}@${{ secrets.IONOS_SSH_HOST }} bash -s <<EOF
+            set -e
+            cd ${{ vars.IONOS_REMOTE_PATH }}
+            find . -type f -not -path "./storage/logs/*" -exec chmod 664 {} \;
+            find . -type d -not -name "logs" -exec chmod 775 {} \;
+            chmod -R o+w storage bootstrap/cache
+
+            MARKER="storage/.bootstrapped"
+            if [ "$FORCE_FRESH" = "true" ] || [ ! -f "\$MARKER" ]; then
+              echo "==> First deploy detected (or fresh install forced): running migrate:fresh --seed"
+              $PHP_BIN artisan migrate:fresh --seed --force
+              touch "\$MARKER"
+            else
+              echo "==> Recurring deploy: running migrate"
+              $PHP_BIN artisan migrate --force
+            fi
+
+            if [ "$RUN_SHARED_MIGRATION" = "true" ]; then
+              echo "==> Explicitly requested: running amana:migrate-shared (amana_commun)"
+              $PHP_BIN artisan amana:migrate-shared --force
+            fi
+
+            $PHP_BIN artisan optimize:clear
+            $PHP_BIN artisan storage:link || true
+            $PHP_BIN artisan optimize
+            $PHP_BIN artisan up
+          EOF

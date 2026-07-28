@@ -1,0 +1,25 @@
+/* resources/css/app.css
+ * Point d'entrée Vite — compilé vers public/build/assets/app-[hash].css
+ *
+ * Ordre (important : tous les @import DOIVENT précéder toute autre règle) :
+ *   1. Google Fonts
+ *   2. Jetons de couleur + shell partagé (sidebar, hamburger, flash...)
+ *      — voir tailwind.config.js pour l'override accent/sidebar terracotta,
+ *      propre à Familles.
+ *   3. Résiduel propre à Familles, s'il y en a
+ *   4. Directives Tailwind (base, components, utilities)
+ */
+
+/* ── Google Fonts ── */
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap");
+
+/* ── Jetons de couleur + shell partagé (amana/shared-ui) ── */
+@import "@amana/shared-ui/styles/amana-shared.css";
+
+/* ── Styles résiduels propres à Familles, si besoin ── */
+@import "../../public/css/custom.css";
+
+/* ── Tailwind ── */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

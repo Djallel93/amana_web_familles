@@ -1,0 +1,14 @@
+/*
+ * public/css/custom.css
+ * Styles résiduels propres à AMANA Familles.
+ *
+ * Vide pour l'instant : le contenu précédent de ce fichier était une copie
+ * quasi intégrale du custom.css de amana_web_planning (sidebar, hamburger,
+ * scrollbar, flash — désormais dans @amana/shared-ui/styles/amana-shared.css
+ * — et des classes de "chips" de tâches planning comme .chip-entree/
+ * .chip-mektaba, qui n'ont pas d'équivalent dans le domaine Familles et ne
+ * sont utilisées nulle part dans resources/ — vérifié par recherche avant
+ * suppression). Ce fichier reste importé par resources/css/app.css comme
+ * point d'extension pour tout style propre à Familles qui apparaîtrait à
+ * l'avenir (ex. styles spécifiques à la carte des secteurs/quartiers).
+ */

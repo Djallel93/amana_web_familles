@@ -1,0 +1,48 @@
+# ── Dépendances / build ───────────────────────────────────────────────────
+/node_modules
+/vendor
+/public/build
+/public/hot
+/public/storage
+composer.local.json
+
+# ── Laravel ───────────────────────────────────────────────────────────────
+/.phpunit.cache
+/storage/*.key
+/storage/pail
+/bootstrap/cache/*.php
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+/database/database.sqlite
+
+# ── Environnement / configuration locale ────────────────────────────────
+.env
+.env.backup
+.env.production
+.phpactor.json
+/auth.json
+
+# ── Secrets / identifiants ──────────────────────────────────────────────
+ionos_deploy_key
+ionos_deploy_key.pub
+*cloud_service_account_credentials.json
+
+# ── Éditeurs / IDE ────────────────────────────────────────────────────────
+/.fleet
+/.idea
+/.nova
+/.vscode
+/.zed
+
+# ── Logs ──────────────────────────────────────────────────────────────────
+npm-debug.log
+yarn-error.log
+
+# ── Scratch / scripts locaux ─────────────────────────────────────────────
+todo*.md
+fix-perms.sh
+test_webhook.sh
+/debug/**
+database/seeders/LocalCalendarsSeeder.php
+client_secret*
