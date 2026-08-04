@@ -17,12 +17,14 @@ normally run shared-table migrations against the `amana` database).
 ## amana_web_familles
 
 **New files:**
+
 - `database/migrations/2026_07_17_000001_add_google_resource_name_to_familles.php`
 - `app/Jobs/SynchroniserContactGoogle.php` — replaces `app/Jobs/EnvoyerWebhookContact.php`
 - `app/Services/GoogleContactsService.php`
 - `app/Http/Controllers/Admin/GoogleContactsController.php`
 
 **Changed files (full contents, copy over your existing versions):**
+
 - `app/Models/Famille.php` — added `google_resource_name` to `$fillable`
 - `app/Models/Setting.php` — added `'encrypted'` type support (`setEncrypted()`, decrypt-on-read)
 - `app/Http/Controllers/FamillesController.php` — dispatches `SynchroniserContactGoogle` instead of `EnvoyerWebhookContact`
@@ -36,27 +38,31 @@ normally run shared-table migrations against the `amana` database).
 ## Setup steps (in order)
 
 1. Copy the files into place, then:
-   ```bash
-   composer require google/apiclient   # or just `composer install` after merging composer.json
-   ```
+
+    ```bash
+    composer require google/apiclient   # or just `composer install` after merging composer.json
+    ```
+
 2. In **amana_web_planning**: `php artisan migrate`
 3. In **amana_web_familles**: `php artisan migrate`
 4. In Google Cloud Console (your existing AMANA project) → APIs & Services →
    Credentials: create (or reuse) an **OAuth 2.0 Client ID — Web application**,
    and add an authorized redirect URI matching exactly what you'll put in
    `GOOGLE_CONTACTS_REDIRECT_URI`, e.g.:
-   - Local: `http://familles.test/admin/google-contacts/callback`
-   - Prod: `https://<your-familles-domain>/admin/google-contacts/callback`
-   Also make sure **People API** is enabled for the project.
+    - Local: `http://familles.test/admin/google-contacts/callback`
+    - Prod: `https://<your-familles-domain>/admin/google-contacts/callback`
+      Also make sure **People API** is enabled for the project.
 5. Set in `.env`:
-   ```
-   GOOGLE_CONTACTS_CLIENT_ID=...
-   GOOGLE_CONTACTS_CLIENT_SECRET=...
-   GOOGLE_CONTACTS_REDIRECT_URI=http://familles.test/admin/google-contacts/callback
-   GOOGLE_CONTACTS_ACCOUNT_EMAIL=amana44.pole.social@gmail.com
-   ```
-   Remove the old `MAKE_CONTACT_WEBHOOK_URL` / `MAKE_CONTACT_WEBHOOK_APIKEY`
-   lines (geocoding's `MAKE_GEOCODING_*` stays untouched).
+
+    ```txt
+    GOOGLE_CONTACTS_CLIENT_ID=...
+    GOOGLE_CONTACTS_CLIENT_SECRET=...
+    GOOGLE_CONTACTS_REDIRECT_URI=http://familles.test/admin/google-contacts/callback
+    GOOGLE_CONTACTS_ACCOUNT_EMAIL=amana44.pole.social@gmail.com
+    ```
+
+    Remove the old `MAKE_CONTACT_WEBHOOK_URL` / `MAKE_CONTACT_WEBHOOK_APIKEY`
+    lines (geocoding's `MAKE_GEOCODING_*` stays untouched).
 6. As an admin user, **log into the browser with the
    `amana44.pole.social@gmail.com` Google account**, then visit:
    `/admin/google-contacts/authorize`
@@ -71,7 +77,7 @@ normally run shared-table migrations against the `amana` database).
 
 - If step 6 ever needs to be redone (revoked/expired token), first revoke
   existing access at <https://myaccount.google.com/permissions> for that
-  Google account, *then* revisit `/admin/google-contacts/authorize` — Google
+  Google account, _then_ revisit `/admin/google-contacts/authorize` — Google
   only reliably re-issues a refresh token when there's no prior active grant.
 - Geocoding (`ResoudreAdresseFamille`, `MAKE_GEOCODING_*`) is completely
   untouched, as agreed.

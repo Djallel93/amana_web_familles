@@ -16,11 +16,11 @@
     ],
     "require": {
         "php": "^8.4",
-        "laravel/framework": "^13.0",
-        "nesbot/carbon": "^3.0",
-        "laravel/tinker": "^3.0",
+        "amana/shared": "^1.0.1",
         "google/apiclient": "^2.18",
-        "amana/shared": "^1.0"
+        "laravel/framework": "^13.0",
+        "laravel/tinker": "^3.0",
+        "nesbot/carbon": "^3.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
