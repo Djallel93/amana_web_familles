@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 namespace App\Notifications;
 
-use App\Notifications\Concerns\EmbedsLogo;
+use Amana\Shared\Notifications\Concerns\EmbedsLogo;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;

@@ -14,10 +14,26 @@ return [
 
     'home_route' => env('AMANA_HOME_ROUTE', 'familles.index'),
 
+    'email_theme' => [
+        'header_bg' => '#2e1a0f',
+        'accent' => '#b45309',
+        'accent_dark' => '#c2703a',
+        'accent_light' => '#d97706',
+        'accent_rgb' => '180, 83, 9',
+        'accent_light_rgb' => '217, 119, 6',
+        'accent_light_text' => '#fbd9ab',
+        'accent_pale_text' => '#fde8c8',
+        'accent_darker' => '#78350f',
+        'hadith_french_text' => '#7c4a1e',
+        'accent_pale_bg' => '#fdf6ec',
+        'accent_pale_border' => '#f0dcb8',
+    ],
+
     'branding' => [
         'app_name' => 'AMANA Familles',
         'tagline' => 'Gestion des dossiers familles bénéficiaires',
         'tagline_short' => 'Familles',
+        'email_footer_text' => "Vous recevez cet email suite à une action d'un administrateur sur AMANA Familles.",
         'features' => [
             ['🗂️', 'Suivi centralisé des dossiers familles'],
             ['📍', 'Cartographie secteurs / quartiers'],

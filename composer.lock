@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "f6ea98edcb15acfe78c1cada460823fa",
+    "content-hash": "f8237fb56d6268300ea634105d8da212",
     "packages": [
         {
             "name": "amana/shared",
-            "version": "v1.0.1",
+            "version": "v1.0.5",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Djallel93/amana_shared.git",
-                "reference": "3f7b0139773e9b063d6c7ea9f04601c6ffb05386"
+                "reference": "78430a3907eac04937b33367c8654c0fe62d1e7d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/3f7b0139773e9b063d6c7ea9f04601c6ffb05386",
-                "reference": "3f7b0139773e9b063d6c7ea9f04601c6ffb05386",
+                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/78430a3907eac04937b33367c8654c0fe62d1e7d",
+                "reference": "78430a3907eac04937b33367c8654c0fe62d1e7d",
                 "shasum": ""
             },
             "require": {
@@ -62,10 +62,10 @@
                 "shared"
             ],
             "support": {
-                "source": "https://github.com/Djallel93/amana_shared/tree/v1.0.1",
+                "source": "https://github.com/Djallel93/amana_shared/tree/v1.0.5",
                 "issues": "https://github.com/Djallel93/amana_shared/issues"
             },
-            "time": "2026-08-04T18:16:28+00:00"
+            "time": "2026-08-08T13:14:31+00:00"
         },
         {
             "name": "brick/math",
