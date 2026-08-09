@@ -56,7 +56,8 @@
                                 <td class="px-4 py-2.5 text-ink-faint">{{ $import->rows_skipped_count }}</td>
                                 <td class="px-4 py-2.5 text-right">
                                     <a href="{{ route('admin.imports.show', $import->id) }}"
-                                        class="text-accent hover:text-accent-dark text-[12.5px] font-semibold no-underline">
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-lg
+                                                    shadow-[0_2px_8px_rgba(180,83,9,0.25)] hover:-translate-y-px active:translate-y-0 transition-all no-underline">
                                         Détails →
                                     </a>
                                 </td>

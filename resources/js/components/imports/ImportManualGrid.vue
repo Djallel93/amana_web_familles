@@ -61,6 +61,7 @@ async function envoyer(): Promise<void> {
     }
 
     submitting.value = true;
+    document.getElementById('import-overlay')?.classList.remove('hidden');
     try {
         const res = await fetch(storeUrl.value, {
             method: 'POST',
@@ -79,6 +80,7 @@ async function envoyer(): Promise<void> {
         window.location.href = data.redirect;
     } catch (e) {
         toast.error('Échec de l\'import.');
+        document.getElementById('import-overlay')?.classList.add('hidden');
     } finally {
         submitting.value = false;
     }

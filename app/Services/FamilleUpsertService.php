@@ -43,7 +43,11 @@ class FamilleUpsertService
      * explicitement fourni dans $donnees (préserve le travail de triage du
      * staff sinon) — sur une création, $defauts s'applique.
      *
-     * @return array{famille: Famille, cree: bool}
+     * `avant` (snapshot pré-mise à jour, null sur une création) est renvoyé
+     * pour permettre à l'appelant de stocker un point de restauration —
+     * voir FamilleImportRow::donnees_avant / FamilleImportRollbackService.
+     *
+     * @return array{famille: Famille, cree: bool, avant: ?array}
      */
     public function upsert(array $donnees, array $defauts = []): array
     {
@@ -56,13 +60,13 @@ class FamilleUpsertService
 
             audit('update', 'familles', $existante->id, $avant, $existante->toArray());
 
-            return ['famille' => $existante, 'cree' => false];
+            return ['famille' => $existante, 'cree' => false, 'avant' => $avant];
         }
 
         $famille = Famille::create(array_merge($defauts, $donnees));
 
         audit('create', 'familles', $famille->id, null, $famille->toArray());
 
-        return ['famille' => $famille, 'cree' => true];
+        return ['famille' => $famille, 'cree' => true, 'avant' => null];
     }
 }

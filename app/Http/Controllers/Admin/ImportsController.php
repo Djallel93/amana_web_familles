@@ -6,14 +6,18 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\SynchroniserContactGoogle;
 use App\Models\FamilleImport;
 use App\Models\FamilleImportRow;
+use App\Services\FamilleImportRollbackService;
 use App\Services\FamilleImportService;
+use App\Support\FamilleCsvParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use RuntimeException;
 
 /**
  * Import/mise à jour en masse — décision 6.9 : deux modes d'alimentation
@@ -31,6 +35,7 @@ class ImportsController extends Controller
 {
     public function __construct(
         private readonly FamilleImportService $importService,
+        private readonly FamilleImportRollbackService $rollbackService,
     ) {
     }
 
@@ -83,58 +88,12 @@ class ImportsController extends Controller
     }
 
     /**
-     * Colonnes CSV attendues (en-tête, insensible à la casse) : nom, prenom,
-     * telephone, email, telephone_bis, adresse, code_postal, ville,
-     * nombre_adulte, nombre_enfant, zakat_el_fitr, sadaqa, se_deplace,
-     * criticite, langue, etat_dossier, commentaire_dossier.
-     * "ville" (pas "ville_texte") côté CSV pour rester lisible côté staff ;
-     * mappé vers ville_texte en interne.
+     * Colonnes CSV attendues : voir FamilleCsvParser (logique partagée avec
+     * FamilleCsvSeeder, pour ne pas diverger entre les deux chemins d'import).
      */
     private function parserCsv(string $path): array
     {
-        $handle = fopen($path, 'r');
-        if (!$handle) {
-            return [];
-        }
-
-        $entetes = fgetcsv($handle, 0, ';') ?: fgetcsv($handle, 0, ',');
-        if (!$entetes) {
-            fclose($handle);
-            return [];
-        }
-        // Détection automatique du séparateur (';' usage courant Excel FR, ',' sinon).
-        $separateur = count($entetes) > 1 ? ';' : ',';
-        if ($separateur === ',') {
-            rewind($handle);
-            $entetes = fgetcsv($handle, 0, ',');
-        }
-
-        $entetes = array_map(fn($e) => strtolower(trim((string) $e)), $entetes);
-        $mapVille = array_search('ville', $entetes, true);
-        if ($mapVille !== false) {
-            $entetes[$mapVille] = 'ville_texte';
-        }
-
-        $champsBooleens = ['zakat_el_fitr', 'sadaqa', 'se_deplace'];
-        $lignes = [];
-
-        while (($valeurs = fgetcsv($handle, 0, $separateur)) !== false) {
-            if (count($valeurs) === 1 && trim((string) $valeurs[0]) === '') {
-                continue; // ligne vide
-            }
-            $ligne = [];
-            foreach ($entetes as $i => $cle) {
-                $valeur = trim((string) ($valeurs[$i] ?? ''));
-                if (in_array($cle, $champsBooleens, true)) {
-                    $valeur = in_array(strtolower($valeur), ['1', 'oui', 'yes', 'true', 'vrai', 'x'], true) ? '1' : '0';
-                }
-                $ligne[$cle] = $valeur;
-            }
-            $lignes[] = $ligne;
-        }
-
-        fclose($handle);
-        return $lignes;
+        return FamilleCsvParser::parse($path);
     }
 
     // ── Saisie manuelle (UI, plusieurs lignes) ──────────────────────────────
@@ -151,6 +110,62 @@ class ImportsController extends Controller
             'importId' => $import->id,
             'redirect' => route('admin.imports.show', $import->id),
         ]);
+    }
+
+    // ── Rollback ─────────────────────────────────────────────────────────
+
+    public function rollback(int $id): RedirectResponse
+    {
+        $import = FamilleImport::findOrFail($id);
+
+        try {
+            $nombre = $this->rollbackService->annuler($import);
+        } catch (RuntimeException $e) {
+            return back()->withErrors(['import' => $e->getMessage()]);
+        }
+
+        return redirect()->route('admin.imports.show', $import->id)
+            ->with('success', "Import annulé : {$nombre} dossier(s) restauré(s) ou supprimé(s).");
+    }
+
+    // ── Synchronisation Google Contacts ─────────────────────────────────────
+
+    public function syncGoogleContacts(int $id): RedirectResponse
+    {
+        $import = FamilleImport::findOrFail($id);
+
+        if ($import->rolled_back_at) {
+            return back()->withErrors(['sync' => 'Cet import a été annulé — synchronisation impossible.']);
+        }
+
+        $idsFamilles = $import->rows()
+            ->where('status', 'success')
+            ->whereNotNull('id_famille')
+            ->pluck('id_famille');
+
+        foreach ($idsFamilles as $idFamille) {
+            SynchroniserContactGoogle::dispatch($idFamille);
+        }
+
+        return back()->with('success', "Synchronisation Google Contacts lancée pour {$idsFamilles->count()} dossier(s).");
+    }
+
+    public function syncGoogleContactsRow(int $id, int $rowId): RedirectResponse
+    {
+        $import = FamilleImport::findOrFail($id);
+        $row = $import->rows()->findOrFail($rowId);
+
+        if ($import->rolled_back_at) {
+            return back()->withErrors(['sync' => 'Cet import a été annulé — synchronisation impossible.']);
+        }
+
+        if ($row->status !== 'success' || !$row->id_famille) {
+            return back()->withErrors(['sync' => "Cette ligne n'a pas de dossier associé à synchroniser."]);
+        }
+
+        SynchroniserContactGoogle::dispatch($row->id_famille);
+
+        return back()->with('success', 'Synchronisation Google Contacts lancée pour ce dossier.');
     }
 
     // ── Pipeline commun ──────────────────────────────────────────────────
@@ -173,6 +188,9 @@ class ImportsController extends Controller
                 'payload' => $payload,
                 'status' => $resultat['status'],
                 'error_message' => $resultat['error_message'],
+                'id_famille' => $resultat['id_famille'],
+                'cree' => $resultat['cree'],
+                'donnees_avant' => $resultat['donnees_avant'],
             ]);
         }
 

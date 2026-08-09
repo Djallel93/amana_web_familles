@@ -95,6 +95,15 @@ class FamillesController extends Controller
     {
         $famille = Famille::with(['quartier.secteur.ville', 'documents'])->findOrFail($id);
 
+        // quartier.boundary / quartier.secteur.ville.boundary sont des colonnes
+        // geometry (WKB binaire) — jamais de l'UTF-8 valide. Sans ça,
+        // response()->json() plante avec "Malformed UTF-8 characters" dès
+        // qu'une famille a un quartier résolu (voir CHANGELOG). Fix propre
+        // en amont dans amana_shared (Quartier/Ville::$hidden) ; ceci reste
+        // en filet de sécurité local le temps que ce paquet soit mis à jour.
+        $famille->quartier?->makeHidden('boundary');
+        $famille->quartier?->secteur?->ville?->makeHidden('boundary');
+
         return response()->json($famille);
     }
 

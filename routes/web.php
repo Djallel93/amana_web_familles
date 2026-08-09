@@ -82,6 +82,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/imports/csv', [\App\Http\Controllers\Admin\ImportsController::class, 'storeCsv'])->name('imports.store-csv');
     Route::post('/imports/manuel', [\App\Http\Controllers\Admin\ImportsController::class, 'storeManuel'])->name('imports.store-manuel');
     Route::get('/imports/{id}', [\App\Http\Controllers\Admin\ImportsController::class, 'show'])->name('imports.show');
+    Route::post('/imports/{id}/annuler', [\App\Http\Controllers\Admin\ImportsController::class, 'rollback'])->name('imports.rollback');
+    Route::post('/imports/{id}/synchroniser-google-contacts', [\App\Http\Controllers\Admin\ImportsController::class, 'syncGoogleContacts'])->name('imports.sync-google-contacts');
+    Route::post('/imports/{id}/lignes/{rowId}/synchroniser-google-contacts', [\App\Http\Controllers\Admin\ImportsController::class, 'syncGoogleContactsRow'])->name('imports.rows.sync-google-contacts');
 
     // ── Statistiques d'activité (mesure l'usage de l'app elle-même) ─────
     Route::prefix('activite')->name('activite.')->group(function () {

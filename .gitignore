@@ -46,3 +46,6 @@ test_webhook.sh
 /debug/**
 database/seeders/LocalCalendarsSeeder.php
 client_secret*
+
+# ── Données réelles (PII) ──────────────────────────────────────────────────
+/database/seeders/data/*.csv

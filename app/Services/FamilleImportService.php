@@ -27,14 +27,34 @@ class FamilleImportService
     }
 
     /**
-     * @return array{status: string, error_message: ?string, id_famille: ?int}
+     * @return array{status: string, error_message: ?string, id_famille: ?int, cree: ?bool, donnees_avant: ?array}
      *         status ∈ pending|success|error|skipped (voir famille_import_rows)
+     *         cree/donnees_avant ne sont renseignés que si status = success
+     *         (voir FamilleUpsertService::upsert() — permettent le rollback).
      */
     public function traiterLigne(array $payload): array
     {
         // Ligne entièrement vide (ex : ligne blanche en fin de CSV) → ignorée.
         if (empty(array_filter($payload, fn($v) => $v !== null && $v !== ''))) {
-            return ['status' => 'skipped', 'error_message' => 'Ligne vide', 'id_famille' => null];
+            return ['status' => 'skipped', 'error_message' => 'Ligne vide', 'id_famille' => null, 'cree' => null, 'donnees_avant' => null];
+        }
+
+        // Filet de sécurité : FamilleCsvParser normalise déjà l'encodage en
+        // amont, mais on refuse ici toute valeur qui ne serait malgré tout
+        // pas de l'UTF-8 valide plutôt que de la laisser atteindre la base —
+        // une chaîne invalide stockée en colonne utf8mb4 casse le JSON
+        // renvoyé par FamillesController::show() bien plus tard, sans lien
+        // évident avec l'import qui en est la cause (voir CHANGELOG).
+        foreach ($payload as $champ => $valeur) {
+            if (is_string($valeur) && !mb_check_encoding($valeur, 'UTF-8')) {
+                return [
+                    'status' => 'error',
+                    'error_message' => "Encodage invalide sur le champ « {$champ} » (fichier probablement pas en UTF-8).",
+                    'id_famille' => null,
+                    'cree' => null,
+                    'donnees_avant' => null,
+                ];
+            }
         }
 
         $validator = Validator::make($payload, [
@@ -62,6 +82,8 @@ class FamilleImportService
                 'status' => 'error',
                 'error_message' => $validator->errors()->first(),
                 'id_famille' => null,
+                'cree' => null,
+                'donnees_avant' => null,
             ];
         }
 
@@ -79,9 +101,15 @@ class FamilleImportService
                 ResoudreAdresseFamille::dispatch($resultat['famille']->id);
             }
 
-            return ['status' => 'success', 'error_message' => null, 'id_famille' => $resultat['famille']->id];
+            return [
+                'status' => 'success',
+                'error_message' => null,
+                'id_famille' => $resultat['famille']->id,
+                'cree' => $resultat['cree'],
+                'donnees_avant' => $resultat['avant'],
+            ];
         } catch (\Throwable $e) {
-            return ['status' => 'error', 'error_message' => $e->getMessage(), 'id_famille' => null];
+            return ['status' => 'error', 'error_message' => $e->getMessage(), 'id_famille' => null, 'cree' => null, 'donnees_avant' => null];
         }
     }
 }
