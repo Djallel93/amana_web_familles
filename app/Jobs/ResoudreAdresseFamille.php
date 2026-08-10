@@ -118,6 +118,11 @@ class ResoudreAdresseFamille implements ShouldQueue
                 'raison' => 'zero_results',
                 'statut' => $resultat->statutBrut,
             ]);
+            // Visible dans "Nouvelles demandes"/liste des dossiers (badge
+            // rouge) — demande du 09/08/2026 : le staff doit voir qu'une
+            // intervention manuelle est nécessaire, pas seulement un log.
+            $famille->probleme_traitement = "Adresse non localisée automatiquement par Google (aucun résultat) — vérifier/corriger l'adresse ou renseigner le quartier manuellement.";
+            $famille->save();
             return;
         }
 
@@ -128,6 +133,12 @@ class ResoudreAdresseFamille implements ShouldQueue
 
         $avant = $famille->only(['id_quartier']);
         $famille->id_quartier = $idQuartier;
+        // Résolution réussie (même sans quartier trouvé dans les polygones,
+        // décision 6.7 — la ville/coordonnées ont bien été trouvées, le
+        // problème n'est plus l'adresse elle-même) : on efface un éventuel
+        // signalement antérieur, par exemple après une nouvelle tentative
+        // manuelle par le staff.
+        $famille->probleme_traitement = null;
         $famille->save();
 
         Log::info('[ResoudreAdresseFamille] Résolution terminée', [
@@ -182,5 +193,25 @@ class ResoudreAdresseFamille implements ShouldQueue
         ", [$ville->id]);
 
         return $quartier?->id;
+    }
+
+    /**
+     * Appelé par Laravel une fois les tentatives épuisées (via l'exception
+     * levée normalement, ou $this->fail() explicite ci-dessus pour un échec
+     * transitoire non-métier). Couvre le "ou autre chose" de la demande du
+     * 09/08/2026 : toute panne technique qui a fini par échouer
+     * définitivement, pas seulement l'adresse introuvable (déjà géré dans
+     * handle() ci-dessus, qui ne lève pas d'exception).
+     */
+    public function failed(\Throwable $exception): void
+    {
+        $famille = Famille::find($this->idFamille);
+
+        if (!$famille) {
+            return;
+        }
+
+        $famille->probleme_traitement = 'La résolution automatique de l\'adresse a échoué après plusieurs tentatives (problème technique) — vérifier/renseigner le quartier manuellement.';
+        $famille->save();
     }
 }

@@ -26,7 +26,7 @@ interface Quartier {
 
 interface Document {
     id: number;
-    type: 'identity' | 'aides_etat' | 'resource';
+    type: 'identity' | 'caf' | 'ame' | 'resource';
     original_name: string;
     mime_type: string;
     uploaded_at: string;
@@ -56,10 +56,14 @@ interface Famille {
     langue: string;
     etat_dossier: string;
     commentaire_dossier: string | null;
+    probleme_traitement: string | null;
     documents: Document[];
 }
 
-const ETATS = ['Recu', 'En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
+// 'Recu' exclu : réservé aux nouvelles soumissions du formulaire public
+// (voir Famille::ETATS_MODIFIABLES côté backend, qui rejette toute
+// tentative de le sélectionner ici) — décision du 09/08/2026.
+const ETATS = ['En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
 const LANGUES = [
     { code: 'fr', label: 'Français' },
     { code: 'ar', label: 'العربية' },
@@ -67,7 +71,8 @@ const LANGUES = [
 ];
 const TYPES_DOCUMENTS = [
     { code: 'identity', label: "Pièce d'identité" },
-    { code: 'aides_etat', label: "Justificatif d'aide d'État" },
+    { code: 'caf', label: 'Attestation CAF' },
+    { code: 'ame', label: "Aide médicale de l'État (AME)" },
     { code: 'resource', label: 'Justificatif de ressources' },
 ];
 
@@ -388,6 +393,12 @@ onMounted(() => {
                                 <option v-for="l in LANGUES" :key="l.code" :value="l.code">{{ l.label }}</option>
                             </select>
                         </div>
+                    </div>
+                    <div v-if="famille.probleme_traitement" class="flex items-start gap-2 px-3 py-2.5 rounded-md bg-rose-50 border border-rose-200 text-[12.5px] text-rose-700">
+                        <span>⚠️</span>
+                        <span>{{ famille.probleme_traitement }}
+                            <span class="block text-[11px] text-rose-500 mt-0.5">Corrigez l'adresse ci-dessus et enregistrez pour relancer la résolution automatique.</span>
+                        </span>
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-ink mb-1">Statut du dossier</label>

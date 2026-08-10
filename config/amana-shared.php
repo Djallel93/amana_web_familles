@@ -61,6 +61,7 @@ return [
 
     'nav' => [
         ['section' => 'Dossiers'],
+        ['route' => 'familles.nouvelles', 'label' => 'Nouvelles demandes', 'icon' => '📥', 'route_pattern' => 'familles.nouvelles'],
         ['route' => 'familles.index', 'label' => 'Familles', 'icon' => '🗂️', 'route_pattern' => 'familles.index'],
 
         ['section' => 'Gestion'],

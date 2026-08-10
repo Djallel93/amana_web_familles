@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property int    $id
  * @property int    $id_famille
- * @property string $type  identity | aides_etat | resource
+ * @property string $type  identity | caf | ame | resource
  * @property string $disk_path
  * @property string $original_name
  * @property string $mime_type
@@ -28,7 +28,8 @@ class FamilleDocument extends Model
 
     public const TYPES = [
         'identity' => 'Pièce d\'identité',
-        'aides_etat' => 'Justificatif d\'aide d\'État',
+        'caf' => 'Attestation CAF',
+        'ame' => 'Aide médicale de l\'État (AME)',
         'resource' => 'Justificatif de ressources',
     ];
 

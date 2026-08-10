@@ -33,7 +33,7 @@
                 <label class="block text-[10.5px] font-bold text-ink-muted uppercase tracking-wide mb-1">Statut</label>
                 <select name="etat_dossier" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface-2 outline-none focus:border-accent">
                     <option value="" {{ $etatDossier === '' ? 'selected' : '' }}>Tous</option>
-                    @foreach(\App\Models\Famille::ETATS as $etat)
+                    @foreach(\App\Models\Famille::ETATS_MODIFIABLES as $etat)
                         <option value="{{ $etat }}" {{ $etatDossier === $etat ? 'selected' : '' }}>{{ $etat }}</option>
                     @endforeach
                 </select>
@@ -156,11 +156,14 @@
                         @endphp
                         @foreach($familles as $famille)
                             <tr onclick="openFamilleDetail({{ $famille->id }})"
-                                class="border-b border-surface-3 last:border-0 hover:bg-surface-2 transition-colors cursor-pointer">
+                                class="border-b border-surface-3 last:border-0 hover:bg-surface-2 transition-colors cursor-pointer {{ $famille->probleme_traitement ? 'bg-rose-50/60' : '' }}">
                                 <td class="px-4 py-2.5 text-ink-faint font-mono text-[12px]">#{{ $famille->id }}</td>
                                 <td class="px-4 py-2.5">
                                     <div class="font-semibold text-ink">{{ $famille->prenom }} {{ $famille->nom }}</div>
                                     <div class="text-[11.5px] text-ink-muted">{{ $famille->nombre_foyer }} pers.</div>
+                                    @if($famille->probleme_traitement)
+                                        <div class="text-[11px] text-rose-600 font-semibold mt-0.5">⚠️ {{ $famille->probleme_traitement }}</div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-2.5">
                                     <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold border {{ $etatColors[$famille->etat_dossier] ?? '' }}">

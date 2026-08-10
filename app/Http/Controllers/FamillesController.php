@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
 use App\Models\Quartier;
@@ -32,16 +33,64 @@ class FamillesController extends Controller
 {
     public function index(Request $request): View
     {
-        $query = Famille::query()->with('quartier.secteur.ville');
+        $query = $this->baseQuery($request);
 
         // Filtre statut — par défaut "Validé" au premier chargement (aucun
         // paramètre etat_dossier présent dans l'URL). Le lien de réinitialisation
         // (✕) envoie explicitement etat_dossier= (vide) pour signifier "Tous",
-        // ce qui doit être distingué de l'absence du paramètre.
+        // ce qui doit être distingué de l'absence du paramètre. 'Recu' n'est
+        // volontairement plus dans les valeurs possibles ici — géré
+        // exclusivement par nouvelles() ci-dessous (décision du 09/08/2026).
         $etatDossier = $request->has('etat_dossier') ? $request->input('etat_dossier') : 'Validé';
         if ($etatDossier !== '' && $etatDossier !== null) {
             $query->where('etat_dossier', $etatDossier);
+        } else {
+            $query->where('etat_dossier', '!=', 'Recu');
         }
+
+        $familles = $query->orderByDesc('criticite')->orderBy('nom')
+            ->paginate(25)
+            ->withQueryString();
+
+        // Filtres géographiques — listes complètes indépendamment des
+        // résultats courants (villes/secteurs/quartiers sont créées vides
+        // pour l'instant, cf. décision 6.7 : ces selects seront vides tant
+        // que le peuplement des polygones n'est pas fait).
+        $villes = Ville::orderBy('nom')->get(['id', 'nom']);
+        $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
+        $quartiers = Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+
+        return view('familles.index', compact('familles', 'villes', 'secteurs', 'quartiers', 'etatDossier'));
+    }
+
+    /**
+     * "Nouvelles demandes" — file d'attente des dossiers pas encore
+     * ouverts par le staff (etat_dossier = 'Recu', réservé aux soumissions
+     * du formulaire public — voir Famille::ETATS_MODIFIABLES). Vue dédiée
+     * plutôt qu'un simple lien filtré vers index() : tri par ancienneté
+     * (le plus vieux d'abord, pas par criticité comme la liste générale,
+     * pour qu'aucune demande ne reste oubliée), et met en évidence
+     * probleme_traitement (échecs de géocodage notamment) — demande du
+     * 09/08/2026.
+     */
+    public function nouvelles(Request $request): View
+    {
+        $query = $this->baseQuery($request)->where('etat_dossier', 'Recu');
+
+        $familles = $query->orderBy('created_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        return view('familles.nouvelles', compact('familles'));
+    }
+
+    /**
+     * Base commune à index() et nouvelles() — seuls le filtre de statut et
+     * le tri diffèrent entre les deux vues.
+     */
+    private function baseQuery(Request $request)
+    {
+        $query = Famille::query()->with('quartier.secteur.ville');
 
         if ($request->filled('id_quartier')) {
             $query->where('id_quartier', $request->input('id_quartier'));
@@ -74,19 +123,7 @@ class FamillesController extends Controller
             $query->recherche($request->input('recherche'));
         }
 
-        $familles = $query->orderByDesc('criticite')->orderBy('nom')
-            ->paginate(25)
-            ->withQueryString();
-
-        // Filtres géographiques — listes complètes indépendamment des
-        // résultats courants (villes/secteurs/quartiers sont créées vides
-        // pour l'instant, cf. décision 6.7 : ces selects seront vides tant
-        // que le peuplement des polygones n'est pas fait).
-        $villes = Ville::orderBy('nom')->get(['id', 'nom']);
-        $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
-        $quartiers = Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
-
-        return view('familles.index', compact('familles', 'villes', 'secteurs', 'quartiers', 'etatDossier'));
+        return $query;
     }
 
     // ── Panneau de détail (consommé en JSON par DetailPanel.vue) ─────────
@@ -131,7 +168,7 @@ class FamillesController extends Controller
             'specificites' => ['nullable', 'string'],
             'criticite' => ['required', 'integer', 'min:0', 'max:5'],
             'langue' => ['required', 'string', 'in:fr,ar,en'],
-            'etat_dossier' => ['required', 'string', 'in:' . implode(',', Famille::ETATS)],
+            'etat_dossier' => ['required', 'string', 'in:' . implode(',', Famille::ETATS_MODIFIABLES)],
             'commentaire_dossier' => ['nullable', 'string'],
         ], [
             'nom.required' => 'Le nom est obligatoire.',
@@ -144,9 +181,32 @@ class FamillesController extends Controller
 
         $avant = $famille->toArray();
         $etaitValide = $famille->etat_dossier === 'Validé';
+        // Détecté AVANT fill() : sert à décider si on relance le géocodage
+        // après l'enregistrement (voir plus bas).
+        $adresseModifiee = $famille->adresse !== $validated['adresse']
+            || $famille->code_postal !== ($validated['code_postal'] ?? null)
+            || $famille->ville_texte !== ($validated['ville_texte'] ?? null);
 
         $famille->fill($validated);
+        // Le staff a renseigné/corrigé le quartier manuellement — un
+        // éventuel signalement d'échec de géocodage n'a plus lieu d'être
+        // (demande du 09/08/2026 : le badge rouge doit disparaître une fois
+        // le problème résolu, pas rester affiché indéfiniment).
+        if ($request->filled('id_quartier')) {
+            $famille->probleme_traitement = null;
+        }
         $famille->save();
+
+        // Adresse corrigée par le staff (ex : suite à un ZERO_RESULTS
+        // signalé dans probleme_traitement) et aucun quartier choisi
+        // manuellement dans le même enregistrement : on relance la
+        // résolution automatique plutôt que de laisser le badge rouge
+        // affiché indéfiniment sans action possible — demande du
+        // 09/08/2026 (le message affiché dans DetailPanel.vue promet
+        // explicitement ce comportement).
+        if ($adresseModifiee && !$request->filled('id_quartier')) {
+            ResoudreAdresseFamille::dispatch($famille->id);
+        }
 
         audit('update', 'familles', $famille->id, $avant, $famille->toArray());
 
@@ -174,7 +234,7 @@ class FamillesController extends Controller
         $famille = Famille::findOrFail($id);
 
         $request->validate([
-            'type' => ['required', 'string', 'in:identity,aides_etat,resource'],
+            'type' => ['required', 'string', 'in:identity,caf,ame,resource'],
             'fichier' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
         ], [
             'fichier.required' => 'Aucun fichier sélectionné.',

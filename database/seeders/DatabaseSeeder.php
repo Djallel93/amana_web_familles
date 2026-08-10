@@ -72,5 +72,11 @@ class DatabaseSeeder extends Seeder
 
         $roleService->syncRoleFamilles($admin, 'admin');
         $this->command->info('✅ Rôle admin (familles) attribué à admin@amana.fr');
+
+        // ── Listes fermées du formulaire d'intake ────────────────────────
+        $this->call([
+            SecteurActiviteSeeder::class,
+            OrganismeAideSeeder::class,
+        ]);
     }
 }

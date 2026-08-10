@@ -8,6 +8,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -29,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $ville_texte
  * @property int|null    $id_quartier
  * @property bool        $se_deplace
+ * @property bool        $est_hotel
  * @property string|null $circonstances
  * @property string|null $ressentit
  * @property string|null $specificites
@@ -36,6 +38,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string      $langue
  * @property string      $etat_dossier
  * @property string|null $commentaire_dossier
+ * @property string|null $probleme_traitement
+ * @property string|null $type_hebergement    organisation | proche | non
+ * @property string|null $hosted_by
+ * @property string|null $type_piece_identite nationalite | titre_sejour | demande_asile | autre
+ * @property string|null $type_activite       temps_plein | temps_partiel | non
+ * @property int|null    $work_days
+ * @property string|null $secteur_activite_autre
+ * @property string|null $organisme_aide_autre
  * @property string|null $google_resource_name
  */
 class Famille extends Model
@@ -60,10 +70,13 @@ class Famille extends Model
         'nom', 'prenom', 'email', 'telephone', 'telephone_bis',
         'zakat_el_fitr', 'sadaqa',
         'nombre_adulte', 'nombre_enfant',
-        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'se_deplace',
+        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'se_deplace', 'est_hotel',
         'circonstances', 'ressentit', 'specificites', 'criticite', 'langue',
-        'etat_dossier', 'commentaire_dossier',
-        'hosted', 'hosted_by', 'working', 'work_days', 'work_sector', 'other_aid',
+        'etat_dossier', 'commentaire_dossier', 'probleme_traitement',
+        'type_hebergement', 'hosted_by',
+        'type_piece_identite',
+        'type_activite', 'work_days', 'secteur_activite_autre',
+        'organisme_aide_autre',
         'google_resource_name',
     ];
 
@@ -71,9 +84,7 @@ class Famille extends Model
         'zakat_el_fitr' => 'boolean',
         'sadaqa' => 'boolean',
         'se_deplace' => 'boolean',
-        'hosted' => 'boolean',
-        'working' => 'boolean',
-        'other_aid' => 'boolean',
+        'est_hotel' => 'boolean',
         'nombre_adulte' => 'integer',
         'nombre_enfant' => 'integer',
         'criticite' => 'integer',
@@ -81,7 +92,16 @@ class Famille extends Model
     ];
 
     public const ETATS = ['Recu', 'En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
+    // 'Recu' est exclusif à la soumission du formulaire public (voir
+    // IntakeController::store) — jamais sélectionnable manuellement par le
+    // staff, qui travaille depuis "Nouvelles demandes" plutôt que d'y
+    // revenir. Utilisé pour la validation de FamillesController::update()
+    // et le <select> de statut de DetailPanel.vue — demande du 09/08/2026.
+    public const ETATS_MODIFIABLES = ['En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
     public const LANGUES = ['fr' => 'Français', 'ar' => 'العربية', 'en' => 'English'];
+    public const TYPES_HEBERGEMENT = ['organisation', 'proche', 'non'];
+    public const TYPES_PIECE_IDENTITE = ['nationalite', 'titre_sejour', 'demande_asile', 'autre'];
+    public const TYPES_ACTIVITE = ['temps_plein', 'temps_partiel', 'non'];
 
     // ── Relations ─────────────────────────────────────────────────────────
 
@@ -98,6 +118,16 @@ class Famille extends Model
     public function verifications(): HasMany
     {
         return $this->hasMany(FamilleVerification::class, 'id_famille');
+    }
+
+    public function secteursActivite(): BelongsToMany
+    {
+        return $this->belongsToMany(SecteurActivite::class, 'famille_secteur_activite', 'id_famille', 'id_secteur_activite');
+    }
+
+    public function organismesAide(): BelongsToMany
+    {
+        return $this->belongsToMany(OrganismeAide::class, 'famille_organisme_aide', 'id_famille', 'id_organisme_aide');
     }
 
     // ── Accesseurs ────────────────────────────────────────────────────────
@@ -154,6 +184,21 @@ class Famille extends Model
     public function getDocumentsIdentiteManquantsAttribute(): bool
     {
         return !$this->documents()->where('type', 'identity')->exists();
+    }
+
+    /**
+     * Type de document (caf|ame) attendu à l'étape "Situation administrative"
+     * du formulaire d'intake, déterminé par type_piece_identite — reprend le
+     * branchement du Google Form historique : Nationalité / Titre de séjour /
+     * Demande d'asile → CAF, Autre → AME.
+     */
+    public function getTypeDocumentAideAttribute(): ?string
+    {
+        if (!$this->type_piece_identite) {
+            return null;
+        }
+
+        return $this->type_piece_identite === 'autre' ? 'ame' : 'caf';
     }
 
     // ── Scopes de filtre (vue principale — section 8.2) ──────────────────

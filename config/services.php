@@ -57,6 +57,26 @@ return [
 
         'maps' => [
             'geocoding_api_key' => env('GOOGLE_MAPS_GEOCODING_API_KEY'),
+
+            /*
+            |------------------------------------------------------------
+            | Google Places Autocomplete (formulaire d'intake, champ
+            | adresse — PlaceAutocompleteElement) — volontairement une
+            | clé DISTINCTE de geocoding_api_key ci-dessus : celle-ci est
+            | exposée au navigateur (chargée dans IntakeForm.vue), donc
+            | restreinte dans Google Cloud Console par référent HTTP
+            | (domaine du site), PAS par IP serveur. Ne jamais réutiliser
+            | geocoding_api_key ici.
+            |
+            | Nécessite "Places API (New)" activée sur le projet — PAS
+            | "Places API" (legacy) : google.maps.places.Autocomplete
+            | (legacy) est bloqué depuis mars 2025 pour tout projet Google
+            | Cloud n'ayant jamais utilisé les Places API auparavant, donc
+            | inutilisable ici. PlaceAutocompleteElement (utilisé dans
+            | IntakeForm.vue) exige la version "New".
+            |------------------------------------------------------------
+            */
+            'places_api_key' => env('GOOGLE_MAPS_PLACES_API_KEY'),
         ],
     ],
 

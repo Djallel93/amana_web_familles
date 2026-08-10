@@ -42,12 +42,21 @@ Route::post('/reinitialiser-mot-de-passe', [AuthController::class, 'resetPasswor
     ->middleware('throttle:10,1');
 
 // ── Formulaire public d'intake (aucune authentification — familles) ─────
+// throttle:5,1 sur /demande (store) + piège à robots (champ site_web,
+// silencieusement ignoré côté IntakeController::store) : deux couches
+// complémentaires contre le spam/bots, demande du 09/08/2026.
 Route::get('/demande/{langue?}', [\App\Http\Controllers\IntakeController::class, 'showForm'])
     ->name('intake.show')
     ->middleware('throttle:20,1');
 Route::post('/demande', [\App\Http\Controllers\IntakeController::class, 'store'])
     ->name('intake.store')
     ->middleware('throttle:5,1');
+// Étape 0 du formulaire (consentement RGPD) — appelée seule quand la famille
+// refuse, pour journaliser le refus sans jamais collecter le reste du
+// formulaire (voir IntakeConsentRefusal / section "Refus" du Google Form).
+Route::post('/demande/refus-consentement', [\App\Http\Controllers\IntakeController::class, 'refuserConsentement'])
+    ->name('intake.refus-consentement')
+    ->middleware('throttle:10,1');
 
 // ── Vérification publique des informations (lien reçu par email) ────────
 Route::get('/verification/{token}', [\App\Http\Controllers\VerificationController::class, 'show'])
@@ -60,6 +69,7 @@ Route::post('/verification/{token}/confirmer', [\App\Http\Controllers\Verificati
 // ── Dossiers familles (staff — tous rôles) ───────────────────────────────
 Route::middleware('auth')->group(function () {
     Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
+    Route::get('/nouvelles', [\App\Http\Controllers\FamillesController::class, 'nouvelles'])->name('familles.nouvelles');
     Route::get('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'show'])->whereNumber('id')->name('familles.show');
     Route::put('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'update'])->whereNumber('id')->name('familles.update');
     Route::post('/familles/{id}/documents', [\App\Http\Controllers\FamillesController::class, 'uploadDocument'])->whereNumber('id')->name('familles.documents.store');

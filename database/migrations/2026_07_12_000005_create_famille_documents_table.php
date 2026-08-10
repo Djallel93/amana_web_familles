@@ -15,11 +15,17 @@ use Illuminate\Support\Facades\Schema;
  * enregistrement par fichier. Stockage disque local IONOS (décision 6.4) —
  * pas de S3, pas de Google Drive.
  *
- * Trois types repris de CONFIG.DOC_TYPES (amana_familles) : identity et
- * resource sont fonctionnellement équivalentes aux anciens identityDoc /
- * resourceDoc du COLUMN_MAP ; aides_etat correspond à aidesEtatDoc.
- * Justificatifs d'identité obligatoires, aides_etat et resource optionnels
- * (règle métier confirmée dans validationService.js).
+ * Types repris de CONFIG.DOC_TYPES (amana_familles) : identity et resource
+ * sont fonctionnellement équivalentes aux anciens identityDoc / resourceDoc
+ * du COLUMN_MAP. Le générique aides_etat est scindé en deux (caf / ame) pour
+ * refléter le branchement du Google Form historique (section "Situation
+ * administrative" — type_piece_identite détermine lequel des deux est
+ * demandé, jamais les deux à la fois) — voir
+ * 2026_07_12_000004_create_familles_table.php.
+ *
+ * Justificatifs d'identité obligatoires (max 5), caf/ame obligatoire selon
+ * la branche empruntée (max 5), resource optionnel (max 10) — règles
+ * reprises de validationService.js + des limites maxFiles du Google Form.
  */
 return new class extends Migration {
     public function up(): void
@@ -29,7 +35,7 @@ return new class extends Migration {
             $table->foreignId('id_famille')
                 ->constrained('familles')
                 ->onDelete('cascade');
-            $table->enum('type', ['identity', 'aides_etat', 'resource']);
+            $table->enum('type', ['identity', 'caf', 'ame', 'resource']);
             $table->string('disk_path', 500);
             $table->string('original_name', 255);
             $table->string('mime_type', 150);

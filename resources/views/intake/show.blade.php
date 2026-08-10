@@ -29,11 +29,11 @@
                 </div>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
-                @foreach(['fr' => 'FR', 'ar' => 'ع', 'en' => 'EN'] as $code => $label)
+                @foreach(['fr' => ['🇫🇷', 'FR'], 'ar' => ['🇸🇦', 'ع'], 'en' => ['🇬🇧', 'EN']] as $code => $flagLabel)
                     <a href="{{ route('intake.show', ['langue' => $code]) }}"
-                        class="px-2.5 py-1.5 rounded-md text-[12px] font-semibold no-underline transition-colors
+                        class="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[12px] font-semibold no-underline transition-colors
                                 {{ $langue === $code ? 'bg-accent text-white' : 'bg-white/[0.08] text-white/60 hover:bg-white/[0.14]' }}">
-                        {{ $label }}
+                        <span aria-hidden="true">{{ $flagLabel[0] }}</span>{{ $flagLabel[1] }}
                     </a>
                 @endforeach
             </div>
@@ -43,7 +43,11 @@
     <main class="max-w-2xl mx-auto px-4 py-8">
         <div id="vue-intake-form"
              data-langue="{{ $langue }}"
-             data-store-url="{{ route('intake.store') }}">
+             data-store-url="{{ route('intake.store') }}"
+             data-refus-url="{{ route('intake.refus-consentement') }}"
+             data-secteurs-activite="{{ $secteursActivite->toJson() }}"
+             data-organismes-aide="{{ $organismesAide->toJson() }}"
+             data-google-places-key="{{ $googlePlacesApiKey }}">
         </div>
     </main>
 
