@@ -13,7 +13,7 @@
             </p>
         </div>
         <form action="{{ route('admin.verifications.envoyer') }}" method="POST"
-            onsubmit="return confirm('Envoyer un email de vérification à toutes les familles éligibles ?')">
+            data-confirm="Envoyer un email de vérification à toutes les familles éligibles ?">
             @csrf
             <button type="submit"
                 class="inline-flex items-center gap-2 px-4 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg

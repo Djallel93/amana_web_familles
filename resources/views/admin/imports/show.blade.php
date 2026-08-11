@@ -30,7 +30,8 @@
                     </button>
                 </form>
                 <form action="{{ route('admin.imports.rollback', $import->id) }}" method="POST"
-                    onsubmit="return confirm('Annuler cet import ? Les dossiers créés seront supprimés, les dossiers mis à jour seront restaurés à leur état précédent. Cette action est irréversible.')">
+                    data-confirm="Annuler cet import ? Les dossiers créés seront supprimés, les dossiers mis à jour seront restaurés à leur état précédent. Cette action est irréversible."
+                    data-confirm-danger data-confirm-label="Annuler l'import">
                     @csrf
                     <button type="submit"
                         class="inline-flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-[13px] font-semibold rounded-lg transition-colors min-h-[44px]">

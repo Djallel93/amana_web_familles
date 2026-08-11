@@ -161,7 +161,7 @@ class FamillesController extends Controller
             'adresse' => ['required', 'string'],
             'code_postal' => ['nullable', 'string', 'max:10'],
             'ville_texte' => ['nullable', 'string', 'max:150'],
-            'id_quartier' => ['nullable', 'integer', 'exists:quartiers,id'],
+            'id_quartier' => ['nullable', 'integer', 'exists:commun.quartiers,id'],
             'se_deplace' => ['boolean'],
             'circonstances' => ['nullable', 'string'],
             'ressentit' => ['nullable', 'string'],

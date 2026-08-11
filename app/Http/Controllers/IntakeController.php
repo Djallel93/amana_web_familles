@@ -5,15 +5,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
-use App\Models\FamilleDocument;
 use App\Models\IntakeConsentRefusal;
 use App\Models\OrganismeAide;
-use App\Models\Personne;
 use App\Models\SecteurActivite;
-use App\Notifications\NouvelleDemandeFamilleNotification;
-use App\Services\FamilleUpsertService;
+use App\Notifications\IntakeConfirmationNotification;
+use App\Services\IntakeAttenteService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -45,13 +42,21 @@ use Illuminate\View\View;
  * Contrairement à l'ancien système (géocodage synchrone via l'API Google
  * Maps pendant la requête), la résolution géographique est déclenchée de
  * façon asynchrone après l'enregistrement (ResoudreAdresseFamille).
+ *
+ * Depuis le 11/08/2026, store() NE crée PLUS le dossier Famille
+ * directement : la soumission est stockée en attente
+ * (IntakeDemandeAttente, valable 48h) et un email de confirmation est
+ * envoyé à l'adresse fournie. Le dossier (upsert + documents + notification
+ * staff + résolution géographique) n'est créé qu'au clic sur le lien de
+ * confirmation — voir IntakeConfirmationController::confirmer() et
+ * IntakeAttenteService, qui portent désormais cette logique.
  */
 class IntakeController extends Controller
 {
     private const LANGUES_VALIDES = ['fr', 'ar', 'en'];
 
     public function __construct(
-        private readonly FamilleUpsertService $upsertService,
+        private readonly IntakeAttenteService $attenteService,
     ) {
     }
 
@@ -228,78 +233,42 @@ class IntakeController extends Controller
             $donnees['hosted_by'] = null;
         }
 
-        // Détermine caf/ame AVANT l'upsert (l'attribut dépend de
-        // type_piece_identite, présent dans $donnees quel que soit le
-        // chemin création/mise à jour emprunté par le service).
-        $typeDocumentAide = $donnees['type_piece_identite'] === 'autre' ? 'ame' : 'caf';
-
-        $resultat = $this->upsertService->upsert(
+        // Plus d'upsert ni de documents créés ici depuis le 11/08/2026 : la
+        // demande est stockée en attente de confirmation par email (48h) —
+        // voir IntakeAttenteService::creerDemande(), qui gère aussi l'écrasement
+        // silencieux d'une éventuelle demande non confirmée déjà en attente
+        // pour la même famille (même email, ou même téléphone+nom).
+        $demande = $this->attenteService->creerDemande(
             $donnees,
-            ['etat_dossier' => 'Recu', 'criticite' => 0],
             $secteursActivite,
             $organismesAide,
+            $donnees['langue'],
+            [
+                'identite' => $request->file('documents_identite', []),
+                'aide' => $request->file('documents_aide', []),
+                'resource' => $request->file('documents_resource', []),
+            ],
         );
-        $famille = $resultat['famille'];
-        $creee = $resultat['cree'];
 
-        $this->enregistrerDocuments($famille, $request->file('documents_identite', []), 'identity');
-        $this->enregistrerDocuments($famille, $request->file('documents_aide', []), $typeDocumentAide);
-        $this->enregistrerDocuments($famille, $request->file('documents_resource', []), 'resource');
-
-        // Notifie le staff (admin + gestionnaire) de la nouvelle soumission —
-        // AVANT le géocodage asynchrone, qui peut échouer sans bloquer cette
-        // notification (voir NouvelleDemandeFamilleNotification). N'échoue
+        // Le dossier Famille n'existe pas encore : la notification staff et
+        // la résolution géographique n'ont donc plus leur place ici — elles
+        // sont déclenchées par IntakeConfirmationController::confirmer(),
+        // une fois la famille effectivement créée/mise à jour. N'échoue
         // jamais la requête si l'envoi d'email a un problème : la famille ne
-        // doit jamais voir une erreur pour une notification interne.
+        // doit jamais voir une erreur pour cet envoi.
         try {
-            $destinataires = Personne::whereHas('roles', function ($q) {
-                $q->whereIn('code', ['admin', 'gestionnaire'])
-                    ->whereHas('application', fn($q2) => $q2->where('code', 'familles'));
-            })->get();
-
-            if ($destinataires->isNotEmpty()) {
-                Notification::send($destinataires, new NouvelleDemandeFamilleNotification($famille));
-            }
+            Notification::route('mail', $donnees['email'])
+                ->notify(new IntakeConfirmationNotification($demande));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('[IntakeController] Échec notification nouvelle demande', [
-                'id_famille' => $famille->id,
+            \Illuminate\Support\Facades\Log::error('[IntakeController] Échec envoi email de confirmation', [
+                'token' => $demande->token,
                 'message' => $e->getMessage(),
             ]);
         }
 
-        // Résolution géographique asynchrone (webhook Make.com + ST_Contains)
-        // — voir ResoudreAdresseFamille. La famille est visible côté staff
-        // immédiatement, id_quartier se remplit dès que le job s'exécute
-        // (immédiat en pratique avec QUEUE_CONNECTION=sync par défaut).
-        ResoudreAdresseFamille::dispatch($famille->id);
-
         return response()->json([
             'success' => true,
-            'familyId' => $famille->id,
-            'created' => $creee,
-        ], $creee ? 201 : 200);
-    }
-
-    /**
-     * @param \Illuminate\Http\UploadedFile[] $fichiers
-     */
-    private function enregistrerDocuments(Famille $famille, array $fichiers, string $type): void
-    {
-        foreach ($fichiers as $fichier) {
-            if (!$fichier || !$fichier->isValid()) {
-                continue;
-            }
-
-            $path = $fichier->store("familles/{$famille->id}", 'local');
-
-            FamilleDocument::create([
-                'id_famille' => $famille->id,
-                'type' => $type,
-                'disk_path' => $path,
-                'original_name' => $fichier->getClientOriginalName(),
-                'mime_type' => $fichier->getClientMimeType(),
-                'uploaded_at' => now(),
-            ]);
-        }
+            'pending' => true,
+        ], 202);
     }
 }

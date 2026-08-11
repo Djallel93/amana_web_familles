@@ -78,6 +78,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_adresse: 'Adresse actuelle',
         adresse: 'Adresse', code_postal: 'Code postal', ville: 'Ville',
         adresse_manual_toggle: 'Je ne trouve pas mon adresse — la saisir manuellement',
+        adresse_back_to_search: 'Revenir à la recherche automatique',
         est_hotel_question: "S'agit-il d'un hôtel (hébergement d'urgence) ?",
         se_deplace_question: 'Pouvez-vous vous déplacer pour récupérer votre colis alimentaire si aucun bénévole n\'est disponible pour vous le livrer ?',
         se_deplace_warning: '⚠️ Attention : en fonction du nombre de membres de votre famille, le colis alimentaire peut être assez lourd. Merci de prendre cela en compte avant de répondre.',
@@ -95,6 +96,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         piece_demande_asile: "Demande d'asile", piece_autre: 'Autre',
         documents_identite: "Justificatif d'identité ou de résidence",
         documents_identite_desc: "Merci de joindre un document tel qu'un passeport, une carte d'identité, etc. (5 fichiers max, 10 Mo chacun)",
+        documents_choisir_type_dabord: "Merci de sélectionner un type de pièce d'identité ci-dessus pour afficher la zone de dépôt de vos justificatifs.",
         documents_caf: 'Attestation de la CAF (paiement et/ou quotient familial)',
         documents_caf_desc: 'Veuillez fournir votre attestation CAF.',
         documents_ame: "Aide médicale de l'État (AME)",
@@ -114,7 +116,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         documents_resource_desc: '(optionnel, 10 fichiers max)',
 
         success_title: "Merci d'avoir pris le temps de répondre à ce formulaire",
-        success_text: "Nous étudions actuellement votre dossier et reviendrons vers vous dans les plus brefs délais. N'hésitez pas à nous contacter rapidement en cas de changement de situation ou d'informations.",
+        success_text: "Un email de confirmation vient de vous être envoyé à l'adresse indiquée. Merci de cliquer sur le lien qu'il contient dans les 48 heures pour valider votre demande — sans cette confirmation, votre dossier ne sera pas transmis à notre équipe. Pensez à vérifier vos courriers indésirables si vous ne le recevez pas rapidement.",
         error_generic: 'Une erreur est survenue. Merci de réessayer.',
         error_session_expired: 'Votre session a expiré (formulaire resté ouvert trop longtemps). Merci de recharger la page.',
         error_too_many_attempts: 'Trop de tentatives. Merci de patienter une minute avant de réessayer.',
@@ -150,6 +152,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_adresse: 'Current Address',
         adresse: 'Address', code_postal: 'Postal Code', ville: 'City',
         adresse_manual_toggle: "I can't find my address — enter it manually",
+        adresse_back_to_search: 'Back to automatic search',
         est_hotel_question: 'Is this a hotel (emergency accommodation)?',
         se_deplace_question: 'Are you able to travel to pick up your food package if no volunteer is available to deliver it to you?',
         se_deplace_warning: '⚠️ Please note: depending on the number of people in your household, the food package may be quite heavy. Please keep this in mind when answering.',
@@ -167,6 +170,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         piece_demande_asile: 'Asylum Application', piece_autre: 'Other',
         documents_identite: 'Proof of Identity or Residence',
         documents_identite_desc: 'Please attach a document such as a passport, national ID card, etc. (5 files max, 10 MB each)',
+        documents_choisir_type_dabord: 'Please select a type of identification document above to display the upload area for your supporting documents.',
         documents_caf: 'CAF Certificate (Payment and/or Family Quotient)',
         documents_caf_desc: 'Please provide your CAF certificate.',
         documents_ame: 'State Medical Aid (AME)',
@@ -186,7 +190,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         documents_resource_desc: '(optional, 10 files max)',
 
         success_title: 'Thank you for taking the time to complete this form.',
-        success_text: "We are currently reviewing your application and will get back to you as soon as possible. Please don't hesitate to contact us promptly if your situation or any information changes.",
+        success_text: "A confirmation email has just been sent to the address you provided. Please click the link in it within 48 hours to validate your request — without this confirmation, your file will not be sent to our team. Please check your spam folder if you don't receive it promptly.",
         error_generic: 'Something went wrong. Please try again.',
         error_session_expired: 'Your session has expired (the form was left open too long). Please reload the page.',
         error_too_many_attempts: 'Too many attempts. Please wait a minute before trying again.',
@@ -222,6 +226,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_adresse: 'العنوان الحالي',
         adresse: 'العنوان', code_postal: 'الرمز البريدي', ville: 'المدينة',
         adresse_manual_toggle: 'لا أجد عنواني — أدخله يدويًا',
+        adresse_back_to_search: 'العودة إلى البحث التلقائي',
         est_hotel_question: 'هل هذا فندق (إقامة طارئة)؟',
         se_deplace_question: 'هل تستطيعون الانتقال لاستلام الطرد الغذائي إذا لم يتوفر أي متطوّع لإيصاله إليكم؟',
         se_deplace_warning: '⚠️ تنبيه: حسب عدد أفراد أسرتكم، قد يكون الطرد الغذائي ثقيلاً. يُرجى أخذ ذلك بعين الاعتبار قبل الإجابة.',
@@ -239,6 +244,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         piece_demande_asile: 'طلب لجوء', piece_autre: 'أخرى',
         documents_identite: 'إثبات الهوية أو الإقامة',
         documents_identite_desc: 'يرجى إرفاق وثيقة مثل جواز السفر، بطاقة الهوية، إلخ (5 ملفات كحد أقصى، 10 ميغابايت لكل ملف)',
+        documents_choisir_type_dabord: 'يرجى اختيار نوع وثيقة الهوية أعلاه لإظهار منطقة إرفاق المستندات المطلوبة.',
         documents_caf: 'شهادة من CAF (الدفع و/أو الحصّة العائلية)',
         documents_caf_desc: 'يرجى تقديم شهادة CAF الخاصة بك.',
         documents_ame: 'المساعدة الطبية للدولة (AME)',
@@ -258,7 +264,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         documents_resource_desc: '(اختياري، 10 ملفات كحد أقصى)',
 
         success_title: 'شكرًا لك على تخصيص الوقت للإجابة على هذا النموذج',
-        success_text: 'نقوم حاليًا بدراسة ملفكم وسنعود إليكم في أقرب وقت ممكن. لا تترددوا في الاتصال بنا بسرعة في حال حدوث أي تغيير في الوضع أو في المعلومات.',
+        success_text: 'تم للتو إرسال رسالة تأكيد إلى البريد الإلكتروني الذي قدمته. يرجى الضغط على الرابط الموجود فيها خلال 48 ساعة لتأكيد طلبكم — بدون هذا التأكيد، لن يتم إرسال ملفكم إلى فريقنا. يرجى التحقق من مجلد الرسائل غير المرغوب فيها إذا لم تستلموها بسرعة.',
         error_generic: 'حدث خطأ. يرجى المحاولة مرة أخرى.',
         error_session_expired: 'انتهت صلاحية جلستك (بقي النموذج مفتوحًا لفترة طويلة). يرجى إعادة تحميل الصفحة.',
         error_too_many_attempts: 'محاولات كثيرة جدًا. يرجى الانتظار دقيقة قبل إعادة المحاولة.',
@@ -453,6 +459,25 @@ async function initAdresseAutocomplete(): Promise<void> {
         // disponible — voir commentaire de dégradation gracieuse ci-dessus.
         manualAdresseMode.value = true;
     }
+}
+
+// Retour à la recherche Google depuis la saisie manuelle — demande du
+// 11/08/2026 : un clic sur "saisie manuelle" ne doit pas être une décision
+// irréversible (faux clic possible). Le texte déjà saisi n'est PAS effacé :
+// si la famille revient ensuite en saisie manuelle sans rien sélectionner,
+// elle retrouve ce qu'elle avait tapé.
+//
+// autocompleteElement doit être remis à null : son conteneur DOM
+// (placeAutocompleteContainerRef) est détruit par Vue quand manualAdresseMode
+// passe à true (v-if="googlePlacesKey && !manualAdresseMode" sur la div qui
+// le contient) — réutiliser l'ancienne référence ne raccrocherait le widget
+// à rien. initAdresseAutocomplete() recrée donc un PlaceAutocompleteElement
+// tout neuf dans le conteneur fraîchement remonté par Vue.
+async function revenirRechercheAutomatique(): Promise<void> {
+    manualAdresseMode.value = false;
+    autocompleteElement = null;
+    await nextTick();
+    await initAdresseAutocomplete();
 }
 
 // Le conteneur de la suggestion n'existe dans le DOM que pendant l'étape
@@ -802,6 +827,12 @@ onMounted(() => {
                     </button>
                     <input v-if="!googlePlacesKey || manualAdresseMode" v-model="form.adresse" type="text" autocomplete="off"
                         class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
+                    <!-- Faux clic sur "saisie manuelle" (ou sur une suggestion) : possibilité
+                         de revenir à la recherche Google — voir revenirRechercheAutomatique(). -->
+                    <button v-if="googlePlacesKey && manualAdresseMode" type="button" @click="revenirRechercheAutomatique"
+                        class="text-[12px] text-accent underline mt-1 cursor-pointer">
+                        {{ t.adresse_back_to_search }}
+                    </button>
                     <span v-if="errors.adresse" class="text-[11px] text-rose-600">{{ errors.adresse }}</span>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
@@ -879,10 +910,15 @@ onMounted(() => {
                     <span v-if="errors.type_piece_identite" class="block text-[11px] text-rose-600">{{ errors.type_piece_identite }}</span>
                 </div>
 
-                <!-- Zone d'upload dédiée : couleur alignée sur le type de pièce
-                     choisi ci-dessus, pour confirmer visuellement qu'on est
-                     dans la bonne branche (CAF vs AME) — demande du 09/08/2026. -->
-                <div class="rounded-lg border-2 p-4 space-y-4 transition-colors" :class="[adminUploadColorClasses.border, adminUploadColorClasses.bg]">
+                <!-- Zone d'upload dédiée : n'apparaît qu'une fois le type de
+                     pièce d'identité choisi ci-dessus (radio) — avant ça, la
+                     famille ne sait pas encore quel justificatif "aide"
+                     joindre (CAF vs AME en dépend), donc afficher la zone
+                     plus tôt n'a pas de sens et prêtait à confusion (demande
+                     du 09/08/2026). La couleur reste alignée sur le type de
+                     pièce choisi, pour confirmer visuellement qu'on est dans
+                     la bonne branche (CAF vs AME). -->
+                <div v-if="form.type_piece_identite" class="rounded-lg border-2 p-4 space-y-4 transition-colors" :class="[adminUploadColorClasses.border, adminUploadColorClasses.bg]">
                     <div class="flex items-center gap-2">
                         <span class="w-2 h-2 rounded-full flex-shrink-0" :class="adminUploadColorClasses.badge"></span>
                         <span class="text-[11px] font-semibold uppercase tracking-wide" :class="adminUploadColorClasses.text">
@@ -904,8 +940,8 @@ onMounted(() => {
                             @change="onFiles($event, 'aide')" class="w-full text-[12.5px] text-ink-muted">
                         <span v-if="errors.documents_aide" class="block text-[11px] text-rose-600">{{ errors.documents_aide }}</span>
                     </div>
-                    <p v-else class="text-[12px] text-ink-faint italic">{{ t.type_piece_identite }}</p>
                 </div>
+                <p v-else class="text-[12px] text-ink-faint italic">{{ t.documents_choisir_type_dabord }}</p>
             </div>
         </section>
 

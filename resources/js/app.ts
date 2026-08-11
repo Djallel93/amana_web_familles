@@ -8,7 +8,7 @@
 
 import { createApp } from "vue";
 
-import { Toast, ConfirmDialog, OfflineBanner, MobileSidebar, registerThemeToggle } from "@amana/shared-ui";
+import { Toast, ConfirmDialog, OfflineBanner, MobileSidebar, registerThemeToggle, registerConfirmForms } from "@amana/shared-ui";
 import DetailPanel from "@/components/familles/DetailPanel.vue";
 import IntakeForm from "@/components/intake/IntakeForm.vue";
 import ImportManualGrid from "@/components/imports/ImportManualGrid.vue";
@@ -16,6 +16,10 @@ import FamillesStatistiques from "@/components/familles/FamillesStatistiques.vue
 import ActiviteStatistiques from "@/components/admin/ActiviteStatistiques.vue";
 
 registerThemeToggle();
+// Remplace confirm() natif par ConfirmDialog.vue pour tout <form data-confirm="...">
+// rendu en Blade classique (admin/verifications, admin/imports, personnes) —
+// voir amana_shared_ui/src/lib/confirmForms.ts pour l'usage complet.
+registerConfirmForms();
 
 function mountIfPresent(
     selector: string,

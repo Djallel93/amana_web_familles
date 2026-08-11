@@ -58,6 +58,16 @@ Route::post('/demande/refus-consentement', [\App\Http\Controllers\IntakeControll
     ->name('intake.refus-consentement')
     ->middleware('throttle:10,1');
 
+// Confirmation par email d'une demande en attente (voir IntakeAttenteService /
+// IntakeDemandeAttente, ajout du 11/08/2026) — même forme que les routes de
+// vérification ci-dessous.
+Route::get('/demande/confirmer/{token}', [\App\Http\Controllers\IntakeConfirmationController::class, 'show'])
+    ->name('intake.confirmer.show')
+    ->middleware('throttle:20,1');
+Route::post('/demande/confirmer/{token}', [\App\Http\Controllers\IntakeConfirmationController::class, 'confirmer'])
+    ->name('intake.confirmer')
+    ->middleware('throttle:5,1');
+
 // ── Vérification publique des informations (lien reçu par email) ────────
 Route::get('/verification/{token}', [\App\Http\Controllers\VerificationController::class, 'show'])
     ->name('verification.show')
