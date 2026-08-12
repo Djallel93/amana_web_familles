@@ -8,6 +8,16 @@
 import { ref, onMounted } from 'vue';
 import { useToast } from '@amana/shared-ui';
 
+// Déclaration dupliquée volontairement (voir ImportOverlay.vue) — ces deux
+// fonctions sont exposées sur window par le composant ImportOverlay.vue
+// monté une seule fois dans la page (#vue-import-overlay).
+declare global {
+    interface Window {
+        showImportOverlay: () => void;
+        hideImportOverlay: () => void;
+    }
+}
+
 interface Ligne {
     nom: string;
     prenom: string;
@@ -61,7 +71,7 @@ async function envoyer(): Promise<void> {
     }
 
     submitting.value = true;
-    document.getElementById('import-overlay')?.classList.remove('hidden');
+    window.showImportOverlay?.();
     try {
         const res = await fetch(storeUrl.value, {
             method: 'POST',
@@ -80,7 +90,7 @@ async function envoyer(): Promise<void> {
         window.location.href = data.redirect;
     } catch (e) {
         toast.error('Échec de l\'import.');
-        document.getElementById('import-overlay')?.classList.add('hidden');
+        window.hideImportOverlay?.();
     } finally {
         submitting.value = false;
     }

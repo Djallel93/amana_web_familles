@@ -181,6 +181,26 @@ class Famille extends Model
         return '+33 ' . implode(' ', $groupes);
     }
 
+    /**
+     * Adresse complète affichée dans le tableau "Dossiers familles" (voir
+     * resources/views/familles/index.blade.php) — construite à partir des
+     * champs saisis par la famille elle-même (adresse, code_postal,
+     * ville_texte), pas du quartier géocodé : le quartier est une zone
+     * dérivée utile pour les filtres géographiques, mais ce n'est pas ce
+     * que la famille a réellement renseigné. À défaut de ville_texte
+     * (dossier importé sans ce champ, par ex.), on retombe sur le nom de
+     * la ville du quartier résolu.
+     */
+    public function getAdresseCompleteAttribute(): string
+    {
+        $ville = $this->ville_texte ?: $this->quartier?->secteur?->ville?->nom;
+        $localite = trim(($this->code_postal ?? '') . ' ' . ($ville ?? ''));
+
+        $parts = array_filter([$this->adresse, $localite !== '' ? $localite : null]);
+
+        return $parts ? implode(', ', $parts) : '—';
+    }
+
     public function getDocumentsIdentiteManquantsAttribute(): bool
     {
         return !$this->documents()->where('type', 'identity')->exists();

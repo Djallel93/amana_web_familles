@@ -31,6 +31,19 @@ use Illuminate\View\View;
  */
 class FamillesController extends Controller
 {
+    /**
+     * Colonnes triables du tableau "Dossiers familles" (voir
+     * resources/views/familles/index.blade.php) — whitelist explicite
+     * plutôt que d'accepter un nom de colonne SQL arbitraire depuis la
+     * requête (paramètre ?tri=...).
+     */
+    private const COLONNES_TRIABLES = [
+        'id', 'nom', 'statut', 'email', 'telephone', 'telephone_bis', 'adresse',
+        'nombre_adulte', 'nombre_enfant', 'criticite', 'eligibilite', 'se_deplace',
+        'est_hotel', 'langue', 'type_hebergement', 'type_piece_identite',
+        'type_activite', 'work_days', 'created_at',
+    ];
+
     public function index(Request $request): View
     {
         $query = $this->baseQuery($request);
@@ -48,9 +61,37 @@ class FamillesController extends Controller
             $query->where('etat_dossier', '!=', 'Recu');
         }
 
-        $familles = $query->orderByDesc('criticite')->orderBy('nom')
-            ->paginate(25)
-            ->withQueryString();
+        $this->appliquerTri($query, $request);
+
+        $familles = $query->paginate(25)->withQueryString();
+
+        // Stats du bandeau KPI en haut de page — recalculées sur les mêmes
+        // filtres de recherche/localisation que la liste (baseQuery), mais
+        // volontairement SANS la restriction de statut ci-dessus : donne une
+        // vue d'ensemble utile même quand on ne regarde qu'un seul statut à
+        // la fois (demande du 12/08/2026).
+        $statsQuery = $this->baseQuery($request);
+        $stats = [
+            'total' => (clone $statsQuery)->count(),
+            'moyenne_criticite' => (float) ((clone $statsQuery)->avg('criticite') ?? 0),
+            // "À traiter en priorité" : dossiers avec un problème de
+            // traitement signalé (échec géocodage, etc.), ou une criticité
+            // élevée sur un dossier pas encore refermé (Validé/Rejeté/
+            // Archivé = déjà traité, peu importe sa criticité).
+            'a_traiter' => (clone $statsQuery)
+                ->where(function ($q) {
+                    $q->whereNotNull('probleme_traitement')
+                        ->orWhere(function ($q2) {
+                            $q2->where('criticite', '>=', 4)
+                                ->whereNotIn('etat_dossier', ['Validé', 'Rejeté', 'Archivé']);
+                        });
+                })
+                ->count(),
+            'par_statut' => (clone $statsQuery)
+                ->selectRaw('etat_dossier, count(*) as total')
+                ->groupBy('etat_dossier')
+                ->pluck('total', 'etat_dossier'),
+        ];
 
         // Filtres géographiques — listes complètes indépendamment des
         // résultats courants (villes/secteurs/quartiers sont créées vides
@@ -58,9 +99,13 @@ class FamillesController extends Controller
         // que le peuplement des polygones n'est pas fait).
         $villes = Ville::orderBy('nom')->get(['id', 'nom']);
         $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
-        $quartiers = Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        // secteur:id,id_ville eager-loadé pour le filtre Ville → Quartier en
+        // cascade côté front (data-id-ville sur chaque <option>, voir
+        // familles/index.blade.php) — Quartier n'a pas de colonne id_ville
+        // directe, seulement via secteur (cf. Amana\Shared\Models\Quartier).
+        $quartiers = Quartier::with('secteur:id,id_ville')->orderBy('nom')->get(['id', 'nom', 'id_secteur']);
 
-        return view('familles.index', compact('familles', 'villes', 'secteurs', 'quartiers', 'etatDossier'));
+        return view('familles.index', compact('familles', 'villes', 'secteurs', 'quartiers', 'etatDossier', 'stats'));
     }
 
     /**
@@ -110,9 +155,6 @@ class FamillesController extends Controller
         if ($request->filled('se_deplace')) {
             $query->where('se_deplace', $request->input('se_deplace') === '1');
         }
-        if ($request->filled('langue')) {
-            $query->where('langue', $request->input('langue'));
-        }
         if ($request->filled('criticite_min')) {
             $query->where('criticite', '>=', (int) $request->input('criticite_min'));
         }
@@ -124,6 +166,50 @@ class FamillesController extends Controller
         }
 
         return $query;
+    }
+
+    /**
+     * Tri du tableau "Dossiers familles" (?tri=colonne&direction=asc|desc,
+     * en-têtes cliquables — voir familles/index.blade.php). Sans paramètre
+     * ?tri reconnu, tri par ID croissant (demande du 12/08/2026 — remplace
+     * l'ancien défaut criticité décroissante).
+     *
+     * 'eligibilite' n'est pas une colonne unique en base (zakat_el_fitr +
+     * sadaqa sont deux booléens distincts) — trié comme un score combiné :
+     * zakat_el_fitr d'abord, puis sadaqa, dans la même direction.
+     */
+    private function appliquerTri($query, Request $request): void
+    {
+        $colonne = $request->input('tri');
+        $direction = $request->input('direction') === 'desc' ? 'desc' : 'asc';
+
+        if (!in_array($colonne, self::COLONNES_TRIABLES, true)) {
+            $query->orderBy('id');
+
+            return;
+        }
+
+        match ($colonne) {
+            'id' => $query->orderBy('id', $direction),
+            'nom' => $query->orderBy('nom', $direction)->orderBy('prenom', $direction),
+            'statut' => $query->orderBy('etat_dossier', $direction),
+            'email' => $query->orderBy('email', $direction),
+            'telephone' => $query->orderBy('telephone', $direction),
+            'telephone_bis' => $query->orderBy('telephone_bis', $direction),
+            'adresse' => $query->orderBy('adresse', $direction),
+            'nombre_adulte' => $query->orderBy('nombre_adulte', $direction),
+            'nombre_enfant' => $query->orderBy('nombre_enfant', $direction),
+            'criticite' => $query->orderBy('criticite', $direction),
+            'eligibilite' => $query->orderBy('zakat_el_fitr', $direction)->orderBy('sadaqa', $direction),
+            'se_deplace' => $query->orderBy('se_deplace', $direction),
+            'est_hotel' => $query->orderBy('est_hotel', $direction),
+            'langue' => $query->orderBy('langue', $direction),
+            'type_hebergement' => $query->orderBy('type_hebergement', $direction),
+            'type_piece_identite' => $query->orderBy('type_piece_identite', $direction),
+            'type_activite' => $query->orderBy('type_activite', $direction),
+            'work_days' => $query->orderBy('work_days', $direction),
+            'created_at' => $query->orderBy('created_at', $direction),
+        };
     }
 
     // ── Panneau de détail (consommé en JSON par DetailPanel.vue) ─────────

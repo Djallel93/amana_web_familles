@@ -43,7 +43,7 @@
                 // qui reste synchrone côté serveur (voir ImportsController).
                 document.getElementById('form-import-csv')?.addEventListener('submit', function () {
                     document.getElementById('btn-import-csv').disabled = true;
-                    document.getElementById('import-overlay')?.classList.remove('hidden');
+                    window.showImportOverlay?.();
                 });
             </script>
 
@@ -78,32 +78,18 @@
     </div>
 
     {{--
-        Overlay plein écran partagé par le formulaire CSV (ci-dessus, via JS
-        vanilla) et la grille de saisie manuelle (ImportManualGrid.vue) — les
-        deux imports restent synchrones côté serveur (une seule requête, pas
-        de job dédié — voir ImportsController), donc pas de progression réelle
-        ligne-par-ligne possible sans passage en file d'attente + polling.
-        La barre est volontairement indéterminée (balayage continu) plutôt que
-        de simuler un pourcentage trompeur.
-    --}}
-    <div id="import-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm">
-        <div class="bg-surface rounded-xl border border-surface-border shadow-lg px-8 py-7 max-w-xs w-full mx-4 text-center">
-            <p class="text-[13.5px] font-semibold text-ink mb-4">Import en cours…</p>
-            <div class="h-2 w-full bg-surface-2 rounded-full overflow-hidden">
-                <div class="h-full w-1/3 bg-accent rounded-full animate-import-sweep"></div>
-            </div>
-            <p class="text-[11.5px] text-ink-muted mt-3">Merci de patienter, ne fermez pas cette page.</p>
-        </div>
-    </div>
+        Overlay de progression partagé par le formulaire CSV (ci-dessus, via
+        JS vanilla) et la grille de saisie manuelle (ImportManualGrid.vue) —
+        les deux imports restent synchrones côté serveur (une seule requête,
+        pas de job dédié — voir ImportsController), donc pas de progression
+        réelle ligne-par-ligne possible sans passage en file d'attente +
+        polling. La barre reste volontairement indéterminée (balayage
+        continu) plutôt que de simuler un pourcentage trompeur.
 
-    <style>
-        @keyframes import-sweep {
-            0%   { transform: translateX(-100%); }
-            100% { transform: translateX(300%); }
-        }
-        .animate-import-sweep {
-            animation: import-sweep 1.1s ease-in-out infinite;
-        }
-    </style>
+        Rendu via le composant Modal partagé (voir
+        resources/js/components/imports/ImportOverlay.vue) plutôt qu'un div
+        fait main — cohérent avec le reste de l'app (DetailPanel.vue).
+    --}}
+    <div id="vue-import-overlay"></div>
 
 @endsection
