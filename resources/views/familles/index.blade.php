@@ -138,6 +138,11 @@
     {{-- ── Barre de filtres ── --}}
     <form method="GET" action="{{ route('familles.index') }}"
         class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 mb-4">
+        {{-- Préserve le "lignes par page" en cours au clic sur "Filtrer" —
+             sans ça, appliquer un filtre réinitialiserait silencieusement
+             la pagination au défaut (ajouté le 12/08/2026, voir
+             partials/pagination.blade.php). --}}
+        <input type="hidden" name="per_page" value="{{ request('per_page', \App\Models\Famille::PAGINATION_PAR_PAGE_DEFAUT) }}">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
             {{-- Groupe 1 : recherche & statut --}}
@@ -497,7 +502,7 @@
             </div>
 
             <div class="px-4 py-3 border-t border-surface-3">
-                {{ $familles->links() }}
+                @include('partials.pagination', ['paginator' => $familles])
             </div>
         @endif
     </div>
@@ -525,7 +530,11 @@
          data-show-url-template="{{ route('familles.show', ['id' => '__ID__']) }}"
          data-upload-url-template="{{ route('familles.documents.store', ['id' => '__ID__']) }}"
          data-download-url-template="{{ route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
-         data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}">
+         data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
+         data-secteurs-activite="{{ $secteursActivite->toJson() }}"
+         data-organismes-aide="{{ $organismesAide->toJson() }}"
+         data-google-places-key="{{ config('services.google.maps.places_api_key') }}"
+         data-google-embed-key="{{ config('services.google.maps.embed_api_key') }}">
     </div>
 
 @endsection

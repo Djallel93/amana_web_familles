@@ -96,6 +96,16 @@ return new class extends Migration {
             $table->boolean('se_deplace')->default(false);
             $table->boolean('est_hotel')->default(false)
                 ->comment('Adresse actuelle = un hôtel (hébergement d\'urgence) — ajouté suite à la demande du 09/08/2026, absent du Google Form d\'origine');
+            // Coordonnées résolues par ResoudreAdresseFamille (Google Maps
+            // Geocoding), en plus de id_quartier — jusqu'ici calculées puis
+            // jetées après le calcul point-in-polygon. Persistées depuis le
+            // 12/08/2026 pour l'affichage carte du panneau de détail
+            // (DetailPanel.vue) : precision decimal(10,7), suffisante au
+            // niveau rue (~1cm), cohérente avec l'usage direct par
+            // l'API Google Maps JS côté front (pas de calcul géométrique
+            // supplémentaire ici, contrairement à quartiers.boundary).
+            $table->decimal('latitude', 10, 7)->nullable();
+            $table->decimal('longitude', 10, 7)->nullable();
 
             // ── Situation & aide ──────────────────────────────────────────
             // circonstances : "décrivez brièvement votre situation actuelle"

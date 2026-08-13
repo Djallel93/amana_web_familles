@@ -77,6 +77,25 @@ return [
             |------------------------------------------------------------
             */
             'places_api_key' => env('GOOGLE_MAPS_PLACES_API_KEY'),
+
+            /*
+            |------------------------------------------------------------
+            | Google Maps Embed (panneau de détail famille — carte de
+            | l'adresse, DetailPanel.vue) — même logique d'exposition
+            | navigateur que places_api_key ci-dessus (restreinte par
+            | référent HTTP dans Google Cloud Console, PAS par IP
+            | serveur). Réutilise volontairement places_api_key par
+            | défaut : la variable d'env dédiée ci-dessous permet de la
+            | séparer plus tard sans changement de code si besoin
+            | (quotas distincts, restrictions différentes, etc.).
+            |
+            | Nécessite "Maps Embed API" activée sur le projet GCP en
+            | plus de "Places API (New)" — deux API distinctes, une clé
+            | commune peut couvrir les deux si elle les a toutes les deux
+            | activées.
+            |------------------------------------------------------------
+            */
+            'embed_api_key' => env('GOOGLE_MAPS_EMBED_API_KEY', env('GOOGLE_MAPS_PLACES_API_KEY')),
         ],
     ],
 

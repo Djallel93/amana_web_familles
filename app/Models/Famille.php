@@ -31,6 +31,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null    $id_quartier
  * @property bool        $se_deplace
  * @property bool        $est_hotel
+ * @property float|null  $latitude
+ * @property float|null  $longitude
  * @property string|null $circonstances
  * @property string|null $ressentit
  * @property string|null $specificites
@@ -89,6 +91,12 @@ class Famille extends Model
         'nombre_enfant' => 'integer',
         'criticite' => 'integer',
         'work_days' => 'integer',
+        // 'decimal' plutôt que 'float' : évite la notation scientifique de
+        // Google (ex: 4.7e1) en JSON pour de grandes latitudes, et donne un
+        // nombre de décimales stable/prévisible pour le champ front — cast
+        // 'decimal:7' cohérent avec la précision de la colonne migration.
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
     ];
 
     public const ETATS = ['Recu', 'En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
@@ -102,6 +110,14 @@ class Famille extends Model
     public const TYPES_HEBERGEMENT = ['organisation', 'proche', 'non'];
     public const TYPES_PIECE_IDENTITE = ['nationalite', 'titre_sejour', 'demande_asile', 'autre'];
     public const TYPES_ACTIVITE = ['temps_plein', 'temps_partiel', 'non'];
+    // Options du sélecteur "lignes par page" (familles/index.blade.php et
+    // nouvelles.blade.php) — ajouté le 12/08/2026. Source unique, utilisée
+    // à la fois pour peupler le <select> et pour valider la valeur reçue en
+    // requête côté FamillesController (toute valeur hors de cette liste
+    // retombe sur le défaut plutôt que d'accepter un per_page arbitraire —
+    // évite qu'un paramètre trafiqué ne force une pagination à 100000).
+    public const PAGINATION_PAR_PAGE = [10, 25, 50, 100];
+    public const PAGINATION_PAR_PAGE_DEFAUT = 25;
 
     // ── Relations ─────────────────────────────────────────────────────────
 

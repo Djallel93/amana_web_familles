@@ -27,6 +27,8 @@
 
     <form method="GET" action="{{ route('familles.nouvelles') }}"
         class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 mb-5">
+        {{-- Voir index.blade.php pour le même correctif du 12/08/2026. --}}
+        <input type="hidden" name="per_page" value="{{ request('per_page', \App\Models\Famille::PAGINATION_PAR_PAGE_DEFAUT) }}">
         <div class="flex gap-3">
             <input type="text" name="recherche" value="{{ request('recherche') }}" placeholder="Nom, prénom, téléphone…"
                 class="flex-1 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface-2 outline-none
@@ -91,7 +93,7 @@
             </div>
 
             <div class="px-4 py-3 border-t border-surface-3">
-                {{ $familles->links() }}
+                @include('partials.pagination', ['paginator' => $familles])
             </div>
         @endif
     </div>
@@ -103,7 +105,11 @@
          data-show-url-template="{{ route('familles.show', ['id' => '__ID__']) }}"
          data-upload-url-template="{{ route('familles.documents.store', ['id' => '__ID__']) }}"
          data-download-url-template="{{ route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
-         data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}">
+         data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
+         data-secteurs-activite="{{ $secteursActivite->toJson() }}"
+         data-organismes-aide="{{ $organismesAide->toJson() }}"
+         data-google-places-key="{{ config('services.google.maps.places_api_key') }}"
+         data-google-embed-key="{{ config('services.google.maps.embed_api_key') }}">
     </div>
 
 @endsection

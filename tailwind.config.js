@@ -16,22 +16,12 @@ export default {
     theme: {
         extend: {
             colors: {
-                // Identité visuelle propre à Familles — ambre/terracotta chaud
-                // (seule différence de thème avec Planning ; surface/ink/font/
-                // radius/shadow/spacing/keyframes viennent tous du préréglage
-                // partagé @amana/shared-ui/tailwind-preset).
-                accent: {
-                    DEFAULT: '#b45309',
-                    dark: '#c2703a',
-                    light: '#d97706',
-                },
-                sidebar: {
-                    DEFAULT: '#2e1a0f',
-                    2: '#3a2214',
-                },
+                // Identité visuelle propre à Familles
+                accent: { DEFAULT: '#0f766e', dark: '#0d9488', light: '#14b8a6' },
+                sidebar: { DEFAULT: '#0c2321', 2: '#123330' },
             },
             boxShadow: {
-                glow: '0 0 0 3px rgba(180,83,9,0.25)',
+                glow: 'rgba(15,118,110,0.25)',
             },
         },
     },

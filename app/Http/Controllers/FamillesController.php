@@ -8,7 +8,9 @@ namespace App\Http\Controllers;
 use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
+use App\Models\OrganismeAide;
 use App\Models\Quartier;
+use App\Models\SecteurActivite;
 use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Ville;
 use Illuminate\Http\JsonResponse;
@@ -44,6 +46,21 @@ class FamillesController extends Controller
         'type_activite', 'work_days', 'created_at',
     ];
 
+    /**
+     * Valide le paramètre ?per_page= reçu en requête contre la whitelist
+     * Famille::PAGINATION_PAR_PAGE — voir commentaire sur cette constante.
+     * Partagé entre index() et nouvelles(), qui utilisent toutes deux le
+     * sélecteur "lignes par page" du même composant de pagination.
+     */
+    private function resoudrePerPage(Request $request): int
+    {
+        $perPage = (int) $request->input('per_page', Famille::PAGINATION_PAR_PAGE_DEFAUT);
+
+        return in_array($perPage, Famille::PAGINATION_PAR_PAGE, true)
+            ? $perPage
+            : Famille::PAGINATION_PAR_PAGE_DEFAUT;
+    }
+
     public function index(Request $request): View
     {
         $query = $this->baseQuery($request);
@@ -63,7 +80,7 @@ class FamillesController extends Controller
 
         $this->appliquerTri($query, $request);
 
-        $familles = $query->paginate(25)->withQueryString();
+        $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
 
         // Stats du bandeau KPI en haut de page — recalculées sur les mêmes
         // filtres de recherche/localisation que la liste (baseQuery), mais
@@ -105,7 +122,17 @@ class FamillesController extends Controller
         // directe, seulement via secteur (cf. Amana\Shared\Models\Quartier).
         $quartiers = Quartier::with('secteur:id,id_ville')->orderBy('nom')->get(['id', 'nom', 'id_secteur']);
 
-        return view('familles.index', compact('familles', 'villes', 'secteurs', 'quartiers', 'etatDossier', 'stats'));
+        // Listes fermées "Activité"/"Ressources" (mêmes tables que
+        // IntakeController::showForm) — consommées par DetailPanel.vue pour
+        // éditer secteursActivite/organismesAide dans l'onglet Situation,
+        // pas seulement à la soumission initiale du formulaire public.
+        $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+
+        return view('familles.index', compact(
+            'familles', 'villes', 'secteurs', 'quartiers', 'etatDossier', 'stats',
+            'secteursActivite', 'organismesAide',
+        ));
     }
 
     /**
@@ -123,10 +150,16 @@ class FamillesController extends Controller
         $query = $this->baseQuery($request)->where('etat_dossier', 'Recu');
 
         $familles = $query->orderBy('created_at')
-            ->paginate(25)
+            ->paginate($this->resoudrePerPage($request))
             ->withQueryString();
 
-        return view('familles.nouvelles', compact('familles'));
+        // Mêmes listes que index() — cette vue monte le même DetailPanel.vue
+        // (voir familles/nouvelles.blade.php), qui a besoin des mêmes
+        // données pour l'onglet Situation.
+        $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+
+        return view('familles.nouvelles', compact('familles', 'secteursActivite', 'organismesAide'));
     }
 
     /**
@@ -216,7 +249,7 @@ class FamillesController extends Controller
 
     public function show(int $id): JsonResponse
     {
-        $famille = Famille::with(['quartier.secteur.ville', 'documents'])->findOrFail($id);
+        $famille = Famille::with(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide'])->findOrFail($id);
 
         // quartier.boundary / quartier.secteur.ville.boundary sont des colonnes
         // geometry (WKB binaire) — jamais de l'UTF-8 valide. Sans ça,
@@ -249,6 +282,12 @@ class FamillesController extends Controller
             'ville_texte' => ['nullable', 'string', 'max:150'],
             'id_quartier' => ['nullable', 'integer', 'exists:commun.quartiers,id'],
             'se_deplace' => ['boolean'],
+            // 'boolean' accepte l'absence de clé comme false — cohérent
+            // avec zakat_el_fitr/sadaqa/se_deplace ci-dessus, mais
+            // manquait jusqu'ici pour est_hotel malgré sa présence dans
+            // Famille::$fillable (silencieusement rejeté par $request->
+            // validate() faute de règle déclarée) — corrigé le 12/08/2026.
+            'est_hotel' => ['boolean'],
             'circonstances' => ['nullable', 'string'],
             'ressentit' => ['nullable', 'string'],
             'specificites' => ['nullable', 'string'],
@@ -256,6 +295,28 @@ class FamillesController extends Controller
             'langue' => ['required', 'string', 'in:fr,ar,en'],
             'etat_dossier' => ['required', 'string', 'in:' . implode(',', Famille::ETATS_MODIFIABLES)],
             'commentaire_dossier' => ['nullable', 'string'],
+
+            // ── Champs collectés à l'intake, jusqu'ici non éditables
+            // depuis le dossier (ajoutés le 12/08/2026, mêmes règles que
+            // IntakeController::store — mais tout 'nullable' ici : un
+            // dossier existant peut avoir été créé avant l'ajout de ces
+            // colonnes ou importé sans elles (décision 6.8), on ne va
+            // pas bloquer l'édition d'un dossier ancien sur leur
+            // absence). Pas de required_if hosted_by/work_days
+            // volontairement : l'admin peut légitimement vouloir
+            // enregistrer un dossier partiellement complété sans que
+            // l'UI le bloque, contrairement au formulaire public.
+            'type_hebergement' => ['nullable', 'string', 'in:' . implode(',', Famille::TYPES_HEBERGEMENT)],
+            'hosted_by' => ['nullable', 'string', 'max:255'],
+            'type_piece_identite' => ['nullable', 'string', 'in:' . implode(',', Famille::TYPES_PIECE_IDENTITE)],
+            'type_activite' => ['nullable', 'string', 'in:' . implode(',', Famille::TYPES_ACTIVITE)],
+            'work_days' => ['nullable', 'integer', 'min:0', 'max:4'],
+            'secteurs_activite' => ['nullable', 'array'],
+            'secteurs_activite.*' => ['integer', 'exists:secteurs_activite,id'],
+            'secteur_activite_autre' => ['nullable', 'string', 'max:150'],
+            'organismes_aide' => ['nullable', 'array'],
+            'organismes_aide.*' => ['integer', 'exists:organismes_aide,id'],
+            'organisme_aide_autre' => ['nullable', 'string', 'max:150'],
         ], [
             'nom.required' => 'Le nom est obligatoire.',
             'prenom.required' => 'Le prénom est obligatoire.',
@@ -264,6 +325,14 @@ class FamillesController extends Controller
             'criticite.max' => 'La criticité doit être comprise entre 0 et 5.',
             'etat_dossier.in' => 'Statut de dossier invalide.',
         ]);
+
+        // Les pivots secteurs_activite/organismes_aide ne sont pas des
+        // colonnes de familles — sync()és séparément plus bas, retirés ici
+        // pour ne pas polluer $famille->fill() (Famille::$fillable ne les
+        // contient de toute façon pas, mais autant être explicite).
+        $secteursActivite = array_map('intval', $validated['secteurs_activite'] ?? []);
+        $organismesAide = array_map('intval', $validated['organismes_aide'] ?? []);
+        unset($validated['secteurs_activite'], $validated['organismes_aide']);
 
         $avant = $famille->toArray();
         $etaitValide = $famille->etat_dossier === 'Validé';
@@ -282,6 +351,13 @@ class FamillesController extends Controller
             $famille->probleme_traitement = null;
         }
         $famille->save();
+
+        // sync() plutôt qu'attach() : remplace intégralement la sélection
+        // (une case décochée dans le panneau doit bien se traduire par une
+        // suppression du pivot, pas juste par l'absence d'ajout) — même
+        // sémantique que la création initiale via IntakeAttenteService.
+        $famille->secteursActivite()->sync($secteursActivite);
+        $famille->organismesAide()->sync($organismesAide);
 
         // Adresse corrigée par le staff (ex : suite à un ZERO_RESULTS
         // signalé dans probleme_traitement) et aucun quartier choisi
@@ -310,7 +386,7 @@ class FamillesController extends Controller
             \App\Jobs\SynchroniserContactGoogle::dispatch($famille->id);
         }
 
-        return response()->json($famille->fresh(['quartier.secteur.ville', 'documents']));
+        return response()->json($famille->fresh(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide']));
     }
 
     // ── Documents (consultation/upload — décision 6.4, stockage disque local) ──

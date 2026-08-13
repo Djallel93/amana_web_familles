@@ -131,8 +131,15 @@ class ResoudreAdresseFamille implements ShouldQueue
 
         $idQuartier = $this->resoudreQuartier($lat, $lng);
 
-        $avant = $famille->only(['id_quartier']);
+        $avant = $famille->only(['id_quartier', 'latitude', 'longitude']);
         $famille->id_quartier = $idQuartier;
+        // Persistées depuis le 12/08/2026 (jusqu'ici calculées puis jetées
+        // après resoudreQuartier() ci-dessus, seul id_quartier survivait) —
+        // consommées par DetailPanel.vue pour afficher une carte sans avoir
+        // à re-géocoder côté client. Voir migration familles pour le choix
+        // decimal(10,7).
+        $famille->latitude = $lat;
+        $famille->longitude = $lng;
         // Résolution réussie (même sans quartier trouvé dans les polygones,
         // décision 6.7 — la ville/coordonnées ont bien été trouvées, le
         // problème n'est plus l'adresse elle-même) : on efface un éventuel
