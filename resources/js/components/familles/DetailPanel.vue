@@ -72,6 +72,7 @@ interface Famille {
     quartier: Quartier | null;
     se_deplace: boolean;
     est_hotel: boolean;
+    etudiant: boolean;
     // Cast decimal:7 côté modèle → sérialisé en chaîne (évite la perte de
     // précision/notation scientifique d'un float JSON) — voir Famille::$casts.
     latitude: string | null;
@@ -719,6 +720,11 @@ onMounted(() => {
                             <label class="block text-xs font-semibold text-ink mb-1">Enfants</label>
                             <input v-model.number="famille.nombre_enfant" type="number" min="0" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
                         </div>
+                        <label class="col-span-2 flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
+                            :class="famille.etudiant ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
+                            <input v-model="famille.etudiant" type="checkbox" class="w-4 h-4 accent-accent">
+                            🎓 Étudiant(e)
+                        </label>
                     </div>
                 </section>
             </div>

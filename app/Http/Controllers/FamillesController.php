@@ -18,6 +18,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * Vue principale des dossiers familles (section 8.2 du prompt de migration) :
@@ -42,8 +43,7 @@ class FamillesController extends Controller
     private const COLONNES_TRIABLES = [
         'id', 'nom', 'statut', 'email', 'telephone', 'telephone_bis', 'adresse',
         'nombre_adulte', 'nombre_enfant', 'criticite', 'eligibilite', 'se_deplace',
-        'est_hotel', 'langue', 'type_hebergement', 'type_piece_identite',
-        'type_activite', 'work_days', 'created_at',
+        'est_hotel', 'etudiant', 'langue', 'type_piece_identite', 'created_at',
     ];
 
     /**
@@ -65,50 +65,12 @@ class FamillesController extends Controller
     {
         $query = $this->baseQuery($request);
 
-        // Filtre statut — par défaut "Validé" au premier chargement (aucun
-        // paramètre etat_dossier présent dans l'URL). Le lien de réinitialisation
-        // (✕) envoie explicitement etat_dossier= (vide) pour signifier "Tous",
-        // ce qui doit être distingué de l'absence du paramètre. 'Recu' n'est
-        // volontairement plus dans les valeurs possibles ici — géré
-        // exclusivement par nouvelles() ci-dessous (décision du 09/08/2026).
-        $etatDossier = $request->has('etat_dossier') ? $request->input('etat_dossier') : 'Validé';
-        if ($etatDossier !== '' && $etatDossier !== null) {
-            $query->where('etat_dossier', $etatDossier);
-        } else {
-            $query->where('etat_dossier', '!=', 'Recu');
-        }
+        $etatDossier = $this->appliquerFiltreStatut($query, $request);
 
         $this->appliquerTri($query, $request);
 
         $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
 
-        // Stats du bandeau KPI en haut de page — recalculées sur les mêmes
-        // filtres de recherche/localisation que la liste (baseQuery), mais
-        // volontairement SANS la restriction de statut ci-dessus : donne une
-        // vue d'ensemble utile même quand on ne regarde qu'un seul statut à
-        // la fois (demande du 12/08/2026).
-        $statsQuery = $this->baseQuery($request);
-        $stats = [
-            'total' => (clone $statsQuery)->count(),
-            'moyenne_criticite' => (float) ((clone $statsQuery)->avg('criticite') ?? 0),
-            // "À traiter en priorité" : dossiers avec un problème de
-            // traitement signalé (échec géocodage, etc.), ou une criticité
-            // élevée sur un dossier pas encore refermé (Validé/Rejeté/
-            // Archivé = déjà traité, peu importe sa criticité).
-            'a_traiter' => (clone $statsQuery)
-                ->where(function ($q) {
-                    $q->whereNotNull('probleme_traitement')
-                        ->orWhere(function ($q2) {
-                            $q2->where('criticite', '>=', 4)
-                                ->whereNotIn('etat_dossier', ['Validé', 'Rejeté', 'Archivé']);
-                        });
-                })
-                ->count(),
-            'par_statut' => (clone $statsQuery)
-                ->selectRaw('etat_dossier, count(*) as total')
-                ->groupBy('etat_dossier')
-                ->pluck('total', 'etat_dossier'),
-        ];
 
         // Filtres géographiques — listes complètes indépendamment des
         // résultats courants (villes/secteurs/quartiers sont créées vides
@@ -130,7 +92,7 @@ class FamillesController extends Controller
         $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
 
         return view('familles.index', compact(
-            'familles', 'villes', 'secteurs', 'quartiers', 'etatDossier', 'stats',
+            'familles', 'villes', 'secteurs', 'quartiers', 'etatDossier',
             'secteursActivite', 'organismesAide',
         ));
     }
@@ -173,11 +135,23 @@ class FamillesController extends Controller
         if ($request->filled('id_quartier')) {
             $query->where('id_quartier', $request->input('id_quartier'));
         }
+        // id_secteur / id_ville : Quartier/Secteur/Ville vivent sur la
+        // connexion 'commun' (amana_commun), familles sur la connexion par
+        // défaut (amana_familles) — voir Amana\Shared\Models\Quartier/
+        // Secteur/Ville::getConnectionName(). whereHas() génère un
+        // sous-select 'exists' en réutilisant tel quel le nom de table du
+        // modèle lié, SANS qualifier la base : MySQL le résout alors dans
+        // le schéma de la connexion du modèle PARENT (amana_familles) et
+        // échoue avec "Table 'amana_familles.quartiers' doesn't exist"
+        // (signalé le 13/08/2026). On résout donc les id_quartier
+        // correspondants via une requête séparée sur la connexion
+        // 'commun', puis un whereIn() classique sur familles.id_quartier —
+        // deux requêtes mono-connexion plutôt qu'un exists() cross-DB.
         if ($request->filled('id_secteur')) {
-            $query->whereHas('quartier', fn($q) => $q->where('id_secteur', $request->input('id_secteur')));
+            $query->whereIn('id_quartier', Quartier::where('id_secteur', $request->input('id_secteur'))->pluck('id'));
         }
         if ($request->filled('id_ville')) {
-            $query->whereHas('quartier.secteur', fn($q) => $q->where('id_ville', $request->input('id_ville')));
+            $query->whereIn('id_quartier', Quartier::whereHas('secteur', fn($q) => $q->where('id_ville', $request->input('id_ville')))->pluck('id'));
         }
         if ($request->boolean('zakat_el_fitr')) {
             $query->where('zakat_el_fitr', true);
@@ -185,20 +159,189 @@ class FamillesController extends Controller
         if ($request->boolean('sadaqa')) {
             $query->where('sadaqa', true);
         }
-        if ($request->filled('se_deplace')) {
-            $query->where('se_deplace', $request->input('se_deplace') === '1');
+        // se_deplace / est_hotel / etudiant : cases à cocher simples (voir
+        // familles/index.blade.php) — cochée = filtre sur "Oui" uniquement,
+        // décochée = indifférent, même sémantique que zakat_el_fitr/sadaqa
+        // ci-dessus (remplace le <select> Oui/Non/Indifférent à 3 états du
+        // 13/08/2026 : pas de moyen de filtrer explicitement sur "Non" côté
+        // UI désormais, jugé peu utile en pratique).
+        if ($request->boolean('se_deplace')) {
+            $query->where('se_deplace', true);
         }
-        if ($request->filled('criticite_min')) {
-            $query->where('criticite', '>=', (int) $request->input('criticite_min'));
+        if ($request->boolean('est_hotel')) {
+            $query->where('est_hotel', true);
         }
-        if ($request->filled('criticite_max')) {
-            $query->where('criticite', '<=', (int) $request->input('criticite_max'));
+        if ($request->boolean('etudiant')) {
+            $query->where('etudiant', true);
+        }
+        // Sélection discrète (cases à cocher 0-5, voir familles/index.blade.php)
+        // plutôt qu'un intervalle min/max — remplace criticite_min/criticite_max
+        // le 13/08/2026 (demande : pouvoir cocher ex. 3 ET 5 sans inclure 4).
+        // Filtrage sur les entiers valides uniquement, silencieusement ignoré
+        // sinon (paramètre trafiqué) plutôt que de faire échouer la requête.
+        if ($request->filled('criticite')) {
+            $valeurs = array_values(array_intersect(
+                array_map('intval', (array) $request->input('criticite')),
+                range(0, 5),
+            ));
+            if (!empty($valeurs)) {
+                $query->whereIn('criticite', $valeurs);
+            }
         }
         if ($request->filled('recherche')) {
             $query->recherche($request->input('recherche'));
         }
+        // Nom / Téléphone (familles/index.blade.php) : deux champs distincts
+        // avec autocomplétion — voir rechercheSuggestions() ci-dessous. Un
+        // clic sur une suggestion pose id_selection (l'id exact de la
+        // famille visée) plutôt que de compter sur le texte affiché dans le
+        // champ pour matcher via LIKE : le champ est rempli avec le
+        // nom/prénom ou le téléphone complet à des fins d'affichage
+        // uniquement, id_selection prime donc sur nom/telephone quand les
+        // deux sont présents. Un JS annule id_selection dès que l'utilisateur
+        // retape dans le champ (voir le script en bas de la vue), pour
+        // retomber sur une recherche LIKE classique.
+        if ($request->filled('id_selection')) {
+            $query->where('id', (int) $request->input('id_selection'));
+        } else {
+            if ($request->filled('nom')) {
+                $query->rechercheNom($request->input('nom'));
+            }
+            if ($request->filled('telephone')) {
+                $query->rechercheTelephone($request->input('telephone'));
+            }
+        }
 
         return $query;
+    }
+
+    /**
+     * Filtre de statut avec le défaut "Validé" au premier chargement (aucun
+     * paramètre etat_dossier présent dans l'URL) — le lien de
+     * réinitialisation envoie explicitement etat_dossier= (vide) pour
+     * signifier "Tous", ce qui doit être distingué de l'absence du
+     * paramètre. 'Recu' n'est volontairement plus dans les valeurs
+     * possibles ici — géré exclusivement par nouvelles() (décision du
+     * 09/08/2026). Factorisé le 13/08/2026 (utilisé par index() et
+     * export()) — retourne la valeur résolue pour que index() puisse encore
+     * l'exposer à la vue (pastille de statut sélectionnée).
+     */
+    private function appliquerFiltreStatut($query, Request $request): string
+    {
+        $etatDossier = $request->has('etat_dossier') ? $request->input('etat_dossier') : 'Validé';
+        if ($etatDossier !== '' && $etatDossier !== null) {
+            $query->where('etat_dossier', $etatDossier);
+        } else {
+            $query->where('etat_dossier', '!=', 'Recu');
+        }
+
+        return (string) $etatDossier;
+    }
+
+    /**
+     * Export CSV — reprend exactement les mêmes filtres que la liste
+     * (baseQuery + statut + tri), sans pagination : bouton "Exporter CSV"
+     * au niveau du bandeau Filtres actifs de familles/index.blade.php,
+     * demande du 13/08/2026. chunk(500) plutôt que get() pour ne pas
+     * charger tous les dossiers en mémoire d'un coup ; s'appuie sur le tri
+     * appliqué par appliquerTri() (toujours au moins orderBy('id') par
+     * défaut) pour un LIMIT/OFFSET stable entre les lots.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $query = $this->baseQuery($request);
+        $this->appliquerFiltreStatut($query, $request);
+        $this->appliquerTri($query, $request);
+        $query->with('quartier.secteur.ville');
+
+        $colonnes = [
+            'id' => 'ID',
+            'nom' => 'Nom',
+            'prenom' => 'Prénom',
+            'email' => 'Email',
+            'telephone' => 'Téléphone',
+            'telephone_bis' => 'Téléphone (bis)',
+            'adresse_complete' => 'Adresse',
+            'ville' => 'Ville',
+            'quartier' => 'Quartier',
+            'nombre_adulte' => 'Adultes',
+            'nombre_enfant' => 'Enfants',
+            'criticite' => 'Criticité',
+            'etat_dossier' => 'Statut',
+            'zakat_el_fitr' => 'Zakat El Fitr',
+            'sadaqa' => 'Sadaqa',
+            'se_deplace' => 'Se déplace',
+            'est_hotel' => 'Hôtel',
+            'etudiant' => 'Étudiant',
+            'langue' => 'Langue',
+            'created_at' => 'Créé le',
+        ];
+
+        $nomFichier = 'familles_' . now()->format('Y-m-d_His') . '.csv';
+
+        return response()->streamDownload(function () use ($query, $colonnes) {
+            $flux = fopen('php://output', 'w');
+            // BOM UTF-8 — sans lui Excel réinterprète mal les accents à
+            // l'ouverture directe d'un CSV UTF-8 (comportement connu du
+            // logiciel, indépendant de l'encodage réel du fichier).
+            fwrite($flux, "\xEF\xBB\xBF");
+            fputcsv($flux, array_values($colonnes), ';');
+
+            $query->chunk(500, function ($lot) use ($flux, $colonnes) {
+                foreach ($lot as $famille) {
+                    $ligne = [];
+                    foreach (array_keys($colonnes) as $champ) {
+                        $ligne[] = match ($champ) {
+                            'adresse_complete' => $famille->adresse_complete,
+                            'ville' => $famille->ville ?? '',
+                            'quartier' => $famille->quartier->nom ?? '',
+                            'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant' => $famille->{$champ} ? 'Oui' : 'Non',
+                            'created_at' => $famille->created_at?->format('d/m/Y') ?? '',
+                            default => (string) ($famille->{$champ} ?? ''),
+                        };
+                    }
+                    fputcsv($flux, $ligne, ';');
+                }
+            });
+
+            fclose($flux);
+        }, $nomFichier, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    /**
+     * Suggestions d'autocomplétion pour les champs Nom / Téléphone de
+     * familles/index.blade.php — 8 résultats max, réponse JSON légère
+     * (seulement les colonnes affichées dans la liste déroulante).
+     */
+    public function rechercheSuggestions(Request $request): JsonResponse
+    {
+        $champ = $request->input('champ') === 'telephone' ? 'telephone' : 'nom';
+        $terme = trim((string) $request->input('q', ''));
+
+        if (mb_strlen($terme) < 2) {
+            return response()->json([]);
+        }
+
+        $resultats = ($champ === 'telephone'
+            ? Famille::query()->rechercheTelephone($terme)
+            : Famille::query()->rechercheNom($terme))
+            ->orderBy('nom')
+            ->limit(8)
+            ->get(['id', 'nom', 'prenom', 'telephone', 'telephone_bis']);
+
+        return response()->json($resultats->map(fn(Famille $famille) => [
+            'id' => $famille->id,
+            'label' => trim($famille->prenom . ' ' . $famille->nom),
+            'sous_label' => $famille->telephone ?? $famille->telephone_bis ?? '',
+            // Valeur posée dans le champ texte au clic — le nom complet pour
+            // le champ Nom, le numéro effectivement trouvé pour le champ
+            // Téléphone (peut être telephone_bis si c'est lui qui matche).
+            'valeur' => $champ === 'telephone'
+                ? ((str_contains((string) $famille->telephone, $terme) ? $famille->telephone : $famille->telephone_bis) ?? '')
+                : trim($famille->prenom . ' ' . $famille->nom),
+        ]));
     }
 
     /**
@@ -236,11 +379,9 @@ class FamillesController extends Controller
             'eligibilite' => $query->orderBy('zakat_el_fitr', $direction)->orderBy('sadaqa', $direction),
             'se_deplace' => $query->orderBy('se_deplace', $direction),
             'est_hotel' => $query->orderBy('est_hotel', $direction),
+            'etudiant' => $query->orderBy('etudiant', $direction),
             'langue' => $query->orderBy('langue', $direction),
-            'type_hebergement' => $query->orderBy('type_hebergement', $direction),
             'type_piece_identite' => $query->orderBy('type_piece_identite', $direction),
-            'type_activite' => $query->orderBy('type_activite', $direction),
-            'work_days' => $query->orderBy('work_days', $direction),
             'created_at' => $query->orderBy('created_at', $direction),
         };
     }
@@ -288,6 +429,7 @@ class FamillesController extends Controller
             // Famille::$fillable (silencieusement rejeté par $request->
             // validate() faute de règle déclarée) — corrigé le 12/08/2026.
             'est_hotel' => ['boolean'],
+            'etudiant' => ['boolean'],
             'circonstances' => ['nullable', 'string'],
             'ressentit' => ['nullable', 'string'],
             'specificites' => ['nullable', 'string'],

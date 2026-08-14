@@ -16,8 +16,18 @@ export default {
     theme: {
         extend: {
             colors: {
-                // Identité visuelle propre à Familles
-                accent: { DEFAULT: '#0f766e', dark: '#0d9488', light: '#14b8a6' },
+                // Identité visuelle propre à Familles — pilotée par des
+                // variables CSS (voir public/css/custom.css) depuis le
+                // 13/08/2026, même mécanisme que surface/ink dans le
+                // préréglage partagé, pour que du JS qui ne peut pas lire
+                // de classes Tailwind (Chart.js dans
+                // FamillesStatistiques.vue) puisse lire la même couleur via
+                // getComputedStyle() au lieu de dupliquer les hex à la main.
+                accent: {
+                    DEFAULT: 'rgb(var(--color-accent) / <alpha-value>)',
+                    dark: 'rgb(var(--color-accent-dark) / <alpha-value>)',
+                    light: 'rgb(var(--color-accent-light) / <alpha-value>)',
+                },
                 sidebar: { DEFAULT: '#0c2321', 2: '#123330' },
             },
             boxShadow: {

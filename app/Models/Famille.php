@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null    $id_quartier
  * @property bool        $se_deplace
  * @property bool        $est_hotel
+ * @property bool        $etudiant
  * @property float|null  $latitude
  * @property float|null  $longitude
  * @property string|null $circonstances
@@ -72,7 +73,7 @@ class Famille extends Model
         'nom', 'prenom', 'email', 'telephone', 'telephone_bis',
         'zakat_el_fitr', 'sadaqa',
         'nombre_adulte', 'nombre_enfant',
-        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'se_deplace', 'est_hotel',
+        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'se_deplace', 'est_hotel', 'etudiant',
         'circonstances', 'ressentit', 'specificites', 'criticite', 'langue',
         'etat_dossier', 'commentaire_dossier', 'probleme_traitement',
         'type_hebergement', 'hosted_by',
@@ -87,6 +88,7 @@ class Famille extends Model
         'sadaqa' => 'boolean',
         'se_deplace' => 'boolean',
         'est_hotel' => 'boolean',
+        'etudiant' => 'boolean',
         'nombre_adulte' => 'integer',
         'nombre_enfant' => 'integer',
         'criticite' => 'integer',
@@ -151,6 +153,21 @@ class Famille extends Model
     public function getNombreFoyerAttribute(): int
     {
         return $this->nombre_adulte + $this->nombre_enfant;
+    }
+
+    /**
+     * Ville résolue par géocodage — pas de colonne directe sur familles
+     * (seul ville_texte, la saisie brute, l'est), la ville "propre" ne
+     * s'obtient qu'en remontant quartier → secteur → ville (voir
+     * migration 2026_07_12_000004_create_familles_table.php, commentaire
+     * sur id_quartier). Nécessite quartier.secteur.ville eager-loadé
+     * (voir FamillesController::baseQuery) pour éviter le N+1 — retourne
+     * null silencieusement sinon plutôt que de déclencher une requête
+     * supplémentaire par ligne.
+     */
+    public function getVilleAttribute(): ?string
+    {
+        return $this->quartier?->ville()?->nom;
     }
 
     /**
@@ -249,6 +266,37 @@ class Famille extends Model
             $q->where('nom', 'like', "%{$terme}%")
                 ->orWhere('prenom', 'like', "%{$terme}%")
                 ->orWhere('telephone', 'like', "%{$terme}%")
+                ->orWhere('telephone_bis', 'like', "%{$terme}%");
+        });
+    }
+
+    /**
+     * Ajoutés le 13/08/2026 pour familles/index.blade.php, qui sépare
+     * désormais Nom et Téléphone en deux champs de filtre distincts (voir
+     * groupe "Recherche & statut") — scopeRecherche() ci-dessus reste
+     * utilisé tel quel par familles/nouvelles.blade.php, dont le champ de
+     * recherche unique n'a pas changé.
+     */
+    public function scopeRechercheNom($query, ?string $terme)
+    {
+        if (!$terme) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($terme) {
+            $q->where('nom', 'like', "%{$terme}%")
+                ->orWhere('prenom', 'like', "%{$terme}%");
+        });
+    }
+
+    public function scopeRechercheTelephone($query, ?string $terme)
+    {
+        if (!$terme) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($terme) {
+            $q->where('telephone', 'like', "%{$terme}%")
                 ->orWhere('telephone_bis', 'like', "%{$terme}%");
         });
     }

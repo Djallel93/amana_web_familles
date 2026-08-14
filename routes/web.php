@@ -80,6 +80,11 @@ Route::post('/verification/{token}/confirmer', [\App\Http\Controllers\Verificati
 Route::middleware('auth')->group(function () {
     Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
     Route::get('/nouvelles', [\App\Http\Controllers\FamillesController::class, 'nouvelles'])->name('familles.nouvelles');
+    // Placée avant /familles/{id} par convention (whereNumber la protège déjà
+    // d'une collision, ce chemin littéral ne matchant pas \d+, mais autant
+    // garder les routes explicites avant le wildcard).
+    Route::get('/familles/recherche-suggestions', [\App\Http\Controllers\FamillesController::class, 'rechercheSuggestions'])->name('familles.recherche-suggestions');
+    Route::get('/familles/export', [\App\Http\Controllers\FamillesController::class, 'export'])->name('familles.export');
     Route::get('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'show'])->whereNumber('id')->name('familles.show');
     Route::put('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'update'])->whereNumber('id')->name('familles.update');
     Route::post('/familles/{id}/documents', [\App\Http\Controllers\FamillesController::class, 'uploadDocument'])->whereNumber('id')->name('familles.documents.store');

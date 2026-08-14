@@ -119,6 +119,7 @@ class IntakeController extends Controller
 
             'nombre_adulte' => ['required', 'integer', 'min:0', 'max:255'],
             'nombre_enfant' => ['required', 'integer', 'min:0', 'max:255'],
+            'etudiant' => ['boolean'],
 
             'adresse' => ['required', 'string'],
             'code_postal' => ['required', 'string', 'max:10'],

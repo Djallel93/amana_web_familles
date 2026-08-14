@@ -96,6 +96,8 @@ return new class extends Migration {
             $table->boolean('se_deplace')->default(false);
             $table->boolean('est_hotel')->default(false)
                 ->comment('Adresse actuelle = un hôtel (hébergement d\'urgence) — ajouté suite à la demande du 09/08/2026, absent du Google Form d\'origine');
+            $table->boolean('etudiant')->default(false)
+                ->comment('Famille (déclarant) étudiant(e) — ajouté suite à la demande du 13/08/2026, absent du Google Form d\'origine');
             // Coordonnées résolues par ResoudreAdresseFamille (Google Maps
             // Geocoding), en plus de id_quartier — jusqu'ici calculées puis
             // jetées après le calcul point-in-polygon. Persistées depuis le

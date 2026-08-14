@@ -28,9 +28,11 @@ class FamilleStatistics
         return [
             'parEtatDossier' => $this->repartitionParEtat($familles),
             'eligibilite' => $this->eligibilite($familles),
-            'parCriticite' => $this->repartitionParCriticite($familles),
+            'parQuartier' => $this->repartitionParQuartier($familles),
             'parVille' => $this->repartitionParVille($familles),
             'seDeplace' => $this->repartitionSeDeplace($familles),
+            'etudiant' => $this->repartitionEtudiant($familles),
+            'estHotel' => $this->repartitionEstHotel($familles),
             'evolutionFoyer' => $this->evolutionFoyer($familles),
             'cartes' => $this->cartes($familles),
         ];
@@ -55,12 +57,28 @@ class FamilleStatistics
         ];
     }
 
-    private function repartitionParCriticite(Collection $familles): array
+    /**
+     * Remplace repartitionParCriticite() le 13/08/2026 (demande : la
+     * répartition par criticité n'apportait pas grand-chose une fois la
+     * carte "Criticité moyenne" en place, la répartition géographique par
+     * quartier est plus actionnable). "Non résolu" pour les familles sans
+     * id_quartier, même logique que repartitionParVille() ci-dessous. Les
+     * 10 quartiers les plus représentés seulement — au-delà le graphique en
+     * barres horizontales devient illisible.
+     */
+    private function repartitionParQuartier(Collection $familles): array
     {
-        return collect(range(0, 5))->map(fn($n) => [
-            'valeur' => $n,
-            'total' => $familles->where('criticite', $n)->count(),
-        ])->all();
+        return $familles
+            ->groupBy(fn(Famille $f) => $f->quartier?->nom ?? 'Non résolu')
+            ->map(fn(Collection $groupe, string $quartier) => [
+                'valeur' => $quartier,
+                'total' => $groupe->count(),
+            ])
+            ->values()
+            ->sortByDesc('total')
+            ->take(10)
+            ->values()
+            ->all();
     }
 
     /**
@@ -88,6 +106,27 @@ class FamilleStatistics
         return [
             'seDeplace' => $familles->where('se_deplace', true)->count(),
             'neSeDeplacePas' => $familles->where('se_deplace', false)->count(),
+        ];
+    }
+
+    /**
+     * Ajoutés le 13/08/2026 pour les cartes "Caractéristiques" de
+     * FamillesStatistiques.vue (étudiant / hôtel), même forme que
+     * repartitionSeDeplace() ci-dessus.
+     */
+    private function repartitionEtudiant(Collection $familles): array
+    {
+        return [
+            'etudiant' => $familles->where('etudiant', true)->count(),
+            'nonEtudiant' => $familles->where('etudiant', false)->count(),
+        ];
+    }
+
+    private function repartitionEstHotel(Collection $familles): array
+    {
+        return [
+            'estHotel' => $familles->where('est_hotel', true)->count(),
+            'nonHotel' => $familles->where('est_hotel', false)->count(),
         ];
     }
 
@@ -126,12 +165,28 @@ class FamilleStatistics
             fn(Famille $f) => !$f->documents->where('type', 'identity')->count()
         )->count();
 
+        // "À traiter en priorité" : migré depuis le bandeau KPI de
+        // familles/index.blade.php le 13/08/2026 (seule carte de ce bandeau
+        // sans équivalent déjà présent ici — criticité moyenne et
+        // répartition par statut existaient déjà). Même règle métier que
+        // l'ancien FamillesController::index() : un problème de traitement
+        // signalé (échec géocodage, etc.), ou une criticité élevée sur un
+        // dossier pas encore refermé (Validé/Rejeté/Archivé = déjà traité,
+        // peu importe sa criticité) — recalculée ici en pur PHP sur la
+        // Collection déjà chargée plutôt qu'en SQL, cohérent avec le reste
+        // de ce service.
+        $aTraiterPriorite = $familles->filter(
+            fn(Famille $f) => $f->probleme_traitement !== null
+                || ($f->criticite >= 4 && !in_array($f->etat_dossier, ['Validé', 'Rejeté', 'Archivé'], true))
+        )->count();
+
         return [
             'totalFamilles' => $familles->count(),
             'totalAdultes' => $familles->sum('nombre_adulte'),
             'totalEnfants' => $familles->sum('nombre_enfant'),
             'criticiteMoyenne' => $familles->isEmpty() ? 0 : round($familles->avg('criticite'), 1),
             'documentsIdentiteManquants' => $documentsIdentiteManquants,
+            'aTraiterPriorite' => $aTraiterPriorite,
         ];
     }
 }

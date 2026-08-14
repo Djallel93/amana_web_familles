@@ -87,6 +87,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_situation: 'Situation familiale',
         nombre_adulte: "Combien d'adultes vivent actuellement dans votre foyer ?",
         nombre_enfant: "Combien d'enfants vivent actuellement dans votre foyer ?",
+        etudiant_question: 'Êtes-vous étudiant(e) ?',
         circonstances: 'Décrivez brièvement votre situation actuelle',
         circonstances_desc: 'Expliquez en quelques lignes votre situation personnelle et/ou familiale.',
 
@@ -161,6 +162,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_situation: 'Family Situation',
         nombre_adulte: 'How many adults currently live in your household?',
         nombre_enfant: 'How many children currently live in your household?',
+        etudiant_question: 'Are you a student?',
         circonstances: 'Briefly describe your current situation',
         circonstances_desc: 'Explain your personal and/or family situation in a few sentences.',
 
@@ -235,6 +237,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_situation: 'الوضع العائلي',
         nombre_adulte: 'كم عدد البالغين الذين يعيشون حاليًا في منزلك؟',
         nombre_enfant: 'كم عدد الأطفال الذين يعيشون حاليًا في منزلك؟',
+        etudiant_question: 'هل أنت طالب(ة)؟',
         circonstances: 'صف وضعك الحالي باختصار',
         circonstances_desc: 'يرجى شرح وضعك الشخصي و/أو العائلي في بضع سطور.',
 
@@ -309,7 +312,7 @@ const form = reactive({
     nom: '', prenom: '', email: '', telephone: '', telephone_bis: '',
     type_hebergement: '' as '' | 'organisation' | 'proche' | 'non', hosted_by: '',
     adresse: '', code_postal: '', ville_texte: '', se_deplace: false, est_hotel: false,
-    nombre_adulte: 1, nombre_enfant: 0, circonstances: '',
+    nombre_adulte: 1, nombre_enfant: 0, etudiant: false, circonstances: '',
     type_piece_identite: '' as '' | 'nationalite' | 'titre_sejour' | 'demande_asile' | 'autre',
     type_activite: '' as '' | 'temps_plein' | 'temps_partiel' | 'non',
     work_days: null as number | null,
@@ -616,6 +619,7 @@ async function submit(): Promise<void> {
     append('est_hotel', form.est_hotel);
     append('nombre_adulte', form.nombre_adulte);
     append('nombre_enfant', form.nombre_enfant);
+    append('etudiant', form.etudiant);
     append('circonstances', form.circonstances);
     append('type_piece_identite', form.type_piece_identite);
     append('type_activite', form.type_activite);
@@ -883,6 +887,11 @@ onMounted(() => {
                         <input v-model.number="form.nombre_enfant" type="number" min="0" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
                     </div>
                 </div>
+                <label class="flex items-center gap-2.5 px-3 py-2.5 border rounded-md text-[13.5px] text-ink cursor-pointer select-none"
+                    :class="form.etudiant ? 'border-accent bg-accent/5' : 'border-ink-faint'">
+                    <input type="checkbox" v-model="form.etudiant" class="w-4 h-4 accent-accent">
+                    {{ t.etudiant_question }}
+                </label>
                 <div>
                     <label class="block text-xs font-semibold text-ink mb-1">{{ t.circonstances }} *</label>
                     <p class="text-[11.5px] text-ink-muted mb-1">{{ t.circonstances_desc }}</p>

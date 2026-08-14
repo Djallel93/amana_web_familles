@@ -2,13 +2,20 @@
  * public/css/custom.css
  * Styles résiduels propres à AMANA Familles.
  *
- * Vide pour l'instant : le contenu précédent de ce fichier était une copie
- * quasi intégrale du custom.css de amana_web_planning (sidebar, hamburger,
- * scrollbar, flash — désormais dans @amana/shared-ui/styles/amana-shared.css
- * — et des classes de "chips" de tâches planning comme .chip-entree/
- * .chip-mektaba, qui n'ont pas d'équivalent dans le domaine Familles et ne
- * sont utilisées nulle part dans resources/ — vérifié par recherche avant
- * suppression). Ce fichier reste importé par resources/css/app.css comme
- * point d'extension pour tout style propre à Familles qui apparaîtrait à
- * l'avenir (ex. styles spécifiques à la carte des secteurs/quartiers).
+ * --color-accent* : jetons RGB (format "R G B", requis par
+ * rgb(var(--x) / <alpha-value>) — voir tailwind.config.js) pour l'identité
+ * teal propre à Familles (#0f766e/#0d9488/#14b8a6), qui surchargeait
+ * jusqu'ici accent en hex brut directement dans tailwind.config.js. Passés
+ * en variable CSS le 13/08/2026 pour que FamillesStatistiques.vue puisse
+ * les lire au runtime via getComputedStyle() plutôt que dupliquer les
+ * mêmes hex en dur dans le composant (ce qui avait justement causé le bug
+ * signalé — un reste de palette ambre d'un autre app AMANA que personne
+ * n'avait remarqué). Un seul accent fixe pour clair/sombre (pas de bloc
+ * .dark ici) : contrairement à --color-surface/--color-ink dans
+ * amana-shared.css, l'accent Familles ne change pas avec le thème.
  */
+:root {
+    --color-accent:       15 118 110; /* #0f766e */
+    --color-accent-dark:  13 148 136; /* #0d9488 */
+    --color-accent-light: 20 184 166; /* #14b8a6 */
+}

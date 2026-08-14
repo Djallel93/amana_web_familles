@@ -28,8 +28,14 @@
         <div class="flex items-center gap-3 order-1 sm:order-2">
             <label class="flex items-center gap-1.5 text-[12px] text-ink-muted">
                 Lignes par page
+                {{-- pr-7 : espace dédié à la flèche native du <select>, qui
+                     chevauchait le texte avec le padding uniforme px-2
+                     d'origine (signalé le 13/08/2026) — les autres selects
+                     de l'app (px-3 py-2, voir barre de filtres ci-dessus)
+                     n'y étaient pas exposés du fait de leur largeur plus
+                     généreuse, celui-ci est volontairement compact. --}}
                 <select data-per-page-select
-                    class="px-2 py-1.5 border border-ink-faint rounded-md text-[12.5px] bg-surface outline-none focus:border-accent cursor-pointer">
+                    class="pl-2 pr-7 py-1.5 border border-ink-faint rounded-md text-[12.5px] bg-surface outline-none focus:border-accent cursor-pointer">
                     @foreach(\App\Models\Famille::PAGINATION_PAR_PAGE as $option)
                         <option value="{{ $option }}" {{ $paginator->perPage() === $option ? 'selected' : '' }}>{{ $option }}</option>
                     @endforeach

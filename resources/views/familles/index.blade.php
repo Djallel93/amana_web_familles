@@ -6,22 +6,12 @@
 @section('content')
 
     @php
-        // Couleurs "pleines" par statut — utilisées à la fois par le mini
-        // bandeau de répartition du KPI et par le liseré de gauche de
-        // chaque ligne du tableau. Classes Tailwind écrites en toutes
-        // lettres (pas de concaténation dynamique bg-{{ }}) : le scanner
-        // JIT de Tailwind ne détecte que des tokens littéraux dans le
-        // fichier source, une classe construite à l'exécution (ex :
-        // str_replace('bg-', 'border-l-', ...)) serait purgée du CSS
+        // Couleur du liseré de gauche de chaque ligne du tableau (voir
+        // <tbody> plus bas). Classes Tailwind écrites en toutes lettres
+        // (pas de concaténation dynamique bg-{{ }}) : le scanner JIT de
+        // Tailwind ne détecte que des tokens littéraux dans le fichier
+        // source, une classe construite à l'exécution serait purgée du CSS
         // généré et n'aurait donc aucun effet visuel.
-        $etatColorsPleines = [
-            'Recu' => 'bg-stone-400',
-            'En cours' => 'bg-sky-400',
-            'En attente' => 'bg-amber-400',
-            'Validé' => 'bg-emerald-500',
-            'Rejeté' => 'bg-rose-400',
-            'Archivé' => 'bg-gray-400',
-        ];
         $etatColorsListere = [
             'Recu' => 'border-l-stone-400',
             'En cours' => 'border-l-sky-400',
@@ -30,8 +20,20 @@
             'Rejeté' => 'border-l-rose-400',
             'Archivé' => 'border-l-gray-400',
         ];
-        $totalStatuts = max($stats['par_statut']->sum(), 1);
-        $filtresActifs = request()->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'se_deplace', 'criticite_min', 'criticite_max', 'recherche']);
+        // Badges de statut (texte + fond léger) — remontés ici depuis le
+        // <tbody> le 13/08/2026 pour être partagés avec le filtre Statut
+        // (pastilles colorées ci-dessous), qui reprend désormais exactement
+        // ces couleurs plutôt qu'un <select> texte : une seule source de
+        // vérité au lieu de deux palettes qui auraient pu diverger.
+        $etatColors = [
+            'Recu' => 'bg-stone-100 text-stone-700 border-stone-300',
+            'En cours' => 'bg-sky-50 text-sky-700 border-sky-200',
+            'En attente' => 'bg-amber-50 text-amber-700 border-amber-200',
+            'Validé' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            'Rejeté' => 'bg-rose-50 text-rose-700 border-rose-200',
+            'Archivé' => 'bg-gray-100 text-gray-500 border-gray-300',
+        ];
+        $filtresActifs = request()->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant', 'criticite', 'nom', 'telephone']);
 
         // Puces de filtres actifs (voir section juste après le formulaire) —
         // chaque puce porte son URL de suppression déjà calculée (paramètres
@@ -51,17 +53,33 @@
             $quartierNom = optional($quartiers->firstWhere('id', (int) request('id_quartier')))->nom ?? request('id_quartier');
             $puces[] = ['label' => 'Quartier : ' . $quartierNom, 'href' => route('familles.index', $parametresBase->except('id_quartier')->all())];
         }
-        if (request()->filled('recherche')) {
-            $puces[] = ['label' => 'Recherche : "' . request('recherche') . '"', 'href' => route('familles.index', $parametresBase->except('recherche')->all())];
+        if (request()->filled('id_selection')) {
+            // Sélection précise via l'autocomplétion (voir rechercheSuggestions())
+            // plutôt que le texte du champ Nom/Téléphone, qui ne sert plus qu'à
+            // l'affichage une fois une suggestion choisie.
+            $puces[] = ['label' => '🔗 Résultat sélectionné', 'href' => route('familles.index', $parametresBase->except(['id_selection', 'nom', 'telephone'])->all())];
+        } else {
+            if (request()->filled('nom')) {
+                $puces[] = ['label' => 'Nom : "' . request('nom') . '"', 'href' => route('familles.index', $parametresBase->except('nom')->all())];
+            }
+            if (request()->filled('telephone')) {
+                $puces[] = ['label' => 'Téléphone : "' . request('telephone') . '"', 'href' => route('familles.index', $parametresBase->except('telephone')->all())];
+            }
         }
-        if (request()->filled('criticite_min')) {
-            $puces[] = ['label' => 'Criticité ≥ ' . request('criticite_min'), 'href' => route('familles.index', $parametresBase->except('criticite_min')->all())];
+        if (request()->filled('criticite')) {
+            $criticiteValeurs = collect((array) request('criticite'))->map(fn($v) => (int) $v)->sort()->values();
+            if ($criticiteValeurs->isNotEmpty()) {
+                $puces[] = ['label' => 'Criticité : ' . $criticiteValeurs->implode(', '), 'href' => route('familles.index', $parametresBase->except('criticite')->all())];
+            }
         }
-        if (request()->filled('criticite_max')) {
-            $puces[] = ['label' => 'Criticité ≤ ' . request('criticite_max'), 'href' => route('familles.index', $parametresBase->except('criticite_max')->all())];
+        if (request()->boolean('se_deplace')) {
+            $puces[] = ['label' => 'Se déplace', 'href' => route('familles.index', $parametresBase->except('se_deplace')->all())];
         }
-        if (request('se_deplace') === '1' || request('se_deplace') === '0') {
-            $puces[] = ['label' => 'Se déplace : ' . (request('se_deplace') === '1' ? 'Oui' : 'Non'), 'href' => route('familles.index', $parametresBase->except('se_deplace')->all())];
+        if (request()->boolean('est_hotel')) {
+            $puces[] = ['label' => '🏨 Hôtel', 'href' => route('familles.index', $parametresBase->except('est_hotel')->all())];
+        }
+        if (request()->boolean('etudiant')) {
+            $puces[] = ['label' => '🎓 Étudiant', 'href' => route('familles.index', $parametresBase->except('etudiant')->all())];
         }
         if (request()->boolean('zakat_el_fitr')) {
             $puces[] = ['label' => 'Zakat El Fitr', 'href' => route('familles.index', $parametresBase->except('zakat_el_fitr')->all())];
@@ -83,86 +101,96 @@
         </div>
     </div>
 
-    {{-- ── Bandeau KPI ── --}}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5 animate-fade-in-up">
-        <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🏠</div>
-            <div class="min-w-0">
-                <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ $stats['total'] }}</div>
-                <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Dossiers (filtres géo/recherche)</div>
-            </div>
-        </div>
+    {{-- Bandeau KPI retiré le 13/08/2026 — "Criticité moyenne" et
+         "Répartition par statut" existent déjà tels quels sur la page
+         Statistiques (cartes.criticiteMoyenne / parEtatDossier), pas de
+         raison de les dupliquer ici. Le total filtré était déjà visible
+         dans le sous-titre juste au-dessus ("X dossiers (filtrés)"). Seul
+         "À traiter en priorité" était une info propre à ce bandeau, sans
+         équivalent ailleurs — migré vers FamilleStatistics::cartes()
+         (aTraiterPriorite) et FamillesStatistiques.vue plutôt que perdu. --}}
 
-        <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full {{ $stats['a_traiter'] > 0 ? 'bg-rose-100' : 'bg-emerald-100' }} flex items-center justify-center text-lg flex-shrink-0">
-                {{ $stats['a_traiter'] > 0 ? '⚠️' : '✅' }}
-            </div>
-            <div class="min-w-0">
-                <div class="text-[20px] font-heading font-semibold {{ $stats['a_traiter'] > 0 ? 'text-rose-600' : 'text-ink' }} leading-none">{{ $stats['a_traiter'] }}</div>
-                <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">À traiter en priorité</div>
-            </div>
-        </div>
-
-        <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-lg flex-shrink-0">📊</div>
-            <div class="min-w-0">
-                <div class="text-[20px] font-heading font-semibold text-ink leading-none">
-                    {{ number_format($stats['moyenne_criticite'], 1) }}<span class="text-[13px] text-ink-muted font-medium">/5</span>
-                </div>
-                <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Criticité moyenne</div>
-            </div>
-        </div>
-
-        <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-            <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mb-2">Répartition par statut</div>
-            @if($stats['par_statut']->isEmpty())
-                <div class="text-[12px] text-ink-faint">Aucun dossier.</div>
-            @else
-                <div class="flex h-2 rounded-full overflow-hidden bg-surface-3 mb-2">
-                    @foreach($stats['par_statut'] as $etat => $total)
-                        <div class="{{ $etatColorsPleines[$etat] ?? 'bg-gray-300' }}" style="width: {{ $total / $totalStatuts * 100 }}%" title="{{ $etat }} : {{ $total }}"></div>
-                    @endforeach
-                </div>
-                <div class="flex flex-wrap gap-x-2.5 gap-y-1">
-                    @foreach($stats['par_statut'] as $etat => $total)
-                        <span class="inline-flex items-center gap-1 text-[10.5px] text-ink-muted">
-                            <span class="w-1.5 h-1.5 rounded-full {{ $etatColorsPleines[$etat] ?? 'bg-gray-300' }}"></span>
-                            {{ $etat }} ({{ $total }})
-                        </span>
-                    @endforeach
-                </div>
-            @endif
-        </div>
-    </div>
-
-    {{-- ── Barre de filtres ── --}}
-    <form method="GET" action="{{ route('familles.index') }}"
+    {{-- ── Barre de filtres ──
+         <details>/<summary> comme bouton de réduction (même pattern que
+         le sélecteur de colonnes plus bas) : le contenu masqué par un
+         <details> fermé n'est que display:none côté rendu, les champs
+         qu'il contient restent normalement soumis avec le formulaire —
+         pas besoin de JS supplémentaire pour préserver les filtres actifs
+         en repliant la section (demande du 13/08/2026). Ouvert par défaut,
+         pas de persistance de l'état (même décision que "Colonnes"). --}}
+    <form method="GET" action="{{ route('familles.index') }}" id="filtres-form"
         class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 mb-4">
         {{-- Préserve le "lignes par page" en cours au clic sur "Filtrer" —
              sans ça, appliquer un filtre réinitialiserait silencieusement
              la pagination au défaut (ajouté le 12/08/2026, voir
              partials/pagination.blade.php). --}}
         <input type="hidden" name="per_page" value="{{ request('per_page', \App\Models\Famille::PAGINATION_PAR_PAGE_DEFAUT) }}">
+        <details class="group" open>
+            <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-2 -my-1 px-2 py-2 mb-2 rounded-lg hover:bg-surface-2 transition-colors">
+                <span class="text-[13px] font-bold text-ink flex items-center gap-1.5">
+                    🔎 Filtres
+                    @if($filtresActifs)
+                        <span class="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent-dark text-[10px] font-bold">actifs</span>
+                    @endif
+                </span>
+                <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
+            </summary>
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
             {{-- Groupe 1 : recherche & statut --}}
             <div class="bg-surface-2 rounded-lg p-3">
                 <div class="text-[10px] font-bold text-ink-muted uppercase tracking-wide mb-2">🔎 Recherche &amp; statut</div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div class="sm:col-span-2">
-                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">Recherche</label>
-                        <input type="text" name="recherche" value="{{ request('recherche') }}" placeholder="Nom, prénom, téléphone…"
-                            class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none
-                                    focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.15)]">
+                    {{-- id_selection : posé par l'autocomplétion (voir le
+                         script en bas de page) quand l'utilisateur clique une
+                         suggestion — prime alors sur nom/telephone côté
+                         FamillesController::baseQuery(), voir le commentaire
+                         là-bas. Vidé automatiquement dès que l'utilisateur
+                         retape dans l'un des deux champs. --}}
+                    <input type="hidden" name="id_selection" id="filtre-id-selection" value="{{ request('id_selection') }}">
+                    <div>
+                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">Nom</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint text-[13px] pointer-events-none">🔍</span>
+                            <input type="text" name="nom" id="filtre-recherche-nom" value="{{ request('nom') }}" placeholder="Nom ou prénom…" autocomplete="off"
+                                class="w-full pl-9 pr-3 py-2 border border-ink-faint rounded-lg text-[13px] bg-surface outline-none
+                                        focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.15)]">
+                            <div id="filtre-recherche-nom-suggestions" class="hidden absolute z-20 left-0 right-0 mt-1 bg-surface border border-surface-border rounded-lg shadow-lg overflow-hidden"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">Téléphone</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint text-[13px] pointer-events-none">📞</span>
+                            <input type="text" name="telephone" id="filtre-recherche-telephone" value="{{ request('telephone') }}" placeholder="Numéro…" autocomplete="off"
+                                class="w-full pl-9 pr-3 py-2 border border-ink-faint rounded-lg text-[13px] bg-surface outline-none
+                                        focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.15)]">
+                            <div id="filtre-recherche-telephone-suggestions" class="hidden absolute z-20 left-0 right-0 mt-1 bg-surface border border-surface-border rounded-lg shadow-lg overflow-hidden"></div>
+                        </div>
                     </div>
                     <div class="sm:col-span-2">
+                        {{-- Pastilles colorées plutôt qu'un <select> texte —
+                             reprend $etatColors (même palette que le badge de
+                             statut dans le tableau, voir <thead> plus bas) au
+                             lieu d'options en texte brut (demande du
+                             13/08/2026). Radios visuellement masqués
+                             (sr-only) + <label> stylée avec peer-checked :
+                             pas de JS, fonctionne tel quel dans le <details>
+                             replié.
+                             Pas d'option "Tous" (retirée le 13/08/2026, jugée
+                             redondante avec le "Tout réinitialiser" du
+                             bandeau Filtres actifs) — les radios ne pouvant
+                             pas se décocher nativement, revenir à "Tous" se
+                             fait via ce bandeau, pas depuis ces pastilles. --}}
                         <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">🏷️ Statut</label>
-                        <select name="etat_dossier" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent">
-                            <option value="" {{ $etatDossier === '' ? 'selected' : '' }}>Tous</option>
+                        <div class="flex flex-wrap gap-1.5">
                             @foreach(\App\Models\Famille::ETATS_MODIFIABLES as $etat)
-                                <option value="{{ $etat }}" {{ $etatDossier === $etat ? 'selected' : '' }}>{{ $etat }}</option>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="etat_dossier" value="{{ $etat }}" class="sr-only peer" {{ $etatDossier === $etat ? 'checked' : '' }}>
+                                    <span class="inline-flex px-2.5 py-1 rounded-full text-[11.5px] font-semibold border {{ $etatColors[$etat] ?? '' }} peer-checked:ring-2 peer-checked:ring-offset-1 peer-checked:ring-current peer-checked:font-bold transition-all">{{ $etat }}</span>
+                                </label>
                             @endforeach
-                        </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -198,37 +226,81 @@
                             <p class="text-[10px] text-ink-faint mt-1">Aucun quartier importé pour l'instant.</p>
                         @endif
                     </div>
+                    <div class="col-span-2 pt-1">
+                        {{-- has-[:checked] (Tailwind 3.4+, CSS :has()) plutôt
+                             qu'un binding JS — même intention que les
+                             checkboxes "chip" de IntakeForm.vue/DetailPanel.vue
+                             (bordure + fond teinté à la coche) mais en pur
+                             CSS puisque Blade est rendu côté serveur. --}}
+                        <label class="flex items-center gap-2 px-3 py-2 border border-ink-faint rounded-md text-[12.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
+                            <input type="checkbox" name="est_hotel" value="1" {{ request()->boolean('est_hotel') ? 'checked' : '' }} class="w-4 h-4 accent-accent">
+                            🏨 Hôtel (hébergement d'urgence)
+                        </label>
+                    </div>
                 </div>
             </div>
 
             {{-- Groupe 3 : profil du foyer --}}
             <div class="bg-surface-2 rounded-lg p-3">
                 <div class="text-[10px] font-bold text-ink-muted uppercase tracking-wide mb-2">🧾 Profil du foyer</div>
-                <div class="grid grid-cols-2 gap-2">
-                    <div>
-                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">🎚️ Criticité ≥</label>
-                        <input type="number" name="criticite_min" min="0" max="5" value="{{ request('criticite_min') }}"
-                            class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent">
+                <div class="mb-3">
+                    {{-- Sélection discrète plutôt qu'un intervalle min/max —
+                         cocher 3 ET 5 ne doit pas ramener 4 (demande du
+                         13/08/2026). Un <input type="checkbox"> par valeur,
+                         tous nommés criticite[] pour arriver en tableau côté
+                         FamillesController::baseQuery(). --}}
+                    <label class="block text-[10.5px] font-semibold text-ink-muted mb-1.5">🎚️ Criticité</label>
+                    {{-- Chips colorées reprenant l'échelle de sévérité des
+                         pastilles du tableau (0-1 vert / 2-3 ambre / 4-5
+                         rose, voir la colonne "criticite" du <tbody>) plutôt
+                         que des cases à cocher nues — demande du 13/08/2026,
+                         jugées "moche" et peu lisibles. Classes has-[:checked]
+                         écrites en toutes lettres par palier (pas de
+                         construction dynamique bg-{{ }}) pour rester
+                         détectables par le scanner JIT de Tailwind, même
+                         raison que $etatColorsListere plus haut. --}}
+                    @php
+                        $criticiteSelectionnees = array_map('strval', (array) request('criticite', []));
+                        $criticitePaliers = [
+                            0 => 'has-[:checked]:bg-emerald-500 has-[:checked]:border-emerald-500 has-[:checked]:text-white',
+                            1 => 'has-[:checked]:bg-emerald-500 has-[:checked]:border-emerald-500 has-[:checked]:text-white',
+                            2 => 'has-[:checked]:bg-amber-500 has-[:checked]:border-amber-500 has-[:checked]:text-white',
+                            3 => 'has-[:checked]:bg-amber-500 has-[:checked]:border-amber-500 has-[:checked]:text-white',
+                            4 => 'has-[:checked]:bg-rose-500 has-[:checked]:border-rose-500 has-[:checked]:text-white',
+                            5 => 'has-[:checked]:bg-rose-500 has-[:checked]:border-rose-500 has-[:checked]:text-white',
+                        ];
+                    @endphp
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        @for ($i = 0; $i <= 5; $i++)
+                            <label class="w-9 h-9 flex items-center justify-center border border-ink-faint rounded-md text-[13px] font-bold text-ink-muted cursor-pointer select-none transition-colors {{ $criticitePaliers[$i] }}">
+                                <input type="checkbox" name="criticite[]" value="{{ $i }}" {{ in_array((string) $i, $criticiteSelectionnees, true) ? 'checked' : '' }} class="sr-only">
+                                {{ $i }}
+                            </label>
+                        @endfor
                     </div>
-                    <div>
-                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">🎚️ Criticité ≤</label>
-                        <input type="number" name="criticite_max" min="0" max="5" value="{{ request('criticite_max') }}"
-                            class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent">
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">🚗 Se déplace</label>
-                        <select name="se_deplace" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent">
-                            <option value="">Indifférent</option>
-                            <option value="1" {{ request('se_deplace') === '1' ? 'selected' : '' }}>Oui</option>
-                            <option value="0" {{ request('se_deplace') === '0' ? 'selected' : '' }}>Non</option>
-                        </select>
-                    </div>
-                    <div class="col-span-2 flex items-center gap-4 pt-1">
-                        <label class="flex items-center gap-1.5 text-[12px] text-ink-muted cursor-pointer select-none">
+                </div>
+                {{-- Sous-bloc "caractéristiques" séparé du reste — quatre
+                     coches en vrac sur deux lignes serrées donnaient une
+                     impression de fouillis (signalé le 13/08/2026). Une
+                     grille 2×2 de chips avec libellé propre + bordure
+                     dédiée à chacune est plus lisible et laisse respirer
+                     la section. --}}
+                <div>
+                    <label class="block text-[10.5px] font-semibold text-ink-muted mb-1.5">Caractéristiques</label>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <label class="flex items-center gap-2 px-3 py-2 border border-ink-faint rounded-md text-[12.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
+                            <input type="checkbox" name="se_deplace" value="1" {{ request()->boolean('se_deplace') ? 'checked' : '' }} class="w-4 h-4 accent-accent">
+                            🚗 Se déplace
+                        </label>
+                        <label class="flex items-center gap-2 px-3 py-2 border border-ink-faint rounded-md text-[12.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
+                            <input type="checkbox" name="etudiant" value="1" {{ request()->boolean('etudiant') ? 'checked' : '' }} class="w-4 h-4 accent-accent">
+                            🎓 Étudiant
+                        </label>
+                        <label class="flex items-center gap-2 px-3 py-2 border border-ink-faint rounded-md text-[12.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
                             <input type="checkbox" name="zakat_el_fitr" value="1" {{ request()->boolean('zakat_el_fitr') ? 'checked' : '' }} class="w-4 h-4 accent-accent">
                             🌙 Zakat El Fitr
                         </label>
-                        <label class="flex items-center gap-1.5 text-[12px] text-ink-muted cursor-pointer select-none">
+                        <label class="flex items-center gap-2 px-3 py-2 border border-ink-faint rounded-md text-[12.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
                             <input type="checkbox" name="sadaqa" value="1" {{ request()->boolean('sadaqa') ? 'checked' : '' }} class="w-4 h-4 accent-accent">
                             🤲 Sadaqa
                         </label>
@@ -237,31 +309,45 @@
             </div>
         </div>
 
-        <div class="flex items-center justify-end gap-2 mt-3">
-            <a href="{{ route('familles.index', ['etat_dossier' => '']) }}"
-                class="px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink-muted text-[12.5px] font-semibold rounded-md transition-colors active:scale-95 no-underline min-h-[38px] flex items-center">
-                ✕ Réinitialiser
-            </a>
-            <button type="submit"
-                class="px-5 py-2 bg-accent hover:bg-accent-dark text-white text-[12.5px] font-semibold rounded-md transition-colors active:scale-95 min-h-[38px]">
-                Filtrer
-            </button>
-        </div>
+        {{-- Plus de boutons Filtrer/Réinitialiser (retirés le 13/08/2026) —
+             chaque filtre s'applique immédiatement au changement (voir le
+             script d'auto-soumission en bas de page), la réinitialisation se
+             fait désormais uniquement via "Tout réinitialiser" dans le
+             bandeau Filtres actifs ci-dessous. --}}
+        </details>
     </form>
 
-    {{-- ── Puces de filtres actifs ── --}}
-    @if(count($puces))
-        <div class="flex flex-wrap items-center gap-2 mb-5 animate-fade-in-up">
-            <span class="text-[10.5px] text-ink-muted uppercase tracking-wide font-semibold">Filtres actifs :</span>
-            @foreach($puces as $puce)
-                <a href="{{ $puce['href'] }}"
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/10 text-accent-dark text-[11.5px] font-semibold no-underline hover:bg-accent/20 active:scale-95 transition-all">
-                    {{ $puce['label'] }}
-                    <span class="text-[10px]">✕</span>
-                </a>
-            @endforeach
+    {{-- ── Puces de filtres actifs + export CSV ──
+         Même niveau visuel que demandé le 13/08/2026 : le bouton d'export
+         reste toujours visible (filtres actifs ou non — "filtré/non
+         filtré"), le bandeau de puces lui n'apparaît que s'il y a quelque
+         chose à afficher. request()->query() propage tels quels tous les
+         paramètres de filtre courants vers /familles/export, qui applique
+         exactement la même logique que baseQuery()/index(). --}}
+    <div class="flex flex-wrap items-start justify-between gap-2 mb-5">
+        <div class="flex-1 min-w-0">
+            @if(count($puces))
+                <div class="flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-lg bg-accent/5 border border-accent/20 animate-fade-in-up">
+                    <span class="text-[10.5px] text-accent-dark uppercase tracking-wide font-bold flex items-center gap-1">🔎 Filtres actifs</span>
+                    @foreach($puces as $puce)
+                        <a href="{{ $puce['href'] }}"
+                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/15 text-accent-dark text-[11.5px] font-semibold no-underline hover:bg-accent/25 active:scale-95 transition-all">
+                            {{ $puce['label'] }}
+                            <span class="text-[10px]">✕</span>
+                        </a>
+                    @endforeach
+                    <a href="{{ route('familles.index', ['etat_dossier' => '']) }}"
+                        class="ml-auto text-[11px] text-ink-muted hover:text-accent-dark font-semibold no-underline transition-colors">
+                        Tout réinitialiser
+                    </a>
+                </div>
+            @endif
         </div>
-    @endif
+        <a href="{{ route('familles.export', request()->query()) }}"
+            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 no-underline flex-shrink-0">
+            ⬇️ Exporter CSV
+        </a>
+    </div>
 
     <script>
         // Filtre Quartier en cascade sur la sélection de Ville — Quartier n'a
@@ -290,6 +376,143 @@
             villeSelect.addEventListener('change', filtrerQuartiers);
             filtrerQuartiers(); // état initial (ex: retour arrière avec ville déjà sélectionnée dans l'URL)
         })();
+
+        // Auto-application des filtres (retrait des boutons Filtrer/
+        // Réinitialiser le 13/08/2026) — tout changement sur un <select>,
+        // une case à cocher ou un bouton radio du formulaire soumet
+        // immédiatement. 'change' est un événement bouillonnant (bubbles),
+        // la délégation sur le formulaire capture donc aussi bien le select
+        // Ville/Quartier que les chips criticité/statut/caractéristiques,
+        // APRÈS le gestionnaire ci-dessus posé directement sur villeSelect
+        // (les écouteurs sur la cible elle-même s'exécutent avant ceux posés
+        // en délégation sur un ancêtre, quel que soit l'ordre d'attache).
+        // Les deux champs texte (Nom/Téléphone) sont volontairement exclus :
+        // voir la logique d'autocomplétion ci-dessous, qui gère elle-même
+        // quand soumettre.
+        (function () {
+            var form = document.getElementById('filtres-form');
+            if (!form) return;
+            form.addEventListener('change', function (e) {
+                if (e.target.matches('select, input[type="radio"], input[type="checkbox"]')) {
+                    form.submit();
+                }
+            });
+        })();
+
+        // Autocomplétion Nom / Téléphone — un clic sur une suggestion
+        // remplit le champ, verrouille la sélection sur l'id exact via le
+        // champ caché id_selection (voir FamillesController::baseQuery()),
+        // soumet le filtre ET marque la fiche à ouvrir automatiquement une
+        // fois la page rechargée (voir l'IIFE tout en bas, après le rendu
+        // du tableau) — demande du 13/08/2026 : "remplir, filtrer puis
+        // ouvrir la fiche".
+        (function () {
+            var form = document.getElementById('filtres-form');
+            var idSelection = document.getElementById('filtre-id-selection');
+            if (!form) return;
+
+            function setupChamp(champ, inputId, suggestionsId) {
+                var input = document.getElementById(inputId);
+                var boite = document.getElementById(suggestionsId);
+                if (!input || !boite) return;
+                var minuteur = null;
+                var url = @json(route('familles.recherche-suggestions'));
+
+                function fermer() {
+                    boite.classList.add('hidden');
+                    boite.innerHTML = '';
+                }
+
+                input.addEventListener('input', function () {
+                    // Une frappe manuelle invalide toute sélection précédente
+                    // (revient à une recherche LIKE classique sur le texte).
+                    if (idSelection) idSelection.value = '';
+                    clearTimeout(minuteur);
+                    var terme = input.value.trim();
+                    if (terme.length < 2) { fermer(); return; }
+                    minuteur = setTimeout(function () {
+                        fetch(url + '?champ=' + champ + '&q=' + encodeURIComponent(terme))
+                            .then(function (r) { return r.ok ? r.json() : []; })
+                            .then(function (resultats) {
+                                if (!Array.isArray(resultats) || !resultats.length) { fermer(); return; }
+                                boite.innerHTML = resultats.map(function (f) {
+                                    var valeur = String(f.valeur || '').replace(/"/g, '&quot;');
+                                    var label = String(f.label || '');
+                                    var sousLabel = String(f.sous_label || '');
+                                    return '<button type="button" data-id="' + f.id + '" data-valeur="' + valeur + '" ' +
+                                        'class="w-full text-left px-3 py-2 hover:bg-surface-2 text-[12.5px] flex items-center justify-between gap-2 border-b border-surface-3 last:border-b-0">' +
+                                        '<span class="font-semibold text-ink">' + label + '</span>' +
+                                        '<span class="text-ink-muted text-[11px]">' + sousLabel + '</span>' +
+                                    '</button>';
+                                }).join('');
+                                boite.classList.remove('hidden');
+                            })
+                            .catch(fermer);
+                    }, 300);
+                });
+
+                boite.addEventListener('click', function (e) {
+                    var bouton = e.target.closest('button[data-id]');
+                    if (!bouton) return;
+                    input.value = bouton.dataset.valeur;
+                    if (idSelection) idSelection.value = bouton.dataset.id;
+                    fermer();
+                    var params = new URLSearchParams(new FormData(form));
+                    params.set('ouvrir', bouton.dataset.id);
+                    window.location.href = @json(route('familles.index')) + '?' + params.toString();
+                });
+
+                // Entrée = filtrer sur le texte tel quel, tous les résultats
+                // correspondants (pas de sélection, pas d'ouverture de
+                // fiche) — demande du 13/08/2026. Sans bouton "Filtrer" dans
+                // le formulaire, la soumission implicite du navigateur sur
+                // Entrée NE SE DÉCLENCHE PAS d'elle-même dès qu'il y a
+                // plusieurs champs texte (règle HTML : implicite seulement
+                // s'il n'existe qu'UN SEUL champ texte, or il y en a deux
+                // ici, Nom et Téléphone) — d'où ce gestionnaire explicite,
+                // plutôt qu'un bug de navigateur à contourner autrement.
+                input.addEventListener('keydown', function (e) {
+                    if (e.key !== 'Enter') return;
+                    e.preventDefault();
+                    clearTimeout(minuteur);
+                    fermer();
+                    if (idSelection) idSelection.value = '';
+                    form.submit();
+                });
+
+                document.addEventListener('click', function (e) {
+                    if (e.target !== input && !boite.contains(e.target)) fermer();
+                });
+            }
+
+            setupChamp('nom', 'filtre-recherche-nom', 'filtre-recherche-nom-suggestions');
+            setupChamp('telephone', 'filtre-recherche-telephone', 'filtre-recherche-telephone-suggestions');
+        })();
+
+        // Ouverture automatique de la fiche après sélection d'une suggestion
+        // (voir ci-dessus) — le paramètre ?ouvrir=<id> survit au rechargement
+        // de page complet (pas d'AJAX ici, cohérent avec le reste du
+        // formulaire de filtres). window.openFamilleDetail n'existe qu'une
+        // fois le composant Vue du panneau monté (voir DetailPanel.vue,
+        // onMounted), d'où le sondage court plutôt qu'un appel direct.
+        (function () {
+            var params = new URLSearchParams(window.location.search);
+            var idAOuvrir = params.get('ouvrir');
+            if (!idAOuvrir) return;
+            var tentatives = 0;
+            var intervalle = setInterval(function () {
+                tentatives++;
+                if (typeof window.openFamilleDetail === 'function') {
+                    clearInterval(intervalle);
+                    window.openFamilleDetail(parseInt(idAOuvrir, 10));
+                    params.delete('ouvrir');
+                    var reste = params.toString();
+                    window.history.replaceState({}, '', window.location.pathname + (reste ? '?' + reste : ''));
+                } else if (tentatives > 60) { // ~3s à 50ms
+                    clearInterval(intervalle);
+                }
+            }, 50);
+        })();
     </script>
 
     @php
@@ -313,40 +536,28 @@
             'telephone' => ['label' => 'Téléphone', 'triable' => true, 'defaut' => true],
             'telephone_bis' => ['label' => 'Tél. bis', 'triable' => true, 'defaut' => false],
             'adresse' => ['label' => 'Adresse', 'triable' => true, 'defaut' => true],
-            'quartier' => ['label' => 'Quartier', 'triable' => false, 'defaut' => false],
+            'quartier' => ['label' => 'Quartier', 'triable' => false, 'defaut' => true],
+            'ville' => ['label' => 'Ville', 'triable' => false, 'defaut' => true],
             'nombre_adulte' => ['label' => 'Adultes', 'triable' => true, 'defaut' => false],
             'nombre_enfant' => ['label' => 'Enfants', 'triable' => true, 'defaut' => false],
             'criticite' => ['label' => 'Criticité', 'triable' => true, 'defaut' => true],
             'eligibilite' => ['label' => 'Éligibilité', 'triable' => true, 'defaut' => true],
             'se_deplace' => ['label' => 'Se déplace', 'triable' => true, 'defaut' => false],
             'est_hotel' => ['label' => 'Hôtel', 'triable' => true, 'defaut' => false],
+            'etudiant' => ['label' => 'Étudiant', 'triable' => true, 'defaut' => false],
             'langue' => ['label' => 'Langue', 'triable' => true, 'defaut' => false],
-            'type_hebergement' => ['label' => 'Hébergement', 'triable' => true, 'defaut' => false],
-            'hosted_by' => ['label' => 'Hébergé par', 'triable' => false, 'defaut' => false],
             'type_piece_identite' => ['label' => 'Pièce identité', 'triable' => true, 'defaut' => false],
-            'type_activite' => ['label' => 'Activité', 'triable' => true, 'defaut' => false],
-            'work_days' => ['label' => 'Jours travaillés', 'triable' => true, 'defaut' => false],
             'circonstances' => ['label' => 'Circonstances', 'triable' => false, 'defaut' => false],
             'ressentit' => ['label' => 'Ressenti', 'triable' => false, 'defaut' => false],
             'specificites' => ['label' => 'Spécificités', 'triable' => false, 'defaut' => false],
             'commentaire_dossier' => ['label' => 'Commentaire', 'triable' => false, 'defaut' => false],
             'created_at' => ['label' => 'Créé le', 'triable' => true, 'defaut' => false],
         ];
-        $typeHebergementLabels = [
-            'organisation' => "Structure d'accueil",
-            'proche' => 'Chez un proche',
-            'non' => 'Aucun',
-        ];
         $typePieceIdentiteLabels = [
             'nationalite' => 'Nationalité',
             'titre_sejour' => 'Titre de séjour',
             'demande_asile' => "Demande d'asile",
             'autre' => 'Autre',
-        ];
-        $typeActiviteLabels = [
-            'temps_plein' => 'Temps plein',
-            'temps_partiel' => 'Temps partiel',
-            'non' => 'Sans activité',
         ];
         // Palette d'avatars (initiales) — couleur choisie par id % taille de
         // la palette, simple et stable (même famille = même couleur d'une
@@ -424,16 +635,6 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @php
-                            $etatColors = [
-                                'Recu' => 'bg-stone-100 text-stone-700 border-stone-300',
-                                'En cours' => 'bg-sky-50 text-sky-700 border-sky-200',
-                                'En attente' => 'bg-amber-50 text-amber-700 border-amber-200',
-                                'Validé' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
-                                'Rejeté' => 'bg-rose-50 text-rose-700 border-rose-200',
-                                'Archivé' => 'bg-gray-100 text-gray-500 border-gray-300',
-                            ];
-                        @endphp
                         @foreach($familles as $famille)
                             @php $avatarStyle = $avatarPalette[$famille->id % count($avatarPalette)]; @endphp
                             <tr onclick="openFamilleDetail({{ $famille->id }})"
@@ -463,6 +664,7 @@
                                 <td data-col="telephone_bis" {{ $colonnes['telephone_bis']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted whitespace-nowrap">{{ $famille->telephone_bis_formate ?? '—' }}</td>
                                 <td data-col="adresse" class="px-4 py-2.5 text-ink-muted">{{ $famille->adresse_complete }}</td>
                                 <td data-col="quartier" {{ $colonnes['quartier']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $famille->quartier->nom ?? '—' }}</td>
+                                <td data-col="ville" {{ $colonnes['ville']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $famille->ville ?? '—' }}</td>
                                 <td data-col="nombre_adulte" {{ $colonnes['nombre_adulte']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted text-center">{{ $famille->nombre_adulte }}</td>
                                 <td data-col="nombre_enfant" {{ $colonnes['nombre_enfant']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted text-center">{{ $famille->nombre_enfant }}</td>
                                 <td data-col="criticite" class="px-4 py-2.5">
@@ -484,12 +686,9 @@
                                 </td>
                                 <td data-col="se_deplace" {{ $colonnes['se_deplace']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $famille->se_deplace ? 'Oui' : 'Non' }}</td>
                                 <td data-col="est_hotel" {{ $colonnes['est_hotel']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $famille->est_hotel ? 'Oui' : 'Non' }}</td>
+                                <td data-col="etudiant" {{ $colonnes['etudiant']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $famille->etudiant ? 'Oui' : 'Non' }}</td>
                                 <td data-col="langue" {{ $colonnes['langue']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ \App\Models\Famille::LANGUES[$famille->langue] ?? $famille->langue }}</td>
-                                <td data-col="type_hebergement" {{ $colonnes['type_hebergement']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $typeHebergementLabels[$famille->type_hebergement] ?? ($famille->type_hebergement ?? '—') }}</td>
-                                <td data-col="hosted_by" {{ $colonnes['hosted_by']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted max-w-[160px] truncate" title="{{ $famille->hosted_by }}">{{ $famille->hosted_by ?? '—' }}</td>
                                 <td data-col="type_piece_identite" {{ $colonnes['type_piece_identite']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $typePieceIdentiteLabels[$famille->type_piece_identite] ?? ($famille->type_piece_identite ?? '—') }}</td>
-                                <td data-col="type_activite" {{ $colonnes['type_activite']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $typeActiviteLabels[$famille->type_activite] ?? ($famille->type_activite ?? '—') }}</td>
-                                <td data-col="work_days" {{ $colonnes['work_days']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted text-center">{{ $famille->work_days ?? '—' }}</td>
                                 <td data-col="circonstances" {{ $colonnes['circonstances']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted max-w-[220px] truncate" title="{{ $famille->circonstances }}">{{ $famille->circonstances ?? '—' }}</td>
                                 <td data-col="ressentit" {{ $colonnes['ressentit']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted max-w-[220px] truncate" title="{{ $famille->ressentit }}">{{ $famille->ressentit ?? '—' }}</td>
                                 <td data-col="specificites" {{ $colonnes['specificites']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted max-w-[220px] truncate" title="{{ $famille->specificites }}">{{ $famille->specificites ?? '—' }}</td>

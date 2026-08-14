@@ -5,7 +5,8 @@
     Activité) : ces stats portent sur l'état ACTUEL des dossiers.
 
     5 visualisations : répartition par statut (barres), éligibilité
-    (anneau), distribution de criticité (barres), répartition par ville
+    (anneau), répartition par quartier (barres horizontales, remplace la
+    distribution de criticité le 13/08/2026), répartition par ville
     (barres horizontales), évolution du foyer sur 12 mois (courbes).
 -->
 <script setup lang="ts">
@@ -38,14 +39,17 @@ interface Cartes {
     totalEnfants: number;
     criticiteMoyenne: number;
     documentsIdentiteManquants: number;
+    aTraiterPriorite: number;
 }
 
 interface Donnees {
     parEtatDossier: { valeur: string; total: number }[];
     eligibilite: { zakatElFitr: number; sadaqa: number; aucune: number };
-    parCriticite: { valeur: number; total: number }[];
+    parQuartier: { valeur: string; total: number }[];
     parVille: { valeur: string; total: number }[];
     seDeplace: { seDeplace: number; neSeDeplacePas: number };
+    etudiant: { etudiant: number; nonEtudiant: number };
+    estHotel: { estHotel: number; nonHotel: number };
     evolutionFoyer: { mois: string; adultes: number; enfants: number; nouveauxDossiers: number }[];
     cartes: Cartes;
 }
@@ -60,13 +64,30 @@ const donnees = ref<Donnees | null>(null);
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 const loadState = ref<LoadState>('idle');
 
-const COULEUR_ACCENT = '#b45309';
-const COULEUR_ACCENT_CLAIR = '#d97706';
-const PALETTE = ['#b45309', '#d97706', '#f59e0b', '#fbbf24', '#fcd34d', '#78350f'];
+/**
+ * Couleurs lues depuis les variables CSS --color-accent* (voir
+ * public/css/custom.css + tailwind.config.js) plutôt que dupliquées en hex
+ * dans ce fichier — c'est justement cette duplication qui avait laissé
+ * traîner une palette ambre copiée-collée d'un autre app AMANA jusqu'au
+ * 13/08/2026 ("la page n'utilise pas le thème tailwind.config.js"). Un seul
+ * jeton par teinte (RGB "R G B", format déjà utilisé par
+ * amana-shared.css pour surface/ink) que Chart.js reconstruit en chaîne
+ * rgb()/rgba() exploitable — ni les classes Tailwind ni les valeurs
+ * hex ne changent plus qu'à un seul endroit si le thème évolue un jour.
+ */
+function lireVariableCouleur(nom: string, repli: string): string {
+    const brute = getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
+    return brute || repli;
+}
+
+function versRgb(rgbEspace: string, alpha?: number): string {
+    const [r, g, b] = rgbEspace.split(/\s+/);
+    return alpha === undefined ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 const canvasEtat = ref<HTMLCanvasElement | null>(null);
 const canvasEligibilite = ref<HTMLCanvasElement | null>(null);
-const canvasCriticite = ref<HTMLCanvasElement | null>(null);
+const canvasQuartier = ref<HTMLCanvasElement | null>(null);
 const canvasVille = ref<HTMLCanvasElement | null>(null);
 const canvasEvolution = ref<HTMLCanvasElement | null>(null);
 let charts: Chart[] = [];
@@ -101,6 +122,18 @@ function dessinerGraphiques(): void {
     if (!donnees.value) return;
     const d = donnees.value;
 
+    // Recalculées à chaque tracé (coût négligeable) plutôt qu'une fois à
+    // l'import du module : garantit que getComputedStyle() lit bien les
+    // variables une fois les feuilles de style effectivement appliquées.
+    const accentRgb = lireVariableCouleur('--color-accent', '15 118 110');
+    const accentDarkRgb = lireVariableCouleur('--color-accent-dark', '13 148 136');
+    const accentLightRgb = lireVariableCouleur('--color-accent-light', '20 184 166');
+    const COULEUR_ACCENT = versRgb(accentRgb);
+    const COULEUR_ACCENT_DARK = versRgb(accentDarkRgb);
+    const COULEUR_ACCENT_CLAIR = versRgb(accentLightRgb);
+    const COULEUR_ACCENT_FAIBLE = versRgb(accentRgb, 0.1);
+    const COULEUR_ACCENT_DARK_FAIBLE = versRgb(accentDarkRgb, 0.1);
+
     if (canvasEtat.value) {
         charts.push(new Chart(canvasEtat.value, {
             type: 'bar',
@@ -123,28 +156,29 @@ function dessinerGraphiques(): void {
                 labels: ['Zakat El Fitr', 'Sadaqa', 'Aucune'],
                 datasets: [{
                     data: [d.eligibilite.zakatElFitr, d.eligibilite.sadaqa, d.eligibilite.aucune],
-                    backgroundColor: [PALETTE[0], PALETTE[2], '#e5e7eb'],
+                    backgroundColor: [COULEUR_ACCENT, COULEUR_ACCENT_CLAIR, '#e5e7eb'],
                 }],
             },
             options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } },
         }));
     }
 
-    if (canvasCriticite.value) {
-        charts.push(new Chart(canvasCriticite.value, {
+    // Remplace l'ancienne "Distribution de criticité" le 13/08/2026 (la
+    // carte "Criticité moyenne" couvrait déjà l'essentiel, la répartition
+    // géographique est plus actionnable) — 10 quartiers les plus
+    // représentés déjà triés côté FamilleStatistics::repartitionParQuartier().
+    if (canvasQuartier.value) {
+        charts.push(new Chart(canvasQuartier.value, {
             type: 'bar',
             data: {
-                labels: d.parCriticite.map((c) => `${c.valeur}`),
-                datasets: [{
-                    data: d.parCriticite.map((c) => c.total),
-                    backgroundColor: d.parCriticite.map((c) => c.valeur >= 4 ? '#e11d48' : c.valeur >= 2 ? COULEUR_ACCENT_CLAIR : '#d1d5db'),
-                    borderRadius: 4,
-                }],
+                labels: d.parQuartier.map((q) => q.valeur),
+                datasets: [{ data: d.parQuartier.map((q) => q.total), backgroundColor: COULEUR_ACCENT_DARK, borderRadius: 4 }],
             },
             options: {
+                indexAxis: 'y',
                 responsive: true, maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
             },
         }));
     }
@@ -172,8 +206,8 @@ function dessinerGraphiques(): void {
             data: {
                 labels: d.evolutionFoyer.map((m) => fmtMoisLabel(m.mois)),
                 datasets: [
-                    { label: 'Adultes', data: d.evolutionFoyer.map((m) => m.adultes), borderColor: COULEUR_ACCENT, backgroundColor: 'rgba(180,83,9,0.1)', fill: true, tension: 0.3 },
-                    { label: 'Enfants', data: d.evolutionFoyer.map((m) => m.enfants), borderColor: '#78350f', backgroundColor: 'rgba(120,53,15,0.08)', fill: true, tension: 0.3 },
+                    { label: 'Adultes', data: d.evolutionFoyer.map((m) => m.adultes), borderColor: COULEUR_ACCENT, backgroundColor: COULEUR_ACCENT_FAIBLE, fill: true, tension: 0.3 },
+                    { label: 'Enfants', data: d.evolutionFoyer.map((m) => m.enfants), borderColor: COULEUR_ACCENT_DARK, backgroundColor: COULEUR_ACCENT_DARK_FAIBLE, fill: true, tension: 0.3 },
                 ],
             },
             options: {
@@ -195,27 +229,93 @@ onUnmounted(detruireGraphiques);
 
     <div v-else-if="donnees" class="space-y-6">
 
-        <!-- Cartes -->
-        <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
-            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-                <div class="text-2xl font-bold text-ink">{{ donnees.cartes.totalFamilles }}</div>
-                <div class="text-[11px] text-ink-muted uppercase tracking-wide font-semibold mt-1">Dossiers</div>
+        <!-- Cartes — icônes ré-introduites le 13/08/2026 (retirées par
+             erreur lors de la migration du bandeau KPI de
+             familles/index.blade.php, alors que ce dernier en avait) : même
+             traitement rond + emoji que l'ancien bandeau, pour toutes les
+             cartes et pas seulement celle migrée. -->
+        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🏠</div>
+                <div class="min-w-0">
+                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.cartes.totalFamilles }}</div>
+                    <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Dossiers</div>
+                </div>
             </div>
-            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-                <div class="text-2xl font-bold text-ink">{{ donnees.cartes.totalAdultes }}</div>
-                <div class="text-[11px] text-ink-muted uppercase tracking-wide font-semibold mt-1">Adultes</div>
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🧑</div>
+                <div class="min-w-0">
+                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.cartes.totalAdultes }}</div>
+                    <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Adultes</div>
+                </div>
             </div>
-            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-                <div class="text-2xl font-bold text-ink">{{ donnees.cartes.totalEnfants }}</div>
-                <div class="text-[11px] text-ink-muted uppercase tracking-wide font-semibold mt-1">Enfants</div>
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🧒</div>
+                <div class="min-w-0">
+                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.cartes.totalEnfants }}</div>
+                    <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Enfants</div>
+                </div>
             </div>
-            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-                <div class="text-2xl font-bold text-accent">{{ donnees.cartes.criticiteMoyenne }}/5</div>
-                <div class="text-[11px] text-ink-muted uppercase tracking-wide font-semibold mt-1">Criticité moy.</div>
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🎚️</div>
+                <div class="min-w-0">
+                    <div class="text-[20px] font-heading font-semibold text-accent leading-none">{{ donnees.cartes.criticiteMoyenne }}<span class="text-[13px] text-ink-muted font-medium">/5</span></div>
+                    <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Criticité moy.</div>
+                </div>
             </div>
-            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-                <div class="text-2xl font-bold" :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'text-rose-600' : 'text-ink'">{{ donnees.cartes.documentsIdentiteManquants }}</div>
-                <div class="text-[11px] text-ink-muted uppercase tracking-wide font-semibold mt-1">Identité manquante</div>
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0" :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'bg-rose-100' : 'bg-emerald-100'">🪪</div>
+                <div class="min-w-0">
+                    <div class="text-[20px] font-heading font-semibold leading-none" :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'text-rose-600' : 'text-ink'">{{ donnees.cartes.documentsIdentiteManquants }}</div>
+                    <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Identité manquante</div>
+                </div>
+            </div>
+            <!-- Migrée depuis le bandeau KPI de familles/index.blade.php le
+                 13/08/2026 (seule carte de ce bandeau sans équivalent déjà
+                 présent ici) -->
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0" :class="donnees.cartes.aTraiterPriorite > 0 ? 'bg-rose-100' : 'bg-emerald-100'">
+                    {{ donnees.cartes.aTraiterPriorite > 0 ? '⚠️' : '✅' }}
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[20px] font-heading font-semibold leading-none" :class="donnees.cartes.aTraiterPriorite > 0 ? 'text-rose-600' : 'text-ink'">{{ donnees.cartes.aTraiterPriorite }}</div>
+                    <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">À traiter en priorité</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Caractéristiques — remplace le panneau "Mobilité" du bas le
+             13/08/2026 (même style de carte que ci-dessus plutôt qu'un
+             panneau texte à part, + étudiant/hôtel qui n'existaient pas
+             encore ici). Seul le décompte "vrai" est affiché — demande
+             explicite du 13/08/2026 ("display only number were true") ;
+             nonEtudiant/neSeDeplacePas/nonHotel restent dans la réponse
+             JSON si un usage futur en a besoin (ex. un graphique), juste
+             pas rendus ici. -->
+        <div>
+            <h3 class="text-[11px] font-bold text-ink-muted uppercase tracking-wide mb-2">Caractéristiques</h3>
+            <div class="grid grid-cols-3 gap-3">
+                <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🚶</div>
+                    <div class="min-w-0">
+                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.seDeplace.seDeplace }}</div>
+                        <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Se déplace</div>
+                    </div>
+                </div>
+                <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🎓</div>
+                    <div class="min-w-0">
+                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.etudiant.etudiant }}</div>
+                        <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Étudiant</div>
+                    </div>
+                </div>
+                <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🏨</div>
+                    <div class="min-w-0">
+                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.estHotel.estHotel }}</div>
+                        <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Hôtel</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -230,8 +330,8 @@ onUnmounted(detruireGraphiques);
                 <div class="h-56"><canvas ref="canvasEligibilite"></canvas></div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-5">
-                <h3 class="text-[12.5px] font-bold text-ink mb-3">Distribution de criticité</h3>
-                <div class="h-56"><canvas ref="canvasCriticite"></canvas></div>
+                <h3 class="text-[12.5px] font-bold text-ink mb-3">Répartition par quartier</h3>
+                <div class="h-56"><canvas ref="canvasQuartier"></canvas></div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-5">
                 <h3 class="text-[12.5px] font-bold text-ink mb-3">Répartition par ville</h3>
@@ -240,15 +340,6 @@ onUnmounted(detruireGraphiques);
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-5 lg:col-span-2">
                 <h3 class="text-[12.5px] font-bold text-ink mb-3">Évolution du foyer (12 derniers mois)</h3>
                 <div class="h-64"><canvas ref="canvasEvolution"></canvas></div>
-            </div>
-        </div>
-
-        <!-- Se déplace -->
-        <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-5">
-            <h3 class="text-[12.5px] font-bold text-ink mb-3">Mobilité</h3>
-            <div class="flex items-center gap-6 text-[13px]">
-                <span class="text-ink">🚶 Se déplace : <strong>{{ donnees.seDeplace.seDeplace }}</strong></span>
-                <span class="text-ink-muted">Ne se déplace pas : <strong>{{ donnees.seDeplace.neSeDeplacePas }}</strong></span>
             </div>
         </div>
 
