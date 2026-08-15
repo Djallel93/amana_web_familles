@@ -103,6 +103,8 @@
     <div id="vue-famille-detail"
          data-update-url-template="{{ route('familles.update', ['id' => '__ID__']) }}"
          data-show-url-template="{{ route('familles.show', ['id' => '__ID__']) }}"
+         data-deverrouiller-url-template="{{ route('familles.deverrouiller', ['id' => '__ID__']) }}"
+         data-forcer-deverrouillage-url-template="{{ route('familles.forcer-deverrouillage', ['id' => '__ID__']) }}"
          data-upload-url-template="{{ route('familles.documents.store', ['id' => '__ID__']) }}"
          data-download-url-template="{{ route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
          data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"

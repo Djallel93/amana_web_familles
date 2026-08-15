@@ -10,6 +10,7 @@ import { createApp } from "vue";
 
 import { Toast, ConfirmDialog, OfflineBanner, MobileSidebar, registerThemeToggle, registerConfirmForms } from "@amana/shared-ui";
 import DetailPanel from "@/components/familles/DetailPanel.vue";
+import ReverseSyncPanel from "@/components/familles/ReverseSyncPanel.vue";
 import IntakeForm from "@/components/intake/IntakeForm.vue";
 import ImportManualGrid from "@/components/imports/ImportManualGrid.vue";
 import ImportOverlay from "@/components/imports/ImportOverlay.vue";
@@ -35,6 +36,7 @@ mountIfPresent("vue-confirm-dialog", ConfirmDialog);
 mountIfPresent("vue-offline-banner", OfflineBanner);
 mountIfPresent("vue-mobile-sidebar", MobileSidebar);
 mountIfPresent("vue-famille-detail", DetailPanel);
+mountIfPresent("vue-reverse-sync-panel", ReverseSyncPanel);
 mountIfPresent("vue-intake-form", IntakeForm);
 mountIfPresent("vue-import-manual-grid", ImportManualGrid);
 mountIfPresent("vue-import-overlay", ImportOverlay);

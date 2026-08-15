@@ -9,6 +9,7 @@ use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
 use App\Models\OrganismeAide;
+use App\Models\Personne;
 use App\Models\Quartier;
 use App\Models\SecteurActivite;
 use Amana\Shared\Models\Secteur;
@@ -401,7 +402,174 @@ class FamillesController extends Controller
         $famille->quartier?->makeHidden('boundary');
         $famille->quartier?->secteur?->ville?->makeHidden('boundary');
 
+        // Verrouillage d'édition (décision du 15/08/2026) — ouvrir le
+        // Dossier Panel, c'est TOUJOURS dans l'intention de l'éditer (seul
+        // point d'entrée de ce endpoint, voir DetailPanel.vue), donc c'est
+        // ici qu'on prend le verrou. Choix assumé de le faire sur ce GET
+        // plutôt que via un endpoint POST dédié : les deux actions (charger
+        // les données, verrouiller) sont indissociables du point de vue du
+        // panneau, un GET+POST séparés n'apporterait qu'une fenêtre de race
+        // condition supplémentaire pour peu de bénéfice — même logique
+        // "simple v1" que le reste du panneau.
+        //
+        // Un verrou détenu par UN AUTRE utilisateur et encore frais (moins
+        // de VERROU_TTL_MINUTES) bloque l'ouverture ; un verrou détenu par
+        // le même utilisateur (ex : rechargement de page) ou périmé (crash
+        // navigateur précédent, cf. commentaire sur VERROU_TTL_MINUTES) est
+        // traversé normalement.
+        $utilisateur = auth()->user();
+        $verrouExpireLe = now()->subMinutes(Famille::VERROU_TTL_MINUTES);
+        $verrouActifParAutrui = $famille->locked_by
+            && (int) $famille->locked_by !== (int) $utilisateur->id
+            && $famille->locked_at
+            && $famille->locked_at->greaterThan($verrouExpireLe);
+
+        if ($verrouActifParAutrui) {
+            $proprietaire = Personne::find($famille->locked_by);
+
+            return response()->json([
+                'error' => 'verrouille',
+                'message' => $proprietaire
+                    ? "Ce dossier est en cours de modification par {$proprietaire->nom_complet}."
+                    : 'Ce dossier est en cours de modification par un autre utilisateur.',
+                'locked_by_nom' => $proprietaire?->nom_complet,
+                'locked_at' => $famille->locked_at,
+                // Un admin peut forcer le déverrouillage depuis ce blocage
+                // (décision du 15/08/2026 — voir forcerDeverrouillage() et
+                // DetailPanel.vue) : filet de sécurité si le verrou
+                // précédent n'a pas pu se relâcher normalement (crash
+                // navigateur avant l'expiration du TTL) et que quelqu'un a
+                // besoin d'accéder au dossier avant les VERROU_TTL_MINUTES.
+                'peut_forcer' => $utilisateur->isAdmin(),
+            ], 423);
+        }
+
+        // etat_dossier_avant_verrouillage déjà renseigné ⇒ le verrou existe
+        // déjà (nous-même en train de recharger, ou reprise d'un verrou
+        // périmé laissé par un autre utilisateur) : ne PAS écraser la
+        // valeur déjà capturée, sous peine de perdre le véritable état
+        // d'origine (qui serait alors 'En cours', la valeur déjà bascule,
+        // au lieu du vrai statut d'avant édition).
+        if ($famille->etat_dossier_avant_verrouillage === null) {
+            $famille->etat_dossier_avant_verrouillage = $famille->etat_dossier;
+            if ($famille->etat_dossier !== 'En cours') {
+                $famille->etat_dossier = 'En cours';
+            }
+        }
+        $famille->locked_by = $utilisateur->id;
+        $famille->locked_at = now();
+        // saveQuietly() + pas d'audit() : un verrouillage/bascule
+        // automatique à l'ouverture n'est pas une décision métier prise
+        // par le staff, ce n'est pas ce que audit_logs doit tracer — seul
+        // l'enregistrement explicite (update() ci-dessous) doit y figurer.
+        $famille->saveQuietly();
+
+        // Le JSON renvoyé au panneau affiche le VRAI statut d'origine, pas
+        // la bascule interne 'En cours' qui vient d'être persistée en base
+        // (décision du 15/08/2026 — 'En cours' n'est plus un choix possible
+        // du <select> de DetailPanel.vue, voir Famille::ETATS_SELECTIONNABLES ;
+        // le montrer quand même casserait la présélection du menu et
+        // risquerait, si le staff n'y touche pas, de faire retomber le
+        // <select> HTML sur sa première option par défaut — perte de
+        // statut silencieuse). Cette réaffectation ne touche que l'objet
+        // en mémoire, pas la base : 'En cours' y reste bien stocké, c'est
+        // justement ce qui alimente le filtre de la vue principale.
+        //
+        // Cas particulier 'Recu' : ce statut n'est lui non plus PAS dans
+        // ETATS_SELECTIONNABLES (jamais choisi manuellement depuis ce
+        // panneau, voir IntakeController::store) — l'afficher tel quel
+        // provoquerait exactement le même problème de présélection
+        // invalide. On retombe alors sur 'En attente', premier statut de
+        // traitement réel, qui est de toute façon la suite logique
+        // attendue pour un dossier tout juste reçu qu'un membre du staff
+        // vient d'ouvrir. Si le staff ferme sans enregistrer
+        // (deverrouiller()), le dossier retrouve bien 'Recu' — ce
+        // fallback n'affecte que ce qui s'affiche dans le formulaire.
+        $famille->etat_dossier = in_array($famille->etat_dossier_avant_verrouillage, Famille::ETATS_SELECTIONNABLES, true)
+            ? $famille->etat_dossier_avant_verrouillage
+            : 'En attente';
+
         return response()->json($famille);
+    }
+
+    /**
+     * Relâche le verrou d'édition sans enregistrer — appelé quand le
+     * Dossier Panel se ferme sans sauvegarde (bouton Fermer/Annuler,
+     * Escape, clic hors du panneau, ou fermeture/rechargement de l'onglet
+     * via navigator.sendBeacon — voir DetailPanel.vue). Restaure
+     * etat_dossier à sa valeur d'avant ouverture SANS passer par la
+     * validation habituelle de update() (aucune édition n'a été commise,
+     * ce n'est pas un enregistrement) — donc, contrairement à update(),
+     * peut restaurer 'Recu' sans souci (voir Famille::ETATS_MODIFIABLES).
+     *
+     * Ne relâche que le verrou détenu par L'UTILISATEUR COURANT — un appel
+     * tardif (ex : sendBeacon envoyé juste avant qu'un autre utilisateur
+     * n'ait déjà repris un verrou expiré) ne doit jamais libérer le verrou
+     * de quelqu'un d'autre.
+     */
+    public function deverrouiller(int $id): JsonResponse
+    {
+        $famille = Famille::findOrFail($id);
+        $utilisateur = auth()->user();
+
+        if ((int) $famille->locked_by !== (int) $utilisateur->id) {
+            return response()->json(['ok' => true, 'message' => 'Rien à faire.']);
+        }
+
+        if ($famille->etat_dossier_avant_verrouillage !== null) {
+            $famille->etat_dossier = $famille->etat_dossier_avant_verrouillage;
+        }
+        $famille->etat_dossier_avant_verrouillage = null;
+        $famille->locked_by = null;
+        $famille->locked_at = null;
+        $famille->saveQuietly();
+
+        return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Déverrouillage FORCÉ — réservé admin (role:admin, voir routes/web.php)
+     * — décision du 15/08/2026 : "easy out" si un verrou reste bloqué (ex:
+     * navigateur planté avant le beforeunload/sendBeacon de
+     * DetailPanel.vue) et que l'attente des VERROU_TTL_MINUTES n'est pas
+     * acceptable. Contrairement à deverrouiller(), ne vérifie PAS que
+     * l'appelant est le détenteur du verrou — c'est précisément le point :
+     * un admin peut libérer le verrou de N'IMPORTE QUI.
+     *
+     * Journalisé via audit() (contrairement à show()/deverrouiller(), qui
+     * s'en abstiennent délibérément pour un verrouillage/déverrouillage
+     * normal) : forcer la main sur la session d'édition d'un collègue est
+     * une action à tracer, celle-là.
+     */
+    public function forcerDeverrouillage(int $id): JsonResponse
+    {
+        $famille = Famille::findOrFail($id);
+
+        if ($famille->locked_by === null) {
+            return response()->json(['ok' => true, 'message' => 'Rien à faire.']);
+        }
+
+        $ancienDetenteur = Personne::find($famille->locked_by)?->nom_complet ?? "personne #{$famille->locked_by}";
+
+        $avant = $famille->only(['etat_dossier', 'locked_by', 'locked_at', 'etat_dossier_avant_verrouillage']);
+
+        if ($famille->etat_dossier_avant_verrouillage !== null) {
+            $famille->etat_dossier = $famille->etat_dossier_avant_verrouillage;
+        }
+        $famille->etat_dossier_avant_verrouillage = null;
+        $famille->locked_by = null;
+        $famille->locked_at = null;
+        $famille->saveQuietly();
+
+        audit(
+            'deverrouillage_force',
+            'familles',
+            $famille->id,
+            $avant,
+            ['message' => "Verrou de {$ancienDetenteur} forcé par " . auth()->user()->nom_complet]
+        );
+
+        return response()->json(['ok' => true]);
     }
 
     public function update(Request $request, int $id): JsonResponse
@@ -435,7 +603,7 @@ class FamillesController extends Controller
             'specificites' => ['nullable', 'string'],
             'criticite' => ['required', 'integer', 'min:0', 'max:5'],
             'langue' => ['required', 'string', 'in:fr,ar,en'],
-            'etat_dossier' => ['required', 'string', 'in:' . implode(',', Famille::ETATS_MODIFIABLES)],
+            'etat_dossier' => ['required', 'string', 'in:' . implode(',', Famille::ETATS_SELECTIONNABLES)],
             'commentaire_dossier' => ['nullable', 'string'],
 
             // ── Champs collectés à l'intake, jusqu'ici non éditables
@@ -477,7 +645,6 @@ class FamillesController extends Controller
         unset($validated['secteurs_activite'], $validated['organismes_aide']);
 
         $avant = $famille->toArray();
-        $etaitValide = $famille->etat_dossier === 'Validé';
         // Détecté AVANT fill() : sert à décider si on relance le géocodage
         // après l'enregistrement (voir plus bas).
         $adresseModifiee = $famille->adresse !== $validated['adresse']
@@ -492,6 +659,12 @@ class FamillesController extends Controller
         if ($request->filled('id_quartier')) {
             $famille->probleme_traitement = null;
         }
+        // Fin de l'édition ⇒ verrou relâché, quel que soit qui le
+        // détenait (un enregistrement réussi ferme la session d'édition
+        // dans tous les cas — voir show()/deverrouiller()).
+        $famille->etat_dossier_avant_verrouillage = null;
+        $famille->locked_by = null;
+        $famille->locked_at = null;
         $famille->save();
 
         // sync() plutôt qu'attach() : remplace intégralement la sélection
@@ -514,17 +687,24 @@ class FamillesController extends Controller
 
         audit('update', 'familles', $famille->id, $avant, $famille->toArray());
 
-        // Synchronisation contact Google — uniquement au moment où le
-        // dossier PASSE à 'Validé' (transition, pas à chaque sauvegarde
-        // d'un dossier déjà validé), décision 6.5. Depuis le 17/07/2026,
-        // intégration directe People API (SynchroniserContactGoogle) au
-        // lieu du webhook Make.com — le job détermine lui-même s'il doit
-        // créer ou mettre à jour le contact via google_resource_name.
-        // Une édition ultérieure d'un dossier déjà validé repasse
-        // etat_dossier à 'En cours' (formulaire), donc chaque nouvelle
-        // validation redéclenche naturellement ce job (en updateContact
-        // cette fois) — pas besoin d'un second point de déclenchement.
-        if (!$etaitValide && $famille->etat_dossier === 'Validé') {
+        // Synchronisation contact Google (décision du 15/08/2026, élargit
+        // la décision du 14/08/2026) — désormais déclenchée à CHAQUE
+        // sauvegarde d'un dossier dont l'état FINAL (après cette
+        // sauvegarde) est 'Validé', 'Rejeté' ou 'Archivé', pas seulement
+        // au moment où il y entre. Sans cette condition, éditer le
+        // téléphone ou le nom d'un dossier déjà validé ne mettait jamais à
+        // jour le contact Google correspondant tant que le statut
+        // lui-même ne changeait pas — contre-intuitif ("j'ai modifié le
+        // dossier, pourquoi le contact ne bouge pas ?"). On garde quand
+        // même une restriction sur les états 'Recu'/'En cours'/'En
+        // attente' : un dossier encore en instruction n'a pas vocation à
+        // pousser des changements vers Google Contacts à chaque frappe.
+        // Depuis le 17/07/2026, intégration directe People API
+        // (SynchroniserContactGoogle) au lieu du webhook Make.com — le job
+        // détermine lui-même s'il doit créer ou mettre à jour le contact
+        // via google_resource_name.
+        $etatsDeclenchantSyncGoogle = ['Validé', 'Rejeté', 'Archivé'];
+        if (in_array($famille->etat_dossier, $etatsDeclenchantSyncGoogle, true)) {
             \App\Jobs\SynchroniserContactGoogle::dispatch($famille->id);
         }
 

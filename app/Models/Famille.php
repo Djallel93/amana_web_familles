@@ -93,6 +93,10 @@ class Famille extends Model
         'nombre_enfant' => 'integer',
         'criticite' => 'integer',
         'work_days' => 'integer',
+        // Verrouillage d'édition (décision du 15/08/2026) — voir
+        // FamillesController::show()/update()/deverrouiller() et la
+        // migration 2026_08_15_000000_add_verrouillage_edition_to_familles.
+        'locked_at' => 'datetime',
         // 'decimal' plutôt que 'float' : évite la notation scientifique de
         // Google (ex: 4.7e1) en JSON pour de grandes latitudes, et donne un
         // nombre de décimales stable/prévisible pour le champ front — cast
@@ -105,9 +109,31 @@ class Famille extends Model
     // 'Recu' est exclusif à la soumission du formulaire public (voir
     // IntakeController::store) — jamais sélectionnable manuellement par le
     // staff, qui travaille depuis "Nouvelles demandes" plutôt que d'y
-    // revenir. Utilisé pour la validation de FamillesController::update()
-    // et le <select> de statut de DetailPanel.vue — demande du 09/08/2026.
+    // revenir. Sert de liste de FILTRE dans la vue principale
+    // (index.blade.php/nouvelles.blade.php) — 'En cours' y reste
+    // volontairement (décision du 15/08/2026) : c'est justement ce qui
+    // permet au staff de filtrer "qui est en train d'être édité en ce
+    // moment" (voir FamillesController::show()/le verrouillage d'édition).
     public const ETATS_MODIFIABLES = ['En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
+
+    // Statuts que le staff peut CHOISIR manuellement dans le Dossier Panel
+    // — décision du 15/08/2026, en retrait de ETATS_MODIFIABLES : 'En
+    // cours' y a été jugé "problématique" (source de confusion — un statut
+    // qu'on pouvait choisir ET qui se posait tout seul à l'ouverture d'un
+    // dossier, cf. verrouillage d'édition) et en devient un état PUREMENT
+    // AUTOMATIQUE, jamais un choix de workflow. Utilisé pour la validation
+    // de FamillesController::update(), le <select> de statut de
+    // DetailPanel.vue, et la validation des décisions de
+    // ReverseSyncService (un "override" vers 'En cours' via la sync
+    // retour n'a pas plus de sens qu'un choix manuel dans le panneau).
+    public const ETATS_SELECTIONNABLES = ['En attente', 'Validé', 'Rejeté', 'Archivé'];
+
+    // Durée au-delà de laquelle un verrou d'édition (locked_by/locked_at)
+    // est considéré abandonné et peut être repris par un autre membre du
+    // staff — filet de sécurité si le releasing côté client (fermeture du
+    // panneau, navigator.sendBeacon au beforeunload) n'a pas pu s'exécuter
+    // (crash navigateur, perte réseau) — voir FamillesController::show().
+    public const VERROU_TTL_MINUTES = 20;
     public const LANGUES = ['fr' => 'Français', 'ar' => 'العربية', 'en' => 'English'];
     public const TYPES_HEBERGEMENT = ['organisation', 'proche', 'non'];
     public const TYPES_PIECE_IDENTITE = ['nationalite', 'titre_sejour', 'demande_asile', 'autre'];

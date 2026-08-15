@@ -128,7 +128,13 @@ const CHAMPS_PAR_ONGLET: Record<TabId, string[]> = {
 // 'Recu' exclu : réservé aux nouvelles soumissions du formulaire public
 // (voir Famille::ETATS_MODIFIABLES côté backend, qui rejette toute
 // tentative de le sélectionner ici) — décision du 09/08/2026.
-const ETATS = ['En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
+// Statuts choisissables manuellement dans ce panneau — 'En cours' en est
+// volontairement exclu (décision du 15/08/2026, cf. Famille::ETATS_SELECTIONNABLES
+// côté serveur) : c'est désormais un état purement automatique, posé par
+// le verrouillage d'édition à l'ouverture du panneau (voir show()) et
+// jamais un choix de workflow. Il reste sélectionnable comme FILTRE dans
+// la vue principale (index.blade.php) — seulement retiré d'ici.
+const ETATS = ['En attente', 'Validé', 'Rejeté', 'Archivé'];
 // Couleurs de badge par statut — repère visuel rapide dans l'en-tête,
 // cohérent avec la teinte utilisée pour les mêmes statuts dans le tableau
 // principal (familles/index.blade.php).
@@ -207,6 +213,8 @@ const uploading = ref(false);
 let urls = {
     show: '',
     update: '',
+    deverrouiller: '',
+    forcerDeverrouillage: '',
     upload: '',
     download: '',
     deleteDoc: '',
@@ -233,6 +241,52 @@ async function openFamilleDetail(id: number): Promise<void> {
 
     try {
         const res = await fetch(urls.show.replace('__ID__', String(id)));
+
+        // Verrouillage d'édition (décision du 15/08/2026) — un autre
+        // membre du staff a déjà ce dossier ouvert : on n'ouvre pas le
+        // panneau, on informe juste qui l'a en main. Vérifié AVANT le
+        // "!res.ok" générique ci-dessous (423 n'est évidemment pas "ok").
+        if (res.status === 423) {
+            const data = await res.json().catch(() => ({}));
+            const message = data.message ?? 'Ce dossier est en cours de modification par un autre utilisateur.';
+
+            // "Easy out" admin (décision du 15/08/2026) — un verrou resté
+            // bloqué (crash navigateur avant sendBeacon, etc.) n'a pas à
+            // attendre Famille::VERROU_TTL_MINUTES : peut_forcer (renvoyé
+            // par show() uniquement pour un admin) propose de le lever
+            // immédiatement et de rouvrir dans la foulée.
+            if (data.peut_forcer) {
+                const forcer = await confirmDialog.ask({
+                    title: 'Dossier verrouillé',
+                    message: `${message} Forcer le déverrouillage et l'ouvrir maintenant ?`,
+                    confirmLabel: 'Forcer le déverrouillage',
+                    danger: true,
+                });
+
+                if (forcer && urls.forcerDeverrouillage) {
+                    try {
+                        await fetch(urls.forcerDeverrouillage.replace('__ID__', String(id)), {
+                            method: 'POST',
+                            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+                        });
+                    } catch (e) {
+                        toast.error('Échec du déverrouillage forcé.');
+                        open.value = false;
+                        return;
+                    }
+                    // Le verrou vient d'être levé côté serveur — on
+                    // réessaie l'ouverture normalement plutôt que de
+                    // dupliquer la logique de chargement ici.
+                    await openFamilleDetail(id);
+                    return;
+                }
+            }
+
+            toast.error(message);
+            open.value = false;
+            return;
+        }
+
         if (!res.ok) throw new Error('Chargement impossible');
         famille.value = await res.json();
         secteursSelectionnes.value = famille.value?.secteurs_activite?.map((s) => s.id) ?? [];
@@ -255,10 +309,47 @@ async function openFamilleDetail(id: number): Promise<void> {
     }
 }
 
+/**
+ * Relâche le verrou d'édition côté serveur (décision du 15/08/2026) —
+ * best-effort, fire-and-forget : un échec réseau ici n'empêche pas de
+ * fermer le panneau côté client, le verrou expirera de toute façon au
+ * bout de Famille::VERROU_TTL_MINUTES (voir FamillesController::show()).
+ * Sans effet si le verrou a déjà été relâché côté serveur (ex: après un
+ * enregistrement réussi, qui relâche déjà le verrou lui-même — voir
+ * enregistrer()) : deverrouiller() répond simplement "rien à faire".
+ */
+function libererVerrou(): void {
+    if (!famille.value || !urls.deverrouiller) return;
+
+    fetch(urls.deverrouiller.replace('__ID__', String(famille.value.id)), {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+    }).catch(() => {});
+}
+
 function close(): void {
+    libererVerrou();
     open.value = false;
     famille.value = null;
     errors.value = {};
+}
+
+/**
+ * Filet de sécurité pour une fermeture d'onglet/rechargement/navigation
+ * pendant que le panneau est ouvert — un fetch() classique dans
+ * beforeunload risque d'être annulé avant d'aboutir ; navigator.
+ * sendBeacon() est conçu spécifiquement pour ce cas (requête best-effort
+ * envoyée en arrière-plan même après le déchargement de la page).
+ * Le jeton CSRF est passé dans le corps (_token, lu par
+ * VerifyCsrfToken::tokensMatch() en plus du header X-CSRF-TOKEN) car
+ * sendBeacon() ne permet pas de définir des en-têtes personnalisés.
+ */
+function libererVerrouAuDechargement(): void {
+    if (!open.value || !famille.value || !urls.deverrouiller) return;
+
+    const corps = new URLSearchParams();
+    corps.set('_token', csrfToken());
+    navigator.sendBeacon(urls.deverrouiller.replace('__ID__', String(famille.value.id)), corps);
 }
 
 const nombreFoyer = computed(() => {
@@ -608,6 +699,8 @@ onMounted(() => {
         urls = {
             show: el.dataset.showUrlTemplate ?? '',
             update: el.dataset.updateUrlTemplate ?? '',
+            deverrouiller: el.dataset.deverrouillerUrlTemplate ?? '',
+            forcerDeverrouillage: el.dataset.forcerDeverrouillageUrlTemplate ?? '',
             upload: el.dataset.uploadUrlTemplate ?? '',
             download: el.dataset.downloadUrlTemplate ?? '',
             deleteDoc: el.dataset.deleteDocUrlTemplate ?? '',
@@ -626,6 +719,12 @@ onMounted(() => {
     // Exposée globalement : appelée depuis l'attribut onclick des lignes
     // du tableau Blade (pas de dépendance circulaire Blade→Vue autrement).
     window.openFamilleDetail = openFamilleDetail;
+
+    // Verrouillage d'édition (décision du 15/08/2026) — voir
+    // libererVerrouAuDechargement() ci-dessus. Jamais retiré (removeEventListener)
+    // puisque ce composant est monté une seule fois pour la durée de vie
+    // de la page, comme window.openFamilleDetail ci-dessus.
+    window.addEventListener('beforeunload', libererVerrouAuDechargement);
 });
 </script>
 

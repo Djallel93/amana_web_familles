@@ -87,9 +87,22 @@ Route::middleware('auth')->group(function () {
     Route::get('/familles/export', [\App\Http\Controllers\FamillesController::class, 'export'])->name('familles.export');
     Route::get('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'show'])->whereNumber('id')->name('familles.show');
     Route::put('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'update'])->whereNumber('id')->name('familles.update');
+    // Verrouillage d'édition (décision du 15/08/2026) — relâche le verrou
+    // pris par show() sans enregistrer, voir FamillesController::deverrouiller()
+    // et DetailPanel.vue (fermeture du panneau sans sauvegarde).
+    Route::post('/familles/{id}/deverrouiller', [\App\Http\Controllers\FamillesController::class, 'deverrouiller'])->whereNumber('id')->name('familles.deverrouiller');
     Route::post('/familles/{id}/documents', [\App\Http\Controllers\FamillesController::class, 'uploadDocument'])->whereNumber('id')->name('familles.documents.store');
     Route::get('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'downloadDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.download');
     Route::delete('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'destroyDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.destroy');
+});
+
+// Déverrouillage forcé d'un dossier (décision du 15/08/2026) — réservé
+// admin, "easy out" si un verrou d'édition reste bloqué. Séparé du groupe
+// 'auth' ci-dessus (qui couvre le CRUD dossier normal, accessible à tout
+// utilisateur authentifié) pour appliquer role:admin uniquement à cette
+// route — voir FamillesController::forcerDeverrouillage().
+Route::middleware(['auth', 'role:admin'])->group(function () {
+    Route::post('/familles/{id}/forcer-deverrouillage', [\App\Http\Controllers\FamillesController::class, 'forcerDeverrouillage'])->whereNumber('id')->name('familles.forcer-deverrouillage');
 });
 
 // ── Administration (admin uniquement) ────────────────────────────────────
@@ -140,6 +153,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 Route::middleware(['auth', 'role:gestionnaire'])->prefix('familles')->name('familles.')->group(function () {
     Route::get('/statistiques', [\App\Http\Controllers\Admin\StatistiquesFamillesController::class, 'index'])->name('statistiques.index');
     Route::get('/statistiques/data', [\App\Http\Controllers\Admin\StatistiquesFamillesController::class, 'data'])->name('statistiques.data');
+
+    // ── Sync retour Google Contacts → Dossier (décision du 14/08/2026) ──
+    // Bouton dédié dans familles/index.blade.php — voir
+    // App\Http\Controllers\GoogleContactsReverseSyncController et
+    // resources/js/components/familles/ReverseSyncPanel.vue.
+    Route::get('/google-contacts/scan', [\App\Http\Controllers\GoogleContactsReverseSyncController::class, 'scan'])->name('google-contacts.scan');
+    Route::post('/google-contacts/appliquer', [\App\Http\Controllers\GoogleContactsReverseSyncController::class, 'apply'])->name('google-contacts.appliquer');
 });
 
 Route::middleware(['auth', 'role:gestionnaire'])->group(function () {

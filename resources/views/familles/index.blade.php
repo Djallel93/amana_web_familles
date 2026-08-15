@@ -343,6 +343,16 @@
                 </div>
             @endif
         </div>
+        {{-- Sync retour Google Contacts (décision du 14/08/2026) — voir
+             ReverseSyncPanel.vue + GoogleContactsReverseSyncController.
+             Réservé gestionnaire+ : même niveau d'accès que l'édition des
+             dossiers eux-mêmes (le bouton écrit potentiellement en base). --}}
+        @if(auth()->user()->isAdmin() || auth()->user()->isGestionnaire())
+            <button type="button" onclick="window.openReverseSyncPanel && window.openReverseSyncPanel()"
+                class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 flex-shrink-0">
+                🔄 Sync retour Google Contacts
+            </button>
+        @endif
         <a href="{{ route('familles.export', request()->query()) }}"
             class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 no-underline flex-shrink-0">
             ⬇️ Exporter CSV
@@ -727,6 +737,8 @@
     <div id="vue-famille-detail"
          data-update-url-template="{{ route('familles.update', ['id' => '__ID__']) }}"
          data-show-url-template="{{ route('familles.show', ['id' => '__ID__']) }}"
+         data-deverrouiller-url-template="{{ route('familles.deverrouiller', ['id' => '__ID__']) }}"
+         data-forcer-deverrouillage-url-template="{{ route('familles.forcer-deverrouillage', ['id' => '__ID__']) }}"
          data-upload-url-template="{{ route('familles.documents.store', ['id' => '__ID__']) }}"
          data-download-url-template="{{ route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
          data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
@@ -735,5 +747,16 @@
          data-google-places-key="{{ config('services.google.maps.places_api_key') }}"
          data-google-embed-key="{{ config('services.google.maps.embed_api_key') }}">
     </div>
+
+    {{-- Point de montage du panneau "Sync retour Google Contacts" — voir
+         resources/js/components/familles/ReverseSyncPanel.vue. Monté sur
+         toutes les vues affichant le bouton (actuellement uniquement
+         familles/index.blade.php), gestionnaire+ (voir bouton ci-dessus). --}}
+    @if(auth()->user()->isAdmin() || auth()->user()->isGestionnaire())
+        <div id="vue-reverse-sync-panel"
+             data-scan-url="{{ route('familles.google-contacts.scan') }}"
+             data-apply-url="{{ route('familles.google-contacts.appliquer') }}">
+        </div>
+    @endif
 
 @endsection
