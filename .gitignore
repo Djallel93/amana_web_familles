@@ -18,6 +18,7 @@ Homestead.yaml
 
 # ── Environnement / configuration locale ────────────────────────────────
 .env
+preprod.local.env
 .env.backup
 .env.production
 .phpactor.json

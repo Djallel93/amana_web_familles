@@ -1,9 +1,9 @@
-name: Build and Deploy to IONOS (SFTP/SSH)
+name: Build and Deploy to IONOS (SFTP/SSH) — Preprod
 
 on:
   push:
     branches:
-      - main
+      - develop
   workflow_dispatch:
     inputs:
       force_fresh_install:
@@ -18,7 +18,7 @@ on:
         type: boolean
 
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-preprod-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -81,7 +81,7 @@ jobs:
     name: Deploy over SFTP/SSH
     needs: build
     runs-on: ubuntu-latest
-    environment: production
+    environment: preprod
     steps:
       # Runs first so its default `git clean -ffdx` doesn't wipe out the
       # artifact downloaded in the next step (both share GITHUB_WORKSPACE).
@@ -89,7 +89,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           sparse-checkout: |
-            .github/deploy/.env.production.template
+            .github/deploy/.env.preprod.template
           sparse-checkout-cone-mode: false
 
       - name: Download build artifact
@@ -121,7 +121,7 @@ jobs:
           GOOGLE_MAPS_PLACES_API_KEY: ${{ secrets.GOOGLE_MAPS_PLACES_API_KEY }}
           GOOGLE_MAPS_EMBED_API_KEY: ${{ secrets.GOOGLE_MAPS_EMBED_API_KEY }}
         run: |
-          envsubst < .github/deploy/.env.production.template > deploy/.env
+          envsubst < .github/deploy/.env.preprod.template > deploy/.env
           # sanity check: fail fast if a placeholder was left unresolved
           if grep -q '\${' deploy/.env; then
             echo "::error::One or more secrets are missing - .env still contains unresolved placeholders"
