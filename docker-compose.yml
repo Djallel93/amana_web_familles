@@ -1,0 +1,139 @@
+# docker-compose.yml — LOCAL DEVELOPMENT ONLY.
+#
+# This never touches CI/CD: deploy.yaml and deploy-preprod.yaml still build
+# on ubuntu-latest with shivammathur/setup-php + actions/setup-node and
+# rsync straight to IONOS over SSH, exactly as before. This file exists
+# purely to give you one command that sets up PHP 8.4, Node 22, MySQL and
+# Mailpit identically on Windows and Pop!_OS.
+#
+# Expected layout on the host (see docs/local-development.md for why):
+#   amana/
+#   ├── amana_web_familles/   <- this file lives here, run `docker compose` from here
+#   ├── amana_shared/
+#   └── amana_shared_ui/
+#
+# The whole `amana/` parent is bind-mounted so relative paths used by
+# composer.local.json (../amana_shared) and `npm link` keep working exactly
+# as documented, whether or not you're editing the shared packages.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    working_dir: /var/www/amana/amana_web_familles
+    volumes:
+      - ..:/var/www/amana
+      - composer_vendor:/var/www/amana/amana_web_familles/vendor
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      AMANA_REPOS_PAT: ${AMANA_REPOS_PAT:-}
+      # Read by the entrypoint's final `chown`, so files it writes into
+      # the bind-mounted storage/ and bootstrap/cache/ end up owned by you
+      # on the host rather than root — see docker/php/entrypoint.sh.
+      HOST_UID: ${UID:-1000}
+      HOST_GID: ${GID:-1000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [amana]
+
+  vite:
+    image: node:22-alpine
+    working_dir: /var/www/amana/amana_web_familles
+    volumes:
+      - ..:/var/www/amana
+      - node_modules:/var/www/amana/amana_web_familles/node_modules
+    # Inlined rather than bind-mounting docker/node/entrypoint.sh: this
+    # container has no build step to normalize a mounted script's line
+    # endings or confirm it's even present, so anything host-filesystem-
+    # dependent (Windows copy/paste, editor auto-save, etc.) can silently
+    # break it. A command embedded directly in this YAML file — which you
+    # cloned via git and is covered by .gitattributes' `eol=lf` — doesn't
+    # have that failure mode. (docker/node/entrypoint.sh is kept only as a
+    # readable reference of the same logic, it isn't executed by default.)
+    # `apk add git` is needed because node:22-alpine is a bare Alpine image
+    # with no git — Composer's own image ships it, npm's doesn't.
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        apk add --no-cache git > /dev/null
+        cd /var/www/amana/amana_web_familles
+        if [ -n "$$AMANA_REPOS_PAT" ]; then
+          git config --global url."https://x-access-token:$${AMANA_REPOS_PAT}@github.com/".insteadOf "https://github.com/"
+        fi
+        git config --global --add safe.directory /var/www/amana/amana_web_familles
+        git config --global --add safe.directory /var/www/amana/amana_shared_ui
+        if [ -L node_modules/@amana/shared-ui ]; then
+          echo "==> @amana/shared-ui is npm-linked, skipping npm install"
+        else
+          echo "==> npm install"
+          npm install --no-audit --no-fund
+        fi
+        echo "==> starting Vite dev server on 0.0.0.0:5173"
+        exec npm run dev -- --host 0.0.0.0 --port 5173
+    ports:
+      - "5173:5173"
+    environment:
+      AMANA_REPOS_PAT: ${AMANA_REPOS_PAT:-}
+    networks: [amana]
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [amana]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025" # web UI: http://localhost:8025
+      - "1025:1025" # SMTP
+    networks: [amana]
+
+  # Optional: only starts with `docker compose --profile worker up`.
+  # Needed to test background jobs (SynchroniserContactGoogle,
+  # ResoudreAdresseFamille) end-to-end instead of relying on
+  # QUEUE_CONNECTION=sync.
+  queue:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    working_dir: /var/www/amana/amana_web_familles
+    volumes:
+      - ..:/var/www/amana
+      - composer_vendor:/var/www/amana/amana_web_familles/vendor
+    env_file:
+      - .env
+    environment:
+      AMANA_REPOS_PAT: ${AMANA_REPOS_PAT:-}
+      HOST_UID: ${UID:-1000}
+      HOST_GID: ${GID:-1000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["php", "artisan", "queue:work", "--tries=3"]
+    profiles: ["worker"]
+    networks: [amana]
+
+networks:
+  amana:
+
+volumes:
+  db_data:
+  composer_vendor:
+  node_modules:

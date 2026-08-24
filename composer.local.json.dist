@@ -1,0 +1,14 @@
+{
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../amana_shared",
+            "options": {
+                "symlink": true
+            }
+        }
+    ],
+    "require": {
+        "amana/shared": "@dev"
+    }
+}
