@@ -45,7 +45,8 @@ Vue, plus simple et suffisant pour un formulaire à remplir une fois.
         <div id="vue-intake-form" data-langue="{{ $langue }}" data-store-url="{{ route('intake.store') }}"
             data-refus-url="{{ route('intake.refus-consentement') }}"
             data-secteurs-activite="{{ $secteursActivite->toJson() }}"
-            data-organismes-aide="{{ $organismesAide->toJson() }}" data-google-places-key="{{ $googlePlacesApiKey }}">
+            data-organismes-aide="{{ $organismesAide->toJson() }}"
+            data-organisations="{{ $organisations->toJson() }}" data-google-places-key="{{ $googlePlacesApiKey }}">
         </div>
     </main>
 

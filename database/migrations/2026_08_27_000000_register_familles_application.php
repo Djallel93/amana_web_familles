@@ -52,6 +52,10 @@ return new class extends Migration {
             ['code' => 'gestionnaire', 'libelle' => 'Gestionnaire'],
             ['code' => 'membre', 'libelle' => 'Membre'],
             ['code' => 'benevole', 'libelle' => 'Bénévole'],
+            // Ajouté le 28/08/2026 (organisations partenaires) — rôle
+            // latéral, hors cascade, voir Amana\Shared\Http\Middleware\
+            // EnsureRole et App\Models\Personne::isGestionnaireExterne().
+            ['code' => 'gestionnaire_externe', 'libelle' => 'Gestionnaire (organisation partenaire)'],
         ];
 
         foreach ($roles as $role) {

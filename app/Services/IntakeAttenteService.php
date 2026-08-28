@@ -142,7 +142,18 @@ class IntakeAttenteService
      * l'import en masse), déplacement des fichiers temporaires vers leur
      * emplacement définitif, puis nettoyage.
      *
-     * @return array{famille: Famille, cree: bool}
+     * Révision du 28/08/2026 (organisations partenaires) : si le dédup
+     * trouve un dossier déjà rattaché à une AUTRE organisation que celle
+     * choisie à l'étape "organisation" du formulaire, le dossier existant
+     * n'est PAS modifié (voir FamilleUpsertService::upsert() —
+     * rattachement_en_attente) — les fichiers déjà uploadés en attente
+     * sont conservés tels quels côté disque, PAS déplacés/attachés au
+     * dossier existant tant qu'un staff n'a pas validé le rattachement
+     * (voir Admin\RattachementsController) ; ils restent simplement
+     * orphelins dans le stockage temporaire jusqu'au nettoyage périodique,
+     * même comportement qu'un lien de confirmation jamais cliqué.
+     *
+     * @return array{famille: Famille, cree: bool, rattachement_en_attente: bool}
      */
     public function confirmer(IntakeDemandeAttente $demande): array
     {
@@ -154,8 +165,15 @@ class IntakeAttenteService
             ['etat_dossier' => 'Recu', 'criticite' => 0],
             $secteursActivite,
             $organismesAide,
+            'intake',
         );
         $famille = $resultat['famille'];
+
+        if ($resultat['rattachement_en_attente']) {
+            $this->supprimerDemande($demande);
+
+            return ['famille' => $famille, 'cree' => false, 'rattachement_en_attente' => true];
+        }
 
         $typeDocumentAide = ($demande->donnees['type_piece_identite'] ?? null) === 'autre' ? 'ame' : 'caf';
 
@@ -165,7 +183,7 @@ class IntakeAttenteService
 
         $this->supprimerDemande($demande);
 
-        return ['famille' => $famille, 'cree' => $resultat['cree']];
+        return ['famille' => $famille, 'cree' => $resultat['cree'], 'rattachement_en_attente' => false];
     }
 
     private function deplacerFichiers(IntakeDemandeAttente $demande, string $slot, Famille $famille, string $typeDocument): void

@@ -173,6 +173,14 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     // Admin\GoogleContactsController et App\Services\GoogleContactsService.
     Route::get('/google-contacts/authorize', [\App\Http\Controllers\Admin\GoogleContactsController::class, 'redirect'])->name('google-contacts.authorize');
     Route::get('/google-contacts/callback', [\App\Http\Controllers\Admin\GoogleContactsController::class, 'callback'])->name('google-contacts.callback');
+
+    // ── Organisations partenaires (ajouté le 28/08/2026) ─────────────────
+    // Section de l'écran Paramètres (voir SettingsController::index() et
+    // resources/views/settings/index.blade.php) — admin uniquement, voir
+    // docblock de classe d'Admin\OrganisationsController.
+    Route::post('/organisations', [\App\Http\Controllers\Admin\OrganisationsController::class, 'store'])->name('organisations.store');
+    Route::put('/organisations/{organisation}', [\App\Http\Controllers\Admin\OrganisationsController::class, 'update'])->name('organisations.update');
+    Route::delete('/organisations/{organisation}', [\App\Http\Controllers\Admin\OrganisationsController::class, 'destroy'])->name('organisations.destroy');
 });
 
 // ── Statistiques dossiers familles (admin + gestionnaire) ────────────────
@@ -199,4 +207,31 @@ Route::middleware(['auth', 'role:gestionnaire'])->group(function () {
     // Pas de route GET dédiée : le formulaire vit dans /settings (voir
     // SettingsController::index() et resources/views/settings/index.blade.php).
     Route::post('/vehicules', [\App\Http\Controllers\VehiculeTypesController::class, 'update'])->name('vehicules.update');
+});
+
+// ── Rattachements d'organisation en attente (ajouté le 28/08/2026) ──────
+// Écran de revue admin/gestionnaire (staff interne, jamais un
+// gestionnaire_externe même de l'organisation déjà rattachée — voir
+// échange du 28/08/2026) — décide si une organisation B obtient l'accès à
+// un dossier déjà rattaché à une organisation A. Même groupe de rôle que
+// /settings ci-dessus (admin + gestionnaire), pas /admin (role:admin
+// uniquement dans cette app).
+Route::middleware(['auth', 'role:gestionnaire'])->prefix('rattachements')->name('rattachements.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\RattachementsController::class, 'index'])->name('index');
+    Route::post('/{demande}/valider', [\App\Http\Controllers\Admin\RattachementsController::class, 'valider'])->whereNumber('demande')->name('valider');
+    Route::post('/{demande}/rejeter', [\App\Http\Controllers\Admin\RattachementsController::class, 'rejeter'])->whereNumber('demande')->name('rejeter');
+});
+
+// ── Ajout/import de familles par un gestionnaire externe (ajouté le
+//    28/08/2026) — réutilise Admin\ImportsController (même pipeline que le
+//    staff interne, voir décision 6.9), route séparée avec son propre
+//    gate de rôle : gestionnaire_externe n'a PAS accès au groupe /admin
+//    (role:admin) où vit normalement ce contrôleur. Organisation forcée
+//    à celle de l'auteur — voir ImportsController::resoudreIdOrganisation().
+Route::middleware(['auth', 'role:gestionnaire_externe'])->prefix('mes-imports')->name('externe.imports.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\ImportsController::class, 'index'])->name('index');
+    Route::get('/creer', [\App\Http\Controllers\Admin\ImportsController::class, 'create'])->name('create');
+    Route::post('/csv', [\App\Http\Controllers\Admin\ImportsController::class, 'storeCsv'])->name('store-csv');
+    Route::post('/manuel', [\App\Http\Controllers\Admin\ImportsController::class, 'storeManuel'])->name('store-manuel');
+    Route::get('/{id}', [\App\Http\Controllers\Admin\ImportsController::class, 'show'])->name('show');
 });

@@ -33,8 +33,12 @@ class RoleService
     // ── Rôles disponibles ─────────────────────────────────────────────────
 
     /**
-     * Retourne les rôles familles affichables dans les formulaires,
-     * dans l'ordre hiérarchique admin > gestionnaire > membre > bénévole.
+     * Retourne les rôles familles affichables dans les formulaires, dans
+     * l'ordre hiérarchique admin > gestionnaire > membre > bénévole, puis
+     * gestionnaire_externe en dernier — ajouté le 28/08/2026, rôle latéral
+     * hors cascade (voir Amana\Shared\Http\Middleware\EnsureRole), placé à
+     * part dans la liste pour ne pas laisser croire qu'il se situe entre
+     * deux rôles internes.
      */
     public function famillesRoles(): Collection
     {
@@ -45,8 +49,8 @@ class RoleService
         }
 
         return Role::where('id_application', $app->id)
-            ->whereIn('code', ['admin', 'gestionnaire', 'membre', 'benevole'])
-            ->orderByRaw("FIELD(code, 'admin', 'gestionnaire', 'membre', 'benevole')")
+            ->whereIn('code', ['admin', 'gestionnaire', 'membre', 'benevole', 'gestionnaire_externe'])
+            ->orderByRaw("FIELD(code, 'admin', 'gestionnaire', 'membre', 'benevole', 'gestionnaire_externe')")
             ->get();
     }
 

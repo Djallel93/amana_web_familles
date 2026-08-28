@@ -63,6 +63,18 @@ class IntakeConfirmationController extends Controller
         $resultat = $this->attenteService->confirmer($demande);
         $famille = $resultat['famille'];
 
+        // Rattachement en attente de validation staff (organisation
+        // différente de celle(s) déjà rattachées au dossier trouvé — voir
+        // FamilleUpsertService::upsert()) : le dossier existant n'a pas été
+        // modifié, pas de notification "nouvelle demande" ni de résolution
+        // d'adresse à déclencher pour un dossier qui n'a pas bougé. Écran
+        // dédié plutôt que 'confirmee', pour ne pas laisser croire à la
+        // famille qu'un nouveau dossier vient d'être créé pour cette
+        // organisation.
+        if ($resultat['rattachement_en_attente']) {
+            return view('intake.confirmer', ['etat' => 'rattachement_en_attente', 'langue' => $langue]);
+        }
+
         // Notifie le staff (admin + gestionnaire) — désormais déclenché ici,
         // une fois la famille effectivement créée/mise à jour, plutôt qu'à
         // la simple soumission du formulaire (voir IntakeController::store()).

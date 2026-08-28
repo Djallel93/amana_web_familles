@@ -2,21 +2,24 @@
 @php
     $t = [
         'fr' => [
-            'greeting' => 'Bonjour', 'badge' => '🤝 Confirmation',
+            'greeting' => 'Bonjour',
+            'badge' => '🤝 Confirmation',
             'intro' => "Merci pour votre candidature bénévole ! Pour que votre candidature soit transmise à notre équipe, merci de la confirmer en cliquant sur le bouton ci-dessous.",
             'expiry' => 'Ce lien est valable 48 heures. Passé ce délai, il faudra soumettre une nouvelle candidature.',
             'notYou' => "Si vous n'êtes pas à l'origine de cette candidature, vous pouvez ignorer cet email — aucun profil ne sera créé sans confirmation.",
             'button' => '✅ Confirmer ma candidature',
         ],
         'ar' => [
-            'greeting' => 'مرحبا', 'badge' => '🤝 تأكيد',
+            'greeting' => 'مرحبا',
+            'badge' => '🤝 تأكيد',
             'intro' => 'شكرًا لترشحكم للتطوع! لكي يتم إرسال ترشحكم إلى فريقنا، يرجى تأكيده بالضغط على الزر أدناه.',
             'expiry' => 'هذا الرابط صالح لمدة 48 ساعة. بعد هذه المدة، سيتعين عليكم تقديم ترشح جديد.',
             'notYou' => 'إذا لم تكونوا أنتم من قدّم هذا الترشح، يمكنكم تجاهل هذه الرسالة — لن يتم إنشاء أي ملف بدون تأكيد.',
             'button' => '✅ تأكيد ترشحي',
         ],
         'en' => [
-            'greeting' => 'Hello', 'badge' => '🤝 Confirmation',
+            'greeting' => 'Hello',
+            'badge' => '🤝 Confirmation',
             'intro' => 'Thank you for applying to volunteer! For your application to be sent to our team, please confirm it by clicking the button below.',
             'expiry' => 'This link is valid for 48 hours. After that, you will need to submit a new application.',
             'notYou' => "If you didn't submit this application, you can ignore this email — no profile will be created without confirmation.",
@@ -39,7 +42,6 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => $t['badge'],
                 'title' => $t['greeting'] . ($prenom ? ', ' . e($prenom) : ''),
-                'titleSub' => 'AMANA Familles — Bénévolat',
             ])
 
             <div class="stripe"></div>
@@ -64,4 +66,5 @@
         </div>
     </div>
 </body>
+
 </html>

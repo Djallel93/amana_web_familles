@@ -108,4 +108,81 @@ partagée ; seule la section véhicules en dessous est propre à familles.
         </form>
     </div>
 
+    <div class="max-w-2xl mt-10">
+        <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Organisations partenaires</h2>
+        <p class="text-[13px] text-ink-muted mb-4">
+            Organisations pouvant enregistrer des familles dans un dossier commun avec AMANA — voir le rôle
+            "Gestionnaire (organisation partenaire)" dans la gestion des personnes. Liste fermée : seules les
+            organisations actives apparaissent dans les formulaires publics et les imports.
+        </p>
+
+        <div class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden mb-4">
+            <table class="w-full border-collapse text-[13px]">
+                <thead>
+                    <tr>
+                        @foreach(['Code', 'Nom', 'Statut', ''] as $col)
+                            <th class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap">
+                                {{ $col }}
+                            </th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($organisations as $organisation)
+                        <tr class="border-b border-surface-3 last:border-0">
+                            <form action="{{ route('admin.organisations.update', $organisation->id) }}" method="POST" class="contents">
+                                @csrf
+                                @method('PUT')
+                                <td class="px-4 py-2.5 text-ink-muted font-mono text-xs">
+                                    {{ $organisation->code }}
+                                    @if($organisation->est_principale)
+                                        <span class="ml-1.5 px-1.5 py-0.5 rounded bg-accent/10 text-accent text-[10px] font-bold uppercase tracking-wide">Principale</span>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-2.5">
+                                    <input type="text" name="nom" value="{{ old('nom', $organisation->nom) }}"
+                                        class="w-full px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
+                                </td>
+                                <td class="px-4 py-2.5">
+                                    <select name="actif" {{ $organisation->est_principale ? 'disabled' : '' }}
+                                        class="px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink disabled:opacity-60">
+                                        <option value="1" @selected($organisation->actif)>Active</option>
+                                        <option value="0" @selected(!$organisation->actif)>Désactivée</option>
+                                    </select>
+                                </td>
+                                <td class="px-4 py-2.5 text-right">
+                                    <button type="submit"
+                                        class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer">
+                                        Enregistrer
+                                    </button>
+                                </td>
+                            </form>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        <form action="{{ route('admin.organisations.store') }}" method="POST"
+            class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-end gap-3">
+            @csrf
+            <div class="flex-1">
+                <label for="org-code" class="block text-xs font-bold text-ink mb-1.5">Code</label>
+                <input type="text" id="org-code" name="code" value="{{ old('code') }}" required placeholder="ex : secours-machin"
+                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
+                @error('code')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+            </div>
+            <div class="flex-1">
+                <label for="org-nom" class="block text-xs font-bold text-ink mb-1.5">Nom</label>
+                <input type="text" id="org-nom" name="nom" value="{{ old('nom') }}" required placeholder="ex : Secours Machin"
+                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
+                @error('nom')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+            </div>
+            <button type="submit"
+                class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer">
+                + Ajouter
+            </button>
+        </form>
+    </div>
+
 @endsection

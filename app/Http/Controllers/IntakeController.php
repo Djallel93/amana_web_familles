@@ -8,6 +8,7 @@ namespace App\Http\Controllers;
 use Amana\Shared\Services\PersonneIntakeService;
 use App\Models\Famille;
 use App\Models\IntakeConsentRefusal;
+use App\Models\Organisation;
 use App\Models\OrganismeAide;
 use App\Models\SecteurActivite;
 use App\Notifications\IntakeConfirmationNotification;
@@ -71,6 +72,11 @@ class IntakeController extends Controller
             'langue' => $langue,
             'secteursActivite' => SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
             'organismesAide' => OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
+            // Étape "organisation" (ajoutée le 28/08/2026) — liste fermée,
+            // pas de saisie libre (voir migration create_organisations_table)
+            // : seules les organisations avec de vrais comptes
+            // gestionnaire_externe doivent apparaître ici.
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'code', 'nom']),
             'googlePlacesApiKey' => config('services.google.maps.places_api_key'),
         ]);
     }
@@ -134,6 +140,12 @@ class IntakeController extends Controller
                 'est_hotel' => ['boolean'],
 
                 'circonstances' => ['required', 'string'],
+
+                // ── Organisation ───────────────────────────────────────────
+                // Ajouté le 28/08/2026 — liste fermée (voir showForm()),
+                // obligatoire : chaque dossier doit être rattaché à une
+                // organisation dès sa création.
+                'id_organisation' => ['required', 'integer', 'exists:organisations,id'],
 
                 // ── Hébergement ────────────────────────────────────────────
                 'type_hebergement' => ['required', 'string', 'in:' . implode(',', Famille::TYPES_HEBERGEMENT)],

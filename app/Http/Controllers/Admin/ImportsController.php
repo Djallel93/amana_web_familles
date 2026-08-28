@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Jobs\SynchroniserContactGoogle;
 use App\Models\FamilleImport;
 use App\Models\FamilleImportRow;
+use App\Models\Organisation;
 use App\Services\FamilleImportRollbackService;
 use App\Services\FamilleImportService;
 use App\Support\FamilleCsvParser;
@@ -23,13 +24,22 @@ use RuntimeException;
  * Import/mise à jour en masse — décision 6.9 : deux modes d'alimentation
  * (UI manuelle, upload CSV) branchés sur le MÊME pipeline de traitement par
  * ligne (FamilleImportService::traiterLigne), avec statuts par ligne
- * (pending/success/error/skipped — équivalent du BULK_STATUS de l'ancien
- * système).
+ * (pending/success/error/skipped/en_attente_rattachement — équivalent du
+ * BULK_STATUS de l'ancien système).
  *
  * Traitement synchrone dans la requête HTTP (pas de job dédié) : un import
  * de quelques dizaines/centaines de lignes reste rapide, et ça évite
  * d'avoir à gérer un état "en cours" avec polling côté UI pour ce volume.
  * À revoir si les imports deviennent nettement plus gros.
+ *
+ * Révision du 28/08/2026 (organisations partenaires) : ce contrôleur est
+ * désormais partagé entre le staff interne (/admin/imports/*, role:admin)
+ * ET les comptes gestionnaire_externe (/mes-imports/*, role:gestionnaire_externe
+ * — voir routes/web.php). resoudreIdOrganisation() force l'organisation
+ * de l'auteur pour un gestionnaire_externe (impossible d'importer pour une
+ * autre organisation que la sienne) ; un admin/gestionnaire interne garde
+ * le comportement historique (pas d'organisation forcée, retombe sur
+ * l'organisation principale — voir FamilleUpsertService).
  */
 class ImportsController extends Controller
 {
@@ -46,7 +56,14 @@ class ImportsController extends Controller
             'rows as rows_success_count' => fn($q) => $q->where('status', 'success'),
             'rows as rows_error_count' => fn($q) => $q->where('status', 'error'),
             'rows as rows_skipped_count' => fn($q) => $q->where('status', 'skipped'),
-        ])->orderByDesc('created_at')->paginate(20);
+        ])
+            // Un gestionnaire_externe ne voit que les imports de sa (ses)
+            // organisation(s) — le staff interne (route /admin/imports)
+            // continue de tout voir, comme avant cette fonctionnalité.
+            ->when(!Auth::user()->isAdmin() && !Auth::user()->isGestionnaire(), function ($q) {
+                $q->whereIn('id_organisation', Organisation::idsPourPersonne(Auth::id()));
+            })
+            ->orderByDesc('created_at')->paginate(20);
 
         return view('admin.imports.index', compact('imports'));
     }
@@ -59,6 +76,7 @@ class ImportsController extends Controller
     public function show(int $id): View
     {
         $import = FamilleImport::with('rows')->findOrFail($id);
+        $this->assertAccesImport($import);
 
         return view('admin.imports.show', compact('import'));
     }
@@ -83,7 +101,7 @@ class ImportsController extends Controller
 
         $import = $this->traiterImport($lignes, 'csv');
 
-        return redirect()->route('admin.imports.show', $import->id)
+        return redirect()->route($this->routeName('imports.show'), $import->id)
             ->with('success', "Import terminé : {$import->rows_success_count} réussi(s), {$import->rows_error_count} en erreur.");
     }
 
@@ -108,7 +126,7 @@ class ImportsController extends Controller
 
         return response()->json([
             'importId' => $import->id,
-            'redirect' => route('admin.imports.show', $import->id),
+            'redirect' => route($this->routeName('imports.show'), $import->id),
         ]);
     }
 
@@ -117,6 +135,7 @@ class ImportsController extends Controller
     public function rollback(int $id): RedirectResponse
     {
         $import = FamilleImport::findOrFail($id);
+        $this->assertAccesImport($import);
 
         try {
             $nombre = $this->rollbackService->annuler($import);
@@ -124,7 +143,7 @@ class ImportsController extends Controller
             return back()->withErrors(['import' => $e->getMessage()]);
         }
 
-        return redirect()->route('admin.imports.show', $import->id)
+        return redirect()->route($this->routeName('imports.show'), $import->id)
             ->with('success', "Import annulé : {$nombre} dossier(s) restauré(s) ou supprimé(s).");
     }
 
@@ -133,6 +152,7 @@ class ImportsController extends Controller
     public function syncGoogleContacts(int $id): RedirectResponse
     {
         $import = FamilleImport::findOrFail($id);
+        $this->assertAccesImport($import);
 
         if ($import->rolled_back_at) {
             return back()->withErrors(['sync' => 'Cet import a été annulé — synchronisation impossible.']);
@@ -153,6 +173,7 @@ class ImportsController extends Controller
     public function syncGoogleContactsRow(int $id, int $rowId): RedirectResponse
     {
         $import = FamilleImport::findOrFail($id);
+        $this->assertAccesImport($import);
         $row = $import->rows()->findOrFail($rowId);
 
         if ($import->rolled_back_at) {
@@ -172,15 +193,18 @@ class ImportsController extends Controller
 
     private function traiterImport(array $lignes, string $source): FamilleImport
     {
+        $idOrganisation = $this->resoudreIdOrganisation();
+
         $import = FamilleImport::create([
             'type' => 'import',
             'source' => $source,
             'uploaded_by' => Auth::id(),
+            'id_organisation' => $idOrganisation,
             'status' => 'pending',
         ]);
 
         foreach ($lignes as $i => $payload) {
-            $resultat = $this->importService->traiterLigne($payload);
+            $resultat = $this->importService->traiterLigne($payload, $idOrganisation, Auth::id());
 
             FamilleImportRow::create([
                 'id_import' => $import->id,
@@ -208,5 +232,65 @@ class ImportsController extends Controller
             'rows as rows_error_count' => fn($q) => $q->where('status', 'error'),
             'rows as rows_skipped_count' => fn($q) => $q->where('status', 'skipped'),
         ]);
+    }
+
+    /**
+     * Organisation au nom de laquelle l'import est réalisé — décision du
+     * 28/08/2026 : un gestionnaire_externe ne peut JAMAIS choisir une autre
+     * organisation que la sienne (forcée, ignore toute valeur soumise) ;
+     * s'il est rattaché à plusieurs organisations, doit préciser laquelle
+     * via id_organisation en requête, sans quoi la première lui est
+     * appliquée par défaut. Un admin/gestionnaire interne garde la main
+     * (optionnel, retombe sur l'organisation principale — voir
+     * FamilleUpsertService::rattacherOrganisationInitiale()).
+     */
+    private function resoudreIdOrganisation(): ?int
+    {
+        $utilisateur = Auth::user();
+
+        if ($utilisateur->isAdmin() || $utilisateur->isGestionnaire()) {
+            return request()->integer('id_organisation') ?: null;
+        }
+
+        $idsAutorises = Organisation::idsPourPersonne(Auth::id());
+        $demandee = request()->integer('id_organisation');
+
+        if ($demandee && in_array($demandee, $idsAutorises, true)) {
+            return $demandee;
+        }
+
+        return $idsAutorises[0] ?? null;
+    }
+
+    /**
+     * Un gestionnaire_externe ne peut agir que sur les imports de sa (ses)
+     * organisation(s) — défense en profondeur en plus du scope appliqué
+     * dans index() (accès direct par URL sinon possible).
+     */
+    private function assertAccesImport(FamilleImport $import): void
+    {
+        $utilisateur = Auth::user();
+
+        if ($utilisateur->isAdmin() || $utilisateur->isGestionnaire()) {
+            return;
+        }
+
+        $idsAutorises = Organisation::idsPourPersonne(Auth::id());
+
+        abort_unless($import->id_organisation && in_array($import->id_organisation, $idsAutorises, true), 403);
+    }
+
+    /**
+     * Les mêmes actions sont routées sous deux préfixes différents selon
+     * le rôle de l'appelant (/admin/imports pour le staff interne,
+     * /mes-imports pour gestionnaire_externe — voir routes/web.php) : ce
+     * contrôleur doit rediriger vers le bon nom de route selon le contexte
+     * d'où l'appel est venu plutôt que de coder en dur 'admin.imports.*'.
+     */
+    private function routeName(string $suffix): string
+    {
+        $prefixe = str_starts_with(request()->route()->getName() ?? '', 'externe.') ? 'externe.' : 'admin.';
+
+        return $prefixe . $suffix;
     }
 }

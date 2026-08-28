@@ -14,7 +14,7 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => 'Administration',
                 'title' => 'Nouvelle candidature bénévole',
-                'titleSub' => 'AMANA Familles — En attente de validation',
+                'titleSub' => 'En attente de validation',
             ])
 
             <div class="stripe"></div>
@@ -24,7 +24,7 @@
                 <p class="greeting">Bonjour <em>{{ $adminPrenom }}</em>,</p>
                 <p class="body-text">
                     Une nouvelle candidature bénévole vient d'être confirmée sur <strong>AMANA
-                    Familles</strong> et attend votre validation.
+                        Familles</strong> et attend votre validation.
                 </p>
 
                 <table class="info-box" role="presentation" cellpadding="0" cellspacing="0" border="0">
@@ -59,4 +59,5 @@
         </div>
     </div>
 </body>
+
 </html>

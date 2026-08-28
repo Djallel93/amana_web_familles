@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Famille;
+use App\Models\Organisation;
 use Amana\Shared\Models\Setting;
 use Google\Client as GoogleClient;
 use Google\Service\PeopleService;
@@ -72,6 +73,20 @@ class GoogleContactsService
      * gérés, pas n'importe quel contact du carnet).
      */
     public const MAIN_GROUP_NAME = 'Famille dans le besoin';
+
+    /**
+     * Préfixe des labels d'organisation (ajouté le 28/08/2026) — délibérément
+     * DIFFÉRENT du format "X - Y" des labels de localisation (voir
+     * nomLabelLocalisation()/estGere() plus bas) pour ne pas s'y confondre,
+     * et reconnu explicitement dans estGere() (un label ajouté manuellement
+     * par un admin ne peut pas matcher ce préfixe par accident).
+     */
+    private const PREFIXE_LABEL_ORGANISATION = 'Org : ';
+
+    private function nomLabelOrganisation(Organisation $organisation): string
+    {
+        return self::PREFIXE_LABEL_ORGANISATION . $organisation->nom;
+    }
 
     /**
      * Clés des champs personnalisés (userDefined) — utilisées à la fois en
@@ -492,6 +507,17 @@ class GoogleContactsService
             $labels[] = $localisation;
         }
 
+        // Un label par organisation rattachée (ajouté le 28/08/2026) —
+        // dossier partagé, potentiellement plusieurs organisations à la
+        // fois (voir Famille::organisations()) : chacune obtient son
+        // propre label plutôt qu'un seul label "principal", pour que le
+        // contact Google reflète TOUTES les organisations qui suivent
+        // cette famille, pas seulement celle qui l'a enregistrée en
+        // premier (id_organisation).
+        foreach ($famille->organisations as $organisation) {
+            $labels[] = $this->nomLabelOrganisation($organisation);
+        }
+
         return $labels;
     }
 
@@ -546,13 +572,17 @@ class GoogleContactsService
         $nomsActuels = $this->resoudreNomsGroupes($service, $resourceNamesActuels);
 
         // Labels "gérés" par l'appli parmi ceux actuellement portés par le
-        // contact : le principal, un statut connu (Famille::ETATS), ou un
-        // format "X - Y" (localisation) — tout le reste est laissé intact.
+        // contact : le principal, un statut connu (Famille::ETATS), un
+        // format "X - Y" (localisation), ou un label d'organisation (préfixe
+        // "Org : ", ajouté le 28/08/2026) — tout le reste est laissé intact.
         $estGere = static function (string $nom): bool {
             if ($nom === self::MAIN_GROUP_NAME) {
                 return true;
             }
             if (in_array($nom, Famille::ETATS, true)) {
+                return true;
+            }
+            if (str_starts_with($nom, self::PREFIXE_LABEL_ORGANISATION)) {
                 return true;
             }
             return (bool) preg_match('/^.+ - .+$/', $nom);

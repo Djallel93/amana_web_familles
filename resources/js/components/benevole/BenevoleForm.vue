@@ -67,6 +67,9 @@ const DICT: Record<Langue, Record<string, string>> = {
 
         step_identite: 'Vos informations personnelles',
         nom: 'Nom', prenom: 'Prénom', telephone: 'Téléphone', telephone_hint: 'Format : 0123456789', email: 'Email',
+        step_organisation: 'Quelle organisation vous accompagne ?',
+        organisation_select: 'Organisation',
+        organisation_desc: "Sélectionnez l'organisation à laquelle vous êtes rattaché(e).",
 
         step_permis: 'Permis de conduire',
         permis_question: 'Avez-vous le permis de conduire ?', oui: 'Oui', non: 'Non',
@@ -107,6 +110,9 @@ const DICT: Record<Langue, Record<string, string>> = {
 
         step_identite: 'معلوماتكم الشخصية',
         nom: 'الاسم', prenom: 'الاسم الأول', telephone: 'الهاتف', telephone_hint: 'الصيغة: 0123456789', email: 'البريد الإلكتروني',
+        step_organisation: 'ما هي المنظمة التي ترافقكم؟',
+        organisation_select: 'المنظمة',
+        organisation_desc: 'يرجى اختيار المنظمة التي أنتم منتسبون إليها.',
 
         step_permis: 'رخصة القيادة',
         permis_question: 'هل لديكم رخصة قيادة؟', oui: 'نعم', non: 'لا',
@@ -147,6 +153,9 @@ const DICT: Record<Langue, Record<string, string>> = {
 
         step_identite: 'Your personal information',
         nom: 'Last name', prenom: 'First name', telephone: 'Phone', telephone_hint: 'Format: 0123456789', email: 'Email',
+        step_organisation: 'Which organization is supporting you?',
+        organisation_select: 'Organization',
+        organisation_desc: 'Select the organization you are affiliated with.',
 
         step_permis: "Driving licence",
         permis_question: 'Do you have a driving licence?', oui: 'Yes', non: 'No',
@@ -172,7 +181,7 @@ const DICT: Record<Langue, Record<string, string>> = {
     },
 };
 
-const STEP_IDS = ['identite', 'permis', 'vehicule', 'zone'] as const;
+const STEP_IDS = ['identite', 'organisation', 'permis', 'vehicule', 'zone'] as const;
 type StepId = typeof STEP_IDS[number];
 
 const toast = useToast();
@@ -190,6 +199,7 @@ const storeUrl = ref('');
 const refusUrl = ref('');
 const secteurs = ref<Secteur[]>([]);
 const vehicules = ref<Vehicule[]>([]);
+const organisations = ref<{ id: number; code: string; nom: string }[]>([]);
 
 const phase = ref<Phase>('consent');
 const currentStep = ref(0);
@@ -216,6 +226,7 @@ const selectableVehicules = computed<Vehicule[]>(() => vehicules.value.filter((v
 
 const form = reactive({
     nom: '', prenom: '', email: '', telephone: '', telephone_bis: '',
+    id_organisation: null as number | null,
     permis: null as boolean | null,
     id_vehicule_type: null as number | null,
     zone_livraison: '' as '' | 'nantes_et_exterieur' | 'nantes_seulement' | 'secteurs_specifiques',
@@ -302,6 +313,7 @@ async function submit(): Promise<void> {
     append('email', form.email);
     append('telephone', form.telephone);
     append('langue', langue.value);
+    append('id_organisation', form.id_organisation);
     // FormData sérialise tout en string : String(true) donne "true", que la
     // règle Laravel 'boolean' REFUSE (elle n'accepte que true/false/0/1/"0"/"1",
     // pas les chaînes "true"/"false") — d'où le 422 "must be true or false"
@@ -417,6 +429,11 @@ onMounted(() => {
         } catch {
             vehicules.value = [];
         }
+        try {
+            organisations.value = JSON.parse(el.dataset.organisations ?? '[]');
+        } catch {
+            organisations.value = [];
+        }
     }
 });
 </script>
@@ -477,6 +494,18 @@ onMounted(() => {
                 :errors="errors"
                 :show-telephone-bis="false"
                 :labels="{ nom: t.nom, prenom: t.prenom, telephone: t.telephone, telephoneHint: t.telephone_hint, email: t.email }" />
+        </section>
+
+        <!-- Organisation -->
+        <section v-else-if="currentStepId === 'organisation'">
+            <h2 class="text-[15px] font-bold text-ink mb-4">{{ t.step_organisation }}</h2>
+            <p class="text-[12.5px] text-ink-muted mb-3">{{ t.organisation_desc }}</p>
+            <label class="block text-xs font-semibold text-ink mb-1">{{ t.organisation_select }} *</label>
+            <select v-model="form.id_organisation" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
+                <option :value="null" disabled>{{ t.organisation_select }}…</option>
+                <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.nom }}</option>
+            </select>
+            <span v-if="errors.id_organisation" class="block text-[11px] text-rose-600 mt-1">{{ errors.id_organisation }}</span>
         </section>
 
         <!-- Permis -->

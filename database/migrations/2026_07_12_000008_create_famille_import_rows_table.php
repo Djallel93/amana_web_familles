@@ -28,7 +28,14 @@ return new class extends Migration {
                 ->onDelete('cascade');
             $table->unsignedInteger('row_number');
             $table->json('payload');
-            $table->enum('status', ['pending', 'success', 'error', 'skipped'])
+            // 'en_attente_rattachement' ajouté le 28/08/2026 (organisations
+            // partenaires) : la ligne matche une famille déjà rattachée à
+            // une AUTRE organisation que celle qui importe — voir
+            // FamilleUpsertService::upsert(). Ni un succès (le dossier
+            // n'est pas modifié tant qu'un admin/gestionnaire n'a pas
+            // validé le rattachement), ni une erreur (rien d'invalide dans
+            // la ligne elle-même).
+            $table->enum('status', ['pending', 'success', 'error', 'skipped', 'en_attente_rattachement'])
                 ->default('pending');
             $table->text('error_message')->nullable();
 

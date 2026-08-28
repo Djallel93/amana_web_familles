@@ -9,6 +9,7 @@ use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\VehiculeType;
 use Amana\Shared\Services\PersonneIntakeService;
 use App\Models\BenevoleConsentRefusal;
+use App\Models\Organisation;
 use App\Notifications\BenevoleIntakeConfirmationNotification;
 use App\Services\BenevoleIntakeAttenteService;
 use Illuminate\Http\JsonResponse;
@@ -63,6 +64,11 @@ class BenevoleIntakeController extends Controller
                 ->sortBy('libelle')
                 ->values(),
             'vehicules' => VehiculeType::orderBy('id')->get(['id', 'type', 'capacite_kg', 'nombre_part_max']),
+            // Question "organisation" ajoutée le 28/08/2026 — obligatoire,
+            // une seule organisation par bénévole (contrairement au dossier
+            // famille, pas de dédup multi-organisation ici, voir migration
+            // create_benevole_profil_organisation_table).
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'code', 'nom']),
         ]);
     }
 
@@ -103,6 +109,10 @@ class BenevoleIntakeController extends Controller
                 // (amana/shared) — capacite_kg/nombre_part_max ne sont plus
                 // saisis ici, voir docblock de classe.
                 'id_vehicule_type' => ['required', 'integer', 'exists:commun.ref_vehicules,id'],
+
+                // Organisation — ajoutée le 28/08/2026, obligatoire (voir
+                // showForm()).
+                'id_organisation' => ['required', 'integer', 'exists:organisations,id'],
 
                 // Zone de livraison — même branchement que l'ancien Google
                 // Form : "certains lieux spécifiques" impose une sélection

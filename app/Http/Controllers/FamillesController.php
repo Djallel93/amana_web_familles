@@ -8,6 +8,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
+use App\Models\Organisation;
 use App\Models\OrganismeAide;
 use App\Models\Personne;
 use App\Models\Quartier;
@@ -133,6 +134,15 @@ class FamillesController extends Controller
     {
         $query = Famille::query()->with('quartier.secteur.ville');
 
+        // Visibilité par organisation (ajouté le 28/08/2026) — réservé aux
+        // comptes gestionnaire_externe : admin/gestionnaire/benevole/membre
+        // continuent de tout voir, exactement comme avant cette
+        // fonctionnalité (voir Famille::scopeVisiblePar()).
+        $utilisateur = auth()->user();
+        if ($utilisateur && $utilisateur->isGestionnaireExterne() && !$utilisateur->isAdmin() && !$utilisateur->isGestionnaire()) {
+            $query->visiblePar(Organisation::idsPourPersonne($utilisateur->id));
+        }
+
         if ($request->filled('id_quartier')) {
             $query->where('id_quartier', $request->input('id_quartier'));
         }
@@ -214,6 +224,29 @@ class FamillesController extends Controller
         }
 
         return $query;
+    }
+
+    /**
+     * Défense en profondeur pour show()/update()/documents.* — baseQuery()
+     * couvre déjà index()/nouvelles(), mais un accès direct par URL
+     * (/familles/{id}) contourne le filtre de liste : sans ce garde, un
+     * gestionnaire_externe pourrait ouvrir/modifier n'importe quel dossier
+     * en devinant son ID. admin/gestionnaire/benevole/membre ne sont jamais
+     * bloqués ici (accès complet inchangé depuis avant cette fonctionnalité).
+     */
+    private function assertAccesFamille(Famille $famille): void
+    {
+        $utilisateur = auth()->user();
+
+        if (!$utilisateur->isGestionnaireExterne() || $utilisateur->isAdmin() || $utilisateur->isGestionnaire()) {
+            return;
+        }
+
+        abort_unless(
+            $famille->organisations()->whereIn('organisations.id', Organisation::idsPourPersonne($utilisateur->id))->exists(),
+            403,
+            "Vous n'avez pas accès à ce dossier.",
+        );
     }
 
     /**
@@ -392,6 +425,7 @@ class FamillesController extends Controller
     public function show(int $id): JsonResponse
     {
         $famille = Famille::with(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide'])->findOrFail($id);
+        $this->assertAccesFamille($famille);
 
         // quartier.boundary / quartier.secteur.ville.boundary sont des colonnes
         // geometry (WKB binaire) — jamais de l'UTF-8 valide. Sans ça,
@@ -575,6 +609,7 @@ class FamillesController extends Controller
     public function update(Request $request, int $id): JsonResponse
     {
         $famille = Famille::findOrFail($id);
+        $this->assertAccesFamille($famille);
 
         $validated = $request->validate([
             'nom' => ['required', 'string', 'max:150'],
@@ -716,6 +751,7 @@ class FamillesController extends Controller
     public function uploadDocument(Request $request, int $id): JsonResponse
     {
         $famille = Famille::findOrFail($id);
+        $this->assertAccesFamille($famille);
 
         $request->validate([
             'type' => ['required', 'string', 'in:identity,caf,ame,resource'],
@@ -746,6 +782,7 @@ class FamillesController extends Controller
     public function downloadDocument(int $id, int $documentId)
     {
         $document = FamilleDocument::where('id_famille', $id)->findOrFail($documentId);
+        $this->assertAccesFamille(Famille::findOrFail($id));
 
         if (!Storage::disk('local')->exists($document->disk_path)) {
             abort(404, 'Fichier introuvable sur le disque.');
@@ -757,6 +794,7 @@ class FamillesController extends Controller
     public function destroyDocument(int $id, int $documentId): JsonResponse
     {
         $document = FamilleDocument::where('id_famille', $id)->findOrFail($documentId);
+        $this->assertAccesFamille(Famille::findOrFail($id));
         $avant = $document->toArray();
 
         Storage::disk('local')->delete($document->disk_path);

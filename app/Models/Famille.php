@@ -81,6 +81,10 @@ class Famille extends Model
         'type_activite', 'work_days', 'secteur_activite_autre',
         'organisme_aide_autre',
         'google_resource_name',
+        // Organisation qui a enregistré le dossier À L'ORIGINE — voir
+        // migration add_id_organisation_to_familles_table. Ne pilote pas la
+        // visibilité seule, voir organisations()/scopeVisiblePar() plus bas.
+        'id_organisation',
     ];
 
     protected $casts = [
@@ -172,6 +176,40 @@ class Famille extends Model
     public function organismesAide(): BelongsToMany
     {
         return $this->belongsToMany(OrganismeAide::class, 'famille_organisme_aide', 'id_famille', 'id_organisme_aide');
+    }
+
+    /**
+     * Organisation qui a enregistré ce dossier à l'origine — voir
+     * fillable/migration. N'est PAS la source de vérité pour la
+     * visibilité (voir organisations() ci-dessous), juste la valeur par
+     * défaut/historique.
+     */
+    public function organisationOrigine(): BelongsTo
+    {
+        return $this->belongsTo(Organisation::class, 'id_organisation');
+    }
+
+    /**
+     * Toutes les organisations rattachées à ce dossier (une famille peut
+     * en avoir plusieurs — décision du 28/08/2026, dossier partagé plutôt
+     * qu'un dossier par organisation). Pilote à la fois la visibilité (voir
+     * scopeVisiblePar() ci-dessous) et les labels Google Contacts (voir
+     * GoogleContactsService::labelsSouhaites()).
+     */
+    public function organisations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organisation::class, 'famille_organisation', 'id_famille', 'id_organisation')
+            ->withPivot('rattachee_le');
+    }
+
+    public function demandesRattachement(): HasMany
+    {
+        return $this->hasMany(FamilleOrganisationDemande::class, 'id_famille');
+    }
+
+    public function estRattacheeA(int $idOrganisation): bool
+    {
+        return $this->organisations()->where('organisations.id', $idOrganisation)->exists();
     }
 
     // ── Accesseurs ────────────────────────────────────────────────────────
@@ -330,5 +368,20 @@ class Famille extends Model
     public function scopeDocumentsIdentiteManquants($query)
     {
         return $query->whereDoesntHave('documents', fn($q) => $q->where('type', 'identity'));
+    }
+
+    /**
+     * Scope de visibilité par organisation — décision du 28/08/2026 :
+     * réservé aux comptes gestionnaire_externe (aucun autre rôle interne
+     * n'appelle ce scope, voir FamillesController::baseQuery() — admin/
+     * gestionnaire/benevole/membre continuent de tout voir comme avant
+     * cette fonctionnalité). $idsOrganisation vient de
+     * PersonneOrganisation::organisationIdsPour().
+     *
+     * @param int[] $idsOrganisation
+     */
+    public function scopeVisiblePar($query, array $idsOrganisation)
+    {
+        return $query->whereHas('organisations', fn($q) => $q->whereIn('organisations.id', $idsOrganisation));
     }
 }

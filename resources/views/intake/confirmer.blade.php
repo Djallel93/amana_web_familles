@@ -2,7 +2,7 @@
 {{--
     Page publique, standalone — accessible via le lien reçu par email
     (IntakeConfirmationNotification). $etat ∈ a_confirmer | confirmee |
-    expiree | introuvable. Contrairement à verification/show.blade.php
+    rattachement_en_attente | expiree | introuvable. Contrairement à verification/show.blade.php
     (FR uniquement), cette page est multilingue : la famille peut être
     arabophone ou anglophone, et $demande->langue (ou 'fr' par défaut si
     la ligne est introuvable) pilote à la fois le texte et le sens RTL/LTR.
@@ -18,6 +18,9 @@
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'Merci !',
             'confirmee_text' => 'Votre demande a bien été confirmée et transmise à notre équipe. Nous reviendrons vers vous dans les plus brefs délais.',
+            'rattachement_emoji' => '📨',
+            'rattachement_title' => 'Demande transmise',
+            'rattachement_text' => "Votre dossier est déjà connu de notre réseau associatif. Votre demande a été transmise à notre équipe pour vérification avant rattachement à l'organisation choisie — nous reviendrons vers vous dans les plus brefs délais.",
             'expiree_emoji' => '⏰',
             'expiree_title' => 'Ce lien a expiré',
             'expiree_text' => "Ce lien de confirmation n'est plus valable (48 heures écoulées). Merci de soumettre une nouvelle demande.",
@@ -35,6 +38,9 @@
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'شكرًا لكم!',
             'confirmee_text' => 'تم تأكيد طلبكم بنجاح وإرساله إلى فريقنا. سنعود إليكم في أقرب وقت ممكن.',
+            'rattachement_emoji' => '📨',
+            'rattachement_title' => 'تم إرسال الطلب',
+            'rattachement_text' => 'ملفكم معروف بالفعل لدى شبكتنا الجمعوية. تم إرسال طلبكم إلى فريقنا للتحقق قبل ربطه بالمنظمة المختارة — سنعود إليكم في أقرب وقت ممكن.',
             'expiree_emoji' => '⏰',
             'expiree_title' => 'انتهت صلاحية هذا الرابط',
             'expiree_text' => 'رابط التأكيد هذا لم يعد صالحًا (مرت 48 ساعة). يرجى تقديم طلب جديد.',
@@ -52,6 +58,9 @@
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'Thank you!',
             'confirmee_text' => 'Your request has been confirmed and sent to our team. We will get back to you as soon as possible.',
+            'rattachement_emoji' => '📨',
+            'rattachement_title' => 'Request sent',
+            'rattachement_text' => 'Your file is already known to our partner network. Your request has been sent to our team for review before being linked to the organisation you selected — we will get back to you as soon as possible.',
             'expiree_emoji' => '⏰',
             'expiree_title' => 'This link has expired',
             'expiree_text' => 'This confirmation link is no longer valid (48 hours have passed). Please submit a new request.',
@@ -96,6 +105,11 @@
             <div class="text-4xl mb-4">{{ $t['confirmee_emoji'] }}</div>
             <h1 class="font-heading text-xl font-semibold text-ink mb-2">{{ $t['confirmee_title'] }}</h1>
             <p class="text-ink-muted text-[14px]">{{ $t['confirmee_text'] }}</p>
+
+        @elseif($etat === 'rattachement_en_attente')
+            <div class="text-4xl mb-4">{{ $t['rattachement_emoji'] }}</div>
+            <h1 class="font-heading text-xl font-semibold text-ink mb-2">{{ $t['rattachement_title'] }}</h1>
+            <p class="text-ink-muted text-[14px]">{{ $t['rattachement_text'] }}</p>
 
         @elseif($etat === 'expiree')
             <div class="text-4xl mb-4">{{ $t['expiree_emoji'] }}</div>

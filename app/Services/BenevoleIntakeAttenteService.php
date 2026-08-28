@@ -121,6 +121,20 @@ class BenevoleIntakeAttenteService
 
             $profil->secteurs()->sync($demande->secteurs ?? []);
 
+            // Rattachement organisation (ajouté le 28/08/2026) — table
+            // locale à cette app (benevole_profil_organisation), PAS une
+            // relation Eloquent cross-DB sur BenevoleProfil (partagé, voir
+            // migration create_benevole_profil_organisation_table). Une
+            // seule organisation par bénévole : remplace toute ligne
+            // précédente plutôt que d'accumuler (cas d'une candidature
+            // renouvelée pour une autre organisation).
+            if (!empty($donnees['id_organisation'])) {
+                DB::table('benevole_profil_organisation')->updateOrInsert(
+                    ['id_benevole_profil' => $profil->id],
+                    ['id_organisation' => $donnees['id_organisation'], 'rattachee_le' => now()],
+                );
+            }
+
             $demande->delete();
 
             return ['personne' => $personne, 'profil' => $profil, 'personneExistante' => $existante];

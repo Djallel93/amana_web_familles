@@ -42,7 +42,8 @@ Page publique, standalone — mêmes conventions que resources/views/intake/show
     <main class="max-w-2xl mx-auto px-4 py-8">
         <div id="vue-benevole-form" data-langue="{{ $langue }}" data-store-url="{{ route('benevole.store') }}"
             data-refus-url="{{ route('benevole.refus-consentement') }}"
-            data-secteurs="{{ $secteurs->toJson() }}" data-vehicules="{{ $vehicules->toJson() }}">
+            data-secteurs="{{ $secteurs->toJson() }}" data-vehicules="{{ $vehicules->toJson() }}"
+            data-organisations="{{ $organisations->toJson() }}">
         </div>
     </main>
 

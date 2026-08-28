@@ -8,6 +8,7 @@ namespace App\Http\Controllers;
 use Amana\Shared\Http\Controllers\SettingsControllerBase;
 use Amana\Shared\Models\Setting;
 use Amana\Shared\Models\VehiculeType;
+use App\Models\Organisation;
 use Illuminate\View\View;
 
 /**
@@ -31,6 +32,7 @@ class SettingsController extends SettingsControllerBase
         return view('settings.index', [
             'settings' => Setting::allForApp($this->appCode()),
             'vehicules' => VehiculeType::orderBy('id')->get(),
+            'organisations' => Organisation::orderByDesc('est_principale')->orderBy('nom')->get(),
         ]);
     }
 }

@@ -18,6 +18,12 @@ use Illuminate\Support\Facades\Validator;
  * voie est staff-only : pas de documents obligatoires, pas de consentement
  * RGPD à cocher, et etat_dossier/criticite peuvent être fournis directement
  * dans la ligne (import de dossiers déjà triés).
+ *
+ * Révision du 28/08/2026 (organisations partenaires) : $idOrganisation est
+ * désormais fourni par l'appelant (Admin\ImportsController) plutôt que par
+ * la ligne elle-même — pour un gestionnaire_externe, TOUTE ligne importée
+ * est forcée sur son organisation (voir ImportsController::resoudreIdOrganisation()),
+ * la ligne CSV/manuelle ne peut pas s'attribuer une autre organisation.
  */
 class FamilleImportService
 {
@@ -27,12 +33,14 @@ class FamilleImportService
     }
 
     /**
+     * @param int|null $idOrganisation Organisation au nom de laquelle cette ligne est importée — voir FamilleUpsertService::upsert().
+     * @param int|null $submittedBy ID de ref_personnes de l'auteur de l'import (audit de la demande de rattachement le cas échéant).
      * @return array{status: string, error_message: ?string, id_famille: ?int, cree: ?bool, donnees_avant: ?array}
-     *         status ∈ pending|success|error|skipped (voir famille_import_rows)
+     *         status ∈ pending|success|error|skipped|en_attente_rattachement (voir famille_import_rows)
      *         cree/donnees_avant ne sont renseignés que si status = success
      *         (voir FamilleUpsertService::upsert() — permettent le rollback).
      */
-    public function traiterLigne(array $payload): array
+    public function traiterLigne(array $payload, ?int $idOrganisation = null, ?int $submittedBy = null): array
     {
         // Ligne entièrement vide (ex : ligne blanche en fin de CSV) → ignorée.
         if (empty(array_filter($payload, fn($v) => $v !== null && $v !== ''))) {
@@ -89,11 +97,25 @@ class FamilleImportService
 
         $donnees = array_filter($validator->validated(), fn($v) => $v !== null && $v !== '');
 
+        if ($idOrganisation) {
+            $donnees['id_organisation'] = $idOrganisation;
+        }
+
         try {
             $resultat = $this->upsertService->upsert($donnees, [
                 'etat_dossier' => $donnees['etat_dossier'] ?? 'En cours',
                 'criticite' => $donnees['criticite'] ?? 0,
-            ]);
+            ], null, null, 'import', $submittedBy);
+
+            if ($resultat['rattachement_en_attente']) {
+                return [
+                    'status' => 'en_attente_rattachement',
+                    'error_message' => null,
+                    'id_famille' => $resultat['famille']->id,
+                    'cree' => false,
+                    'donnees_avant' => null,
+                ];
+            }
 
             // Résolution géographique uniquement si une adresse a été fournie
             // (import "léger" possible sans adresse — ex : juste nom/téléphone).

@@ -71,7 +71,7 @@
 
                 <div class="mb-6">
                     <label for="role" class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Rôle sur AMANA Familles</label>
-                    <select id="role" name="role" required
+                    <select id="role" name="role" required onchange="document.getElementById('bloc-organisations').classList.toggle('hidden', this.value !== 'gestionnaire_externe')"
                         class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
                                 focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
                         <option value="" disabled {{ !old('role', $roleActuel) ? 'selected' : '' }}>Sélectionner un rôle…</option>
@@ -83,9 +83,34 @@
                     </select>
                     <p class="text-[11.5px] text-ink-muted mt-1">
                         Permissions fines à affiner au fil des écrans — pour l'instant admin/gestionnaire ont accès
-                        complet, membre/bénévole sont réservés pour un usage futur.
+                        complet, membre/bénévole sont réservés pour un usage futur. Gestionnaire (organisation
+                        partenaire) ne voit et ne gère que les dossiers de sa (ses) organisation(s) — voir ci-dessous.
                     </p>
                     @error('role')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+                </div>
+
+                {{--
+                    Multi-select organisations (ajouté le 28/08/2026) — affiché
+                    uniquement pour le rôle gestionnaire_externe (voir toggle JS
+                    ci-dessus sur #role), masqué par défaut sinon. Pas de <select
+                    multiple> classique (peu ergonomique) : liste de checkboxes,
+                    même esprit que les secteurs d'activité du formulaire d'intake.
+                --}}
+                <div id="bloc-organisations" class="mb-6 {{ old('role', $roleActuel) === 'gestionnaire_externe' ? '' : 'hidden' }}">
+                    <label class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Organisation(s)</label>
+                    <div class="border-[1.5px] border-ink-faint rounded-lg bg-surface-2 p-3 space-y-2 max-h-48 overflow-y-auto">
+                        @forelse($organisations as $organisation)
+                            <label class="flex items-center gap-2 text-[13.5px] text-ink cursor-pointer">
+                                <input type="checkbox" name="organisations[]" value="{{ $organisation->id }}"
+                                    {{ in_array($organisation->id, old('organisations', $organisationsActuelles)) ? 'checked' : '' }}
+                                    class="rounded border-ink-faint">
+                                {{ $organisation->nom }}
+                            </label>
+                        @empty
+                            <p class="text-[12.5px] text-ink-muted">Aucune organisation active — créez-en une depuis Paramètres.</p>
+                        @endforelse
+                    </div>
+                    @error('organisations')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
                 </div>
 
                 <div class="flex items-center gap-3">

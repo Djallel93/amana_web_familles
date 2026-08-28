@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Organisation;
 use App\Models\Personne;
 use App\Notifications\InvitationFamillesNotification;
 use App\Notifications\InvitationFamillesDejaInscritNotification;
@@ -54,6 +55,10 @@ class PersonnesController extends Controller
             'personne' => null,
             'roleActuel' => null,
             'roles' => $roles,
+            // Multi-select "organisations" (ajouté le 28/08/2026) — vide/masqué
+            // par défaut côté vue, affiché seulement quand role = gestionnaire_externe.
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+            'organisationsActuelles' => [],
         ]);
     }
 
@@ -64,7 +69,14 @@ class PersonnesController extends Controller
             'prenom' => ['required', 'string', 'max:100'],
             'email' => ['required', 'email', 'max:255'],
             'telephone' => ['nullable', 'string', 'max:20'],
-            'role' => ['required', 'string', 'in:admin,gestionnaire,membre,benevole'],
+            'role' => ['required', 'string', 'in:admin,gestionnaire,membre,benevole,gestionnaire_externe'],
+            // Obligatoire uniquement pour gestionnaire_externe (voir
+            // décision du 28/08/2026 : plusieurs organisations possibles
+            // par compte) — validé plus bas via un after() plutôt qu'un
+            // required_if imbriqué dans un tableau, pour un message d'erreur
+            // plus clair.
+            'organisations' => ['array'],
+            'organisations.*' => ['integer', 'exists:organisations,id'],
         ], [
             'nom.required' => 'Le nom est obligatoire.',
             'prenom.required' => 'Le prénom est obligatoire.',
@@ -73,6 +85,10 @@ class PersonnesController extends Controller
             'role.required' => 'Veuillez sélectionner un rôle.',
             'role.in' => 'Rôle invalide.',
         ]);
+
+        if ($request->input('role') === 'gestionnaire_externe' && empty($request->input('organisations'))) {
+            return back()->withErrors(['organisations' => 'Sélectionnez au moins une organisation pour un gestionnaire externe.'])->withInput();
+        }
 
         // ── Personne déjà connue de ref_personnes ? ──────────────────────
         // Table PARTAGÉE : la personne peut déjà exister (ex : staff
@@ -97,6 +113,14 @@ class PersonnesController extends Controller
 
         $roleCode = $request->input('role');
         $this->roleService->syncRoleFamilles($personne, $roleCode);
+
+        // Rattachement organisation(s) (ajouté le 28/08/2026) — vidé pour
+        // tout rôle autre que gestionnaire_externe, même si le formulaire
+        // ne devrait normalement pas en soumettre (défense en profondeur :
+        // un ancien gestionnaire_externe rétrogradé ne doit pas garder un
+        // accès résiduel via personne_organisation, voir
+        // FamillesController::assertAccesFamille()).
+        Organisation::syncPersonne($personne->id, $roleCode === 'gestionnaire_externe' ? $request->input('organisations', []) : []);
 
         $dejaMotDePasse = !empty($personne->password);
 
@@ -141,7 +165,13 @@ class PersonnesController extends Controller
         $roles = $this->roleService->famillesRoles();
         $roleActuel = $this->roleService->currentRoleCode($personne);
 
-        return view('personnes.form', compact('personne', 'roleActuel', 'roles'));
+        return view('personnes.form', [
+            'personne' => $personne,
+            'roleActuel' => $roleActuel,
+            'roles' => $roles,
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+            'organisationsActuelles' => Organisation::idsPourPersonne($personne->id),
+        ]);
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -150,11 +180,17 @@ class PersonnesController extends Controller
             'nom' => ['required', 'string', 'max:100'],
             'prenom' => ['required', 'string', 'max:100'],
             'telephone' => ['nullable', 'string', 'max:20'],
-            'role' => ['required', 'string', 'in:admin,gestionnaire,membre,benevole'],
+            'role' => ['required', 'string', 'in:admin,gestionnaire,membre,benevole,gestionnaire_externe'],
+            'organisations' => ['array'],
+            'organisations.*' => ['integer', 'exists:organisations,id'],
         ], [
             'role.required' => 'Veuillez sélectionner un rôle.',
             'role.in' => 'Rôle invalide.',
         ]);
+
+        if ($request->input('role') === 'gestionnaire_externe' && empty($request->input('organisations'))) {
+            return back()->withErrors(['organisations' => 'Sélectionnez au moins une organisation pour un gestionnaire externe.'])->withInput();
+        }
 
         $personne = Personne::findOrFail($id);
         $avant = $personne->toArray();
@@ -163,6 +199,7 @@ class PersonnesController extends Controller
         $personne->save();
 
         $this->roleService->syncRoleFamilles($personne, $request->input('role'));
+        Organisation::syncPersonne($personne->id, $request->input('role') === 'gestionnaire_externe' ? $request->input('organisations', []) : []);
 
         audit('update', 'familles_personnes', $personne->id, $avant, $personne->toArray());
 

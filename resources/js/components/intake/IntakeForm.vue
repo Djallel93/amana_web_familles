@@ -64,6 +64,9 @@ const DICT: Record<Langue, Record<string, string>> = {
         refused_text: 'En cas de refus, nous ne pourrons pas traiter votre demande.',
 
         step_identite: 'Informations personnelles',
+        step_organisation: 'Quelle organisation vous accompagne ?',
+        organisation_select: 'Organisation',
+        organisation_desc: "Sélectionnez l'organisation qui vous accompagne dans votre démarche.",
         nom: 'Nom de famille', prenom: 'Prénom de la personne à contacter',
         email: 'Email',
         telephone: 'Numéro de téléphone de la personne à contacter',
@@ -139,6 +142,9 @@ const DICT: Record<Langue, Record<string, string>> = {
         refused_text: 'If you refuse to provide the necessary information, we will not be able to process your request.',
 
         step_identite: 'Personal Information',
+        step_organisation: 'Which organization is supporting you?',
+        organisation_select: 'Organization',
+        organisation_desc: 'Select the organization supporting you in this process.',
         nom: 'Last Name', prenom: 'First Name of the Contact Person',
         email: 'Email',
         telephone: 'Phone Number of the Contact Person',
@@ -214,6 +220,9 @@ const DICT: Record<Langue, Record<string, string>> = {
         refused_text: 'في حال الرفض، لن نتمكن من معالجة طلبكم.',
 
         step_identite: 'المعلومات الشخصية',
+        step_organisation: 'ما هي المنظمة التي ترافقكم؟',
+        organisation_select: 'المنظمة',
+        organisation_desc: 'يرجى اختيار المنظمة التي ترافقكم في مسعاكم.',
         nom: 'اللقب', prenom: 'إسم الشخص الذي يمكن التواصل معه',
         email: 'البريد الإلكتروني',
         telephone: 'رقم هاتف الشخص الذي يمكن التواصل معه',
@@ -275,7 +284,7 @@ const DICT: Record<Langue, Record<string, string>> = {
     },
 };
 
-const STEP_IDS = ['identite', 'hebergement', 'adresse', 'situation', 'administratif', 'activite', 'ressources'] as const;
+const STEP_IDS = ['identite', 'organisation', 'hebergement', 'adresse', 'situation', 'administratif', 'activite', 'ressources'] as const;
 type StepId = typeof STEP_IDS[number];
 
 const toast = useToast();
@@ -299,6 +308,7 @@ const storeUrl = ref('');
 const refusUrl = ref('');
 const secteursActivite = ref<ListeOption[]>([]);
 const organismesAide = ref<ListeOption[]>([]);
+const organisations = ref<{ id: number; code: string; nom: string }[]>([]);
 const googlePlacesKey = ref('');
 
 const phase = ref<Phase>('consent');
@@ -311,6 +321,7 @@ const currentStepId = computed<StepId>(() => STEP_IDS[currentStep.value]);
 
 const form = reactive({
     nom: '', prenom: '', email: '', telephone: '', telephone_bis: '',
+    id_organisation: null as number | null,
     type_hebergement: '' as '' | 'organisation' | 'proche' | 'non', hosted_by: '',
     adresse: '', code_postal: '', ville_texte: '', se_deplace: false, est_hotel: false,
     nombre_adulte: 1, nombre_enfant: 0, etudiant: false, circonstances: '',
@@ -628,6 +639,7 @@ async function submit(): Promise<void> {
     append('email', form.email);
     append('telephone', form.telephone);
     append('telephone_bis', form.telephone_bis);
+    append('id_organisation', form.id_organisation);
     append('type_hebergement', form.type_hebergement);
     append('hosted_by', form.type_hebergement === 'organisation' ? form.hosted_by : '');
     append('adresse', form.adresse);
@@ -720,9 +732,11 @@ onMounted(() => {
         try {
             secteursActivite.value = JSON.parse(el.dataset.secteursActivite ?? '[]');
             organismesAide.value = JSON.parse(el.dataset.organismesAide ?? '[]');
+            organisations.value = JSON.parse(el.dataset.organisations ?? '[]');
         } catch {
             secteursActivite.value = [];
             organismesAide.value = [];
+            organisations.value = [];
         }
     }
 });
@@ -789,6 +803,18 @@ onMounted(() => {
                     telephone: t.telephone, telephoneHint: t.telephone_hint, telephoneBis: t.telephone_bis,
                     email: t.email,
                 }" />
+        </section>
+
+        <!-- 1bis. Organisation -->
+        <section v-else-if="currentStepId === 'organisation'">
+            <h2 class="text-[15px] font-bold text-ink mb-4">{{ t.step_organisation }}</h2>
+            <p class="text-[12.5px] text-ink-muted mb-3">{{ t.organisation_desc }}</p>
+            <label class="block text-xs font-semibold text-ink mb-1">{{ t.organisation_select }} *</label>
+            <select v-model="form.id_organisation" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
+                <option :value="null" disabled>{{ t.organisation_select }}…</option>
+                <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.nom }}</option>
+            </select>
+            <span v-if="errors.id_organisation" class="block text-[11px] text-rose-600 mt-1">{{ errors.id_organisation }}</span>
         </section>
 
         <!-- 2. Hébergement -->
