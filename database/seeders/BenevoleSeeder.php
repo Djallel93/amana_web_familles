@@ -67,8 +67,11 @@ class BenevoleSeeder extends Seeder
 
         $famillesApp = $this->roleService->famillesApp();
         if (!$famillesApp) {
-            $this->command->error('❌ Application "familles" introuvable dans ref_applications — voir '
-                . '2026_07_12_000001_register_familles_application.php (amana_web_planning).');
+            // Ne devrait plus arriver depuis le 27/08/2026 — voir la
+            // migration 2026_08_27_000000_register_familles_application.php
+            // (amana_web_familles), qui enregistre 'familles' automatiquement.
+            $this->command->error('❌ Application "familles" introuvable dans ref_applications — vérifiez que '
+                . '`php artisan amana:migrate-shared` PUIS `php artisan migrate` ont bien été exécutés.');
             return;
         }
 

@@ -13,16 +13,19 @@ use Illuminate\Support\Facades\Hash;
 /**
  * Seeder principal.
  *
- * Contrairement à amana_web_planning, cette app NE seed PAS l'application
- * 'familles' ni ses rôles ('admin', 'gestionnaire', 'membre', 'benevole') :
- * ce sont des tables partagées (ref_applications, ref_roles) possédées par
- * amana_web_planning, déjà peuplées par la migration
- * 2026_07_12_000001_register_familles_application.php (voir README.md).
+ * L'application 'familles' et ses rôles ('admin', 'gestionnaire', 'membre',
+ * 'benevole') sont désormais enregistrés automatiquement par une migration
+ * de cette app (2026_08_27_000000_register_familles_application.php,
+ * ciblant amana_commun) — corrigé le 27/08/2026, ce n'était auparavant
+ * qu'un seeder à lancer manuellement (FamillesApplicationSeeder, supprimé).
+ * `php artisan migrate` suffit désormais, à condition d'avoir d'abord
+ * lancé `php artisan amana:migrate-shared` (crée ref_applications/
+ * ref_roles, tables et suivi de migration distincts de ceux de familles).
  *
- * En revanche, ce seeder attribue le rôle 'admin' de l'application 'familles'
- * au compte admin@amana.fr, pour que le premier déploiement donne
- * immédiatement accès à cette app — même mécanisme que
- * amana_web_planning\DatabaseSeeder pour son propre rôle 'admin'.
+ * Ce seeder attribue le rôle 'admin' de l'application 'familles' au compte
+ * admin@amana.fr, pour que le premier déploiement donne immédiatement
+ * accès à cette app — même mécanisme que amana_web_planning\DatabaseSeeder
+ * pour son propre rôle 'admin'.
  *
  * Le compte admin@amana.fr lui-même (ref_personnes) est normalement déjà
  * créé par le seeder de amana_web_planning, puisque les comptes staff sont
@@ -64,9 +67,16 @@ class DatabaseSeeder extends Seeder
         $famillesApp = $roleService->famillesApp();
 
         if (!$famillesApp) {
-            $this->command->error('❌ Application "familles" introuvable dans ref_applications — la migration '
-                . '2026_07_12_000001_register_familles_application.php (côté amana_web_planning) doit être '
-                . 'exécutée avant ce seeder.');
+            // Ne devrait plus arriver en temps normal depuis le 27/08/2026 :
+            // la migration 2026_08_27_000000_register_familles_application.php
+            // enregistre 'familles' automatiquement pendant `php artisan
+            // migrate`, avant que les seeders ne s'exécutent. Ce garde-fou
+            // reste utile si `db:seed` est lancé isolément sur une base
+            // partiellement migrée, ou si `amana:migrate-shared` n'a jamais
+            // été exécuté (ref_applications/ref_roles inexistantes).
+            $this->command->error('❌ Application "familles" introuvable dans ref_applications — vérifiez que '
+                . '`php artisan amana:migrate-shared` PUIS `php artisan migrate` ont bien été exécutés '
+                . '(cette dernière contient la migration qui enregistre familles automatiquement).');
             return;
         }
 
