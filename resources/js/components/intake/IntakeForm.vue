@@ -26,7 +26,8 @@
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
-import { useToast } from '@amana/shared-ui';
+import { useToast, PersonalInfoStep } from '@amana/shared-ui';
+import type { PersonalInfoValue } from '@amana/shared-ui';
 
 declare global {
     interface Window {
@@ -319,6 +320,23 @@ const form = reactive({
     secteurs_activite: [] as number[], secteur_activite_autre: '',
     organismes_aide: [] as number[], organisme_aide_autre: '',
     site_web: '', // piège à robots — voir IntakeController::store, jamais rempli par un humain
+});
+
+// Adaptateur vers le composant partagé PersonalInfoStep (@amana/shared-ui) —
+// extrait le 24/08/2026 de cette même étape "identite", désormais réutilisé
+// aussi par le formulaire de candidature bénévole. `form` reste la source de
+// vérité ; ce computed ne fait que reformer/éclater les champs concernés.
+const personalInfo = computed<PersonalInfoValue>({
+    get: () => ({
+        nom: form.nom, prenom: form.prenom,
+        telephone: form.telephone, telephone_bis: form.telephone_bis,
+        email: form.email,
+    }),
+    set: (v) => {
+        form.nom = v.nom; form.prenom = v.prenom;
+        form.telephone = v.telephone; form.telephone_bis = v.telephone_bis ?? '';
+        form.email = v.email;
+    },
 });
 
 // Justificatif attendu à l'étape "administratif" — Nationalité/Titre de
@@ -763,34 +781,14 @@ onMounted(() => {
         <!-- 1. Identité -->
         <section v-if="currentStepId === 'identite'">
             <h2 class="text-[15px] font-bold text-ink mb-4">{{ t.step_identite }}</h2>
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-semibold text-ink mb-1">{{ t.nom }} *</label>
-                    <input v-model="form.nom" type="text" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
-                    <span v-if="errors.nom" class="text-[11px] text-rose-600">{{ errors.nom }}</span>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-ink mb-1">{{ t.prenom }} *</label>
-                    <input v-model="form.prenom" type="text" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
-                    <span v-if="errors.prenom" class="text-[11px] text-rose-600">{{ errors.prenom }}</span>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-ink mb-1">{{ t.telephone }} *</label>
-                    <input v-model="form.telephone" type="tel" placeholder="0123456789" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
-                    <p class="text-[11px] text-ink-faint mt-1">{{ t.telephone_hint }}</p>
-                    <span v-if="errors.telephone" class="block text-[11px] text-rose-600">{{ errors.telephone }}</span>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-ink mb-1">{{ t.telephone_bis }}</label>
-                    <input v-model="form.telephone_bis" type="tel" placeholder="0123456789" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
-                    <span v-if="errors.telephone_bis" class="block text-[11px] text-rose-600">{{ errors.telephone_bis }}</span>
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-ink mb-1">{{ t.email }} *</label>
-                    <input v-model="form.email" type="email" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
-                    <span v-if="errors.email" class="text-[11px] text-rose-600">{{ errors.email }}</span>
-                </div>
-            </div>
+            <PersonalInfoStep
+                v-model="personalInfo"
+                :errors="errors"
+                :labels="{
+                    nom: t.nom, prenom: t.prenom,
+                    telephone: t.telephone, telephoneHint: t.telephone_hint, telephoneBis: t.telephone_bis,
+                    email: t.email,
+                }" />
         </section>
 
         <!-- 2. Hébergement -->

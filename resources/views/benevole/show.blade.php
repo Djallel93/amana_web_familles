@@ -1,9 +1,7 @@
-{{-- resources/views/intake/show.blade.php --}}
+{{-- resources/views/benevole/show.blade.php --}}
 {{--
-Page publique, standalone (pas de sidebar/auth — layouts.app est
-réservé au staff connecté). Le sélecteur de langue est un simple lien
-qui recharge la page sur /demande/{langue} — pas de i18n réactif côté
-Vue, plus simple et suffisant pour un formulaire à remplir une fois.
+Page publique, standalone — mêmes conventions que resources/views/intake/show.blade.php
+(pas de sidebar/auth, sélecteur de langue = lien qui recharge la page).
 --}}
 <!DOCTYPE html>
 <html lang="{{ $langue }}" dir="{{ $langue === 'ar' ? 'rtl' : 'ltr' }}">
@@ -12,7 +10,7 @@ Vue, plus simple et suffisant pour un formulaire à remplir une fois.
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>AMANA Familles — Demande d'aide</title>
+    <title>AMANA Familles — Candidature bénévole</title>
     @vite(['resources/css/app.css', 'resources/js/app.ts'])
 </head>
 
@@ -26,15 +24,15 @@ Vue, plus simple et suffisant pour un formulaire à remplir une fois.
                     class="w-11 h-11 rounded-full object-cover flex-shrink-0">
                 <div>
                     <div class="font-heading text-white font-semibold text-[15px] leading-tight">AMANA</div>
-                    <div class="text-white/45 text-[11.5px]">Formulaire d'inscription</div>
+                    <div class="text-white/45 text-[11.5px]">Candidature bénévole</div>
                 </div>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
                 @foreach(['fr' => ['🇫🇷', 'FR'], 'ar' => ['🇸🇦', 'ع'], 'en' => ['🇬🇧', 'EN']] as $code => $flagLabel)
-                    <a href="{{ route('intake.show', ['langue' => $code]) }}"
+                    <a href="{{ route('benevole.show', ['langue' => $code]) }}"
                         class="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[12px] font-semibold no-underline transition-colors
                                     {{ $langue === $code ? 'bg-accent text-white' : 'bg-white/[0.08] text-white/60 hover:bg-white/[0.14]' }}">
-                        <span aria-hidden="true" style="font-family: 'Twemoji Mozilla','Segoe UI Emoji','Noto Color Emoji',sans-serif; font-size: 15px;">{{ $flagLabel[0] }}</span>{{ $flagLabel[1] }}
+                    <span aria-hidden="true" style="font-family: 'Twemoji Mozilla','Segoe UI Emoji','Noto Color Emoji',sans-serif; font-size: 15px;">{{ $flagLabel[0] }}</span>{{ $flagLabel[1] }}
                     </a>
                 @endforeach
             </div>
@@ -42,10 +40,9 @@ Vue, plus simple et suffisant pour un formulaire à remplir une fois.
     </header>
 
     <main class="max-w-2xl mx-auto px-4 py-8">
-        <div id="vue-intake-form" data-langue="{{ $langue }}" data-store-url="{{ route('intake.store') }}"
-            data-refus-url="{{ route('intake.refus-consentement') }}"
-            data-secteurs-activite="{{ $secteursActivite->toJson() }}"
-            data-organismes-aide="{{ $organismesAide->toJson() }}" data-google-places-key="{{ $googlePlacesApiKey }}">
+        <div id="vue-benevole-form" data-langue="{{ $langue }}" data-store-url="{{ route('benevole.store') }}"
+            data-refus-url="{{ route('benevole.refus-consentement') }}"
+            data-secteurs="{{ $secteurs->toJson() }}" data-vehicules="{{ $vehicules->toJson() }}">
         </div>
     </main>
 

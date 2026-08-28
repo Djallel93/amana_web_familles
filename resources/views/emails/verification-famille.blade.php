@@ -74,7 +74,7 @@
                 <div class="cta-wrap">
                     <a href="{{ $confirmUrl }}" class="cta-button">{{ $t['buttonUpToDate'] }}</a>
                     <p class="cta-note">
-                        <a href="{{ $updateUrl }}" style="color:#b45309;">{{ $t['buttonChanged'] }}</a>
+                        <a href="{{ $updateUrl }}" style="color:{{ config('amana-shared.email_theme')['accent'] }};">{{ $t['buttonChanged'] }}</a>
                     </p>
                 </div>
 

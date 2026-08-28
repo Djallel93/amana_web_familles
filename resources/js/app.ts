@@ -12,6 +12,7 @@ import { Toast, ConfirmDialog, OfflineBanner, MobileSidebar, registerThemeToggle
 import DetailPanel from "@/components/familles/DetailPanel.vue";
 import ReverseSyncPanel from "@/components/familles/ReverseSyncPanel.vue";
 import IntakeForm from "@/components/intake/IntakeForm.vue";
+import BenevoleForm from "@/components/benevole/BenevoleForm.vue";
 import ImportManualGrid from "@/components/imports/ImportManualGrid.vue";
 import ImportOverlay from "@/components/imports/ImportOverlay.vue";
 import FamillesStatistiques from "@/components/familles/FamillesStatistiques.vue";
@@ -38,6 +39,7 @@ mountIfPresent("vue-mobile-sidebar", MobileSidebar);
 mountIfPresent("vue-famille-detail", DetailPanel);
 mountIfPresent("vue-reverse-sync-panel", ReverseSyncPanel);
 mountIfPresent("vue-intake-form", IntakeForm);
+mountIfPresent("vue-benevole-form", BenevoleForm);
 mountIfPresent("vue-import-manual-grid", ImportManualGrid);
 mountIfPresent("vue-import-overlay", ImportOverlay);
 mountIfPresent("vue-familles-statistiques", FamillesStatistiques);

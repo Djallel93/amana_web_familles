@@ -76,6 +76,26 @@ Route::post('/verification/{token}/confirmer', [\App\Http\Controllers\Verificati
     ->name('verification.confirmer')
     ->middleware('throttle:5,1');
 
+// ── Formulaire public de candidature bénévole (aucune authentification) ──
+// Même schéma de throttle/piège à robots que l'intake familles ci-dessus.
+// Ajouté le 24/08/2026 — voir BenevoleIntakeController et le prompt de
+// migration du module bénévoles.
+Route::get('/devenir-benevole/{langue?}', [\App\Http\Controllers\BenevoleIntakeController::class, 'showForm'])
+    ->name('benevole.show')
+    ->middleware('throttle:20,1');
+Route::post('/devenir-benevole', [\App\Http\Controllers\BenevoleIntakeController::class, 'store'])
+    ->name('benevole.store')
+    ->middleware('throttle:5,1');
+Route::post('/devenir-benevole/refus-consentement', [\App\Http\Controllers\BenevoleIntakeController::class, 'refuserConsentement'])
+    ->name('benevole.refus-consentement')
+    ->middleware('throttle:10,1');
+Route::get('/devenir-benevole/confirmer/{token}', [\App\Http\Controllers\BenevoleIntakeConfirmationController::class, 'show'])
+    ->name('benevole.confirmer.show')
+    ->middleware('throttle:20,1');
+Route::post('/devenir-benevole/confirmer/{token}', [\App\Http\Controllers\BenevoleIntakeConfirmationController::class, 'confirmer'])
+    ->name('benevole.confirmer')
+    ->middleware('throttle:5,1');
+
 // ── Dossiers familles (staff — tous rôles) ───────────────────────────────
 Route::middleware('auth')->group(function () {
     Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
@@ -141,6 +161,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('/verifications', [\App\Http\Controllers\Admin\VerificationsController::class, 'index'])->name('verifications.index');
     Route::post('/verifications/envoyer', [\App\Http\Controllers\Admin\VerificationsController::class, 'envoyer'])->name('verifications.envoyer');
 
+    // ── Candidatures bénévoles (ajouté le 24/08/2026) ────────────────────
+    Route::get('/benevoles', [\App\Http\Controllers\Admin\BenevoleCandidaturesController::class, 'index'])->name('benevoles.index');
+    Route::get('/benevoles/{id}', [\App\Http\Controllers\Admin\BenevoleCandidaturesController::class, 'show'])->whereNumber('id')->name('benevoles.show');
+    Route::post('/benevoles/{id}/valider', [\App\Http\Controllers\Admin\BenevoleCandidaturesController::class, 'valider'])->whereNumber('id')->name('benevoles.valider');
+    Route::post('/benevoles/{id}/rejeter', [\App\Http\Controllers\Admin\BenevoleCandidaturesController::class, 'rejeter'])->whereNumber('id')->name('benevoles.rejeter');
+
     // ── Autorisation OAuth Google Contacts (décision du 17/07/2026) ─────
     // Usage ponctuel (autorisation initiale du compte amana44.pole.social@
     // gmail.com, ou ré-autorisation si le refresh token est révoqué) — voir
@@ -165,4 +191,12 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('familles')->name('fami
 Route::middleware(['auth', 'role:gestionnaire'])->group(function () {
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::post('/settings', [SettingsController::class, 'update'])->name('settings.update');
+
+    // ── Référentiel des types de véhicule (ajouté le 24/08/2026) ─────────
+    // Même groupe que /settings : admin ET gestionnaire doivent pouvoir
+    // éditer les capacités, contrairement au groupe /admin (role:admin
+    // uniquement) où vivent les candidatures bénévoles elles-mêmes.
+    // Pas de route GET dédiée : le formulaire vit dans /settings (voir
+    // SettingsController::index() et resources/views/settings/index.blade.php).
+    Route::post('/vehicules', [\App\Http\Controllers\VehiculeTypesController::class, 'update'])->name('vehicules.update');
 });

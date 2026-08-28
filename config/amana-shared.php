@@ -14,19 +14,27 @@ return [
 
     'home_route' => env('AMANA_HOME_ROUTE', 'familles.index'),
 
+    // Palette email alignée sur l'identité teal de l'app (voir
+    // public/css/custom.css, --color-accent* : #0f766e/#0d9488/#14b8a6) —
+    // corrigé le 27/08/2026, ces valeurs étaient restées sur l'ancienne
+    // palette ambre/terracotta ("panna cotta") alors que l'UI de l'app
+    // était déjà passée au teal depuis le 13/08/2026. Même défaut de
+    // synchronisation que celui documenté dans public/css/custom.css pour
+    // FamillesStatistiques.vue — un reste de palette ambre que personne
+    // n'avait remarqué, cette fois côté emails plutôt que composant Vue.
     'email_theme' => [
-        'header_bg' => '#2e1a0f',
-        'accent' => '#b45309',
-        'accent_dark' => '#c2703a',
-        'accent_light' => '#d97706',
-        'accent_rgb' => '180, 83, 9',
-        'accent_light_rgb' => '217, 119, 6',
-        'accent_light_text' => '#fbd9ab',
-        'accent_pale_text' => '#fde8c8',
-        'accent_darker' => '#78350f',
-        'hadith_french_text' => '#7c4a1e',
-        'accent_pale_bg' => '#fdf6ec',
-        'accent_pale_border' => '#f0dcb8',
+        'header_bg' => '#042f2e',
+        'accent' => '#0f766e',
+        'accent_dark' => '#0d9488',
+        'accent_light' => '#14b8a6',
+        'accent_rgb' => '15, 118, 110',
+        'accent_light_rgb' => '20, 184, 166',
+        'accent_light_text' => '#99f6e4',
+        'accent_pale_text' => '#ccfbf1',
+        'accent_darker' => '#134e4a',
+        'hadith_french_text' => '#115e59',
+        'accent_pale_bg' => '#f0fdfa',
+        'accent_pale_border' => '#ccfbf1',
     ],
 
     'branding' => [
@@ -69,6 +77,7 @@ return [
 
         ['section' => 'Administration'],
         ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],
+        ['route' => 'admin.benevoles.index', 'label' => 'Candidatures bénévoles', 'icon' => '🤝', 'role' => 'admin', 'route_pattern' => 'admin.benevoles.*'],
         ['route' => 'admin.personnes.index', 'label' => 'Personnes', 'icon' => '👥', 'role' => 'admin', 'route_pattern' => 'admin.personnes.*'],
         ['route' => 'admin.imports.index', 'label' => 'Imports', 'icon' => '📥', 'role' => 'admin', 'route_pattern' => 'admin.imports.*'],
         ['route' => 'admin.verifications.index', 'label' => 'Vérifications', 'icon' => '✅', 'role' => 'admin', 'route_pattern' => 'admin.verifications.*'],

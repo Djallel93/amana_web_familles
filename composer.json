@@ -16,7 +16,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "amana/shared": "^1.0.7",
+        "amana/shared": "^1.1.0",
         "google/apiclient": "^2.18",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
