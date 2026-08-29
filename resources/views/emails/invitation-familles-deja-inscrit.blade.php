@@ -14,7 +14,7 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => 'Accès accordé',
                 'title' => 'Votre accès est activé&nbsp;!',
-                'titleSub' => 'AMANA Familles',
+                'titleSub' => 'AMANA — Pôle social',
             ])
 
             <div class="stripe"></div>
@@ -70,4 +70,5 @@
         </div>
     </div>
 </body>
+
 </html>

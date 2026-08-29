@@ -14,14 +14,14 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => 'Nouvelle demande',
                 'title' => 'Une famille a soumis une demande',
-                'titleSub' => 'AMANA Familles',
+                'titleSub' => 'AMANA — Pôle social',
             ])
 
             <div class="stripe"></div>
 
             <div class="body">
 
-                <p class="greeting">Cher/Chère <em>{{ $destinatairePrenom }}</em>,</p>
+                <p class="greeting">Bonjour <em>{{ $destinatairePrenom }}</em>,</p>
 
                 <p class="body-text">
                     <strong>{{ $famille->prenom }} {{ $famille->nom }}</strong> vient de soumettre une
@@ -57,4 +57,5 @@
         </div>
     </div>
 </body>
+
 </html>

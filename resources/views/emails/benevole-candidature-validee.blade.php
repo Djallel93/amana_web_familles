@@ -14,7 +14,7 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => 'Candidature validée',
                 'title' => 'Bienvenue parmi nos bénévoles&nbsp;!',
-                'titleSub' => 'AMANA Familles',
+                'titleSub' => 'AMANA — Pôle social',
             ])
 
             <div class="stripe"></div>
@@ -29,7 +29,7 @@
                 </p>
                 <p class="body-text">
                     Pour finaliser votre inscription, vous devez d'abord <strong>créer votre mot de
-                    passe</strong> en cliquant sur le bouton ci-dessous.
+                        passe</strong> en cliquant sur le bouton ci-dessous.
                 </p>
 
                 <div class="cta-wrap">
@@ -59,4 +59,5 @@
         </div>
     </div>
 </body>
+
 </html>

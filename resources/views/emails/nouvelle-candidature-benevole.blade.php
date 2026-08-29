@@ -14,7 +14,7 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => 'Administration',
                 'title' => 'Nouvelle candidature bénévole',
-                'titleSub' => 'En attente de validation',
+                'titleSub' => 'AMANA — Pôle social',
             ])
 
             <div class="stripe"></div>

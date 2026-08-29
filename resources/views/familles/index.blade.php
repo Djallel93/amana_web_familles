@@ -33,7 +33,7 @@
             'Rejeté' => 'bg-rose-50 text-rose-700 border-rose-200',
             'Archivé' => 'bg-gray-100 text-gray-500 border-gray-300',
         ];
-        $filtresActifs = request()->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant', 'criticite', 'nom', 'telephone']);
+        $filtresActifs = request()->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant', 'criticite', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee']);
 
         // Puces de filtres actifs (voir section juste après le formulaire) —
         // chaque puce porte son URL de suppression déjà calculée (paramètres
@@ -86,6 +86,14 @@
         }
         if (request()->boolean('sadaqa')) {
             $puces[] = ['label' => 'Sadaqa', 'href' => route('familles.index', $parametresBase->except('sadaqa')->all())];
+        }
+        if (request()->filled('id_organisation_origine')) {
+            $orgOrigineNom = optional($organisations->firstWhere('id', (int) request('id_organisation_origine')))->nom ?? request('id_organisation_origine');
+            $puces[] = ['label' => 'Organisation d\'origine : ' . $orgOrigineNom, 'href' => route('familles.index', $parametresBase->except('id_organisation_origine')->all())];
+        }
+        if (request()->filled('id_organisation_rattachee')) {
+            $orgRattacheeNom = optional($organisations->firstWhere('id', (int) request('id_organisation_rattachee')))->nom ?? request('id_organisation_rattachee');
+            $puces[] = ['label' => 'Organisation rattachée : ' . $orgRattacheeNom, 'href' => route('familles.index', $parametresBase->except('id_organisation_rattachee')->all())];
         }
     @endphp
 
@@ -191,6 +199,30 @@
                                 </label>
                             @endforeach
                         </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">🏢 Organisation d'origine</label>
+                        <select name="id_organisation_origine" id="filtre-id-organisation-origine" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent">
+                            <option value="">Toutes</option>
+                            @foreach($organisations as $organisation)
+                                <option value="{{ $organisation->id }}" {{ (string) request('id_organisation_origine') === (string) $organisation->id ? 'selected' : '' }}>{{ $organisation->nom }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        {{-- Distinct de "d'origine" ci-dessus : filtre sur la
+                             table pivot famille_organisation (organisations()
+                             sur Famille) — un dossier peut être rattaché à
+                             d'autres organisations que celle qui l'a
+                             initialement enregistré (voir
+                             FamillesController::baseQuery()). --}}
+                        <label class="block text-[10.5px] font-semibold text-ink-muted mb-1">🔗 Organisation rattachée</label>
+                        <select name="id_organisation_rattachee" id="filtre-id-organisation-rattachee" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent">
+                            <option value="">Toutes</option>
+                            @foreach($organisations as $organisation)
+                                <option value="{{ $organisation->id }}" {{ (string) request('id_organisation_rattachee') === (string) $organisation->id ? 'selected' : '' }}>{{ $organisation->nom }}</option>
+                            @endforeach
+                        </select>
                     </div>
                 </div>
             </div>
@@ -548,6 +580,10 @@
             'adresse' => ['label' => 'Adresse', 'triable' => true, 'defaut' => true],
             'quartier' => ['label' => 'Quartier', 'triable' => false, 'defaut' => true],
             'ville' => ['label' => 'Ville', 'triable' => false, 'defaut' => true],
+            // Organisation d'origine + rattachées (voir organisationOrigine()/
+            // organisations() sur Famille) — une seule colonne pour les deux,
+            // pas triable (relations, pas de colonne SQL unique).
+            'organisation' => ['label' => 'Organisation', 'triable' => false, 'defaut' => false],
             'nombre_adulte' => ['label' => 'Adultes', 'triable' => true, 'defaut' => false],
             'nombre_enfant' => ['label' => 'Enfants', 'triable' => true, 'defaut' => false],
             'criticite' => ['label' => 'Criticité', 'triable' => true, 'defaut' => true],
@@ -675,6 +711,14 @@
                                 <td data-col="adresse" class="px-4 py-2.5 text-ink-muted">{{ $famille->adresse_complete }}</td>
                                 <td data-col="quartier" {{ $colonnes['quartier']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $famille->quartier->nom ?? '—' }}</td>
                                 <td data-col="ville" {{ $colonnes['ville']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">{{ $famille->ville ?? '—' }}</td>
+                                <td data-col="organisation" {{ $colonnes['organisation']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted">
+                                    {{ $famille->organisationOrigine->nom ?? '—' }}
+                                    @foreach($famille->organisations as $organisationRattachee)
+                                        @if(!$famille->organisationOrigine || $organisationRattachee->id !== $famille->organisationOrigine->id)
+                                            <span class="inline-flex px-1.5 py-0.5 ml-1 rounded-full bg-accent/10 text-accent-dark text-[10px] font-semibold">{{ $organisationRattachee->nom }}</span>
+                                        @endif
+                                    @endforeach
+                                </td>
                                 <td data-col="nombre_adulte" {{ $colonnes['nombre_adulte']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted text-center">{{ $famille->nombre_adulte }}</td>
                                 <td data-col="nombre_enfant" {{ $colonnes['nombre_enfant']['defaut'] ? '' : 'hidden' }} class="px-4 py-2.5 text-ink-muted text-center">{{ $famille->nombre_enfant }}</td>
                                 <td data-col="criticite" class="px-4 py-2.5">

@@ -8,7 +8,8 @@
     <div class="max-w-xl mx-auto">
 
         <div class="mb-7">
-            <a href="{{ route('admin.personnes.index') }}" class="text-[13px] text-ink-muted hover:text-accent transition-colors no-underline">
+            <a href="{{ route('admin.personnes.index') }}"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors no-underline">
                 ← Retour à la liste
             </a>
             <h1 class="font-heading text-2xl font-semibold text-ink tracking-tight mt-2">
@@ -112,6 +113,59 @@
                     </div>
                     @error('organisations')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
                 </div>
+
+                @if($benevoleProfil)
+                    {{--
+                        Profil bénévole (véhicule, permis, secteurs couverts) —
+                        ajouté le 29/08/2026, ces champs étaient jusque-là
+                        seulement visibles en lecture seule à la candidature,
+                        pas modifiables une fois le bénévole validé (voir
+                        Admin\PersonnesController::update()). N'apparaît que
+                        si la personne a déjà un BenevoleProfil.
+                    --}}
+                    <div class="mb-6 pt-5 border-t border-surface-border">
+                        <label class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Profil bénévole</label>
+                        <p class="text-[11.5px] text-ink-muted mb-3">Véhicule et secteurs couverts — utilisés pour la répartition des livraisons.</p>
+
+                        <label class="flex items-center gap-2 text-[13.5px] text-ink cursor-pointer mb-3">
+                            <input type="checkbox" name="permis" value="1" {{ old('permis', $benevoleProfil->permis) ? 'checked' : '' }}
+                                class="rounded border-ink-faint">
+                            Titulaire du permis de conduire
+                        </label>
+
+                        <div class="mb-3">
+                            <label for="id_vehicule_type" class="block text-[11.5px] font-semibold text-ink-muted mb-1">Type de véhicule</label>
+                            <select id="id_vehicule_type" name="id_vehicule_type"
+                                class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                                        focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
+                                <option value="">Aucun</option>
+                                @foreach($vehicules as $vehicule)
+                                    <option value="{{ $vehicule->id }}" {{ (string) old('id_vehicule_type', $benevoleProfil->id_vehicule_type) === (string) $vehicule->id ? 'selected' : '' }}>
+                                        {{ $vehicule->type }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('id_vehicule_type')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-[11.5px] font-semibold text-ink-muted mb-1">Secteurs couverts</label>
+                            <div class="border-[1.5px] border-ink-faint rounded-lg bg-surface-2 p-3 space-y-2 max-h-48 overflow-y-auto">
+                                @forelse($secteurs as $secteur)
+                                    <label class="flex items-center gap-2 text-[13.5px] text-ink cursor-pointer">
+                                        <input type="checkbox" name="secteurs[]" value="{{ $secteur['id'] }}"
+                                            {{ in_array($secteur['id'], old('secteurs', $secteursActuels)) ? 'checked' : '' }}
+                                            class="rounded border-ink-faint">
+                                        {{ $secteur['libelle'] }}
+                                    </label>
+                                @empty
+                                    <p class="text-[12.5px] text-ink-muted">Aucun secteur disponible.</p>
+                                @endforelse
+                            </div>
+                            @error('secteurs')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+                        </div>
+                    </div>
+                @endif
 
                 <div class="flex items-center gap-3">
                     <button type="submit"

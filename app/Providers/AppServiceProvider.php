@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Amana\Shared\Contracts\ActivityStatisticsProvider;
+use App\Models\BenevoleProfil;
 use App\Models\Famille;
 use App\Services\AuditStatistics;
 use Illuminate\Support\Facades\Auth;
@@ -40,6 +41,11 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('navBadges', [
                 'familles.nouvelles' => Famille::where('etat_dossier', 'Recu')->count(),
+                // Badge "Candidatures bénévoles" — nombre de candidatures
+                // reçues pas encore traitées par le staff (voir
+                // BenevoleProfil::pourRevueStaff(), utilisé aussi par
+                // BenevoleCandidaturesController).
+                'admin.benevoles.index' => BenevoleProfil::pourRevueStaff()->count(),
             ]);
         });
     }

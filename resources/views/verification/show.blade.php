@@ -1,8 +1,9 @@
 {{-- resources/views/verification/show.blade.php --}}
 {{--
     Page publique, standalone — accessible via le lien reçu par email
-    (FamilleVerificationNotification). $etat ∈ a_confirmer | confirmee |
-    deja_confirmee | expiree | introuvable.
+    (FamilleVerificationNotification). $etat ∈ confirmee | deja_confirmee |
+    expiree | introuvable — plus d'état 'a_confirmer' intermédiaire depuis
+    le 29/08/2026 (confirmation en un clic, voir VerificationController::show()).
 --}}
 <!DOCTYPE html>
 <html lang="fr">
@@ -21,35 +22,17 @@
 
         <img src="{{ asset('images/amana-logo.png') }}" alt="AMANA" class="w-14 h-14 rounded-full object-cover mx-auto mb-5">
 
-        @if($etat === 'a_confirmer')
-            <div class="text-4xl mb-4">🔎</div>
-            <h1 class="font-heading text-xl font-semibold text-ink mb-2">Vos informations sont-elles à jour ?</h1>
-            <p class="text-ink-muted text-[14px] mb-6 leading-relaxed">
-                Bonjour {{ $verification->famille->prenom }}, merci de confirmer que les informations que vous nous avez transmises sont toujours exactes.
-            </p>
-            <div class="text-left bg-surface-2 rounded-lg p-4 mb-6 text-[13px] space-y-1">
-                <p><strong>Nom :</strong> {{ $verification->famille->prenom }} {{ $verification->famille->nom }}</p>
-                <p><strong>Téléphone :</strong> {{ $verification->famille->telephone }}</p>
-                <p><strong>Adresse :</strong> {{ $verification->famille->adresse }}</p>
-                <p><strong>Foyer :</strong> {{ $verification->famille->nombre_adulte }} adulte(s), {{ $verification->famille->nombre_enfant }} enfant(s)</p>
-            </div>
-            <form action="{{ route('verification.confirmer', $verification->token) }}" method="POST" class="mb-3">
-                @csrf
-                <button type="submit"
-                    class="w-full min-h-[48px] px-6 py-3 bg-accent hover:bg-accent-dark text-white font-bold text-[14px] rounded-lg
-                            shadow-[0_3px_14px_rgba(180,83,9,0.3)] transition-all cursor-pointer">
-                    ✅ Oui, tout est à jour
-                </button>
-            </form>
+        @if($etat === 'confirmee')
+            <div class="text-4xl mb-4">✅</div>
+            <h1 class="font-heading text-xl font-semibold text-ink mb-2">Merci !</h1>
+            <p class="text-ink-muted text-[14px] mb-6">Vos informations ont bien été confirmées comme étant à jour.</p>
+            {{-- Échappatoire conservée de l'ancien écran "a_confirmer" : la
+                 confirmation est désormais automatique, mais la personne peut
+                 toujours signaler un changement après coup. --}}
             <a href="{{ route('intake.show') }}"
                 class="block text-center text-[13px] text-ink-muted hover:text-accent transition-colors no-underline">
                 📝 Mes informations ont changé
             </a>
-
-        @elseif($etat === 'confirmee')
-            <div class="text-4xl mb-4">✅</div>
-            <h1 class="font-heading text-xl font-semibold text-ink mb-2">Merci !</h1>
-            <p class="text-ink-muted text-[14px]">Vos informations ont bien été confirmées comme étant à jour.</p>
 
         @elseif($etat === 'deja_confirmee')
             <div class="text-4xl mb-4">✅</div>

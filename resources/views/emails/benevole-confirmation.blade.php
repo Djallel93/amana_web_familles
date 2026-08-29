@@ -42,6 +42,7 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => $t['badge'],
                 'title' => $t['greeting'] . ($prenom ? ', ' . e($prenom) : ''),
+                'titleSub' => 'AMANA — Pôle social',
             ])
 
             <div class="stripe"></div>

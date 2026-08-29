@@ -11,6 +11,8 @@ use App\Models\Personne;
 use App\Notifications\InvitationFamillesNotification;
 use App\Notifications\InvitationFamillesDejaInscritNotification;
 use App\Services\RoleService;
+use Amana\Shared\Models\Secteur;
+use Amana\Shared\Models\VehiculeType;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -59,6 +61,13 @@ class PersonnesController extends Controller
             // par défaut côté vue, affiché seulement quand role = gestionnaire_externe.
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
             'organisationsActuelles' => [],
+            // Bloc "profil bénévole" (véhicule/secteurs) — n'a de sens qu'en
+            // édition (voir edit()), une personne n'a pas encore de
+            // BenevoleProfil à la création depuis cet écran.
+            'benevoleProfil' => null,
+            'vehicules' => collect(),
+            'secteurs' => collect(),
+            'secteursActuels' => [],
         ]);
     }
 
@@ -165,12 +174,29 @@ class PersonnesController extends Controller
         $roles = $this->roleService->famillesRoles();
         $roleActuel = $this->roleService->currentRoleCode($personne);
 
+        // Profil bénévole (véhicule + secteurs couverts) — n'existe que si
+        // la personne a un BenevoleProfil (candidature bénévole acceptée,
+        // voir BenevoleIntakeConfirmationController). Champs restés en
+        // lecture seule sur cet écran jusqu'au 29/08/2026 — voir
+        // resources/views/personnes/form.blade.php pour l'édition.
+        $benevoleProfil = $personne->benevoleProfil;
+
         return view('personnes.form', [
             'personne' => $personne,
             'roleActuel' => $roleActuel,
             'roles' => $roles,
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
             'organisationsActuelles' => Organisation::idsPourPersonne($personne->id),
+            'benevoleProfil' => $benevoleProfil,
+            'vehicules' => VehiculeType::orderBy('id')->get(['id', 'type']),
+            'secteurs' => Secteur::with('ville')->orderBy('nom')->get(['id', 'nom', 'id_ville'])
+                ->map(fn($secteur) => [
+                    'id' => $secteur->id,
+                    'libelle' => ($secteur->ville?->nom ?? '?') . ' - ' . $secteur->nom,
+                ])
+                ->sortBy('libelle')
+                ->values(),
+            'secteursActuels' => $benevoleProfil ? $benevoleProfil->secteurs()->pluck('secteurs.id')->all() : [],
         ]);
     }
 
@@ -183,6 +209,14 @@ class PersonnesController extends Controller
             'role' => ['required', 'string', 'in:admin,gestionnaire,membre,benevole,gestionnaire_externe'],
             'organisations' => ['array'],
             'organisations.*' => ['integer', 'exists:organisations,id'],
+            // Bloc "profil bénévole" — seulement présent/soumis quand la
+            // personne a déjà un BenevoleProfil (voir edit()/form.blade.php),
+            // donc pas de required ici : simplement ignoré s'il n'y a pas de
+            // profil à mettre à jour.
+            'permis' => ['nullable', 'boolean'],
+            'id_vehicule_type' => ['nullable', 'integer', 'exists:commun.ref_vehicules,id'],
+            'secteurs' => ['array'],
+            'secteurs.*' => ['integer', 'exists:commun.secteurs,id'],
         ], [
             'role.required' => 'Veuillez sélectionner un rôle.',
             'role.in' => 'Rôle invalide.',
@@ -200,6 +234,17 @@ class PersonnesController extends Controller
 
         $this->roleService->syncRoleFamilles($personne, $request->input('role'));
         Organisation::syncPersonne($personne->id, $request->input('role') === 'gestionnaire_externe' ? $request->input('organisations', []) : []);
+
+        // Véhicule / secteurs couverts (ajouté le 29/08/2026) — seulement
+        // si un BenevoleProfil existe déjà pour cette personne (candidature
+        // acceptée) ; ce formulaire ne crée jamais de profil bénévole.
+        $benevoleProfil = $personne->benevoleProfil;
+        if ($benevoleProfil) {
+            $benevoleProfil->permis = $request->boolean('permis');
+            $benevoleProfil->id_vehicule_type = $request->input('id_vehicule_type') ?: null;
+            $benevoleProfil->save();
+            $benevoleProfil->secteurs()->sync($request->input('secteurs', []));
+        }
 
         audit('update', 'familles_personnes', $personne->id, $avant, $personne->toArray());
 

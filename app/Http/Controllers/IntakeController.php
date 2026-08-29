@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use Amana\Shared\Models\Setting;
 use Amana\Shared\Services\PersonneIntakeService;
 use App\Models\Famille;
 use App\Models\IntakeConsentRefusal;
@@ -68,6 +69,15 @@ class IntakeController extends Controller
             $langue = 'fr';
         }
 
+        // Interrupteur "Inscription des familles ouverte" (Paramètres,
+        // ajouté le 29/08/2026) — coupe l'accès au formulaire public sans
+        // toucher aux dossiers déjà enregistrés. Vérifié aussi côté
+        // store() ci-dessous en défense en profondeur (accès direct à la
+        // route POST, contournant showForm()).
+        if (Setting::get('inscription_familles_ouverte', 'familles') === false) {
+            return view('intake.suspendue', ['formulaire' => 'familles']);
+        }
+
         return view('intake.show', [
             'langue' => $langue,
             'secteursActivite' => SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
@@ -113,6 +123,16 @@ class IntakeController extends Controller
         // en complément du throttle:5,1 déjà sur cette route).
         if (filled($request->input('site_web'))) {
             return response()->json(['success' => true, 'created' => false]);
+        }
+
+        // Défense en profondeur — showForm() bloque déjà l'accès normal au
+        // formulaire, mais un POST direct sur cette route contournerait ce
+        // garde sans cette vérification (voir Setting::get() ci-dessus).
+        if (Setting::get('inscription_familles_ouverte', 'familles') === false) {
+            return response()->json([
+                'success' => false,
+                'message' => "L'inscription est temporairement suspendue.",
+            ], 403);
         }
 
         // Bloc identité (nom/prenom/email/telephone/langue) : règles
@@ -228,6 +248,7 @@ class IntakeController extends Controller
 
         $secteursActivite = array_map('intval', $donnees['secteurs_activite'] ?? []);
         $organismesAide = array_map('intval', $donnees['organismes_aide'] ?? []);
+        $donnees['id_organisation'] = (int) $donnees['id_organisation'];
         unset(
             $donnees['consentement'],
             $donnees['documents_identite'],

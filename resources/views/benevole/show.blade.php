@@ -31,8 +31,9 @@ Page publique, standalone — mêmes conventions que resources/views/intake/show
                 @foreach(['fr' => ['🇫🇷', 'FR'], 'ar' => ['🇸🇦', 'ع'], 'en' => ['🇬🇧', 'EN']] as $code => $flagLabel)
                     <a href="{{ route('benevole.show', ['langue' => $code]) }}"
                         class="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[12px] font-semibold no-underline transition-colors
-                                    {{ $langue === $code ? 'bg-accent text-white' : 'bg-white/[0.08] text-white/60 hover:bg-white/[0.14]' }}">
-                    <span aria-hidden="true" style="font-family: 'Twemoji Mozilla','Segoe UI Emoji','Noto Color Emoji',sans-serif; font-size: 15px;">{{ $flagLabel[0] }}</span>{{ $flagLabel[1] }}
+                                        {{ $langue === $code ? 'bg-accent text-white' : 'bg-white/[0.08] text-white/60 hover:bg-white/[0.14]' }}">
+                        <span aria-hidden="true"
+                            style="font-family: 'Twemoji Mozilla','Segoe UI Emoji','Noto Color Emoji',sans-serif; font-size: 15px;">{{ $flagLabel[0] }}</span>{{ $flagLabel[1] }}
                     </a>
                 @endforeach
             </div>
@@ -41,9 +42,8 @@ Page publique, standalone — mêmes conventions que resources/views/intake/show
 
     <main class="max-w-2xl mx-auto px-4 py-8">
         <div id="vue-benevole-form" data-langue="{{ $langue }}" data-store-url="{{ route('benevole.store') }}"
-            data-refus-url="{{ route('benevole.refus-consentement') }}"
-            data-secteurs="{{ $secteurs->toJson() }}" data-vehicules="{{ $vehicules->toJson() }}"
-            data-organisations="{{ $organisations->toJson() }}">
+            data-refus-url="{{ route('benevole.refus-consentement') }}" data-secteurs="{{ $secteurs->toJson() }}"
+            data-vehicules="{{ $vehicules->toJson() }}" data-organisations="{{ $organisations->toJson() }}">
         </div>
     </main>
 

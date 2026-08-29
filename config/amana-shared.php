@@ -71,16 +71,16 @@ return [
         ['section' => 'Dossiers'],
         ['route' => 'familles.nouvelles', 'label' => 'Nouvelles demandes', 'icon' => '📥', 'route_pattern' => 'familles.nouvelles'],
         ['route' => 'familles.index', 'label' => 'Familles', 'icon' => '🗂️', 'route_pattern' => 'familles.index'],
-
-        ['section' => 'Gestion'],
         ['route' => 'familles.statistiques.index', 'label' => 'Statistiques', 'icon' => '📊', 'role' => 'gestionnaire', 'route_pattern' => 'familles.statistiques.*'],
+        ['route' => 'admin.verifications.index', 'label' => 'Vérifications', 'icon' => '✅', 'role' => 'admin', 'route_pattern' => 'admin.verifications.*'],
+
+        ['section' => 'Bénévoles'],
+        ['route' => 'admin.benevoles.index', 'label' => 'Candidatures bénévoles', 'icon' => '🤝', 'role' => 'admin', 'route_pattern' => 'admin.benevoles.*'],
+        ['route' => 'admin.personnes.index', 'label' => 'Personnes', 'icon' => '👥', 'role' => 'admin', 'route_pattern' => 'admin.personnes.*'],
 
         ['section' => 'Administration'],
         ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],
-        ['route' => 'admin.benevoles.index', 'label' => 'Candidatures bénévoles', 'icon' => '🤝', 'role' => 'admin', 'route_pattern' => 'admin.benevoles.*'],
-        ['route' => 'admin.personnes.index', 'label' => 'Personnes', 'icon' => '👥', 'role' => 'admin', 'route_pattern' => 'admin.personnes.*'],
         ['route' => 'admin.imports.index', 'label' => 'Imports', 'icon' => '📥', 'role' => 'admin', 'route_pattern' => 'admin.imports.*'],
-        ['route' => 'admin.verifications.index', 'label' => 'Vérifications', 'icon' => '✅', 'role' => 'admin', 'route_pattern' => 'admin.verifications.*'],
         ['route' => 'admin.activite.index', 'label' => "Statistiques d'activité", 'icon' => '📈', 'role' => 'admin', 'route_pattern' => 'admin.activite.*'],
         ['route' => 'admin.journal.index', 'label' => "Journal d'audit", 'icon' => '📜', 'role' => 'admin', 'route_pattern' => 'admin.journal.*'],
     ],

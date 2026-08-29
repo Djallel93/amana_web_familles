@@ -65,7 +65,7 @@ class FamillesController extends Controller
 
     public function index(Request $request): View
     {
-        $query = $this->baseQuery($request);
+        $query = $this->baseQuery($request)->with(['organisationOrigine:id,nom', 'organisations:id,nom']);
 
         $etatDossier = $this->appliquerFiltreStatut($query, $request);
 
@@ -93,9 +93,14 @@ class FamillesController extends Controller
         $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
         $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
 
+        // Options des deux filtres "Organisation" (origine / rattachée) —
+        // voir baseQuery(). Une seule liste suffit, les deux selects la
+        // consomment (familles/index.blade.php).
+        $organisations = Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
+
         return view('familles.index', compact(
             'familles', 'villes', 'secteurs', 'quartiers', 'etatDossier',
-            'secteursActivite', 'organismesAide',
+            'secteursActivite', 'organismesAide', 'organisations',
         ));
     }
 
@@ -221,6 +226,21 @@ class FamillesController extends Controller
             if ($request->filled('telephone')) {
                 $query->rechercheTelephone($request->input('telephone'));
             }
+        }
+
+        // Organisation d'origine (id_organisation, colonne directe sur
+        // familles) — distinct de "rattachée" ci-dessous : un dossier peut
+        // être rattaché à d'autres organisations que celle qui l'a
+        // initialement enregistré (voir organisationOrigine()/organisations()
+        // sur Famille, feature multi-organisation du 28/08/2026).
+        if ($request->filled('id_organisation_origine')) {
+            $query->where('id_organisation', $request->input('id_organisation_origine'));
+        }
+        // Organisation rattachée — filtre sur la table pivot
+        // famille_organisation (organisations()), indépendant de
+        // l'organisation d'origine.
+        if ($request->filled('id_organisation_rattachee')) {
+            $query->whereHas('organisations', fn($q) => $q->where('organisations.id', $request->input('id_organisation_rattachee')));
         }
 
         return $query;

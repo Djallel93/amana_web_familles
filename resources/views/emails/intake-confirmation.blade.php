@@ -2,21 +2,24 @@
 @php
     $t = [
         'fr' => [
-            'greeting' => 'Bonjour', 'badge' => '📝 Confirmation',
+            'greeting' => 'Bonjour',
+            'badge' => '📝 Confirmation',
             'intro' => "Merci d'avoir rempli notre formulaire de demande d'aide. Pour que votre dossier soit transmis à notre équipe, merci de confirmer votre demande en cliquant sur le bouton ci-dessous.",
             'expiry' => 'Ce lien est valable 48 heures. Passé ce délai, il faudra soumettre une nouvelle demande.',
             'notYou' => "Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email — aucun dossier ne sera créé sans confirmation.",
             'button' => '✅ Confirmer ma demande',
         ],
         'ar' => [
-            'greeting' => 'مرحبا', 'badge' => '📝 تأكيد',
+            'greeting' => 'مرحبا',
+            'badge' => '📝 تأكيد',
             'intro' => 'شكرًا لتعبئة نموذج طلب المساعدة الخاص بنا. لكي يتم إرسال ملفكم إلى فريقنا، يرجى تأكيد طلبكم بالضغط على الزر أدناه.',
             'expiry' => 'هذا الرابط صالح لمدة 48 ساعة. بعد هذه المدة، سيتعين عليكم تقديم طلب جديد.',
             'notYou' => 'إذا لم تكونوا أنتم من قدّم هذا الطلب، يمكنكم تجاهل هذه الرسالة — لن يتم إنشاء أي ملف بدون تأكيد.',
             'button' => '✅ تأكيد طلبي',
         ],
         'en' => [
-            'greeting' => 'Hello', 'badge' => '📝 Confirmation',
+            'greeting' => 'Hello',
+            'badge' => '📝 Confirmation',
             'intro' => 'Thank you for filling out our request for help form. For your file to be sent to our team, please confirm your request by clicking the button below.',
             'expiry' => 'This link is valid for 48 hours. After that, you will need to submit a new request.',
             'notYou' => "If you didn't submit this request, you can ignore this email — no file will be created without confirmation.",
@@ -39,7 +42,7 @@
             @include('amana-shared::emails.partials._header', [
                 'badge' => $t['badge'],
                 'title' => $t['greeting'] . ($prenom ? ', ' . e($prenom) : ''),
-                'titleSub' => 'AMANA Familles',
+                'titleSub' => 'AMANA — Pôle social',
             ])
 
             <div class="stripe"></div>
@@ -64,4 +67,5 @@
         </div>
     </div>
 </body>
+
 </html>

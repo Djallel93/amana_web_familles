@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "amana/shared",
-            "version": "v1.2.0",
+            "version": "v1.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Djallel93/amana_shared.git",
-                "reference": "beda3f4ab12ed0ece908cb3e8ae03027facc262c"
+                "reference": "c4cb42215c980749321dacb60a4ef27abd2ae5f0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/beda3f4ab12ed0ece908cb3e8ae03027facc262c",
-                "reference": "beda3f4ab12ed0ece908cb3e8ae03027facc262c",
+                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/c4cb42215c980749321dacb60a4ef27abd2ae5f0",
+                "reference": "c4cb42215c980749321dacb60a4ef27abd2ae5f0",
                 "shasum": ""
             },
             "require": {
@@ -62,10 +62,10 @@
                 "shared"
             ],
             "support": {
-                "source": "https://github.com/Djallel93/amana_shared/tree/v1.2.0",
+                "source": "https://github.com/Djallel93/amana_shared/tree/v1.3.0",
                 "issues": "https://github.com/Djallel93/amana_shared/issues"
             },
-            "time": "2026-08-28T21:02:33+00:00"
+            "time": "2026-08-29T12:44:32+00:00"
         },
         {
             "name": "brick/math",

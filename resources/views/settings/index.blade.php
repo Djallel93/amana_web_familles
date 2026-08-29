@@ -35,11 +35,19 @@ partagée ; seule la section véhicules en dessous est propre à familles.
                     </div>
                     <div class="flex-shrink-0 {{ $data['type'] === 'encrypted' ? 'w-full' : 'w-56' }}">
                         @if($data['type'] === 'boolean')
-                            <select id="setting-{{ $cle }}" name="settings[{{ $cle }}]"
-                                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
-                                <option value="1" @selected($data['valeur'])>Activé</option>
-                                <option value="0" @selected(!$data['valeur'])>Désactivé</option>
-                            </select>
+                            {{-- Interrupteur (remplace le <select> Activé/Désactivé le
+                                 29/08/2026) — le hidden à '0' avant la checkbox garantit
+                                 qu'une valeur est toujours soumise même décochée (la
+                                 checkbox l'écrase à '1' si cochée, même name donc même
+                                 clé dans settings[], le dernier gagne). --}}
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="hidden" name="settings[{{ $cle }}]" value="0">
+                                <input type="checkbox" id="setting-{{ $cle }}" name="settings[{{ $cle }}]" value="1"
+                                    @checked($data['valeur']) class="sr-only peer">
+                                <div class="w-11 h-6 bg-ink-faint/40 rounded-full peer peer-checked:bg-accent transition-colors
+                                            after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white
+                                            after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                            </label>
                         @elseif($data['type'] === 'encrypted')
                             <textarea id="setting-{{ $cle }}" name="settings[{{ $cle }}]" rows="3"
                                 class="w-full max-w-md px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-xs font-mono bg-surface-2 text-ink resize-y">{{ $data['valeur'] }}</textarea>

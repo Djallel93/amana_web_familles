@@ -72,6 +72,48 @@ return new class extends Migration {
                 ]);
             }
         }
+
+        // Réglages "suspendre l'inscription" (ajouté le 29/08/2026) — deux
+        // interrupteurs indépendants dans Paramètres, un par formulaire
+        // public (voir IntakeController::showForm()/store() et
+        // BenevoleIntakeController::showForm()/store()). Ouvert ('1') par
+        // défaut — même valeur par défaut que si le réglage n'existait pas
+        // encore, pour ne rien changer au comportement actuel au premier
+        // déploiement de cette migration.
+        $reglagesInscription = [
+            [
+                'cle' => 'inscription_familles_ouverte',
+                'valeur' => '1',
+                'type' => 'boolean',
+                'libelle' => 'Inscription des familles ouverte',
+                'description' => "Désactivez pour suspendre temporairement le formulaire public de demande d'aide (les familles déjà enregistrées ne sont pas affectées).",
+            ],
+            [
+                'cle' => 'inscription_benevoles_ouverte',
+                'valeur' => '1',
+                'type' => 'boolean',
+                'libelle' => 'Inscription des bénévoles ouverte',
+                'description' => 'Désactivez pour suspendre temporairement le formulaire public de candidature bénévole.',
+            ],
+        ];
+
+        foreach ($reglagesInscription as $reglage) {
+            $existe = $commun->table('ref_settings')
+                ->where('id_application', $famillesId)
+                ->where('cle', $reglage['cle'])
+                ->exists();
+
+            if (!$existe) {
+                $commun->table('ref_settings')->insert([
+                    'id_application' => $famillesId,
+                    'cle' => $reglage['cle'],
+                    'valeur' => $reglage['valeur'],
+                    'type' => $reglage['type'],
+                    'libelle' => $reglage['libelle'],
+                    'description' => $reglage['description'],
+                ]);
+            }
+        }
     }
 
     /**

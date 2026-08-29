@@ -69,12 +69,11 @@ Route::post('/demande/confirmer/{token}', [\App\Http\Controllers\IntakeConfirmat
     ->middleware('throttle:5,1');
 
 // ── Vérification publique des informations (lien reçu par email) ────────
+// Confirmation en un clic : show() confirme directement, pas de route
+// séparée pour un second temps de confirmation (voir VerificationController).
 Route::get('/verification/{token}', [\App\Http\Controllers\VerificationController::class, 'show'])
     ->name('verification.show')
     ->middleware('throttle:20,1');
-Route::post('/verification/{token}/confirmer', [\App\Http\Controllers\VerificationController::class, 'confirmer'])
-    ->name('verification.confirmer')
-    ->middleware('throttle:5,1');
 
 // ── Formulaire public de candidature bénévole (aucune authentification) ──
 // Même schéma de throttle/piège à robots que l'intake familles ci-dessus.

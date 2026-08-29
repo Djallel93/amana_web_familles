@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use Amana\Shared\Models\Secteur;
+use Amana\Shared\Models\Setting;
 use Amana\Shared\Models\VehiculeType;
 use Amana\Shared\Services\PersonneIntakeService;
 use App\Models\BenevoleConsentRefusal;
@@ -49,6 +50,13 @@ class BenevoleIntakeController extends Controller
     {
         if (!in_array($langue, self::LANGUES_VALIDES, true)) {
             $langue = 'fr';
+        }
+
+        // Interrupteur "Inscription des bénévoles ouverte" (Paramètres) —
+        // miroir de IntakeController::showForm() (familles), voir ce
+        // commentaire là-bas pour le raisonnement.
+        if (Setting::get('inscription_benevoles_ouverte', 'familles') === false) {
+            return view('intake.suspendue', ['formulaire' => 'benevoles']);
         }
 
         return view('benevole.show', [
@@ -99,6 +107,14 @@ class BenevoleIntakeController extends Controller
         // jamais rempli par un humain — voir BenevoleForm.vue).
         if (filled($request->input('site_web'))) {
             return response()->json(['success' => true, 'created' => false]);
+        }
+
+        // Défense en profondeur, miroir de IntakeController::store().
+        if (Setting::get('inscription_benevoles_ouverte', 'familles') === false) {
+            return response()->json([
+                'success' => false,
+                'message' => "L'inscription est temporairement suspendue.",
+            ], 403);
         }
 
         $validator = Validator::make($request->all(), array_merge(
