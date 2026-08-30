@@ -193,4 +193,84 @@ partagée ; seule la section véhicules en dessous est propre à familles.
         </form>
     </div>
 
+    <div class="max-w-2xl mt-10">
+        <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Adresses hôtel</h2>
+        <p class="text-[13px] text-ink-muted mb-4">
+            Adresses d'hébergement d'urgence connues (hôtels, appart-hôtels). Quand l'adresse d'une famille
+            correspond à une entrée de cette liste, la case "hôtel" de son dossier est cochée automatiquement,
+            même si la famille ne l'a pas cochée elle-même. Un même établissement peut avoir plusieurs adresses.
+        </p>
+
+        <div class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden mb-4">
+            <table class="w-full border-collapse text-[13px]">
+                <thead>
+                    <tr>
+                        @foreach(['Adresse', ''] as $col)
+                            <th class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap">
+                                {{ $col }}
+                            </th>
+                        @endforeach
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($hotelAddresses as $hotelAddress)
+                        <tr class="border-b border-surface-3 last:border-0">
+                            <form action="{{ route('hotel-addresses.update', $hotelAddress->id) }}" method="POST" class="contents">
+                                @csrf
+                                @method('PUT')
+                                <td class="px-4 py-2.5">
+                                    <input type="text" name="adresse" value="{{ old('adresse', $hotelAddress->adresse) }}" required
+                                        class="w-full px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
+                                </td>
+                                <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                    <button type="submit"
+                                        class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer">
+                                        Enregistrer
+                                    </button>
+                                </td>
+                            </form>
+                            <td class="px-1 py-2.5 text-right">
+                                <form action="{{ route('hotel-addresses.destroy', $hotelAddress->id) }}" method="POST"
+                                    data-confirm="Supprimer cette adresse hôtel ? Les dossiers déjà marqués « hôtel » ne seront pas modifiés."
+                                    data-confirm-danger data-confirm-label="Supprimer">
+                                    @csrf @method('DELETE')
+                                    <button type="submit"
+                                        class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
+                                        title="Supprimer">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="2" class="px-4 py-4 text-ink-muted text-center">Aucune adresse enregistrée.</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <form action="{{ route('hotel-addresses.store') }}" method="POST"
+            class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
+            @csrf
+            <label for="hotel-address-adresse" class="block text-xs font-bold text-ink mb-1.5">Nouvelle adresse</label>
+            <div class="flex items-end gap-3">
+                <div class="flex-1">
+                    <input type="text" id="hotel-address-adresse" name="adresse" value="{{ old('adresse') }}" required
+                        placeholder="ex : 12 Rue de la Johardière, 44800 Saint-Herblain"
+                        class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
+                    @error('adresse')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+                    {{-- Widget d'appoint : bouton "Rechercher via Google Maps" qui
+                         remplit le champ ci-dessus au lieu de le remplacer — voir
+                         HotelAddressAutocomplete.vue. La saisie manuelle reste
+                         toujours possible sans JS. --}}
+                    <div id="vue-hotel-address-autocomplete" class="mt-1.5"
+                        data-google-places-key="{{ $googlePlacesKey }}"
+                        data-target-input-id="hotel-address-adresse"></div>
+                </div>
+                <button type="submit"
+                    class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer">
+                    + Ajouter
+                </button>
+            </div>
+        </form>
+    </div>
+
 @endsection

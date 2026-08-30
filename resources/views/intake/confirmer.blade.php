@@ -1,20 +1,19 @@
 {{-- resources/views/intake/confirmer.blade.php --}}
 {{--
     Page publique, standalone — accessible via le lien reçu par email
-    (IntakeConfirmationNotification). $etat ∈ a_confirmer | confirmee |
+    (IntakeConfirmationNotification). $etat ∈ confirmee |
     rattachement_en_attente | expiree | introuvable. Contrairement à verification/show.blade.php
     (FR uniquement), cette page est multilingue : la famille peut être
     arabophone ou anglophone, et $demande->langue (ou 'fr' par défaut si
     la ligne est introuvable) pilote à la fois le texte et le sens RTL/LTR.
+
+    Confirmation en un clic (30/08/2026) : le lien de l'email confirme
+    directement, plus d'écran "a_confirmer" avec un second bouton.
 --}}
 @php
     $t = [
         'fr' => [
             'title' => 'Confirmation de vos informations — AMANA Familles',
-            'a_confirmer_emoji' => '📋',
-            'a_confirmer_title' => 'Confirmer votre demande',
-            'a_confirmer_text' => "Merci de confirmer votre demande d'aide en cliquant sur le bouton ci-dessous. Votre dossier ne sera transmis à notre équipe qu'après cette confirmation.",
-            'button' => '✅ Confirmer ma demande',
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'Merci !',
             'confirmee_text' => 'Votre demande a bien été confirmée et transmise à notre équipe. Nous reviendrons vers vous dans les plus brefs délais.',
@@ -31,10 +30,6 @@
         ],
         'ar' => [
             'title' => 'تأكيد معلوماتكم — AMANA Familles',
-            'a_confirmer_emoji' => '📋',
-            'a_confirmer_title' => 'تأكيد طلبكم',
-            'a_confirmer_text' => 'يرجى تأكيد طلب المساعدة الخاص بكم بالضغط على الزر أدناه. لن يتم إرسال ملفكم إلى فريقنا إلا بعد هذا التأكيد.',
-            'button' => '✅ تأكيد طلبي',
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'شكرًا لكم!',
             'confirmee_text' => 'تم تأكيد طلبكم بنجاح وإرساله إلى فريقنا. سنعود إليكم في أقرب وقت ممكن.',
@@ -51,10 +46,6 @@
         ],
         'en' => [
             'title' => 'Confirm your information — AMANA Familles',
-            'a_confirmer_emoji' => '📋',
-            'a_confirmer_title' => 'Confirm your request',
-            'a_confirmer_text' => 'Please confirm your request for help by clicking the button below. Your file will only be sent to our team after this confirmation.',
-            'button' => '✅ Confirm my request',
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'Thank you!',
             'confirmee_text' => 'Your request has been confirmed and sent to our team. We will get back to you as soon as possible.',
@@ -88,20 +79,7 @@
 
         <img src="{{ asset('images/amana-logo.png') }}" alt="AMANA" class="w-14 h-14 rounded-full object-cover mx-auto mb-5">
 
-        @if($etat === 'a_confirmer')
-            <div class="text-4xl mb-4">{{ $t['a_confirmer_emoji'] }}</div>
-            <h1 class="font-heading text-xl font-semibold text-ink mb-2">{{ $t['a_confirmer_title'] }}</h1>
-            <p class="text-ink-muted text-[14px] mb-6 leading-relaxed">{{ $t['a_confirmer_text'] }}</p>
-            <form action="{{ route('intake.confirmer', $demande->token) }}" method="POST">
-                @csrf
-                <button type="submit"
-                    class="w-full min-h-[48px] px-6 py-3 bg-accent hover:bg-accent-dark text-white font-bold text-[14px] rounded-lg
-                            shadow-[0_3px_14px_rgba(180,83,9,0.3)] transition-all cursor-pointer">
-                    {{ $t['button'] }}
-                </button>
-            </form>
-
-        @elseif($etat === 'confirmee')
+        @if($etat === 'confirmee')
             <div class="text-4xl mb-4">{{ $t['confirmee_emoji'] }}</div>
             <h1 class="font-heading text-xl font-semibold text-ink mb-2">{{ $t['confirmee_title'] }}</h1>
             <p class="text-ink-muted text-[14px]">{{ $t['confirmee_text'] }}</p>

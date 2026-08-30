@@ -8,6 +8,7 @@ namespace App\Http\Controllers;
 use Amana\Shared\Http\Controllers\SettingsControllerBase;
 use Amana\Shared\Models\Setting;
 use Amana\Shared\Models\VehiculeType;
+use App\Models\HotelAddress;
 use App\Models\Organisation;
 use Illuminate\View\View;
 
@@ -18,7 +19,8 @@ use Illuminate\View\View;
  * dont seul update() reste routé désormais, index() n'existant plus).
  * Vue propre à l'app (resources/views/settings/index.blade.php), pas la
  * vue générique du package — voir SettingsControllerBase pour ce schéma
- * de surcharge.
+ * de surcharge. Section "Adresses hôtel" ajoutée le 30/08/2026 sur le
+ * même principe.
  */
 class SettingsController extends SettingsControllerBase
 {
@@ -33,6 +35,8 @@ class SettingsController extends SettingsControllerBase
             'settings' => Setting::allForApp($this->appCode()),
             'vehicules' => VehiculeType::orderBy('id')->get(),
             'organisations' => Organisation::orderByDesc('est_principale')->orderBy('nom')->get(),
+            'hotelAddresses' => HotelAddress::orderBy('adresse')->get(),
+            'googlePlacesKey' => config('services.google.maps.places_api_key'),
         ]);
     }
 }

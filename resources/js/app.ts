@@ -17,6 +17,7 @@ import ImportManualGrid from "@/components/imports/ImportManualGrid.vue";
 import ImportOverlay from "@/components/imports/ImportOverlay.vue";
 import FamillesStatistiques from "@/components/familles/FamillesStatistiques.vue";
 import ActiviteStatistiques from "@/components/admin/ActiviteStatistiques.vue";
+import HotelAddressAutocomplete from "@/components/admin/HotelAddressAutocomplete.vue";
 
 registerThemeToggle();
 // Remplace confirm() natif par ConfirmDialog.vue pour tout <form data-confirm="...">
@@ -44,4 +45,5 @@ mountIfPresent("vue-import-manual-grid", ImportManualGrid);
 mountIfPresent("vue-import-overlay", ImportOverlay);
 mountIfPresent("vue-familles-statistiques", FamillesStatistiques);
 mountIfPresent("vue-activite-statistiques", ActiviteStatistiques);
+mountIfPresent("vue-hotel-address-autocomplete", HotelAddressAutocomplete);
 

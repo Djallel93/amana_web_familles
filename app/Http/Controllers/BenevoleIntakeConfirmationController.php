@@ -20,6 +20,11 @@ use Illuminate\View\View;
  * le BenevoleProfil ne sont créés/liés qu'ici, pas à la soumission du
  * formulaire. Token à durée de vie limitée (48h, voir
  * BenevoleIntakeAttenteService::DUREE_VALIDITE_HEURES).
+ *
+ * Confirmation en un clic (changement du 30/08/2026, même esprit que
+ * VerificationController / IntakeConfirmationController) : show() confirme
+ * directement, plus d'écran intermédiaire "a_confirmer" avec un second
+ * bouton. Pas de route POST séparée.
  */
 class BenevoleIntakeConfirmationController extends Controller
 {
@@ -29,21 +34,6 @@ class BenevoleIntakeConfirmationController extends Controller
     }
 
     public function show(string $token): View
-    {
-        $demande = BenevoleDemandeAttente::where('token', $token)->first();
-
-        if (!$demande) {
-            return view('benevole.confirmer', ['etat' => 'introuvable', 'langue' => 'fr']);
-        }
-
-        if ($demande->estExpiree()) {
-            return view('benevole.confirmer', ['etat' => 'expiree', 'demande' => $demande, 'langue' => $demande->langue]);
-        }
-
-        return view('benevole.confirmer', ['etat' => 'a_confirmer', 'demande' => $demande, 'langue' => $demande->langue]);
-    }
-
-    public function confirmer(string $token): View
     {
         $demande = BenevoleDemandeAttente::where('token', $token)->first();
 

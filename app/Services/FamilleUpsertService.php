@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Famille;
+use App\Models\HotelAddress;
 use App\Models\Organisation;
 
 /**
@@ -28,6 +29,13 @@ use App\Models\Organisation;
  * rattachée (ou si $donnees ne précise pas d'organisation — anciens
  * appelants, formulaires non encore migrés), le comportement de fusion
  * historique s'applique tel quel.
+ *
+ * Ajout du 30/08/2026 — `est_hotel` forcé à true dans $donnees quand
+ * l'adresse correspond à une entrée du référentiel hotel_addresses (voir
+ * forcerEstHotelSiAdresseConnue()), même si la famille n'a pas coché la
+ * case "hôtel" (ou si l'import ne la renseigne pas). Appliqué ici plutôt
+ * que dans chaque appelant (intake, import) pour ne pas dupliquer la
+ * règle — même raisonnement que le reste de cette classe.
  */
 class FamilleUpsertService
 {
@@ -92,6 +100,8 @@ class FamilleUpsertService
         string $sourceDemande = 'import',
         ?int $submittedBy = null,
     ): array {
+        $donnees = $this->forcerEstHotelSiAdresseConnue($donnees);
+
         $idOrganisation = $donnees['id_organisation'] ?? null;
         $existante = $this->trouverDoublon($donnees);
 
@@ -125,6 +135,52 @@ class FamilleUpsertService
         audit('create', 'familles', $famille->id, null, $famille->toArray());
 
         return ['famille' => $famille, 'cree' => true, 'avant' => null, 'rattachement_en_attente' => false];
+    }
+
+    /**
+     * Force $donnees['est_hotel'] à true si l'adresse fournie correspond à
+     * une entrée du référentiel hotel_addresses — ne fait rien si $donnees
+     * ne contient pas 'adresse' (mise à jour partielle qui ne touche pas
+     * l'adresse : pas de raison de réévaluer le flag), et ne touche jamais
+     * $donnees['est_hotel'] à la baisse (un flag déjà positionné à true
+     * manuellement par le staff n'est jamais réinitialisé ici, seule une
+     * mise à true est possible).
+     *
+     * Comparaison en confinement mutuel après normalisation
+     * (HotelAddress::normaliser()) plutôt qu'en égalité stricte : le
+     * référentiel mélange volontairement adresses brutes et adresses
+     * préfixées du nom de l'établissement (voir migration
+     * create_hotel_addresses_table), une correspondance exacte ligne à
+     * ligne manquerait trop de cas légitimes. Le jeu de données restant
+     * petit (quelques dizaines de lignes au plus), la comparaison se fait
+     * en PHP plutôt qu'en SQL.
+     */
+    private function forcerEstHotelSiAdresseConnue(array $donnees): array
+    {
+        if (!array_key_exists('adresse', $donnees) || !filled($donnees['adresse'])) {
+            return $donnees;
+        }
+
+        $adresseFamille = HotelAddress::normaliser(implode(' ', array_filter([
+            $donnees['adresse'] ?? null,
+            $donnees['code_postal'] ?? null,
+            $donnees['ville_texte'] ?? null,
+        ])));
+
+        if ($adresseFamille === '') {
+            return $donnees;
+        }
+
+        $correspond = HotelAddress::query()->pluck('adresse_normalisee')->contains(
+            fn(string $adresseConnue) => $adresseConnue !== ''
+                && (str_contains($adresseFamille, $adresseConnue) || str_contains($adresseConnue, $adresseFamille)),
+        );
+
+        if ($correspond) {
+            $donnees['est_hotel'] = true;
+        }
+
+        return $donnees;
     }
 
     /**

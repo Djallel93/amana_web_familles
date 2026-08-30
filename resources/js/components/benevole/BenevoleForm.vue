@@ -28,6 +28,9 @@
 
     Étapes : 0. Consentement RGPD → 1. Identité (composant partagé
     PersonalInfoStep) → 2. Permis → 3. Véhicule → 4. Zone de livraison.
+    Étapes 3 et 4 toutes deux masquées si permis === false (30/08/2026,
+    voir visibleSteps) : sans permis, ni véhicule ni zone de livraison
+    n'ont de sens.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue';
@@ -212,13 +215,18 @@ const progressPct = computed(() => {
 });
 const currentStepId = computed<StepId>(() => STEP_IDS[currentStep.value]);
 
-// Étape "vehicule" masquée si le candidat n'a pas le permis — dans ce cas
-// son id_vehicule_type est fixé automatiquement sur l'entrée "Sans permis"
-// du référentiel (voir watch sur form.permis plus bas), rendant la
-// sélection manuelle inutile. Retour du 24/08/2026 (2e vague) : demander
-// malgré tout un type de véhicule à quelqu'un sans permis n'avait pas de
-// sens.
-const visibleSteps = computed<StepId[]>(() => STEP_IDS.filter((s) => s !== 'vehicule' || form.permis !== false));
+// Étapes "vehicule" ET "zone" masquées si le candidat n'a pas le permis —
+// dans ce cas son id_vehicule_type est fixé automatiquement sur l'entrée
+// "Sans permis" du référentiel (voir watch sur form.permis plus bas),
+// rendant la sélection manuelle inutile. Retour du 24/08/2026 (2e vague) :
+// demander malgré tout un type de véhicule à quelqu'un sans permis n'avait
+// pas de sens. Même raisonnement appliqué à "zone" le 30/08/2026 : sans
+// permis, le candidat ne fera pas de livraisons, donc pas de zone de
+// livraison à choisir non plus (form.zone_livraison reste '' dans ce cas,
+// voir submit() — le backend n'exige plus le champ que si permis === true).
+const visibleSteps = computed<StepId[]>(() =>
+    STEP_IDS.filter((s) => (s !== 'vehicule' && s !== 'zone') || form.permis !== false),
+);
 
 // "Sans permis" est affecté automatiquement (voir watch sur form.permis
 // plus bas) — jamais proposé au choix manuel dans cette liste.
@@ -291,6 +299,9 @@ function validateStep(stepId: StepId): boolean {
             req('id_vehicule_type', form.id_vehicule_type !== null);
             break;
         case 'zone':
+            // Étape masquée si permis === false (voir visibleSteps) — rien à
+            // valider dans ce cas, la question ne se pose pas.
+            if (form.permis === false) break;
             req('zone_livraison', !!form.zone_livraison);
             if (form.zone_livraison === 'secteurs_specifiques') {
                 req('secteurs', form.secteurs.length > 0);
@@ -320,7 +331,11 @@ async function submit(): Promise<void> {
     // remonté le 26/08/2026. On envoie 1/0 explicitement.
     append('permis', form.permis ? 1 : 0);
     append('id_vehicule_type', form.id_vehicule_type);
-    append('zone_livraison', form.zone_livraison);
+    // Étape "zone" masquée sans permis (voir visibleSteps) : form.zone_livraison
+    // reste '' dans ce cas — ne pas l'envoyer du tout plutôt qu'une chaîne
+    // vide, qui échouerait la règle 'in:' côté serveur malgré 'nullable'
+    // (nullable ne s'applique qu'à une valeur absente/null, pas à '').
+    if (form.permis !== false) append('zone_livraison', form.zone_livraison);
     form.secteurs.forEach((id) => data.append('secteurs[]', String(id)));
     append('consentement', true);
     data.append('site_web', form.site_web);

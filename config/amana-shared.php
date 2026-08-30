@@ -73,6 +73,10 @@ return [
         ['route' => 'familles.index', 'label' => 'Familles', 'icon' => '🗂️', 'route_pattern' => 'familles.index'],
         ['route' => 'familles.statistiques.index', 'label' => 'Statistiques', 'icon' => '📊', 'role' => 'gestionnaire', 'route_pattern' => 'familles.statistiques.*'],
         ['route' => 'admin.verifications.index', 'label' => 'Vérifications', 'icon' => '✅', 'role' => 'admin', 'route_pattern' => 'admin.verifications.*'],
+        // Déplacé depuis "Administration" le 30/08/2026 : l'import en masse
+        // manipule des dossiers familles, sa place naturelle est avec le
+        // reste des écrans Dossiers plutôt que sous Administration.
+        ['route' => 'admin.imports.index', 'label' => 'Imports', 'icon' => '📥', 'role' => 'admin', 'route_pattern' => 'admin.imports.*'],
 
         ['section' => 'Bénévoles'],
         ['route' => 'admin.benevoles.index', 'label' => 'Candidatures bénévoles', 'icon' => '🤝', 'role' => 'admin', 'route_pattern' => 'admin.benevoles.*'],
@@ -80,7 +84,6 @@ return [
 
         ['section' => 'Administration'],
         ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],
-        ['route' => 'admin.imports.index', 'label' => 'Imports', 'icon' => '📥', 'role' => 'admin', 'route_pattern' => 'admin.imports.*'],
         ['route' => 'admin.activite.index', 'label' => "Statistiques d'activité", 'icon' => '📈', 'role' => 'admin', 'route_pattern' => 'admin.activite.*'],
         ['route' => 'admin.journal.index', 'label' => "Journal d'audit", 'icon' => '📜', 'role' => 'admin', 'route_pattern' => 'admin.journal.*'],
     ],

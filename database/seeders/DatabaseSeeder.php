@@ -88,5 +88,10 @@ class DatabaseSeeder extends Seeder
             SecteurActiviteSeeder::class,
             OrganismeAideSeeder::class,
         ]);
+
+        // ── Référentiel des adresses d'hébergement d'urgence (30/08/2026) ───
+        $this->call([
+            HotelAddressSeeder::class,
+        ]);
     }
 }

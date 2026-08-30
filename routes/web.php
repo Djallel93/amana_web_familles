@@ -61,12 +61,12 @@ Route::post('/demande/refus-consentement', [\App\Http\Controllers\IntakeControll
 // Confirmation par email d'une demande en attente (voir IntakeAttenteService /
 // IntakeDemandeAttente, ajout du 11/08/2026) — même forme que les routes de
 // vérification ci-dessous.
+// Confirmation en un clic (30/08/2026) : show() confirme directement, pas
+// de route POST séparée pour un second temps de confirmation (même schéma
+// que VerificationController ci-dessous).
 Route::get('/demande/confirmer/{token}', [\App\Http\Controllers\IntakeConfirmationController::class, 'show'])
     ->name('intake.confirmer.show')
     ->middleware('throttle:20,1');
-Route::post('/demande/confirmer/{token}', [\App\Http\Controllers\IntakeConfirmationController::class, 'confirmer'])
-    ->name('intake.confirmer')
-    ->middleware('throttle:5,1');
 
 // ── Vérification publique des informations (lien reçu par email) ────────
 // Confirmation en un clic : show() confirme directement, pas de route
@@ -88,12 +88,11 @@ Route::post('/devenir-benevole', [\App\Http\Controllers\BenevoleIntakeController
 Route::post('/devenir-benevole/refus-consentement', [\App\Http\Controllers\BenevoleIntakeController::class, 'refuserConsentement'])
     ->name('benevole.refus-consentement')
     ->middleware('throttle:10,1');
+// Confirmation en un clic (30/08/2026) : voir commentaire équivalent sur
+// les routes /demande/confirmer ci-dessus.
 Route::get('/devenir-benevole/confirmer/{token}', [\App\Http\Controllers\BenevoleIntakeConfirmationController::class, 'show'])
     ->name('benevole.confirmer.show')
     ->middleware('throttle:20,1');
-Route::post('/devenir-benevole/confirmer/{token}', [\App\Http\Controllers\BenevoleIntakeConfirmationController::class, 'confirmer'])
-    ->name('benevole.confirmer')
-    ->middleware('throttle:5,1');
 
 // ── Dossiers familles (staff — tous rôles) ───────────────────────────────
 Route::middleware('auth')->group(function () {
@@ -206,6 +205,14 @@ Route::middleware(['auth', 'role:gestionnaire'])->group(function () {
     // Pas de route GET dédiée : le formulaire vit dans /settings (voir
     // SettingsController::index() et resources/views/settings/index.blade.php).
     Route::post('/vehicules', [\App\Http\Controllers\VehiculeTypesController::class, 'update'])->name('vehicules.update');
+
+    // ── Référentiel des adresses hôtel (ajouté le 30/08/2026) ─────────────
+    // Même groupe que /vehicules ci-dessus (admin + gestionnaire) — voir
+    // docblock de classe d'Admin\HotelAddressesController. Formulaire dans
+    // /settings, pas de route GET dédiée non plus.
+    Route::post('/hotel-addresses', [\App\Http\Controllers\Admin\HotelAddressesController::class, 'store'])->name('hotel-addresses.store');
+    Route::put('/hotel-addresses/{hotelAddress}', [\App\Http\Controllers\Admin\HotelAddressesController::class, 'update'])->name('hotel-addresses.update');
+    Route::delete('/hotel-addresses/{hotelAddress}', [\App\Http\Controllers\Admin\HotelAddressesController::class, 'destroy'])->name('hotel-addresses.destroy');
 });
 
 // ── Rattachements d'organisation en attente (ajouté le 28/08/2026) ──────

@@ -24,6 +24,11 @@ use Illuminate\View\View;
  * Reprend ce qui se passait auparavant en fin d'IntakeController::store() :
  * notification staff + résolution géographique asynchrone — désormais
  * déclenchées seulement quand la famille a effectivement confirmé.
+ *
+ * Confirmation en un clic (changement du 30/08/2026, même esprit que
+ * VerificationController) : show() confirme directement, plus d'écran
+ * intermédiaire "a_confirmer" avec un second bouton — jugé confus et
+ * superflu. Pas de route POST séparée.
  */
 class IntakeConfirmationController extends Controller
 {
@@ -33,21 +38,6 @@ class IntakeConfirmationController extends Controller
     }
 
     public function show(string $token): View
-    {
-        $demande = IntakeDemandeAttente::where('token', $token)->first();
-
-        if (!$demande) {
-            return view('intake.confirmer', ['etat' => 'introuvable', 'langue' => 'fr']);
-        }
-
-        if ($demande->estExpiree()) {
-            return view('intake.confirmer', ['etat' => 'expiree', 'demande' => $demande, 'langue' => $demande->langue]);
-        }
-
-        return view('intake.confirmer', ['etat' => 'a_confirmer', 'demande' => $demande, 'langue' => $demande->langue]);
-    }
-
-    public function confirmer(string $token): View
     {
         $demande = IntakeDemandeAttente::where('token', $token)->first();
 

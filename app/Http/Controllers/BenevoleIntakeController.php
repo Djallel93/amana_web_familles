@@ -136,7 +136,12 @@ class BenevoleIntakeController extends Controller
                 // rien de plus (voir ->after() ci-dessous pour "Nantes +
                 // extérieur" = tous secteurs, "Nantes seulement" = laissé
                 // vide ici, résolu côté service si besoin plus tard).
-                'zone_livraison' => ['required', 'string', 'in:nantes_et_exterieur,nantes_seulement,secteurs_specifiques'],
+                // Uniquement requis si le candidat a le permis (30/08/2026) —
+                // étape masquée côté formulaire sinon, voir BenevoleForm.vue
+                // (visibleSteps) : sans permis, pas de livraisons, donc pas
+                // de zone à choisir. `$secteurs` retombe sur [] via le
+                // `default` du match() ci-dessous quand le champ est absent.
+                'zone_livraison' => ['required_if:permis,1', 'nullable', 'string', 'in:nantes_et_exterieur,nantes_seulement,secteurs_specifiques'],
                 'secteurs' => ['nullable', 'array'],
                 'secteurs.*' => ['integer', 'exists:commun.secteurs,id'],
 
@@ -151,6 +156,7 @@ class BenevoleIntakeController extends Controller
             'email.email' => 'Format d\'email invalide.',
             'id_vehicule_type.required' => 'Merci de sélectionner un type de véhicule.',
             'zone_livraison.required' => 'Merci de sélectionner une zone de livraison.',
+            'zone_livraison.required_if' => 'Merci de sélectionner une zone de livraison.',
             'consentement.required' => 'Vous devez accepter le traitement de vos données pour continuer.',
             'consentement.accepted' => 'Vous devez accepter le traitement de vos données pour continuer.',
         ]);
@@ -170,7 +176,12 @@ class BenevoleIntakeController extends Controller
         // "Nantes + extérieur" couvre tous les secteurs existants ; "Nantes
         // seulement" (sans détail) ne pré-sélectionne aucun secteur — le
         // staff affine à la validation si besoin. Voir Secteur (amana/shared).
-        $secteurs = match ($donnees['zone_livraison']) {
+        // Sans permis (30/08/2026), le champ n'est pas envoyé du tout par le
+        // formulaire (voir BenevoleForm.vue::submit) — ->validated() omet
+        // alors purement et simplement la clé plutôt que de la mettre à
+        // null, d'où le ?? null explicite ici (accès direct à
+        // $donnees['zone_livraison'] plantait avec "Undefined array key").
+        $secteurs = match ($donnees['zone_livraison'] ?? null) {
             'nantes_et_exterieur' => Secteur::pluck('id')->all(),
             'secteurs_specifiques' => array_map('intval', $donnees['secteurs'] ?? []),
             default => [],

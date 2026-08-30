@@ -3,16 +3,15 @@
     Page publique, standalone — accessible via le lien reçu par email
     (BenevoleIntakeConfirmationNotification). Miroir exact de
     intake/confirmer.blade.php (familles), voir ce fichier pour le
-    raisonnement. $etat ∈ a_confirmer | confirmee | expiree | introuvable.
+    raisonnement. $etat ∈ confirmee | expiree | introuvable.
+
+    Confirmation en un clic (30/08/2026) : le lien de l'email confirme
+    directement, plus d'écran "a_confirmer" avec un second bouton.
 --}}
 @php
     $t = [
         'fr' => [
             'title' => 'Confirmation de votre candidature — AMANA Familles',
-            'a_confirmer_emoji' => '🤝',
-            'a_confirmer_title' => 'Confirmer votre candidature',
-            'a_confirmer_text' => "Merci de confirmer votre candidature bénévole en cliquant sur le bouton ci-dessous. Elle ne sera transmise à notre équipe qu'après cette confirmation.",
-            'button' => '✅ Confirmer ma candidature',
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'Merci !',
             'confirmee_text' => 'Votre candidature a bien été confirmée et transmise à notre équipe. Nous reviendrons vers vous dans les plus brefs délais.',
@@ -26,10 +25,6 @@
         ],
         'ar' => [
             'title' => 'تأكيد ترشحكم — AMANA Familles',
-            'a_confirmer_emoji' => '🤝',
-            'a_confirmer_title' => 'تأكيد ترشحكم',
-            'a_confirmer_text' => 'يرجى تأكيد ترشحكم للتطوع بالضغط على الزر أدناه. لن يتم إرساله إلى فريقنا إلا بعد هذا التأكيد.',
-            'button' => '✅ تأكيد ترشحي',
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'شكرًا لكم!',
             'confirmee_text' => 'تم تأكيد ترشحكم بنجاح وإرساله إلى فريقنا. سنعود إليكم في أقرب وقت ممكن.',
@@ -43,10 +38,6 @@
         ],
         'en' => [
             'title' => 'Confirm your application — AMANA Familles',
-            'a_confirmer_emoji' => '🤝',
-            'a_confirmer_title' => 'Confirm your application',
-            'a_confirmer_text' => 'Please confirm your volunteer application by clicking the button below. It will only be sent to our team after this confirmation.',
-            'button' => '✅ Confirm my application',
             'confirmee_emoji' => '✅',
             'confirmee_title' => 'Thank you!',
             'confirmee_text' => 'Your application has been confirmed and sent to our team. We will get back to you as soon as possible.',
@@ -77,20 +68,7 @@
 
         <img src="{{ asset('images/amana-logo.png') }}" alt="AMANA" class="w-14 h-14 rounded-full object-cover mx-auto mb-5">
 
-        @if($etat === 'a_confirmer')
-            <div class="text-4xl mb-4">{{ $t['a_confirmer_emoji'] }}</div>
-            <h1 class="font-heading text-xl font-semibold text-ink mb-2">{{ $t['a_confirmer_title'] }}</h1>
-            <p class="text-ink-muted text-[14px] mb-6 leading-relaxed">{{ $t['a_confirmer_text'] }}</p>
-            <form action="{{ route('benevole.confirmer', $demande->token) }}" method="POST">
-                @csrf
-                <button type="submit"
-                    class="w-full min-h-[48px] px-6 py-3 bg-accent hover:bg-accent-dark text-white font-bold text-[14px] rounded-lg
-                            shadow-[0_3px_14px_rgba(180,83,9,0.3)] transition-all cursor-pointer">
-                    {{ $t['button'] }}
-                </button>
-            </form>
-
-        @elseif($etat === 'confirmee')
+        @if($etat === 'confirmee')
             <div class="text-4xl mb-4">{{ $t['confirmee_emoji'] }}</div>
             <h1 class="font-heading text-xl font-semibold text-ink mb-2">{{ $t['confirmee_title'] }}</h1>
             <p class="text-ink-muted text-[14px]">{{ $t['confirmee_text'] }}</p>
