@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Migration de données : rehache en place les jetons stockés en clair dans
- * les 3 flux existants (familles_verifications, intake_demandes_attente,
+ * les 3 flux existants (famille_verifications, intake_demandes_attente,
  * benevole_demandes_attente) — voir App\Support\TokenHasher et l'audit du
  * 31/08/2026 déclenché par la conception de livraison.contact_tokens
  * (seule table du domaine livraison à avoir été conçue avec un jeton
@@ -36,7 +36,7 @@ use Illuminate\Support\Facades\DB;
 return new class extends Migration {
     public function up(): void
     {
-        foreach (['familles_verifications', 'intake_demandes_attente', 'benevole_demandes_attente'] as $table) {
+        foreach (['famille_verifications', 'intake_demandes_attente', 'benevole_demandes_attente'] as $table) {
             DB::statement("UPDATE {$table} SET token = SHA2(token, 256) WHERE CHAR_LENGTH(token) != 64");
         }
     }
