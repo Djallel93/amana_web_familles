@@ -35,11 +35,16 @@ class Campagne extends Model
         return config('database.default');
     }
 
-    protected $fillable = ['type', 'statut', 'date_livraison', 'poids_moyen_kg'];
+    protected $fillable = [
+        'type', 'statut', 'date_livraison',
+        'poids_moyen_kg', 'poids_moyen_hotel_kg', 'poids_moyen_etudiant_kg',
+    ];
 
     protected $casts = [
         'date_livraison' => 'date',
         'poids_moyen_kg' => 'decimal:2',
+        'poids_moyen_hotel_kg' => 'decimal:2',
+        'poids_moyen_etudiant_kg' => 'decimal:2',
     ];
 
     public const TYPES = ['zakat_el_fitr', 'collecte_alimentaire', 'don_ponctuel'];

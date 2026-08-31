@@ -114,4 +114,45 @@ class Livraison extends Model
     {
         return $this->belongsTo(Personne::class, 'id_personne_assignee');
     }
+
+    // ── Calcul du poids (voir Patch 2 — LivraisonGenerationService) ────────
+
+    /**
+     * Poids total (kg) pour une famille dans une campagne — porté depuis
+     * routeAssignmentService.js (amana_livraison) :
+     * `poidsLiv = parts * (estHotel ? poids_moyen_hotel_kg : poids_moyen_kg)`,
+     * "parts" = nombre_personnes (une part = un colis par personne, décision
+     * du 31/08/2026 : "each person gets one package").
+     *
+     * Étend le taux hôtel du legacy à un taux étudiant symétrique
+     * (poids_moyen_etudiant_kg, ajouté le 31/08/2026 — absent de l'ancien
+     * système). Repli sur poids_moyen_kg si le taux spécifique est à 0/non
+     * renseigné, même comportement que le fallback déjà présent côté
+     * legacy pour poids_moyen_hotel_kg.
+     *
+     * PRÉCONDITION : ne doit JAMAIS être appelée pour une famille à la
+     * fois etudiant ET est_hotel — ce cas est une anomalie de données à
+     * détecter et signaler EN AMONT (voir
+     * LivraisonGenerationService::genererPour(), qui exclut ces familles
+     * avant d'atteindre cette méthode) plutôt que résolue silencieusement
+     * ici par un ordre de priorité arbitraire (décision du 31/08/2026).
+     * Lève une exception si appelée quand même, pour ne jamais masquer
+     * l'anomalie derrière un calcul qui semblerait normal.
+     */
+    public static function calculerPoidsKg(Famille $famille, Campagne $campagne, int $nombrePersonnes): float
+    {
+        if ($famille->etudiant && $famille->est_hotel) {
+            throw new \LogicException(
+                "Famille #{$famille->id} : etudiant et est_hotel simultanément — anomalie devant être exclue avant l'appel à calculerPoidsKg(), voir LivraisonGenerationService."
+            );
+        }
+
+        $taux = match (true) {
+            $famille->est_hotel => (float) ($campagne->poids_moyen_hotel_kg ?: $campagne->poids_moyen_kg),
+            $famille->etudiant => (float) ($campagne->poids_moyen_etudiant_kg ?: $campagne->poids_moyen_kg),
+            default => (float) $campagne->poids_moyen_kg,
+        };
+
+        return $nombrePersonnes * $taux;
+    }
 }

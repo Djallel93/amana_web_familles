@@ -258,9 +258,23 @@ Route::middleware(['auth', 'role:gestionnaire_externe'])->prefix('mes-imports')-
 Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('livraison.')->group(function () {
     Route::get('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'index'])
         ->name('campagnes.index');
+    Route::post('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'store'])
+        ->name('campagnes.store');
+    Route::get('/campagnes/{campagne}/eligibles', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'eligibles'])
+        ->name('campagnes.eligibles');
+    Route::post('/campagnes/{campagne}/generer-livraisons', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'genererLivraisons'])
+        ->name('campagnes.generer-livraisons');
+    Route::post('/campagnes/{campagne}/notifier-benevoles', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'notifierBenevoles'])
+        ->name('campagnes.notifier-benevoles');
 
     Route::get('/contacts', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'index'])
         ->name('contacts.index');
+    Route::get('/contacts/file', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'queue'])
+        ->name('contacts.queue');
+    Route::post('/contacts/{livraison}/assigner', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'assigner'])
+        ->name('contacts.assigner');
+    Route::post('/contacts/{livraison}/contacter-manuel', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'contacterManuel'])
+        ->name('contacts.contacter-manuel');
 
     Route::get('/tableau-de-bord', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'index'])
         ->name('tableau-de-bord.index');
@@ -282,8 +296,10 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison')->name('livrais
 //    sa propre tournée uniquement (admin/gestionnaire peuvent voir
 //    n'importe laquelle via le tableau de bord ci-dessus, pas ici) ──────
 Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name('livraison.benevole.')->group(function () {
-    Route::get('/disponibilite', [\App\Http\Controllers\Livraison\DisponibiliteController::class, 'show'])
+    Route::get('/disponibilite/{campagne}', [\App\Http\Controllers\Livraison\DisponibiliteController::class, 'show'])
         ->name('disponibilite.show');
+    Route::post('/disponibilite/{campagne}', [\App\Http\Controllers\Livraison\DisponibiliteController::class, 'update'])
+        ->name('disponibilite.update');
 
     Route::get('/ma-route', [\App\Http\Controllers\Livraison\MaRouteController::class, 'show'])
         ->name('ma-route.show');
@@ -318,8 +334,11 @@ Route::middleware(['auth', 'livraison_role:equipe_chargement'])->prefix('livrais
 // schéma de throttle que les autres formulaires publics de l'app
 // ci-dessus (intake/vérification/candidature bénévole). Contrairement à
 // ces confirmations "en un clic", ce formulaire a un vrai second temps
-// (saisie adresse/membres du foyer/créneaux) : la route POST arrivera
-// avec cette logique, en Patch 2.
+// (saisie adresse/membres du foyer/créneaux) : GET affiche, POST traite
+// la soumission (Patch 2).
 Route::get('/livraison/confirmation/{token}', [\App\Http\Controllers\Livraison\ContactConfirmationController::class, 'show'])
     ->name('livraison.confirmation.show')
     ->middleware('throttle:20,1');
+Route::post('/livraison/confirmation/{token}', [\App\Http\Controllers\Livraison\ContactConfirmationController::class, 'store'])
+    ->name('livraison.confirmation.store')
+    ->middleware('throttle:10,1');

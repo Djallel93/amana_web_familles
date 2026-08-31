@@ -168,6 +168,16 @@ class Famille extends Model
         return $this->hasMany(FamilleVerification::class, 'id_famille');
     }
 
+    /**
+     * Livraisons de cette famille, tous domaines/campagnes confondus —
+     * ajouté au Patch 2 du domaine livraison (voir
+     * LivraisonGenerationService::eligibles()).
+     */
+    public function livraisons(): HasMany
+    {
+        return $this->hasMany(Livraison::class, 'id_famille');
+    }
+
     public function secteursActivite(): BelongsToMany
     {
         return $this->belongsToMany(SecteurActivite::class, 'famille_secteur_activite', 'id_famille', 'id_secteur_activite');
