@@ -277,7 +277,11 @@ class IntakeController extends Controller
         // voir IntakeAttenteService::creerDemande(), qui gère aussi l'écrasement
         // silencieux d'une éventuelle demande non confirmée déjà en attente
         // pour la même famille (même email, ou même téléphone+nom).
-        $demande = $this->attenteService->creerDemande(
+        //
+        // creerDemande() renvoie désormais ['demande' => ..., 'token' => ...]
+        // (jeton EN CLAIR) depuis le 31/08/2026 — $demande->token ne contient
+        // plus que le hash, voir App\Support\TokenHasher.
+        ['demande' => $demande, 'token' => $tokenEnClair] = $this->attenteService->creerDemande(
             $donnees,
             $secteursActivite,
             $organismesAide,
@@ -297,10 +301,10 @@ class IntakeController extends Controller
         // doit jamais voir une erreur pour cet envoi.
         try {
             Notification::route('mail', $donnees['email'])
-                ->notify(new IntakeConfirmationNotification($demande));
+                ->notify(new IntakeConfirmationNotification($demande, $tokenEnClair));
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('[IntakeController] Échec envoi email de confirmation', [
-                'token' => $demande->token,
+                'id_demande' => $demande->id,
                 'message' => $e->getMessage(),
             ]);
         }

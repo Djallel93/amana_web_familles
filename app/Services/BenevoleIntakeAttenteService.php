@@ -9,6 +9,7 @@ use Amana\Shared\Services\PersonneIntakeService;
 use App\Models\BenevoleDemandeAttente;
 use App\Models\BenevoleProfil;
 use App\Models\Personne;
+use App\Support\TokenHasher;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -26,6 +27,12 @@ use Illuminate\Support\Str;
  * Révision du 24/08/2026 : plus de disponibilités (retiré, fonctionnalité
  * event-related future) ; vehicule_type/capacite_kg/nombre_part_max
  * remplacés par id_vehicule_type (référentiel ref_vehicules).
+ *
+ * Jeton haché à partir du 31/08/2026 (voir App\Support\TokenHasher) :
+ * creerDemande() renvoie désormais le jeton EN CLAIR séparément de la
+ * ligne créée (dont `token` ne contient plus que le hash) — à transmettre
+ * à BenevoleIntakeConfirmationNotification, jamais lu depuis
+ * $demande->token.
  */
 class BenevoleIntakeAttenteService
 {
@@ -34,24 +41,30 @@ class BenevoleIntakeAttenteService
     /**
      * @param array<string, mixed> $donneesValidees Nom/prenom/email/telephone/langue/permis/id_vehicule_type
      * @param int[] $secteurs
+     * @return array{demande: BenevoleDemandeAttente, token: string} `token` est le jeton EN CLAIR — à
+     *         transmettre à la Notification, jamais lu depuis $demande->token (qui ne contient que le hash)
      */
     public function creerDemande(
         array $donneesValidees,
         array $secteurs,
         string $langue,
-    ): BenevoleDemandeAttente {
+    ): array {
         $existante = $this->trouverAttenteExistante($donneesValidees);
         if ($existante) {
             $existante->delete();
         }
 
-        return BenevoleDemandeAttente::create([
-            'token' => Str::random(60),
+        $tokenEnClair = Str::random(60);
+
+        $demande = BenevoleDemandeAttente::create([
+            'token' => TokenHasher::hash($tokenEnClair),
             'langue' => $langue,
             'donnees' => $donneesValidees,
             'secteurs' => $secteurs,
             'expires_at' => now()->addHours(self::DUREE_VALIDITE_HEURES),
         ]);
+
+        return ['demande' => $demande, 'token' => $tokenEnClair];
     }
 
     /**

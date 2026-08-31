@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Models\FamilleVerification;
+use App\Support\TokenHasher;
 use Illuminate\View\View;
 
 /**
@@ -25,7 +26,10 @@ class VerificationController extends Controller
 {
     public function show(string $token): View
     {
-        $verification = FamilleVerification::with('famille')->where('token', $token)->first();
+        // $token est le jeton EN CLAIR reçu via l'URL — la colonne
+        // token ne contient plus que son hash depuis le 31/08/2026 (voir
+        // App\Support\TokenHasher).
+        $verification = FamilleVerification::with('famille')->where('token', TokenHasher::hash($token))->first();
 
         if (!$verification) {
             return view('verification.show', ['etat' => 'introuvable']);

@@ -17,6 +17,11 @@ use Illuminate\Support\Facades\Log;
  * (emailVerificationService.js, amana_familles). Contenu multilingue selon
  * famille.langue (fr/ar/en, RTL pour l'arabe), thème AMANA terracotta
  * (partials communs à l'app, pas le template HTML basique bleu d'origine).
+ *
+ * $token reçu EN CLAIR séparément de $verification depuis le 31/08/2026
+ * (voir App\Support\TokenHasher) : $verification->token ne contient plus
+ * que le hash, impropre à construire l'URL de confirmation — voir
+ * FamilleVerificationService::envoyerPourFamille().
  */
 class FamilleVerificationNotification extends Notification
 {
@@ -29,7 +34,8 @@ class FamilleVerificationNotification extends Notification
     ];
 
     public function __construct(
-        private readonly FamilleVerification $verification
+        private readonly FamilleVerification $verification,
+        private readonly string $token,
     ) {
     }
 
@@ -42,6 +48,8 @@ class FamilleVerificationNotification extends Notification
     {
         $langue = in_array($notifiable->langue, ['fr', 'ar', 'en'], true) ? $notifiable->langue : 'fr';
 
+        // Le hash (pas le jeton en clair) est loggé ici — voir
+        // App\Support\TokenHasher.
         Log::info('[FamilleVerificationNotification] Envoi email', [
             'destinataire' => $notifiable->email,
             'id_famille' => $notifiable->id,
@@ -52,7 +60,7 @@ class FamilleVerificationNotification extends Notification
             ->view('emails.verification-famille', [
                 'famille' => $notifiable,
                 'langue' => $langue,
-                'confirmUrl' => route('verification.show', $this->verification->token),
+                'confirmUrl' => route('verification.show', $this->token),
                 'updateUrl' => route('intake.show', ['langue' => $langue]),
                 'logoCid' => $this->logoCid(),
             ]);

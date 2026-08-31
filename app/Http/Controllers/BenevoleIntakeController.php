@@ -189,14 +189,17 @@ class BenevoleIntakeController extends Controller
 
         unset($donnees['consentement'], $donnees['secteurs'], $donnees['zone_livraison']);
 
-        $demande = $this->attenteService->creerDemande($donnees, $secteurs, $donnees['langue']);
+        // creerDemande() renvoie désormais ['demande' => ..., 'token' => ...]
+        // (jeton EN CLAIR) depuis le 31/08/2026 — $demande->token ne
+        // contient plus que le hash, voir App\Support\TokenHasher.
+        ['demande' => $demande, 'token' => $tokenEnClair] = $this->attenteService->creerDemande($donnees, $secteurs, $donnees['langue']);
 
         try {
             Notification::route('mail', $donnees['email'])
-                ->notify(new BenevoleIntakeConfirmationNotification($demande));
+                ->notify(new BenevoleIntakeConfirmationNotification($demande, $tokenEnClair));
         } catch (\Throwable $e) {
             Log::error('[BenevoleIntakeController] Échec envoi email de confirmation', [
-                'token' => $demande->token,
+                'id_demande' => $demande->id,
                 'message' => $e->getMessage(),
             ]);
         }

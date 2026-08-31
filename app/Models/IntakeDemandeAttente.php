@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
  * et IntakeController::store() / IntakeConfirmationController::confirmer().
  *
  * @property int    $id
- * @property string $token
+ * @property string $token  hash sha256 (voir App\Support\TokenHasher) — jamais le jeton en clair
  * @property string $langue
  * @property array  $donnees           Champs validés, mêmes clés que Famille::$fillable
  * @property array|null $secteurs_activite  IDs (belongsToMany, hors $donnees)
@@ -56,11 +56,18 @@ class IntakeDemandeAttente extends Model
     /**
      * Chemin du dossier de stockage temporaire des fichiers de cette
      * soumission, sur le disque 'local' (storage/app/private/...) — voir
-     * IntakeController::stockerFichiersAttente() et
-     * IntakeConfirmationController::deplacerFichiers().
+     * IntakeAttenteService::stockerFichiersAttente() et
+     * IntakeAttenteService::confirmer().
+     *
+     * Basé sur l'id (et non plus le token) depuis le 31/08/2026 :
+     * `token` ne contient plus qu'un hash (voir App\Support\TokenHasher),
+     * impropre à servir de nom de dossier lisible/stable, et l'id est de
+     * toute façon disponible dès la création de la ligne (voir
+     * IntakeAttenteService::creerDemande(), qui crée la ligne AVANT de
+     * stocker les fichiers, pour disposer de cet id).
      */
     public function cheminStockageTemporaire(): string
     {
-        return "intake-attente/{$this->token}";
+        return "intake-attente/{$this->id}";
     }
 }

@@ -8,6 +8,7 @@ namespace App\Services;
 use App\Models\Famille;
 use App\Models\FamilleVerification;
 use App\Notifications\FamilleVerificationNotification;
+use App\Support\TokenHasher;
 use Illuminate\Support\Str;
 
 /**
@@ -69,14 +70,19 @@ class FamilleVerificationService
             return false;
         }
 
+        // Jeton haché à partir du 31/08/2026 (voir App\Support\TokenHasher) :
+        // seul $tokenEnClair (jamais persisté) part dans l'email — la ligne
+        // ne conserve que son hash.
+        $tokenEnClair = Str::random(48);
+
         $verification = FamilleVerification::create([
             'id_famille' => $famille->id,
-            'token' => Str::random(48),
+            'token' => TokenHasher::hash($tokenEnClair),
             'expires_at' => now()->addDays(self::DUREE_VALIDITE_JOURS),
         ]);
 
         try {
-            $famille->notify(new FamilleVerificationNotification($verification));
+            $famille->notify(new FamilleVerificationNotification($verification, $tokenEnClair));
             audit('create', 'familles_verification', $verification->id, null, ['id_famille' => $famille->id]);
             return true;
         } catch (\Throwable $e) {

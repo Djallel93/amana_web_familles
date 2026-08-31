@@ -9,6 +9,7 @@ use App\Models\BenevoleDemandeAttente;
 use App\Models\Personne;
 use App\Notifications\NouvelleCandidatureBenevoleNotification;
 use App\Services\BenevoleIntakeAttenteService;
+use App\Support\TokenHasher;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
@@ -35,7 +36,10 @@ class BenevoleIntakeConfirmationController extends Controller
 
     public function show(string $token): View
     {
-        $demande = BenevoleDemandeAttente::where('token', $token)->first();
+        // $token est le jeton EN CLAIR reçu via l'URL — la colonne token
+        // ne contient plus que son hash depuis le 31/08/2026 (voir
+        // App\Support\TokenHasher).
+        $demande = BenevoleDemandeAttente::where('token', TokenHasher::hash($token))->first();
 
         if (!$demande) {
             return view('benevole.confirmer', ['etat' => 'introuvable', 'langue' => 'fr']);

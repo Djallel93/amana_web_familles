@@ -14,8 +14,10 @@ use Illuminate\Console\Command;
  * confirmées au-delà de leur délai de validité (48h — voir
  * IntakeAttenteService::DUREE_VALIDITE_HEURES) : supprime à la fois la
  * ligne intake_demandes_attente et les fichiers temporaires associés sur le
- * disque 'local' (storage/app/private/intake-attente/{token}/), pour éviter
- * une fuite d'espace disque silencieuse (ajout du 11/08/2026).
+ * disque 'local' (storage/app/private/intake-attente/{id}/ — basé sur
+ * l'id depuis le 31/08/2026, voir IntakeDemandeAttente::cheminStockageTemporaire()
+ * et App\Support\TokenHasher), pour éviter une fuite d'espace disque
+ * silencieuse (ajout du 11/08/2026).
  *
  * Une ligne confirmée est déjà supprimée immédiatement par
  * IntakeAttenteService::confirmer() — cette commande ne trouve donc jamais

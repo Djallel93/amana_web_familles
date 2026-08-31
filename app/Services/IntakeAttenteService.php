@@ -8,6 +8,7 @@ namespace App\Services;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
 use App\Models\IntakeDemandeAttente;
+use App\Support\TokenHasher;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -34,6 +35,19 @@ use Illuminate\Support\Str;
  * Ne gère PAS l'envoi de l'email de confirmation ni la notification staff
  * — ça reste dans les contrôleurs, cette classe ne s'occupe que des
  * données/fichiers.
+ *
+ * Jeton haché à partir du 31/08/2026 (voir App\Support\TokenHasher et
+ * migration 2026_08_31_000000_hash_existing_confirmation_tokens.php) :
+ * creerDemande() renvoie désormais le jeton EN CLAIR séparément de la
+ * ligne créée (dont `token` ne contient plus que le hash) — c'est ce
+ * jeton en clair que le contrôleur appelant doit transmettre à la
+ * Notification pour construire l'URL de confirmation, jamais
+ * $demande->token. Conséquence sur le stockage des fichiers : le nom du
+ * dossier temporaire ne peut plus être basé sur le jeton (devenu un hash
+ * illisible et sans rapport avec le jeton en clair reçu plus tard via
+ * l'URL) — basé sur l'id de la ligne à la place, ce qui impose de créer
+ * la ligne AVANT de stocker les fichiers (voir ci-dessous), alors que
+ * l'ordre inverse suffisait auparavant.
  */
 class IntakeAttenteService
 {
@@ -49,6 +63,8 @@ class IntakeAttenteService
      * @param int[] $secteursActivite
      * @param int[] $organismesAide
      * @param array<string, UploadedFile[]> $fichiersParSlot Clés attendues : identite, aide, resource
+     * @return array{demande: IntakeDemandeAttente, token: string} `token` est le jeton EN CLAIR — à
+     *         transmettre à la Notification, jamais lu depuis $demande->token (qui ne contient que le hash)
      */
     public function creerDemande(
         array $donneesValidees,
@@ -56,28 +72,37 @@ class IntakeAttenteService
         array $organismesAide,
         string $langue,
         array $fichiersParSlot,
-    ): IntakeDemandeAttente {
+    ): array {
         $existante = $this->trouverAttenteExistante($donneesValidees);
         if ($existante) {
             $this->supprimerDemande($existante);
         }
 
-        $token = Str::random(60);
+        $tokenEnClair = Str::random(60);
 
-        $documentsMeta = [];
-        foreach ($fichiersParSlot as $slot => $fichiers) {
-            $documentsMeta[$slot] = $this->stockerFichiersAttente($token, $slot, $fichiers);
-        }
-
-        return IntakeDemandeAttente::create([
-            'token' => $token,
+        // Ligne créée AVANT le stockage des fichiers (inversion par
+        // rapport à l'ancien ordre) : le dossier de stockage temporaire
+        // est désormais nommé d'après l'id de la ligne (voir
+        // IntakeDemandeAttente::cheminStockageTemporaire()), qui n'existe
+        // qu'une fois la ligne persistée. documents_meta démarre vide,
+        // mis à jour juste après.
+        $demande = IntakeDemandeAttente::create([
+            'token' => TokenHasher::hash($tokenEnClair),
             'langue' => $langue,
             'donnees' => $donneesValidees,
             'secteurs_activite' => $secteursActivite,
             'organismes_aide' => $organismesAide,
-            'documents_meta' => $documentsMeta,
+            'documents_meta' => [],
             'expires_at' => now()->addHours(self::DUREE_VALIDITE_HEURES),
         ]);
+
+        $documentsMeta = [];
+        foreach ($fichiersParSlot as $slot => $fichiers) {
+            $documentsMeta[$slot] = $this->stockerFichiersAttente($demande, $slot, $fichiers);
+        }
+        $demande->update(['documents_meta' => $documentsMeta]);
+
+        return ['demande' => $demande, 'token' => $tokenEnClair];
     }
 
     /**
@@ -115,7 +140,7 @@ class IntakeAttenteService
      * @param UploadedFile[] $fichiers
      * @return array<int, array{disk_path: string, original_name: string, mime_type: string}>
      */
-    private function stockerFichiersAttente(string $token, string $slot, array $fichiers): array
+    private function stockerFichiersAttente(IntakeDemandeAttente $demande, string $slot, array $fichiers): array
     {
         $meta = [];
 
@@ -124,7 +149,7 @@ class IntakeAttenteService
                 continue;
             }
 
-            $path = $fichier->store("intake-attente/{$token}/{$slot}", 'local');
+            $path = $fichier->store("{$demande->cheminStockageTemporaire()}/{$slot}", 'local');
 
             $meta[] = [
                 'disk_path' => $path,

@@ -20,6 +20,10 @@ use Illuminate\Support\Facades\Log;
  * Envoyée via Notification::route('mail', $email)->notify(...) : à ce
  * stade il n'existe pas encore de Personne authentifiée à laquelle
  * attacher la notification.
+ *
+ * $token reçu EN CLAIR séparément de $demande depuis le 31/08/2026 (voir
+ * App\Support\TokenHasher) : $demande->token ne contient plus que le
+ * hash — voir BenevoleIntakeAttenteService::creerDemande().
  */
 class BenevoleIntakeConfirmationNotification extends Notification
 {
@@ -33,6 +37,7 @@ class BenevoleIntakeConfirmationNotification extends Notification
 
     public function __construct(
         private readonly BenevoleDemandeAttente $demande,
+        private readonly string $token,
     ) {
     }
 
@@ -45,8 +50,10 @@ class BenevoleIntakeConfirmationNotification extends Notification
     {
         $langue = in_array($this->demande->langue, ['fr', 'ar', 'en'], true) ? $this->demande->langue : 'fr';
 
+        // Le hash (pas le jeton en clair) est loggé ici — voir
+        // App\Support\TokenHasher.
         Log::info('[BenevoleIntakeConfirmationNotification] Envoi email', [
-            'token' => $this->demande->token,
+            'id_demande' => $this->demande->id,
         ]);
 
         return $this->embedLogo(new MailMessage)
@@ -54,7 +61,7 @@ class BenevoleIntakeConfirmationNotification extends Notification
             ->view('emails.benevole-confirmation', [
                 'prenom' => $this->demande->donnees['prenom'] ?? '',
                 'langue' => $langue,
-                'confirmUrl' => route('benevole.confirmer.show', $this->demande->token),
+                'confirmUrl' => route('benevole.confirmer.show', $this->token),
                 'logoCid' => $this->logoCid(),
             ]);
     }
