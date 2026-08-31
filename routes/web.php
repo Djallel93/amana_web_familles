@@ -241,3 +241,85 @@ Route::middleware(['auth', 'role:gestionnaire_externe'])->prefix('mes-imports')-
     Route::post('/manuel', [\App\Http\Controllers\Admin\ImportsController::class, 'storeManuel'])->name('store-manuel');
     Route::get('/{id}', [\App\Http\Controllers\Admin\ImportsController::class, 'show'])->name('show');
 });
+
+// ═══════════════════════════════════════════════════════════════════════
+// Domaine LIVRAISON (Patch 1 — fondations, ajouté le 31/08/2026)
+// ═══════════════════════════════════════════════════════════════════════
+// Squelette de routes uniquement : chaque contrôleur ci-dessous renvoie
+// pour l'instant resources/views/livraison/a-venir.blade.php — le but de
+// ce patch est de valider que le groupage de rôles compile exactement
+// selon la matrice de droits du prompt du 30/08/2026 §4, avant d'écrire
+// la moindre logique métier (Patch 2 et suivants). Seules des routes GET
+// sont câblées ici ; les routes d'action (POST/PUT/DELETE) arriveront
+// avec la logique de chaque écran, patch par patch.
+
+// ── Admin/gestionnaire : campagnes, sélection éligibilité, suivi contact,
+//    tableau de bord live (accès "Full" sur ces lignes de la matrice) ────
+Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('livraison.')->group(function () {
+    Route::get('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'index'])
+        ->name('campagnes.index');
+
+    Route::get('/contacts', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'index'])
+        ->name('contacts.index');
+
+    Route::get('/tableau-de-bord', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'index'])
+        ->name('tableau-de-bord.index');
+});
+
+// ── Statistiques campagne : admin/gestionnaire Full, benevole lecture
+//    seule (voir matrice §4) — role:benevole cascade déjà depuis
+//    gestionnaire/admin (voir Amana\Shared\Http\Middleware\EnsureRole),
+//    donc un seul groupe couvre les trois. Le contrôleur distinguera
+//    lecture/écriture en interne selon le rôle une fois la logique
+//    écrite (Patch 5).
+Route::middleware(['auth', 'role:benevole'])->prefix('livraison')->name('livraison.')->group(function () {
+    Route::get('/statistiques', [\App\Http\Controllers\Admin\Livraison\StatistiquesController::class, 'index'])
+        ->name('statistiques.index');
+});
+
+// ── Bénévole (= chauffeur potentiel, benevole + BenevoleProfil — "chauffeur"
+//    n'est pas un rôle séparé, voir prompt §4) : sa propre disponibilité,
+//    sa propre tournée uniquement (admin/gestionnaire peuvent voir
+//    n'importe laquelle via le tableau de bord ci-dessus, pas ici) ──────
+Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name('livraison.benevole.')->group(function () {
+    Route::get('/disponibilite', [\App\Http\Controllers\Livraison\DisponibiliteController::class, 'show'])
+        ->name('disponibilite.show');
+
+    Route::get('/ma-route', [\App\Http\Controllers\Livraison\MaRouteController::class, 'show'])
+        ->name('ma-route.show');
+});
+
+// ── Équipes latérales (équipe_reception/pesee/packaging/chargement) —
+//    rôles propres à ce domaine, voir
+//    2026_08_31_000000_register_livraison_roles.php et
+//    App\Http\Middleware\EnsureLivraisonRole. Chaque poste n'a accès qu'à
+//    son propre écran (voir matrice §4 — aucune de ces lignes n'a
+//    d'overlap entre elles en dehors d'admin/gestionnaire, déjà couverts
+//    par le middleware). ──────────────────────────────────────────────
+Route::middleware(['auth', 'livraison_role:equipe_reception'])->prefix('livraison/reception')->name('livraison.reception.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\ReceptionController::class, 'show'])->name('show');
+});
+
+Route::middleware(['auth', 'livraison_role:equipe_pesee'])->prefix('livraison/pesee')->name('livraison.pesee.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\PeseeController::class, 'show'])->name('show');
+});
+
+Route::middleware(['auth', 'livraison_role:equipe_packaging'])->prefix('livraison/packaging')->name('livraison.packaging.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\PackagingController::class, 'index'])->name('index');
+});
+
+Route::middleware(['auth', 'livraison_role:equipe_chargement'])->prefix('livraison/chargement')->name('livraison.chargement.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\ChargementController::class, 'index'])->name('index');
+});
+
+// ── Formulaire public de confirmation famille (aucune authentification) ──
+// Accès scopé strictement par jeton (contact_tokens) — voir
+// App\Http\Controllers\Livraison\ContactConfirmationController. Même
+// schéma de throttle que les autres formulaires publics de l'app
+// ci-dessus (intake/vérification/candidature bénévole). Contrairement à
+// ces confirmations "en un clic", ce formulaire a un vrai second temps
+// (saisie adresse/membres du foyer/créneaux) : la route POST arrivera
+// avec cette logique, en Patch 2.
+Route::get('/livraison/confirmation/{token}', [\App\Http\Controllers\Livraison\ContactConfirmationController::class, 'show'])
+    ->name('livraison.confirmation.show')
+    ->middleware('throttle:20,1');

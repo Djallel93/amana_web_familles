@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 use Amana\Shared\Http\Middleware\EnsureAuthenticated;
 use Amana\Shared\Http\Middleware\EnsureRole;
+use App\Http\Middleware\EnsureLivraisonRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -31,9 +32,16 @@ return Application::configure(basePath: dirname(__DIR__))
         //            Route::middleware('role:gestionnaire')
         //          Un admin a automatiquement accès aux routes gestionnaire.
         //
+        // 'livraison_role' : équivalent local de 'role' ci-dessus, pour les
+        //          4 rôles latéraux propres au domaine livraison
+        //          (equipe_reception/pesee/packaging/chargement) —
+        //          volontairement absents de EnsureRole (amana/shared),
+        //          voir App\Http\Middleware\EnsureLivraisonRole. Usage :
+        //            Route::middleware('livraison_role:equipe_reception')
         $middleware->alias([
             'auth' => EnsureAuthenticated::class,
             'role' => EnsureRole::class,
+            'livraison_role' => EnsureLivraisonRole::class,
             'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         ]);
     })
