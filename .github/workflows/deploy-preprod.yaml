@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       force_fresh_install:
-        description: "DANGER: force 'migrate:fresh --seed' even if this isn't the first deploy. Wipes the database. Normally leave unchecked - first deploy is auto-detected."
+        description: "Unused on preprod (no-op): 'migrate:fresh' is never run here because DB_* and DB_COMMUN_* may share the same physical database on IONOS preprod, and 'migrate:fresh' would drop the shared/commun tables too. First deploy is auto-detected and uses a non-destructive 'migrate' instead."
         required: false
         default: false
         type: boolean
@@ -161,7 +161,6 @@ jobs:
 
       - name: Run post-deploy commands
         env:
-          FORCE_FRESH: ${{ inputs.force_fresh_install }}
           RUN_SHARED_MIGRATION: ${{ inputs.run_shared_migration }}
           PHP_BIN: ${{ vars.IONOS_PHP_CLI_PATH }}
         run: |
@@ -177,10 +176,19 @@ jobs:
               $PHP_BIN artisan amana:migrate-shared --force
             fi
 
+            # NOTE preprod : DB_* et DB_COMMUN_* peuvent pointer vers la MÊME
+            # base (une seule base provisionnée sur IONOS en preprod - voir
+            # .env.preprod.template). `migrate:fresh` fait un DROP de TOUTES
+            # les tables du schéma cible, donc il détruirait aussi les tables
+            # commun (ref_applications, etc.) qui viennent d'être créées par
+            # amana:migrate-shared ci-dessus. On utilise `migrate` (non
+            # destructif) même pour le premier déploiement : sur une base
+            # vide, `migrate` recrée exactement les mêmes tables que
+            # `migrate:fresh`, sans le DROP préalable.
             MARKER="storage/.bootstrapped"
-            if [ "$FORCE_FRESH" = "true" ] || [ ! -f "\$MARKER" ]; then
-              echo "==> First deploy detected (or fresh install forced): running migrate:fresh --seed"
-              $PHP_BIN artisan migrate:fresh --seed --force
+            if [ ! -f "\$MARKER" ]; then
+              echo "==> First deploy detected: running migrate --seed"
+              $PHP_BIN artisan migrate --seed --force
               touch "\$MARKER"
             else
               echo "==> Recurring deploy: running migrate"
