@@ -29,7 +29,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string      $statut_contact          a_contacter|contacte|injoignable|confirme
  * @property int|null    $id_personne_assignee
  * @property string|null $adresse_confirmee
- * @property int|null    $membres_foyer_confirmes
+ * @property string|null $code_postal_confirme
+ * @property string|null $ville_confirmee
+ * @property int|null    $nombre_adulte_confirme
+ * @property int|null    $nombre_enfant_confirme
  * @property int|null    $locked_by
  * @property \Illuminate\Support\Carbon|null $locked_at
  */
@@ -47,13 +50,15 @@ class Livraison extends Model
         'id_benevole_impose',
         'note_besoins_speciaux',
         'statut_contact', 'id_personne_assignee',
-        'adresse_confirmee', 'membres_foyer_confirmes',
+        'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
+        'nombre_adulte_confirme', 'nombre_enfant_confirme',
     ];
 
     protected $casts = [
         'nombre_personnes' => 'integer',
         'poids_kg' => 'decimal:2',
-        'membres_foyer_confirmes' => 'integer',
+        'nombre_adulte_confirme' => 'integer',
+        'nombre_enfant_confirme' => 'integer',
         'locked_at' => 'datetime',
     ];
 

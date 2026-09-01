@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Admin\Livraison;
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Models\Livraison;
+use App\Services\FamilleConfirmationSyncService;
 use App\Support\Creneau;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,11 @@ use Illuminate\Support\Facades\Validator;
  */
 class ContactTrackingController extends Controller
 {
+    public function __construct(
+        private readonly FamilleConfirmationSyncService $syncService,
+    ) {
+    }
+
     public function index(): View
     {
         return view('livraison.a-venir', ['titre' => 'Suivi des contacts']);
@@ -101,7 +107,10 @@ class ContactTrackingController extends Controller
         $validator = Validator::make($request->all(), [
             'statut_contact' => 'required|in:contacte,injoignable,confirme',
             'adresse_confirmee' => 'required_if:statut_contact,confirme|nullable|string|max:500',
-            'membres_foyer_confirmes' => 'required_if:statut_contact,confirme|nullable|integer|min:1|max:30',
+            'code_postal_confirme' => 'nullable|string|max:10',
+            'ville_confirmee' => 'nullable|string|max:150',
+            'nombre_adulte_confirme' => 'required_if:statut_contact,confirme|nullable|integer|min:1|max:30',
+            'nombre_enfant_confirme' => 'required_if:statut_contact,confirme|nullable|integer|min:0|max:30',
             'creneaux' => 'required_if:statut_contact,confirme|nullable|array|min:1',
             'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
         ]);
@@ -111,15 +120,21 @@ class ContactTrackingController extends Controller
         }
 
         $donnees = ['statut_contact' => $request->input('statut_contact')];
+        $donneesConfirmees = null;
 
         if ($request->input('statut_contact') === 'confirme') {
-            $donnees['adresse_confirmee'] = $request->input('adresse_confirmee');
-            $donnees['membres_foyer_confirmes'] = $request->input('membres_foyer_confirmes');
+            $donneesConfirmees = $validator->safe()->only([
+                'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
+                'nombre_adulte_confirme', 'nombre_enfant_confirme',
+            ]);
+            $donnees = [...$donnees, ...$donneesConfirmees];
         }
 
         $livraison->update($donnees);
 
-        if ($request->input('statut_contact') === 'confirme') {
+        if ($donneesConfirmees !== null) {
+            $this->syncService->synchroniser($livraison, $donneesConfirmees);
+
             $livraison->creneaux()->delete();
             foreach ($request->input('creneaux') as $creneau) {
                 $livraison->creneaux()->create(['creneau' => $creneau]);

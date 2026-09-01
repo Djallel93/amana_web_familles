@@ -51,11 +51,34 @@
                         class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px]" required maxlength="500">
                 </div>
 
-                <div>
-                    <label for="membres_foyer_confirmes" class="block text-[13px] font-medium text-ink mb-1">Nombre de personnes dans le foyer</label>
-                    <input type="number" name="membres_foyer_confirmes" id="membres_foyer_confirmes" min="1" max="30"
-                        value="{{ old('membres_foyer_confirmes', $livraison->nombre_personnes) }}"
-                        class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px]" required>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="code_postal_confirme" class="block text-[13px] font-medium text-ink mb-1">Code postal</label>
+                        <input type="text" name="code_postal_confirme" id="code_postal_confirme"
+                            value="{{ old('code_postal_confirme', $famille->code_postal) }}"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px]" maxlength="10">
+                    </div>
+                    <div>
+                        <label for="ville_confirmee" class="block text-[13px] font-medium text-ink mb-1">Ville</label>
+                        <input type="text" name="ville_confirmee" id="ville_confirmee"
+                            value="{{ old('ville_confirmee', $famille->ville_texte) }}"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px]" maxlength="150">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="nombre_adulte_confirme" class="block text-[13px] font-medium text-ink mb-1">Nombre d'adultes</label>
+                        <input type="number" name="nombre_adulte_confirme" id="nombre_adulte_confirme" min="1" max="30"
+                            value="{{ old('nombre_adulte_confirme', $famille->nombre_adulte) }}"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px]" required>
+                    </div>
+                    <div>
+                        <label for="nombre_enfant_confirme" class="block text-[13px] font-medium text-ink mb-1">Nombre d'enfants</label>
+                        <input type="number" name="nombre_enfant_confirme" id="nombre_enfant_confirme" min="0" max="30"
+                            value="{{ old('nombre_enfant_confirme', $famille->nombre_enfant) }}"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px]" required>
+                    </div>
                 </div>
 
                 <div>

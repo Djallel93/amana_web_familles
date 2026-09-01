@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Livraison;
 
 use App\Http\Controllers\Controller;
 use App\Services\ContactTokenService;
+use App\Services\FamilleConfirmationSyncService;
 use App\Support\Creneau;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -22,15 +23,22 @@ use Illuminate\Support\Facades\Validator;
  * écran.
  *
  * Formulaire classique (POST + redirection avec erreurs), pas une île Vue
- * comme le reste de l'app : 3 champs seulement (adresse, membres du
- * foyer, créneaux), une île dédiée n'apporterait rien ici — décision du
- * 31/08/2026, à l'inverse du formulaire d'intake (7 étapes, multilingue,
- * autocomplete Google Places) qui justifie pleinement Vue.
+ * comme le reste de l'app : une île dédiée n'apporterait rien pour un
+ * formulaire de cette taille — décision du 31/08/2026, à l'inverse du
+ * formulaire d'intake (7 étapes, multilingue, autocomplete Google Places)
+ * qui justifie pleinement Vue.
+ *
+ * Champs alignés sur la granularité de familles depuis le 31/08/2026 (voir
+ * 2026_08_31_000200_revise_livraisons_confirmation_fields.php) :
+ * adresse/code_postal/ville séparés (pas un seul champ libre), adulte/
+ * enfant séparés (pas un total unique) — et réécrits vers familles via
+ * FamilleConfirmationSyncService, qui reste la seule source de vérité.
  */
 class ContactConfirmationController extends Controller
 {
     public function __construct(
         private readonly ContactTokenService $tokenService,
+        private readonly FamilleConfirmationSyncService $syncService,
     ) {
     }
 
@@ -69,7 +77,10 @@ class ContactConfirmationController extends Controller
 
         $validator = Validator::make($request->all(), [
             'adresse_confirmee' => 'required|string|max:500',
-            'membres_foyer_confirmes' => 'required|integer|min:1|max:30',
+            'code_postal_confirme' => 'nullable|string|max:10',
+            'ville_confirmee' => 'nullable|string|max:150',
+            'nombre_adulte_confirme' => 'required|integer|min:1|max:30',
+            'nombre_enfant_confirme' => 'required|integer|min:0|max:30',
             'creneaux' => 'required|array|min:1',
             'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
         ]);
@@ -79,12 +90,14 @@ class ContactConfirmationController extends Controller
         }
 
         $livraison = $contactToken->livraison;
-
-        $livraison->update([
-            'adresse_confirmee' => $request->input('adresse_confirmee'),
-            'membres_foyer_confirmes' => $request->input('membres_foyer_confirmes'),
-            'statut_contact' => 'confirme',
+        $donneesConfirmees = $validator->safe()->only([
+            'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
+            'nombre_adulte_confirme', 'nombre_enfant_confirme',
         ]);
+
+        $livraison->update([...$donneesConfirmees, 'statut_contact' => 'confirme']);
+
+        $this->syncService->synchroniser($livraison, $donneesConfirmees);
 
         $livraison->creneaux()->delete();
         foreach ($request->input('creneaux') as $creneau) {
