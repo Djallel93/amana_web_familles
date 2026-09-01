@@ -200,3 +200,14 @@ jobs:
             $PHP_BIN artisan optimize
             $PHP_BIN artisan up
           EOF
+
+      - name: Show deployment URL
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          echo "Deployed preprod to: $APP_URL"
+          {
+            echo "### 🚀 Deployed to Preprod"
+            echo ""
+            echo "**URL:** $APP_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

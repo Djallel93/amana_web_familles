@@ -172,6 +172,11 @@ jobs:
             find . -type d -not -name "logs" -exec chmod 775 {} \;
             chmod -R o+w storage bootstrap/cache
 
+            if [ "$RUN_SHARED_MIGRATION" = "true" ]; then
+              echo "==> Explicitly requested: running amana:migrate-shared (amana_commun)"
+              $PHP_BIN artisan amana:migrate-shared --force
+            fi
+
             MARKER="storage/.bootstrapped"
             if [ "$FORCE_FRESH" = "true" ] || [ ! -f "\$MARKER" ]; then
               echo "==> First deploy detected (or fresh install forced): running migrate:fresh --seed"
@@ -182,13 +187,19 @@ jobs:
               $PHP_BIN artisan migrate --force
             fi
 
-            if [ "$RUN_SHARED_MIGRATION" = "true" ]; then
-              echo "==> Explicitly requested: running amana:migrate-shared (amana_commun)"
-              $PHP_BIN artisan amana:migrate-shared --force
-            fi
-
             $PHP_BIN artisan optimize:clear
             $PHP_BIN artisan storage:link || true
             $PHP_BIN artisan optimize
             $PHP_BIN artisan up
           EOF
+
+      - name: Show deployment URL
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          echo "Deployed production to: $APP_URL"
+          {
+            echo "### 🚀 Deployed to Production"
+            echo ""
+            echo "**URL:** $APP_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
