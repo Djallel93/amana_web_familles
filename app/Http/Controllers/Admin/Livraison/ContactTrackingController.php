@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
+use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Services\FamilleConfirmationSyncService;
 use App\Support\Creneau;
@@ -39,7 +40,9 @@ class ContactTrackingController extends Controller
 
     public function index(): View
     {
-        return view('livraison.a-venir', ['titre' => 'Suivi des contacts']);
+        $campagnes = Campagne::orderByDesc('date_livraison')->get();
+
+        return view('livraison.contacts', ['campagnes' => $campagnes]);
     }
 
     /**

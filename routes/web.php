@@ -258,6 +258,8 @@ Route::middleware(['auth', 'role:gestionnaire_externe'])->prefix('mes-imports')-
 Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('livraison.')->group(function () {
     Route::get('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'index'])
         ->name('campagnes.index');
+    Route::get('/campagnes/{campagne}', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'show'])
+        ->name('campagnes.show');
     Route::post('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'store'])
         ->name('campagnes.store');
     Route::get('/campagnes/{campagne}/eligibles', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'eligibles'])
@@ -309,6 +311,10 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
 Route::middleware(['auth', 'role:benevole'])->prefix('livraison')->name('livraison.')->group(function () {
     Route::get('/statistiques', [\App\Http\Controllers\Admin\Livraison\StatistiquesController::class, 'index'])
         ->name('statistiques.index');
+    Route::get('/statistiques/{campagne}/donnees', [\App\Http\Controllers\Admin\Livraison\StatistiquesController::class, 'donnees'])
+        ->name('statistiques.donnees');
+    Route::post('/statistiques/{campagne}/snapshot', [\App\Http\Controllers\Admin\Livraison\StatistiquesController::class, 'snapshot'])
+        ->name('statistiques.snapshot');
 });
 
 // ── Bénévole (= chauffeur potentiel, benevole + BenevoleProfil — "chauffeur"

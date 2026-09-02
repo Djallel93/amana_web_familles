@@ -43,7 +43,9 @@ class LiveBoardController extends Controller
 
     public function index(): View
     {
-        return view('livraison.a-venir', ['titre' => 'Tableau de bord livraison']);
+        $campagnes = Campagne::orderByDesc('date_livraison')->get();
+
+        return view('livraison.tableau-de-bord', ['campagnes' => $campagnes]);
     }
 
     /**

@@ -35,7 +35,14 @@ class CampagnesController extends Controller
 
     public function index(): View
     {
-        return view('livraison.a-venir', ['titre' => 'Campagnes']);
+        $campagnes = Campagne::orderByDesc('date_livraison')->get();
+
+        return view('livraison.campagnes', ['campagnes' => $campagnes]);
+    }
+
+    public function show(Campagne $campagne): View
+    {
+        return view('livraison.campagne-detail', ['campagne' => $campagne]);
     }
 
     public function store(Request $request): JsonResponse
