@@ -278,6 +278,12 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
 
     Route::get('/tableau-de-bord', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'index'])
         ->name('tableau-de-bord.index');
+    Route::post('/campagnes/{campagne}/generer-routes', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'genererRoutes'])
+        ->name('campagnes.generer-routes');
+    Route::get('/campagnes/{campagne}/routes', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'routes'])
+        ->name('campagnes.routes');
+    Route::get('/campagnes/{campagne}/non-couvertes', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'nonCouvertes'])
+        ->name('campagnes.non-couvertes');
 });
 
 // ── Statistiques campagne : admin/gestionnaire Full, benevole lecture

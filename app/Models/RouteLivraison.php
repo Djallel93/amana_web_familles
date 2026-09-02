@@ -23,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int         $id_campagne
  * @property int         $id_benevole
  * @property int         $id_vehicule_type
- * @property string      $creneau
+ * @property string|null $creneau             null pour une tournée composée uniquement de livraisons imposées (voir RouteGenerationService)
  * @property string      $statut              planifiee|chargement|en_cours|terminee
  * @property float|null  $distance_totale_km
  * @property float|null  $poids_total_kg
