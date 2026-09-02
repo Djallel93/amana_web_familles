@@ -108,6 +108,81 @@ class RouteGenerationService
             ->get();
     }
 
+    /**
+     * Re-clustering SCOPÉ à un pool précis de livraisons orphelines
+     * (voir le prompt §3.3 point 8 : bénévole absent → les livraisons non
+     * livrées de sa tournée repassent non_assignee, puis "admin manually
+     * triggers a re-cluster scoped to just that pool against currently-
+     * available drivers/vehicles — not a full campaign recompute") —
+     * déclenché depuis ChargementController après un incident
+     * benevole_absent, PAS un recalcul de toute la campagne.
+     *
+     * $idBenevoleExclu : le bénévole signalé absent, jamais reproposé
+     * pour ce pool (ses autres tournées de la journée ne sont pas
+     * remises en cause, seule cette ré-affectation l'exclut).
+     *
+     * @param int[] $idsLivraisons
+     * @return array{routes_creees: int, non_couvertes: int}
+     */
+    public function relancerPourLivraisonsOrphelines(Campagne $campagne, array $idsLivraisons, int $idBenevoleExclu): array
+    {
+        $hq = RouteOptimizationConfig::coordonneesHq();
+        if ($hq === null) {
+            throw new \RuntimeException('Coordonnées QG non configurées — voir Paramètres.');
+        }
+
+        $livraisons = Livraison::whereIn('id', $idsLivraisons)
+            ->where('statut', 'non_assignee')
+            ->with('famille:id,latitude,longitude,id_quartier')
+            ->get()
+            ->filter(fn (Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
+            ->values();
+
+        if ($livraisons->isEmpty()) {
+            return ['routes_creees' => 0, 'non_couvertes' => 0];
+        }
+
+        // Toutes les livraisons orphelines d'UNE MÊME tournée partagent le
+        // même créneau (ou aucun, si la tournée était imposée) — voir
+        // resoudreLivraisonsImposees()/genererPourCreneau(), une tournée
+        // n'a jamais qu'un seul créneau. On le retrouve depuis n'importe
+        // laquelle des livraisons du pool.
+        $creneau = $livraisons->first()->etapesRoute()->with('route')->first()?->route?->creneau;
+
+        $vehicules = $creneau !== null
+            ? $this->vehiculesDisponiblesPour($campagne, $creneau)
+            : [];
+        $vehicules = array_values(array_filter($vehicules, fn (array $v) => $v['id_benevole'] !== $idBenevoleExclu));
+
+        if (empty($vehicules)) {
+            return ['routes_creees' => 0, 'non_couvertes' => $livraisons->count()];
+        }
+
+        $plafondPoids = max(array_column($vehicules, 'capacite_kg'));
+        $livraisonsArray = $livraisons->map(fn (Livraison $l) => $this->versArrayClustering($l))->all();
+
+        $clusters = $this->clustering->identifierClusters($livraisonsArray, $hq, $plafondPoids);
+        $resultat = $this->assignment->assigner($clusters, $vehicules);
+
+        $routesCreees = 0;
+        foreach ($resultat['assignations'] as $assignation) {
+            $ordonnees = $this->tsp->optimiser($assignation['cluster']['livraisons'], $hq);
+            $this->creerRoute(
+                $campagne,
+                $assignation['vehicule']['id_benevole'],
+                $assignation['vehicule']['id_vehicule_type'],
+                $creneau,
+                $ordonnees,
+                $hq,
+            );
+            $routesCreees++;
+        }
+
+        $nonCouvertes = array_sum(array_map(fn (array $c) => count($c['livraisons']), $resultat['non_places']));
+
+        return ['routes_creees' => $routesCreees, 'non_couvertes' => $nonCouvertes];
+    }
+
     // ── Livraisons imposées ──────────────────────────────────────────────
 
     /**
@@ -312,7 +387,7 @@ class RouteGenerationService
     ): RouteLivraison {
         return DB::transaction(function () use ($campagne, $idBenevole, $idVehiculeType, $creneau, $livraisonsOrdonnees, $hq) {
             $poidsTotal = array_sum(array_column($livraisonsOrdonnees, 'poids_kg'));
-            $distanceTotale = $this->distanceTotaleRoute($livraisonsOrdonnees, $hq);
+            $distanceTotale = $this->geo->distanceTotaleRoute($livraisonsOrdonnees, $hq);
 
             $route = RouteLivraison::create([
                 'id_campagne' => $campagne->id,
@@ -322,7 +397,7 @@ class RouteGenerationService
                 'statut' => 'planifiee',
                 'distance_totale_km' => $distanceTotale,
                 'poids_total_kg' => $poidsTotal,
-                'lien_maps' => $this->construireLienMaps($livraisonsOrdonnees, $hq),
+                'lien_maps' => $this->geo->construireLienMaps($livraisonsOrdonnees, $hq),
             ]);
 
             foreach ($livraisonsOrdonnees as $index => $livraison) {
@@ -339,60 +414,6 @@ class RouteGenerationService
 
             return $route;
         });
-    }
-
-    /**
-     * Distance totale de la tournée, SANS jambe de retour au QG (voir
-     * TspOptimizationService et GeoCalculationService pour le
-     * raisonnement complet sur ce point).
-     */
-    private function distanceTotaleRoute(array $livraisons, array $hq): float
-    {
-        if (empty($livraisons)) {
-            return 0.0;
-        }
-
-        $distance = $this->geo->distanceHaversine(
-            $hq['lat'], $hq['lng'],
-            $livraisons[0]['latitude'], $livraisons[0]['longitude'],
-        );
-
-        for ($i = 0; $i < count($livraisons) - 1; $i++) {
-            $distance += $this->geo->distanceHaversine(
-                $livraisons[$i]['latitude'], $livraisons[$i]['longitude'],
-                $livraisons[$i + 1]['latitude'], $livraisons[$i + 1]['longitude'],
-            );
-        }
-
-        return $distance;
-    }
-
-    /**
-     * Lien Google Maps multi-arrêts, QG en point de départ, PAS de retour
-     * au QG en destination finale (cohérent avec l'absence de jambe de
-     * retour partout ailleurs) — la dernière livraison est la destination.
-     */
-    private function construireLienMaps(array $livraisons, array $hq): string
-    {
-        if (empty($livraisons)) {
-            return '';
-        }
-
-        $origine = "{$hq['lat']},{$hq['lng']}";
-        $destination = "{$livraisons[count($livraisons) - 1]['latitude']},{$livraisons[count($livraisons) - 1]['longitude']}";
-
-        $etapesIntermediaires = array_slice($livraisons, 0, -1);
-        $waypoints = implode('|', array_map(
-            fn (array $l) => "{$l['latitude']},{$l['longitude']}",
-            $etapesIntermediaires,
-        ));
-
-        $url = "https://www.google.com/maps/dir/?api=1&origin={$origine}&destination={$destination}";
-        if ($waypoints !== '') {
-            $url .= '&waypoints=' . $waypoints;
-        }
-
-        return $url;
     }
 
     /**

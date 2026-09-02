@@ -284,6 +284,20 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.routes');
     Route::get('/campagnes/{campagne}/non-couvertes', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'nonCouvertes'])
         ->name('campagnes.non-couvertes');
+    Route::get('/campagnes/{campagne}/incidents', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'incidents'])
+        ->name('campagnes.incidents');
+    Route::post('/incidents/{incident}/resoudre', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'resoudreIncident'])
+        ->name('incidents.resoudre');
+    Route::post('/routes/{route}/ajouter-livraison', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'ajouterLivraison'])
+        ->name('routes.ajouter-livraison');
+    Route::delete('/routes/{route}/etapes/{etape}', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'retirerLivraison'])
+        ->name('routes.retirer-livraison');
+    Route::post('/routes/{route}/reassigner', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'reassignerRoute'])
+        ->name('routes.reassigner');
+    Route::post('/routes/{route}/diviser', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'diviserRoute'])
+        ->name('routes.diviser');
+    Route::post('/campagnes/{campagne}/routes-personnalisees', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'construireRoutePersonnalisee'])
+        ->name('routes.personnalisee');
 });
 
 // ── Statistiques campagne : admin/gestionnaire Full, benevole lecture
@@ -309,6 +323,14 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
 
     Route::get('/ma-route', [\App\Http\Controllers\Livraison\MaRouteController::class, 'show'])
         ->name('ma-route.show');
+    Route::post('/etapes/{etape}/confirmer', [\App\Http\Controllers\Livraison\MaRouteController::class, 'confirmerEtape'])
+        ->name('etapes.confirmer');
+    Route::get('/etapes/{etape}/scan', [\App\Http\Controllers\Livraison\MaRouteController::class, 'confirmerScan'])
+        ->name('etapes.scan');
+    Route::post('/etapes/{etape}/ignoree', [\App\Http\Controllers\Livraison\MaRouteController::class, 'signalerIgnoree'])
+        ->name('etapes.ignoree');
+    Route::post('/routes/{route}/nouvelle-tournee', [\App\Http\Controllers\Livraison\MaRouteController::class, 'demanderNouvelleTournee'])
+        ->name('routes.nouvelle-tournee');
 });
 
 // ── Équipes latérales (équipe_reception/pesee/packaging/chargement) —
@@ -319,19 +341,27 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
 //    d'overlap entre elles en dehors d'admin/gestionnaire, déjà couverts
 //    par le middleware). ──────────────────────────────────────────────
 Route::middleware(['auth', 'livraison_role:equipe_reception'])->prefix('livraison/reception')->name('livraison.reception.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\ReceptionController::class, 'show'])->name('show');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'show'])->name('show');
+    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'enregistrer'])->name('enregistrer');
 });
 
 Route::middleware(['auth', 'livraison_role:equipe_pesee'])->prefix('livraison/pesee')->name('livraison.pesee.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\PeseeController::class, 'show'])->name('show');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'show'])->name('show');
+    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'enregistrer'])->name('enregistrer');
 });
 
 Route::middleware(['auth', 'livraison_role:equipe_packaging'])->prefix('livraison/packaging')->name('livraison.packaging.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\PackagingController::class, 'index'])->name('index');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PackagingController::class, 'index'])->name('index');
+    Route::post('/{livraison}/pret', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerPret'])->name('marquer-pret');
+    Route::get('/{campagne}/feuille-preparation', [\App\Http\Controllers\Livraison\PackagingController::class, 'feuillePreparation'])->name('feuille-preparation');
+    Route::get('/etiquettes/{livraison}', [\App\Http\Controllers\Livraison\PackagingController::class, 'etiquettes'])->name('etiquettes');
 });
 
 Route::middleware(['auth', 'livraison_role:equipe_chargement'])->prefix('livraison/chargement')->name('livraison.chargement.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\ChargementController::class, 'index'])->name('index');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ChargementController::class, 'index'])->name('index');
+    Route::post('/routes/{route}/confirmer', [\App\Http\Controllers\Livraison\ChargementController::class, 'confirmer'])->name('confirmer');
+    Route::post('/routes/{route}/benevole-absent', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerBenevoleAbsent'])->name('benevole-absent');
+    Route::post('/routes/{route}/capacite', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerCapacite'])->name('capacite');
 });
 
 // ── Formulaire public de confirmation famille (aucune authentification) ──

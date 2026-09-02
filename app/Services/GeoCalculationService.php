@@ -139,4 +139,69 @@ class GeoCalculationService
             'lng' => $n > 0 ? array_sum(array_column($livraisons, 'longitude')) / $n : 0.0,
         ];
     }
+
+    /**
+     * Distance totale d'une tournée déjà ordonnée, SANS jambe de retour
+     * au QG (voir TspOptimizationService et le docblock de cette classe
+     * pour le raisonnement complet). Utilisée à la fois par
+     * RouteGenerationService (génération) et RouteMutationService
+     * (ajout/retrait/scission/tournée personnalisée) — un seul endroit
+     * pour ce calcul, plutôt qu'un doublon entre les deux.
+     *
+     * @param array<int, array{latitude: float, longitude: float}> $livraisons
+     * @param array{lat: float, lng: float} $hq
+     */
+    public function distanceTotaleRoute(array $livraisons, array $hq): float
+    {
+        if (empty($livraisons)) {
+            return 0.0;
+        }
+
+        $distance = $this->distanceHaversine(
+            $hq['lat'], $hq['lng'],
+            $livraisons[0]['latitude'], $livraisons[0]['longitude'],
+        );
+
+        for ($i = 0; $i < count($livraisons) - 1; $i++) {
+            $distance += $this->distanceHaversine(
+                $livraisons[$i]['latitude'], $livraisons[$i]['longitude'],
+                $livraisons[$i + 1]['latitude'], $livraisons[$i + 1]['longitude'],
+            );
+        }
+
+        return $distance;
+    }
+
+    /**
+     * Lien Google Maps multi-arrêts, QG en point de départ, PAS de retour
+     * au QG en destination finale (cohérent avec l'absence de jambe de
+     * retour partout ailleurs) — la dernière livraison est la
+     * destination. Partagé entre RouteGenerationService et
+     * RouteMutationService, même raisonnement que distanceTotaleRoute().
+     *
+     * @param array<int, array{latitude: float, longitude: float}> $livraisons
+     * @param array{lat: float, lng: float} $hq
+     */
+    public function construireLienMaps(array $livraisons, array $hq): string
+    {
+        if (empty($livraisons)) {
+            return '';
+        }
+
+        $origine = "{$hq['lat']},{$hq['lng']}";
+        $destination = "{$livraisons[count($livraisons) - 1]['latitude']},{$livraisons[count($livraisons) - 1]['longitude']}";
+
+        $etapesIntermediaires = array_slice($livraisons, 0, -1);
+        $waypoints = implode('|', array_map(
+            fn (array $l) => "{$l['latitude']},{$l['longitude']}",
+            $etapesIntermediaires,
+        ));
+
+        $url = "https://www.google.com/maps/dir/?api=1&origin={$origine}&destination={$destination}";
+        if ($waypoints !== '') {
+            $url .= '&waypoints=' . $waypoints;
+        }
+
+        return $url;
+    }
 }
