@@ -29,7 +29,8 @@
                 </a>
             </div>
         @else
-            <div class="overflow-x-auto">
+            {{-- Tableau desktop (≥ md) — voir carte mobile juste après --}}
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
                         <tr>
@@ -66,6 +67,29 @@
                     </tbody>
                 </table>
             </div>
+
+            {{-- Cartes mobile (< md) — 04/09/2026 --}}
+            <div class="md:hidden divide-y divide-surface-3">
+                @foreach($imports as $import)
+                    <a href="{{ route('admin.imports.show', $import->id) }}"
+                        class="block px-4 py-3.5 no-underline text-inherit active:bg-surface-2 transition-colors">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <div class="text-[13.5px] text-ink font-semibold">{{ $import->created_at?->format('d/m/Y H:i') }}</div>
+                            <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border
+                                         {{ $import->source === 'csv' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-stone-100 text-stone-700 border-stone-300' }}">
+                                {{ $import->source === 'csv' ? '📄 CSV' : '✍️ Manuel' }}
+                            </span>
+                        </div>
+                        <div class="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-muted">
+                            <div>{{ $import->rows_count }} ligne{{ $import->rows_count !== 1 ? 's' : '' }}</div>
+                            <div class="text-emerald-600 font-semibold">{{ $import->rows_success_count }} réussies</div>
+                            <div class="{{ $import->rows_error_count > 0 ? 'text-rose-600 font-semibold' : 'text-ink-faint' }}">{{ $import->rows_error_count }} erreurs</div>
+                            <div class="text-ink-faint">{{ $import->rows_skipped_count }} ignorées</div>
+                        </div>
+                    </a>
+                @endforeach
+            </div>
+
             <div class="px-4 py-3 border-t border-surface-3">
                 {{ $imports->links() }}
             </div>

@@ -752,12 +752,16 @@ onMounted(() => {
 
         <form v-else-if="famille" @submit.prevent="enregistrer" class="space-y-4">
 
-            <!-- Barre d'onglets -->
-            <div class="flex gap-1 border-b border-surface-3 -mt-1 mb-1" role="tablist">
+            <!-- Barre d'onglets — flex-wrap + gap-y (04/09/2026) : 5 onglets
+                 (voir TABS plus haut) débordaient sur un téléphone étroit
+                 avec le simple "flex gap-1" d'origine, pas de retour à la
+                 ligne. .btn-touch remplace min-h-[40px] (36px de trop pour
+                 la cible tactile de 44px, voir amana_shared/docs/mobile-patterns.md). -->
+            <div class="flex flex-wrap gap-1 border-b border-surface-3 -mt-1 mb-1" role="tablist">
                 <button v-for="tab in TABS" :key="tab.id" type="button" role="tab"
                     :aria-selected="activeTab === tab.id"
                     @click="activeTab = tab.id"
-                    class="relative flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-semibold rounded-t-md transition-colors cursor-pointer min-h-[40px]"
+                    class="btn-touch relative flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-semibold rounded-t-md transition-colors cursor-pointer"
                     :class="activeTab === tab.id
                         ? 'text-accent border-b-2 border-accent -mb-px'
                         : 'text-ink-muted hover:text-ink hover:bg-surface-2'">
@@ -778,7 +782,11 @@ onMounted(() => {
                     <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
                         <span aria-hidden="true">👤</span> Identité &amp; contact
                     </h3>
-                    <div class="grid grid-cols-2 gap-3">
+                    <!-- grid-cols-1 sm:grid-cols-2 (04/09/2026, voir
+                         amana_shared/docs/mobile-patterns.md) — l'ancien
+                         grid-cols-2 fixe squeezait chaque champ à ~140px
+                         sur un téléphone étroit. -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Prénom</label>
                             <input v-model="famille.prenom" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
@@ -810,7 +818,7 @@ onMounted(() => {
                     <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
                         <span aria-hidden="true">👨‍👩‍👧‍👦</span> Composition du foyer
                     </h3>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Adultes</label>
                             <input v-model.number="famille.nombre_adulte" type="number" min="0" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
@@ -819,7 +827,11 @@ onMounted(() => {
                             <label class="block text-xs font-semibold text-ink mb-1">Enfants</label>
                             <input v-model.number="famille.nombre_enfant" type="number" min="0" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
                         </div>
-                        <label class="col-span-2 flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
+                        <!-- sm:col-span-2 (04/09/2026) : col-span-2 seul
+                             débordait de la grille passée à 1 colonne sous
+                             sm (un span de 2 pistes dans une grille qui n'en
+                             a qu'une force une piste implicite en trop). -->
+                        <label class="sm:col-span-2 flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
                             :class="famille.etudiant ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
                             <input v-model="famille.etudiant" type="checkbox" class="w-4 h-4 accent-accent">
                             🎓 Étudiant(e)
@@ -855,7 +867,7 @@ onMounted(() => {
                             </button>
                             <span v-if="errors.adresse" class="text-[11px] text-rose-600">{{ errors.adresse }}</span>
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Code postal</label>
                                 <input v-model="famille.code_postal" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
@@ -899,7 +911,7 @@ onMounted(() => {
                         <span aria-hidden="true">🛏️</span> Hébergement
                     </h3>
                     <div class="space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
                                 :class="famille.se_deplace ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
                                 <input v-model="famille.se_deplace" type="checkbox" class="w-4 h-4 accent-accent">
@@ -1066,7 +1078,7 @@ onMounted(() => {
                         <span aria-hidden="true">🚦</span> Statut &amp; criticité
                     </h3>
                     <div class="space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Criticité (0-5)</label>
                                 <input v-model.number="famille.criticite" type="number" min="0" max="5" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">

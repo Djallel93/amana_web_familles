@@ -304,7 +304,11 @@
                     @endphp
                     <div class="flex flex-wrap items-center gap-1.5">
                         @for ($i = 0; $i <= 5; $i++)
-                            <label class="w-9 h-9 flex items-center justify-center border border-ink-faint rounded-md text-[13px] font-bold text-ink-muted cursor-pointer select-none transition-colors {{ $criticitePaliers[$i] }}">
+                            {{-- .btn-touch (04/09/2026) : le w-9 h-9 d'origine
+                                 ne fait que 36px, sous la cible tactile de
+                                 44px — min-height/min-width de .btn-touch
+                                 prime sur les width/height Tailwind fixes. --}}
+                            <label class="btn-touch w-9 h-9 flex items-center justify-center border border-ink-faint rounded-md text-[13px] font-bold text-ink-muted cursor-pointer select-none transition-colors {{ $criticitePaliers[$i] }}">
                                 <input type="checkbox" name="criticite[]" value="{{ $i }}" {{ in_array((string) $i, $criticiteSelectionnees, true) ? 'checked' : '' }} class="sr-only">
                                 {{ $i }}
                             </label>
@@ -348,6 +352,22 @@
              bandeau Filtres actifs ci-dessous. --}}
         </details>
     </form>
+
+    <script>
+        // Filtres repliés par défaut sous 640px (04/09/2026) — sur mobile,
+        // les trois groupes de filtres ouverts par défaut se scrollent
+        // entièrement avant d'atteindre la moindre donnée. Ne touche qu'à
+        // l'état initial au chargement (matchMedia, même style vanilla JS
+        // que le sélecteur de colonnes plus bas) : l'utilisateur reste
+        // libre de rouvrir/refermer ensuite, et le comportement desktop
+        // (ouvert par défaut) n'est pas modifié.
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.matchMedia('(max-width: 639px)').matches) {
+                var filtresDetails = document.querySelector('#filtres-form details.group');
+                if (filtresDetails) filtresDetails.removeAttribute('open');
+            }
+        });
+    </script>
 
     {{-- ── Puces de filtres actifs + export CSV ──
          Même niveau visuel que demandé le 13/08/2026 : le bouton d'export
@@ -622,8 +642,11 @@
 
     {{-- ── Sélecteur de colonnes — pas de persistance (toujours réinitialisé
          au rechargement, décision du 12/08/2026), pur JS/CSS via [hidden]
-         sur les <th>/<td> correspondants (data-col). ── --}}
-    <div class="flex justify-end mb-2">
+         sur les <th>/<td> correspondants (data-col). Masqué sous md
+         (04/09/2026) : il n'a plus de sens une fois la carte mobile en
+         place juste en dessous, qui n'affiche que les colonnes 'defaut'
+         et ne lit jamais ces [hidden]. ── --}}
+    <div class="hidden md:flex justify-end mb-2">
         <details class="relative">
             <summary class="cursor-pointer list-none px-3 py-1.5 border border-surface-border bg-surface hover:bg-surface-2 text-ink-muted text-[12px] font-semibold rounded-md inline-flex items-center gap-1 select-none transition-colors">
                 Colonnes <span class="text-[10px]">▾</span>
@@ -655,7 +678,13 @@
                 </p>
             </div>
         @else
-            <div class="overflow-x-auto">
+            {{-- Tableau desktop (≥ md) — 04/09/2026 : ajout de la carte
+                 mobile juste après ce bloc pour les écrans < md, même
+                 convention que personnes/index.blade.php et PlanningGrid.vue
+                 (voir amana_shared/docs/mobile-patterns.md). Le tableau et
+                 son balisage/tri restent inchangés, seul le wrapper passe de
+                 overflow-x-auto seul à hidden md:block overflow-x-auto. --}}
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
                         <tr>
@@ -752,6 +781,63 @@
                         @endforeach
                     </tbody>
                 </table>
+            </div>
+
+            {{-- Cartes mobile (< md) — 04/09/2026 : mêmes données que le
+                 tableau ci-dessus mais uniquement les colonnes 'defaut'
+                 (le sélecteur "Colonnes" est masqué sous md, voir plus bas
+                 — pas de sens de basculer des colonnes sur une carte),
+                 anatomie standard (voir amana_shared/docs/mobile-patterns.md) :
+                 avatar + ligne d'identité + badge de statut en dessous +
+                 détails en grid-cols-1 sm:grid-cols-2. Même interaction
+                 tap-pour-ouvrir que la ligne du tableau (onclick
+                 openFamilleDetail), pas de boutons d'action dédiés ici. --}}
+            <div class="md:hidden divide-y divide-surface-3">
+                @foreach($familles as $famille)
+                    @php $avatarStyle = $avatarPalette[$famille->id % count($avatarPalette)]; @endphp
+                    <div onclick="openFamilleDetail({{ $famille->id }})"
+                        class="px-4 py-3.5 border-l-4 {{ $etatColorsListere[$famille->etat_dossier] ?? 'border-l-gray-300' }} active:bg-surface-2 transition-colors duration-150 cursor-pointer {{ $famille->probleme_traitement ? 'bg-rose-50/60' : '' }}">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <div class="w-9 h-9 rounded-full {{ $avatarStyle['bg'] }} {{ $avatarStyle['text'] }} flex items-center justify-center text-[12px] font-bold flex-shrink-0">
+                                    {{ strtoupper(mb_substr($famille->prenom, 0, 1) . mb_substr($famille->nom, 0, 1)) }}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="font-semibold text-[13.5px] text-ink truncate">{{ $famille->prenom }} {{ $famille->nom }}</div>
+                                    <div class="text-[11.5px] text-ink-muted">#{{ $famille->id }} · {{ $famille->nombre_foyer }} pers.</div>
+                                </div>
+                            </div>
+                            <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border {{ $etatColors[$famille->etat_dossier] ?? '' }}">
+                                {{ $famille->etat_dossier }}
+                            </span>
+                        </div>
+                        @if($famille->probleme_traitement)
+                            <div class="text-[11px] text-rose-600 font-semibold mb-2">⚠️ {{ $famille->probleme_traitement }}</div>
+                        @endif
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-ink-muted mb-2.5">
+                            <div class="truncate">📞 {{ $famille->telephone_formate }}</div>
+                            <div class="truncate">📍 {{ $famille->adresse_complete }}</div>
+                            @if($famille->quartier || $famille->ville)
+                                <div class="truncate">🏙️ {{ $famille->quartier->nom ?? '—' }}@if($famille->ville), {{ $famille->ville }}@endif</div>
+                            @endif
+                        </div>
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-1" title="Criticité {{ $famille->criticite }}/5">
+                                @for ($i = 1; $i <= 5; $i++)
+                                    <span class="w-2 h-2 rounded-full {{ $i <= $famille->criticite ? ($famille->criticite >= 4 ? 'bg-rose-500' : ($famille->criticite >= 2 ? 'bg-amber-500' : 'bg-emerald-500')) : 'bg-surface-3' }}"></span>
+                                @endfor
+                            </div>
+                            <div class="flex gap-1 flex-wrap justify-end">
+                                @if($famille->zakat_el_fitr)
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-accent/10 text-accent-dark">Zakat El Fitr</span>
+                                @endif
+                                @if($famille->sadaqa)
+                                    <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Sadaqa</span>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                @endforeach
             </div>
 
             <div class="px-4 py-3 border-t border-surface-3">

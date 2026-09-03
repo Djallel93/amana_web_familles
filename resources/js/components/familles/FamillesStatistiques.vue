@@ -234,7 +234,13 @@ onUnmounted(detruireGraphiques);
              familles/index.blade.php, alors que ce dernier en avait) : même
              traitement rond + emoji que l'ancien bandeau, pour toutes les
              cartes et pas seulement celle migrée. -->
-        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <!-- grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 (04/09/2026) — aligné
+             sur amana_web_planning/resources/views/statistics/index.blade.php,
+             qui a déjà cette même rangée de cartes KPI avec ce même palier
+             intermédiaire (voir amana_shared/docs/mobile-patterns.md).
+             L'ancien grid-cols-2 lg:grid-cols-6 sautait directement de 2 à 6
+             colonnes, sans étape sur tablette. -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
                 <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🏠</div>
                 <div class="min-w-0">
@@ -294,7 +300,11 @@ onUnmounted(detruireGraphiques);
              pas rendus ici. -->
         <div>
             <h3 class="text-[11px] font-bold text-ink-muted uppercase tracking-wide mb-2">Caractéristiques</h3>
-            <div class="grid grid-cols-3 gap-3">
+            <!-- grid-cols-1 sm:grid-cols-3 (04/09/2026) — c'était le seul
+                 grid-cols-3 de ce fichier sans aucun palier responsive, les
+                 3 cartes se retrouvaient compressées côte à côte sur un
+                 téléphone étroit. -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🚶</div>
                     <div class="min-w-0">
