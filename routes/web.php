@@ -94,6 +94,18 @@ Route::get('/devenir-benevole/confirmer/{token}', [\App\Http\Controllers\Benevol
     ->name('benevole.confirmer.show')
     ->middleware('throttle:20,1');
 
+// ── Référentiel véhicules en lecture (ajouté le 03/09/2026) — public et
+//    sans rôle : sert BenevoleForm.vue (candidature bénévole, page
+//    ci-dessus, non authentifiée) et les pickers véhicule des écrans
+//    livraison authentifiés. N'expose rien de plus que ce que
+//    data-vehicules exposait déjà en clair sur /devenir-benevole avant
+//    cet ajout (capacite_kg/nombre_part_max) — voir VehiculeTypesController::index().
+//    Écriture (update) reste réservée au groupe role:gestionnaire
+//    ci-dessous, inchangée.
+Route::get('/vehicules', [\App\Http\Controllers\VehiculeTypesController::class, 'index'])
+    ->name('vehicules.index')
+    ->middleware('throttle:60,1');
+
 // ── Dossiers familles (staff — tous rôles) ───────────────────────────────
 Route::middleware('auth')->group(function () {
     Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
@@ -300,6 +312,15 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('routes.diviser');
     Route::post('/campagnes/{campagne}/routes-personnalisees', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'construireRoutePersonnalisee'])
         ->name('routes.personnalisee');
+
+    // ── Pickers de recherche pour les écrans Vue (ajouté le 03/09/2026,
+    //    voir App\Http\Controllers\Admin\Livraison\PickersController) —
+    //    dans ce groupe role:gestionnaire plutôt que dans le groupe
+    //    role:admin de admin.personnes.* : l'assignation de contact et la
+    //    réassignation de tournée sont utilisables par un gestionnaire,
+    //    pas seulement un admin. ────────────────────────────────────────
+    Route::get('/personnes/recherche', [\App\Http\Controllers\Admin\Livraison\PickersController::class, 'personnes'])
+        ->name('personnes.recherche');
 });
 
 // ── Statistiques campagne : admin/gestionnaire Full, benevole lecture

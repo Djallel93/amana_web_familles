@@ -80,6 +80,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_vehicule: 'Votre véhicule',
         vehicule_question: 'Quel type de véhicule possédez-vous ?',
         vehicule_hint: 'La capacité de charge et le nombre de colis transportables sont définis par notre équipe pour chaque type de véhicule — indiqués ici à titre informatif.',
+        vehicule_loading: 'Chargement des types de véhicule…',
         vehicule_empty: "Aucun type de véhicule n'est disponible pour le moment. Merci de réessayer plus tard ou de nous contacter.",
         capacite_kg: 'Capacité indicative', nombre_part_max: 'colis',
 
@@ -123,6 +124,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_vehicule: 'سيارتكم',
         vehicule_question: 'ما نوع السيارة التي تملكونها؟',
         vehicule_hint: 'يتم تحديد الحمولة القصوى وعدد الطرود القابلة للنقل من قبل فريقنا لكل نوع سيارة — معروضة هنا للعلم فقط.',
+        vehicule_loading: 'جارٍ تحميل أنواع السيارات…',
         vehicule_empty: 'لا يوجد حاليًا أي نوع سيارة متاح. يرجى المحاولة لاحقًا أو التواصل معنا.',
         capacite_kg: 'الحمولة التقريبية', nombre_part_max: 'طرود',
 
@@ -166,6 +168,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_vehicule: 'Your vehicle',
         vehicule_question: 'What type of vehicle do you have?',
         vehicule_hint: 'Load capacity and the number of parcels you can carry are defined by our team for each vehicle type — shown here for information only.',
+        vehicule_loading: 'Loading vehicle types…',
         vehicule_empty: 'No vehicle type is available right now. Please try again later or contact us.',
         capacite_kg: 'Approx. capacity', nombre_part_max: 'parcels',
 
@@ -202,6 +205,11 @@ const storeUrl = ref('');
 const refusUrl = ref('');
 const secteurs = ref<Secteur[]>([]);
 const vehicules = ref<Vehicule[]>([]);
+// Chargées via fetch('/vehicules') depuis le 03/09/2026 (remplace le
+// data-vehicules embarqué côté Blade) — vehiculesChargement distingue
+// "en cours de chargement" de "aucun véhicule configuré" pour ne pas
+// afficher t.vehicule_empty pendant le fetch initial.
+const vehiculesChargement = ref(true);
 const organisations = ref<{ id: number; code: string; nom: string }[]>([]);
 
 const phase = ref<Phase>('consent');
@@ -440,16 +448,30 @@ onMounted(() => {
             secteurs.value = [];
         }
         try {
-            vehicules.value = JSON.parse(el.dataset.vehicules ?? '[]');
-        } catch {
-            vehicules.value = [];
-        }
-        try {
             organisations.value = JSON.parse(el.dataset.organisations ?? '[]');
         } catch {
             organisations.value = [];
         }
     }
+
+    fetch('/vehicules', { headers: { Accept: 'application/json' } })
+        .then((res) => {
+            if (!res.ok) throw new Error(String(res.status));
+            return res.json();
+        })
+        .then((donnees) => {
+            vehicules.value = donnees;
+        })
+        .catch(() => {
+            // Traité comme "aucun véhicule disponible" côté template
+            // (t.vehicule_empty invite déjà à réessayer/nous contacter,
+            // ce qui reste le bon message que la liste soit vide ou que
+            // le fetch ait échoué) plutôt qu'un état d'erreur distinct.
+            vehicules.value = [];
+        })
+        .finally(() => {
+            vehiculesChargement.value = false;
+        });
 });
 </script>
 
@@ -543,7 +565,10 @@ onMounted(() => {
             <h2 class="text-[15px] font-bold text-ink mb-4">{{ t.step_vehicule }}</h2>
             <p class="text-[13px] text-ink-muted mb-1">{{ t.vehicule_question }} *</p>
             <p class="text-[11.5px] text-ink-faint mb-3">{{ t.vehicule_hint }}</p>
-            <div v-if="selectableVehicules.length === 0" class="text-[12.5px] text-rose-600 bg-rose-50 border border-rose-200 rounded-md px-3 py-2.5">
+            <div v-if="vehiculesChargement" class="text-[12.5px] text-ink-muted px-3 py-2.5">
+                {{ t.vehicule_loading }}
+            </div>
+            <div v-else-if="selectableVehicules.length === 0" class="text-[12.5px] text-rose-600 bg-rose-50 border border-rose-200 rounded-md px-3 py-2.5">
                 {{ t.vehicule_empty }}
             </div>
             <div v-else class="grid grid-cols-2 gap-2">

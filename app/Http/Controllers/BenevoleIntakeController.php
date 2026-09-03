@@ -7,7 +7,6 @@ namespace App\Http\Controllers;
 
 use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Setting;
-use Amana\Shared\Models\VehiculeType;
 use Amana\Shared\Services\PersonneIntakeService;
 use App\Models\BenevoleConsentRefusal;
 use App\Models\Organisation;
@@ -71,7 +70,10 @@ class BenevoleIntakeController extends Controller
                 ])
                 ->sortBy('libelle')
                 ->values(),
-            'vehicules' => VehiculeType::orderBy('id')->get(['id', 'type', 'capacite_kg', 'nombre_part_max']),
+            // 'vehicules' retiré le 03/09/2026 : BenevoleForm.vue charge
+            // désormais ce référentiel via fetch('/vehicules') (voir
+            // VehiculeTypesController::index()), plus besoin de le passer
+            // à la vue — voir aussi resources/views/benevole/show.blade.php.
             // Question "organisation" ajoutée le 28/08/2026 — obligatoire,
             // une seule organisation par bénévole (contrairement au dossier
             // famille, pas de dédup multi-organisation ici, voir migration

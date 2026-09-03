@@ -86,5 +86,22 @@ return [
         ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],
         ['route' => 'admin.activite.index', 'label' => "Statistiques d'activité", 'icon' => '📈', 'role' => 'admin', 'route_pattern' => 'admin.activite.*'],
         ['route' => 'admin.journal.index', 'label' => "Journal d'audit", 'icon' => '📜', 'role' => 'admin', 'route_pattern' => 'admin.journal.*'],
+
+        // ── Livraison (ajouté le 03/09/2026, migration frontend des
+        //    écrans admin/gestionnaire du domaine livraison) — section à
+        //    part plutôt que rattachée à "Dossiers" ou "Administration" :
+        //    audience différente (gestionnaire pour l'essentiel, lecture
+        //    seule bénévole sur Statistiques) qui ne correspond au
+        //    gabarit de rôle d'aucune des deux sections existantes.
+        //    Entrées ajoutées au fil des patches suivants au fur et à
+        //    mesure que chaque écran est reconstruit en Vue — seule
+        //    Campagnes est livrée à ce stade, Contacts/Tableau de bord/
+        //    Statistiques suivront pour éviter un lien vers un écran pas
+        //    encore reconstruit. ─────────────────────────────────────
+        ['section' => 'Livraison'],
+        ['route' => 'livraison.campagnes.index', 'label' => 'Campagnes', 'icon' => '🎁', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.campagnes.*'],
+        ['route' => 'livraison.contacts.index', 'label' => 'Suivi des contacts', 'icon' => '📞', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.contacts.*'],
+        ['route' => 'livraison.tableau-de-bord.index', 'label' => 'Tableau de bord', 'icon' => '🗺️', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.tableau-de-bord.*'],
+        ['route' => 'livraison.statistiques.index', 'label' => 'Statistiques', 'icon' => '📊', 'role' => null, 'route_pattern' => 'livraison.statistiques.*'],
     ],
 ];

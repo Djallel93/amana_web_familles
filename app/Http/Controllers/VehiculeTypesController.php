@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use Amana\Shared\Models\VehiculeType;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -21,10 +22,17 @@ use Illuminate\Http\Request;
  * 24/08/2026 : admin ET gestionnaire doivent pouvoir éditer ces valeurs,
  * ce que le groupe /admin (role:admin uniquement) ne permet pas.
  *
- * Pas de page dédiée (index() retiré le 26/08/2026) : le formulaire vit
- * directement dans la page Paramètres (resources/views/settings/index.blade.php,
- * voir SettingsController::index()) plutôt que dans une entrée de menu à
- * part — seul update() reste routé ici.
+ * Pas de page Blade dédiée : le formulaire d'édition vit directement dans
+ * la page Paramètres (resources/views/settings/index.blade.php, voir
+ * SettingsController::index()) plutôt que dans une entrée de menu à part.
+ *
+ * index() réintroduit le 03/09/2026 (retiré le 26/08/2026 en tant que
+ * vue, ré-ajouté ici en JSON) : source unique pour BenevoleForm.vue
+ * (candidature bénévole publique, remplace l'ancien data-vehicules
+ * embarqué dans resources/views/benevole/show.blade.php) et pour les
+ * pickers véhicule des écrans livraison — voir routes/web.php,
+ * GET /vehicules, public et sans rôle (aucune donnée nouvellement
+ * exposée, cf. commentaire sur la route).
  *
  * Pas de create/delete : le référentiel est un ensemble fixe de 8 lignes
  * (voir VehiculeTypesSeeder) — seules capacite_kg et nombre_part_max sont
@@ -34,6 +42,13 @@ use Illuminate\Http\Request;
  */
 class VehiculeTypesController extends Controller
 {
+    public function index(): JsonResponse
+    {
+        return response()->json(
+            VehiculeType::orderBy('id')->get(['id', 'type', 'capacite_kg', 'nombre_part_max']),
+        );
+    }
+
     public function update(Request $request): RedirectResponse
     {
         $validated = $request->validate([

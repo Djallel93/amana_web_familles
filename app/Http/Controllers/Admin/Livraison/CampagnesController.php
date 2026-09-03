@@ -7,6 +7,8 @@ namespace App\Http\Controllers\Admin\Livraison;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
+use App\Models\Organisation;
+use App\Models\Quartier;
 use App\Services\BenevoleDisponibiliteService;
 use App\Services\LivraisonGenerationService;
 use Illuminate\Contracts\View\View;
@@ -42,7 +44,17 @@ class CampagnesController extends Controller
 
     public function show(Campagne $campagne): View
     {
-        return view('livraison.campagne-detail', ['campagne' => $campagne]);
+        // quartiers/organisations passés ici (ajouté le 03/09/2026) pour
+        // les selects du filtre d'éligibilité côté Vue — même requête et
+        // même ordre que FamillesController::index() pour son propre
+        // filtre quartier/organisation, réutilisés tels quels plutôt que
+        // d'ajouter un endpoint JSON dédié pour un référentiel déjà
+        // disponible en lecture partout ailleurs dans l'app.
+        return view('livraison.campagne-detail', [
+            'campagne' => $campagne,
+            'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom']),
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+        ]);
     }
 
     public function store(Request $request): JsonResponse

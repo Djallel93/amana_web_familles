@@ -18,6 +18,11 @@ import ImportOverlay from "@/components/imports/ImportOverlay.vue";
 import FamillesStatistiques from "@/components/familles/FamillesStatistiques.vue";
 import ActiviteStatistiques from "@/components/admin/ActiviteStatistiques.vue";
 import HotelAddressAutocomplete from "@/components/admin/HotelAddressAutocomplete.vue";
+import CampagnesIndex from "@/components/livraison/campagnes/CampagnesIndex.vue";
+import CampagneDetail from "@/components/livraison/campagnes/CampagneDetail.vue";
+import ContactsQueue from "@/components/livraison/contacts/ContactsQueue.vue";
+import LiveBoard from "@/components/livraison/tableau-de-bord/LiveBoard.vue";
+import LivraisonStatistiques from "@/components/livraison/statistiques/LivraisonStatistiques.vue";
 
 registerThemeToggle();
 // Remplace confirm() natif par ConfirmDialog.vue pour tout <form data-confirm="...">
@@ -46,4 +51,9 @@ mountIfPresent("vue-import-overlay", ImportOverlay);
 mountIfPresent("vue-familles-statistiques", FamillesStatistiques);
 mountIfPresent("vue-activite-statistiques", ActiviteStatistiques);
 mountIfPresent("vue-hotel-address-autocomplete", HotelAddressAutocomplete);
+mountIfPresent("vue-livraison-campagnes-index", CampagnesIndex);
+mountIfPresent("vue-livraison-campagne-detail", CampagneDetail);
+mountIfPresent("vue-livraison-contacts-queue", ContactsQueue);
+mountIfPresent("vue-livraison-tableau-de-bord", LiveBoard);
+mountIfPresent("vue-livraison-statistiques", LivraisonStatistiques);
 

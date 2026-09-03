@@ -41,9 +41,14 @@ Page publique, standalone — mêmes conventions que resources/views/intake/show
     </header>
 
     <main class="max-w-2xl mx-auto px-4 py-8">
+        {{-- data-vehicules retiré le 03/09/2026 : BenevoleForm.vue charge
+             désormais la liste via fetch('/vehicules') (voir
+             VehiculeTypesController::index()) plutôt qu'un blob JSON
+             embarqué ici — source unique partagée avec les pickers
+             véhicule des écrans livraison. --}}
         <div id="vue-benevole-form" data-langue="{{ $langue }}" data-store-url="{{ route('benevole.store') }}"
             data-refus-url="{{ route('benevole.refus-consentement') }}" data-secteurs="{{ $secteurs->toJson() }}"
-            data-vehicules="{{ $vehicules->toJson() }}" data-organisations="{{ $organisations->toJson() }}">
+            data-organisations="{{ $organisations->toJson() }}">
         </div>
     </main>
 
