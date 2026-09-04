@@ -22,7 +22,7 @@
         "vue-tsc": "^3.3.8"
     },
     "dependencies": {
-        "@amana/shared-ui": "git+https://github.com/Djallel93/amana_shared_ui.git#v1.2.0",
+        "@amana/shared-ui": "git+https://github.com/Djallel93/amana_shared_ui.git#v1.3.0",
         "chart.js": "^4.5.1"
     }
 }

@@ -80,6 +80,28 @@ class CampagnesController extends Controller
     }
 
     /**
+     * Ajoute une journée à une campagne existante — voir le prompt du
+     * 03/09/2026 §1 (campagnes multi-jours) et Campagne::ajouterJournee().
+     * Couvre le cas "on vient de décider d'un jour de collecte/livraison
+     * en plus" (ex: zakat el-fitr) sans créer une nouvelle campagne.
+     */
+    public function ajouterJournee(Request $request, Campagne $campagne): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'date' => 'required|date',
+            'label' => 'nullable|string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $journee = $campagne->ajouterJournee($request->input('date'), $request->input('label'));
+
+        return response()->json(['success' => true, 'journee' => $journee], 201);
+    }
+
+    /**
      * Liste des familles éligibles à une campagne, filtrable par
      * criticité/quartier/organisation — voir
      * LivraisonGenerationService::eligibles(). Consommée par l'écran de

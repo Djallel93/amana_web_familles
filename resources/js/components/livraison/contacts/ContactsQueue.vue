@@ -40,7 +40,16 @@ const el = document.getElementById('vue-livraison-contacts-queue')!;
 const campagnes = ref<Campagne[]>(JSON.parse(el.dataset.campagnes ?? '[]'));
 const queueUrl = el.dataset.queueUrl ?? '';
 const assignerUrlTemplate = el.dataset.assignerUrlTemplate ?? '';
+const assignerLotUrl = el.dataset.assignerLotUrl ?? '';
 const contacterManuelUrlTemplate = el.dataset.contacterManuelUrlTemplate ?? '';
+
+const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
+    contacte: 'Contacté',
+    injoignable: 'Injoignable',
+    confirme: 'Confirmé',
+    rejetee: 'Rejetée',
+    archive: 'Archivé',
+};
 
 function urlAssigner(id: number): string {
     return assignerUrlTemplate.replace('__ID__', String(id));
@@ -66,6 +75,7 @@ const erreur = ref(false);
 async function chargerFile(page = 1) {
     chargement.value = true;
     erreur.value = false;
+    selection.clear();
 
     const url = queueUrl + buildQuery({
         page,
@@ -106,6 +116,51 @@ async function assigner(livraison: Livraison, personne: PersonneResume | null) {
     livraison.id_personne_assignee = personne.id;
     livraison.personne_assignee = personne;
     toast.success(`Assigné à ${personne.prenom} ${personne.nom}.`);
+}
+
+// ── Assignation en lot ────────────────────────────────────────────────────
+// Ajoutée le 03/09/2026 (prompt de cette date §2.4) : avec 100+ familles à
+// répartir, assigner une par une n'est pas praticable — on filtre/coche
+// puis on assigne tout le lot sélectionné en un appel (voir
+// ContactTrackingController::assignerLot()). Sélection remise à zéro à
+// chaque rechargement de la file (changement de filtre/page) plutôt que
+// persistée entre pages — éviter la confusion "j'ai sélectionné des lignes
+// que je ne vois plus".
+const selection = reactive<Set<number>>(new Set());
+const assignationLotEnCours = ref(false);
+
+function toggleSelection(id: number) {
+    if (selection.has(id)) selection.delete(id);
+    else selection.add(id);
+}
+
+function toutSelectionner() {
+    if (selection.size === file.value.length) {
+        selection.clear();
+    } else {
+        file.value.forEach((l) => selection.add(l.id));
+    }
+}
+
+async function assignerLot(personne: PersonneResume | null) {
+    if (!personne || selection.size === 0) return;
+    assignationLotEnCours.value = true;
+
+    const resultat = await apiPost<{ success: boolean; assignees: number }>(assignerLotUrl, {
+        id_personne_assignee: personne.id,
+        ids_livraison: [...selection],
+    });
+
+    assignationLotEnCours.value = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    toast.success(`${resultat.data.assignees} livraison(s) assignée(s) à ${personne.prenom} ${personne.nom}.`);
+    selection.clear();
+    chargerFile(meta.value?.current_page ?? 1);
 }
 
 // ── Saisie téléphonique manuelle ────────────────────────────────────────
@@ -205,10 +260,27 @@ onMounted(() => chargerFile(1));
         <p v-else-if="file.length === 0" class="text-[14px] text-ink-muted">Aucune livraison en attente de contact.</p>
 
         <div v-else class="space-y-3">
+            <div class="flex flex-wrap items-center gap-3 bg-stone-50 border border-surface-border rounded-xl px-4 py-2.5">
+                <label class="flex items-center gap-2 text-[12.5px] text-ink-muted min-h-[2rem]">
+                    <input type="checkbox" :checked="selection.size === file.length" @change="toutSelectionner"
+                        class="w-4 h-4 accent-accent">
+                    Tout sélectionner ({{ selection.size }})
+                </label>
+                <div v-if="selection.size > 0" class="max-w-xs">
+                    <PersonPicker role="gestionnaire" placeholder="Assigner la sélection à…"
+                        :model-value="null"
+                        @update:model-value="assignerLot" />
+                </div>
+            </div>
+
             <div v-for="livraison in file" :key="livraison.id" class="bg-surface border border-surface-border rounded-xl p-4">
                 <div class="flex items-center justify-between gap-2 mb-1">
-                    <span class="text-[14px] font-medium text-ink">{{ livraison.famille.prenom }} {{ livraison.famille.nom }}</span>
-                    <span class="text-[12px] text-ink-muted shrink-0">{{ livraison.statut_contact }}</span>
+                    <span class="flex items-center gap-2 text-[14px] font-medium text-ink">
+                        <input type="checkbox" :checked="selection.has(livraison.id)" @change="toggleSelection(livraison.id)"
+                            class="w-4 h-4 accent-accent shrink-0">
+                        {{ livraison.famille.prenom }} {{ livraison.famille.nom }}
+                    </span>
+                    <span class="text-[12px] text-ink-muted shrink-0">{{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}</span>
                 </div>
                 <p class="text-[12px] text-ink-muted mb-3">
                     {{ livraison.famille.telephone || '—' }} · {{ livraison.famille.email || "pas d'email" }}
@@ -233,7 +305,7 @@ onMounted(() => chargerFile(1));
                             <select v-model="formulaire(livraison.id).statut_contact"
                                 class="w-full sm:w-auto rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
                                 <option v-for="s in STATUTS_CONTACT_POSTABLES" :key="s" :value="s">
-                                    {{ s === 'contacte' ? 'Contacté' : s === 'injoignable' ? 'Injoignable' : 'Confirmé' }}
+                                    {{ LIBELLES_STATUT_CONTACT[s] }}
                                 </option>
                             </select>
                         </div>

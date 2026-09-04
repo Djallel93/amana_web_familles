@@ -8,7 +8,7 @@
 
 import { createApp } from "vue";
 
-import { Toast, ConfirmDialog, OfflineBanner, MobileSidebar, registerThemeToggle, registerConfirmForms } from "@amana/shared-ui";
+import { Toast, ConfirmDialog, OfflineBanner, UrgentAlertBar, NotificationBell, MobileSidebar, registerThemeToggle, registerConfirmForms, configureNotifications } from "@amana/shared-ui";
 import DetailPanel from "@/components/familles/DetailPanel.vue";
 import ReverseSyncPanel from "@/components/familles/ReverseSyncPanel.vue";
 import IntakeForm from "@/components/intake/IntakeForm.vue";
@@ -30,6 +30,11 @@ registerThemeToggle();
 // voir amana_shared_ui/src/lib/confirmForms.ts pour l'usage complet.
 registerConfirmForms();
 
+// Centre de notifications partagé (voir le prompt du 03/09/2026) — routes
+// exposées par amana-shared::NotificationsController, enregistrées côté
+// familles sous /notifications (voir routes/web.php).
+configureNotifications({ basePath: "/notifications" });
+
 function mountIfPresent(
     selector: string,
     component: Parameters<typeof createApp>[0],
@@ -41,6 +46,8 @@ function mountIfPresent(
 mountIfPresent("vue-toast", Toast);
 mountIfPresent("vue-confirm-dialog", ConfirmDialog);
 mountIfPresent("vue-offline-banner", OfflineBanner);
+mountIfPresent("vue-urgent-alert-bar", UrgentAlertBar);
+mountIfPresent("vue-notification-bell", NotificationBell);
 mountIfPresent("vue-mobile-sidebar", MobileSidebar);
 mountIfPresent("vue-famille-detail", DetailPanel);
 mountIfPresent("vue-reverse-sync-panel", ReverseSyncPanel);

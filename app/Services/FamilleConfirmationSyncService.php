@@ -56,4 +56,24 @@ class FamilleConfirmationSyncService
             ]);
         }
     }
+
+    /**
+     * Applique l'effet dossier déclaré par Livraison::STATUTS_CONTACT_EFFETS
+     * pour un statut donné — voir le prompt du 03/09/2026 §2.5. Ne gère PAS
+     * le cas 'sync' (statut 'confirme') : celui-ci passe par synchroniser()
+     * ci-dessus, appelé séparément par l'appelant avec les données
+     * confirmées (adresse/foyer), pas par cette méthode — les deux sont
+     * volontairement découplées pour que 'confirme' avec des informations
+     * inchangées ne déclenche aucune écriture famille superflue.
+     */
+    public function appliquerEffetStatut(Livraison $livraison, string $statut): void
+    {
+        $effet = Livraison::effetStatutContact($statut);
+
+        if ($effet['etat_dossier'] === null || $effet['etat_dossier'] === 'sync') {
+            return;
+        }
+
+        $livraison->famille->update(['etat_dossier' => $effet['etat_dossier']]);
+    }
 }

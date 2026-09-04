@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int    $id
  * @property string $type          zakat_el_fitr | collecte_alimentaire | don_ponctuel
  * @property string $statut        preparation | collecte | en_cours | terminee
- * @property \Illuminate\Support\Carbon $date_livraison
+ * @property \Illuminate\Support\Carbon $date_livraison  Date de RÉFÉRENCE — voir journees() depuis le 03/09/2026
  * @property float  $poids_moyen_kg
  */
 class Campagne extends Model
@@ -51,6 +51,17 @@ class Campagne extends Model
     public const STATUTS = ['preparation', 'collecte', 'en_cours', 'terminee'];
 
     // ── Relations ─────────────────────────────────────────────────────────
+
+    /**
+     * Journées de collecte/livraison de cette campagne — voir le prompt du
+     * 03/09/2026 (gestion multi-jours) et create_campagne_journees_table.php.
+     * Ordonnées par `ordre` (pas forcément par date, voir commentaire sur
+     * cette colonne dans la migration).
+     */
+    public function journees(): HasMany
+    {
+        return $this->hasMany(CampagneJournee::class, 'id_campagne')->orderBy('ordre');
+    }
 
     public function arrivees(): HasMany
     {
@@ -101,5 +112,39 @@ class Campagne extends Model
     public function getPoidsCollecteKgAttribute(): float
     {
         return (float) $this->donations()->sum('poids_kg');
+    }
+
+    // ── Journées (voir le prompt du 03/09/2026) ─────────────────────────────
+
+    /**
+     * Ajoute une journée à cette campagne — couvre à la fois la
+     * planification initiale (plusieurs journées créées d'un coup à la
+     * création de la campagne) et le cas "on vient de décider d'un jour
+     * de collecte/livraison en plus" (ex: zakat el-fitr, décision prise
+     * l'après-midi pour le lendemain — voir le prompt). N'affecte AUCUNE
+     * livraison/contact déjà confirmé sur les journées existantes : une
+     * journée ajoutée démarre vide, à peupler séparément (génération de
+     * livraisons scopée à cette journée, voir LivraisonGenerationService).
+     *
+     * Si c'est la toute première journée de la campagne, synchronise
+     * `date_livraison` (date de référence, voir docblock de classe) sur
+     * sa date — pour toute campagne créée après cette évolution, qui n'a
+     * donc jamais eu de date_livraison saisie directement.
+     */
+    public function ajouterJournee(\DateTimeInterface|string $date, ?string $label = null): CampagneJournee
+    {
+        $prochainOrdre = ((int) $this->journees()->max('ordre')) + 1;
+
+        $journee = $this->journees()->create([
+            'date' => $date,
+            'label' => $label,
+            'ordre' => $prochainOrdre,
+        ]);
+
+        if ($prochainOrdre === 1) {
+            $this->update(['date_livraison' => $journee->date]);
+        }
+
+        return $journee;
     }
 }

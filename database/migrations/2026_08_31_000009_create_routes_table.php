@@ -29,6 +29,9 @@ return new class extends Migration {
         Schema::create('routes', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_campagne')->constrained('campagnes')->cascadeOnDelete();
+            $table->foreignId('id_campagne_journee')->nullable()
+                ->constrained('campagne_journees')->nullOnDelete()
+                ->comment('Journée de campagne pour laquelle cette tournée est générée — voir campagne_journees et livraisons.id_campagne_journee');
             $table->unsignedInteger('id_benevole')
                 ->comment('ref_personnes.id — pas de FK, commun est une base séparée');
             $table->unsignedInteger('id_vehicule_type')
@@ -36,7 +39,15 @@ return new class extends Migration {
             $table->string('creneau', 5)
                 ->comment('Une des 6 valeurs de App\\Support\\Creneau::TOUS — créneau pour lequel cette tournée a été générée');
 
-            $table->enum('statut', ['planifiee', 'chargement', 'en_cours', 'terminee'])
+            // 'livraisons_terminees' ajouté le 03/09/2026 (voir le prompt de
+            // cette date, écran "Ma tournée" bénévole) : état intermédiaire
+            // entre "en_cours" et "terminee" — tous les arrêts sont
+            // livrés/ignorés mais le bénévole n'a pas encore confirmé son
+            // retour au QG (bouton "Livraison terminé", séparé de "Retour
+            // QG" — voir App\Http\Controllers\Livraison\MaRouteController).
+            // Permet à l'admin/gestionnaire de voir "tournée finie sur le
+            // terrain" même si le bénévole ne tape jamais le second bouton.
+            $table->enum('statut', ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees', 'terminee'])
                 ->default('planifiee');
             $table->decimal('distance_totale_km', 6, 2)->nullable();
             $table->decimal('poids_total_kg', 7, 2)->nullable();

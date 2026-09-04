@@ -5,7 +5,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Livraison;
 
+use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
+use App\Models\BenevoleRetourQg;
 use App\Models\EtapeRoute;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
@@ -31,7 +33,7 @@ class MaRouteController extends Controller
     public function show(): View
     {
         $routes = RouteLivraison::where('id_benevole', auth()->id())
-            ->whereIn('statut', ['planifiee', 'chargement', 'en_cours'])
+            ->whereIn('statut', ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees'])
             ->with(['etapes.livraison.famille:id,nom,prenom,adresse,telephone'])
             ->orderByDesc('created_at')
             ->get();
@@ -95,23 +97,63 @@ class MaRouteController extends Controller
     }
 
     /**
-     * "Demande de nouvelle tournée" (voir le prompt §7) : le bénévole a
-     * terminé sa tournée en cours et signale qu'il est prêt à repartir
-     * (pertinent notamment pour zakat_el_fitr, où les tournées sont
-     * générées progressivement par lots — voir §1). Pas de nouvelle
-     * colonne dédiée pour ce signal (le prompt ne le demande pas
-     * explicitement comme un champ de suivi) : simple notification
-     * directe à l'admin/gestionnaire, rien de persisté — à revoir si un
-     * suivi structuré s'avère nécessaire à l'usage.
+     * "Livraison terminé" (voir le prompt du 03/09/2026) : premier des
+     * deux boutons de fin de tournée, activé côté vue une fois
+     * `toutesEtapesTraitees()` vrai. Passe la tournée à
+     * 'livraisons_terminees' — état visible admin/gestionnaire même si le
+     * bénévole ne tape jamais "Retour QG" ensuite (objectif explicite du
+     * prompt : "This way if they do not return they have a way to notify
+     * that route is done").
      */
-    public function demanderNouvelleTournee(RouteLivraison $route): JsonResponse
+    public function livraisonTerminee(RouteLivraison $route): JsonResponse
     {
         if ($route->id_benevole !== auth()->id()) {
             throw ValidationException::withMessages(['route' => "Cette tournée n'est pas la vôtre."]);
         }
 
-        Notification::route('mail', config('mail.admin_notifications_address', config('mail.from.address')))
-            ->notify(new \App\Notifications\DemandeNouvelleTourneeNotification($route));
+        if (!$route->toutesEtapesTraitees()) {
+            throw ValidationException::withMessages(['route' => 'Tous les arrêts ne sont pas encore livrés ou ignorés.']);
+        }
+
+        $route->update(['statut' => 'livraisons_terminees']);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * "Retour QG" — second bouton, activé seulement après
+     * livraisonTerminee() (voir ma-route.blade.php : grisé tant que
+     * statut !== 'livraisons_terminees'). Clôt la tournée et enregistre
+     * le bénévole comme disponible pour le prochain lot de tournées (voir
+     * BenevoleRetourQg et RouteGenerationService) — remplace l'ancien
+     * signal "demande de nouvelle tournée" (notification email sans état
+     * persisté) par un état que le tableau de bord peut effectivement
+     * interroger, plutôt qu'un email à repérer manuellement.
+     */
+    public function retourQg(RouteLivraison $route): JsonResponse
+    {
+        if ($route->id_benevole !== auth()->id()) {
+            throw ValidationException::withMessages(['route' => "Cette tournée n'est pas la vôtre."]);
+        }
+
+        if ($route->statut !== 'livraisons_terminees') {
+            throw ValidationException::withMessages(['route' => "La livraison n'est pas encore marquée terminée."]);
+        }
+
+        $route->update(['statut' => 'terminee']);
+
+        BenevoleRetourQg::create([
+            'id_campagne' => $route->id_campagne,
+            'id_personne' => auth()->id(),
+            'id_route_origine' => $route->id,
+            'disponible_depuis' => now(),
+        ]);
+
+        $destinataires = Personne::adminsDe()->orWhere(
+            fn ($q) => $q->avecRole('gestionnaire'),
+        )->get();
+
+        Notification::send($destinataires, new \App\Notifications\DemandeNouvelleTourneeNotification($route));
 
         return response()->json(['success' => true]);
     }

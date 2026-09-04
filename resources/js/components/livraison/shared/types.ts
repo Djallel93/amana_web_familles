@@ -148,7 +148,12 @@ export const STATUTS_CONTACT_INITIAL = 'a_contacter' as const;
 export const STATUTS_CONTACT = ['a_contacter', 'contacte', 'injoignable', 'confirme'] as const;
 export type StatutContact = (typeof STATUTS_CONTACT)[number];
 /** Sous-ensemble réellement postable à .../contacter-manuel. */
-export const STATUTS_CONTACT_POSTABLES = ['contacte', 'injoignable', 'confirme'] as const;
+// 'rejetee'/'archive' ajoutés le 03/09/2026 (voir le prompt de cette
+// date §2.5 et App\Models\Livraison::STATUTS_CONTACT_EFFETS côté PHP,
+// source de vérité) — liste de départ volontairement amenée à
+// s'enrichir, donc gardée séparée d'un enum strict côté validation
+// serveur (voir Livraison::STATUTS_CONTACT_POSTABLES).
+export const STATUTS_CONTACT_POSTABLES = ['contacte', 'injoignable', 'confirme', 'rejetee', 'archive'] as const;
 export type StatutContactPostable = (typeof STATUTS_CONTACT_POSTABLES)[number];
 
 // Créneaux horaires fixes — source de vérité PHP : app/Support/Creneau.php

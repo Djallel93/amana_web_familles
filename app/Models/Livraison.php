@@ -33,6 +33,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $ville_confirmee
  * @property int|null    $nombre_adulte_confirme
  * @property int|null    $nombre_enfant_confirme
+ * @property int|null    $id_campagne_journee
  * @property int|null    $locked_by
  * @property \Illuminate\Support\Carbon|null $locked_at
  */
@@ -44,7 +45,7 @@ class Livraison extends Model
     }
 
     protected $fillable = [
-        'id_famille', 'id_campagne',
+        'id_famille', 'id_campagne', 'id_campagne_journee',
         'statut', 'statut_conditionnement',
         'nombre_personnes', 'poids_kg',
         'id_benevole_impose',
@@ -64,7 +65,46 @@ class Livraison extends Model
 
     public const STATUTS = ['non_assignee', 'assignee', 'en_cours', 'livree', 'ignoree'];
     public const STATUTS_CONDITIONNEMENT = ['en_attente', 'prete'];
-    public const STATUTS_CONTACT = ['a_contacter', 'contacte', 'injoignable', 'confirme'];
+
+    /**
+     * Statuts de contact et leur effet sur le dossier famille — voir le
+     * prompt du 03/09/2026 §2.5 : liste de DÉPART, volontairement amenée
+     * à s'enrichir une fois l'app testée en conditions réelles (nouveaux
+     * cas rencontrés au contact). C'est pour ça que statut_contact est un
+     * VARCHAR (voir create_livraisons_table.php) et pas un enum SQL — un
+     * nouveau statut devient une entrée ici, jamais une migration.
+     *
+     * Chaque entrée déclare :
+     *   - 'etat_dossier' : valeur à écrire sur Famille::etat_dossier
+     *     (null = ne touche jamais au dossier famille — ex: injoignable,
+     *     qui exclut la famille de CETTE campagne sans rien dire de son
+     *     dossier en général) ; 'sync' = cas particulier de 'confirme'
+     *     (voir FamilleConfirmationSyncService) : le dossier n'est mis à
+     *     jour QUE si les informations confirmées diffèrent de ce qui est
+     *     déjà enregistré, jamais une écriture inconditionnelle.
+     *   - 'inclure' : true = la livraison reste dans le flux de la
+     *     campagne (routes, packaging...) ; false = exclue (ni la
+     *     livraison ni la famille ne sont supprimées, seulement ignorées
+     *     pour la suite de CETTE campagne).
+     *
+     * Voir ContactTrackingController::contacterManuel(),
+     * ContactConfirmationController::store() (formulaire public — statut
+     * toujours 'confirme', jamais rejetee/archive : une famille ne peut
+     * pas s'auto-rejeter/archiver depuis le formulaire public) et
+     * FamilleConfirmationSyncService::appliquerEffet().
+     */
+    public const STATUTS_CONTACT_EFFETS = [
+        'a_contacter' => ['etat_dossier' => null, 'inclure' => true],
+        'contacte' => ['etat_dossier' => null, 'inclure' => true],
+        'confirme' => ['etat_dossier' => 'sync', 'inclure' => true],
+        'injoignable' => ['etat_dossier' => null, 'inclure' => false],
+        'rejetee' => ['etat_dossier' => 'Rejeté', 'inclure' => false],
+        'archive' => ['etat_dossier' => 'Archivé', 'inclure' => false],
+    ];
+
+    public const STATUTS_CONTACT = ['a_contacter', 'contacte', 'injoignable', 'confirme', 'rejetee', 'archive'];
+    /** Sous-ensemble réellement postable — 'a_contacter' est l'état initial, jamais choisi manuellement. */
+    public const STATUTS_CONTACT_POSTABLES = ['contacte', 'injoignable', 'confirme', 'rejetee', 'archive'];
 
     // Même filet de sécurité que Famille::VERROU_TTL_MINUTES.
     public const VERROU_TTL_MINUTES = 20;
@@ -79,6 +119,11 @@ class Livraison extends Model
     public function campagne(): BelongsTo
     {
         return $this->belongsTo(Campagne::class, 'id_campagne');
+    }
+
+    public function campagneJournee(): BelongsTo
+    {
+        return $this->belongsTo(CampagneJournee::class, 'id_campagne_journee');
     }
 
     public function creneaux(): HasMany
@@ -118,6 +163,19 @@ class Livraison extends Model
     public function personneAssignee(): BelongsTo
     {
         return $this->belongsTo(Personne::class, 'id_personne_assignee');
+    }
+
+    /**
+     * Effet déclaré (voir STATUTS_CONTACT_EFFETS) pour un statut donné —
+     * lève si le statut n'est pas reconnu, pour ne jamais laisser un
+     * statut invalide silencieusement sans effet.
+     *
+     * @return array{etat_dossier: string|null, inclure: bool}
+     */
+    public static function effetStatutContact(string $statut): array
+    {
+        return self::STATUTS_CONTACT_EFFETS[$statut]
+            ?? throw new \InvalidArgumentException("Statut de contact inconnu : {$statut}");
     }
 
     // ── Calcul du poids (voir Patch 2 — LivraisonGenerationService) ────────

@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin\Livraison;
 
+use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
 use App\Models\EtapeRoute;
@@ -38,6 +39,7 @@ class LiveBoardController extends Controller
     public function __construct(
         private readonly RouteGenerationService $generationService,
         private readonly RouteMutationService $mutationService,
+        private readonly NotificationCenterService $notificationCenter,
     ) {
     }
 
@@ -132,11 +134,13 @@ class LiveBoardController extends Controller
                 'statut' => 'resolu',
                 'notes' => trim(($incident->notes ?? '') . "\n[Re-cluster] " . json_encode($resultat)),
             ]);
+            $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
 
             return response()->json(['success' => true, ...$resultat]);
         }
 
         $incident->update(['statut' => 'resolu']);
+        $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
 
         return response()->json(['success' => true]);
     }

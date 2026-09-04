@@ -8,6 +8,7 @@ namespace App\Models;
 use Amana\Shared\Models\Personne;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Événement méritant l'attention admin/gestionnaire, ou jalon suivi, sur
@@ -54,5 +55,24 @@ class RouteIncident extends Model
     public function scopeOuverts($query)
     {
         return $query->where('statut', 'ouvert');
+    }
+
+    /**
+     * Notifie admin/gestionnaire à la création — voir le prompt du
+     * 03/09/2026 §2.9/évenement urgent : centralisé ici (plutôt que
+     * dans chacun des 4 points de création — ChargementController x3,
+     * MaRouteController::signalerIgnoree()) pour qu'AUCUN futur point de
+     * création n'oublie de notifier. Voir App\Notifications\
+     * RouteIncidentNotification pour la sévérité par type.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (RouteIncident $incident) {
+            $destinataires = Personne::adminsDe()
+                ->orWhere(fn ($q) => $q->avecRole('gestionnaire'))
+                ->get();
+
+            Notification::send($destinataires, new \App\Notifications\RouteIncidentNotification($incident));
+        });
     }
 }

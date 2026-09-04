@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Campagne;
+use App\Models\CampagneJournee;
 use App\Models\Famille;
 use App\Models\Livraison;
 use Illuminate\Database\Eloquent\Builder;
@@ -103,7 +104,7 @@ class LivraisonGenerationService
      * @param int[] $idsFamilles
      * @return array{livraisons: Collection<int, Livraison>, conflits: Collection<int, Famille>, deja_existantes: int}
      */
-    public function genererPour(Campagne $campagne, array $idsFamilles): array
+    public function genererPour(Campagne $campagne, array $idsFamilles, ?CampagneJournee $journee = null): array
     {
         $familles = Famille::whereIn('id', $idsFamilles)->get();
 
@@ -132,6 +133,7 @@ class LivraisonGenerationService
             $livraisons->push(Livraison::create([
                 'id_famille' => $famille->id,
                 'id_campagne' => $campagne->id,
+                'id_campagne_journee' => $journee?->id,
                 'statut' => 'non_assignee',
                 'statut_conditionnement' => 'en_attente',
                 'nombre_personnes' => $nombrePersonnes,

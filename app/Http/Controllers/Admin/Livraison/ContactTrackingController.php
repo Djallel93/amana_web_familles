@@ -48,12 +48,18 @@ class ContactTrackingController extends Controller
     /**
      * File des livraisons pas encore confirmées, filtrable par
      * gestionnaire assigné — `mine=1` couvre la vue "assigné à moi" du
-     * prompt §7.
+     * prompt §7. Depuis le 03/09/2026 (prompt de cette date §2.3) :
+     * familles joignables par email en tête de file (email non nul
+     * d'abord), pas de tri secondaire au-delà — décision explicite,
+     * volontairement simple.
      */
     public function queue(Request $request): JsonResponse
     {
         $query = Livraison::with(['famille:id,nom,prenom,telephone,email', 'personneAssignee', 'campagne'])
-            ->where('statut_contact', '!=', 'confirme');
+            ->where('statut_contact', '!=', 'confirme')
+            ->join('familles', 'familles.id', '=', 'livraisons.id_famille')
+            ->orderByRaw('familles.email IS NULL')
+            ->select('livraisons.*');
 
         if ($request->boolean('mine')) {
             $query->where('id_personne_assignee', auth()->id());
@@ -98,17 +104,56 @@ class ContactTrackingController extends Controller
     }
 
     /**
+     * Assignation en lot — ajoutée le 03/09/2026 (prompt de cette date
+     * §2.4) : avec 100+ familles à répartir, assigner une par une n'est
+     * pas praticable. Le front filtre/sélectionne (voir ContactsQueue.vue)
+     * puis poste la liste d'IDs retenue ici en un seul appel — même
+     * validation du rôle gestionnaire/admin que assigner() ci-dessus,
+     * appliquée une seule fois plutôt que par livraison.
+     */
+    public function assignerLot(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_personne_assignee' => 'required|integer',
+            'ids_livraison' => 'required|array|min:1',
+            'ids_livraison.*' => 'integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $personne = Personne::find($request->input('id_personne_assignee'));
+
+        if (!$personne || (!$personne->isGestionnaire() && !$personne->isAdmin())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette personne ne détient pas le rôle gestionnaire.',
+            ], 422);
+        }
+
+        $nombre = Livraison::whereIn('id', $request->input('ids_livraison'))
+            ->update(['id_personne_assignee' => $personne->id]);
+
+        return response()->json(['success' => true, 'assignees' => $nombre]);
+    }
+
+    /**
      * Saisie téléphonique par le staff — mêmes champs/règles que
      * ContactConfirmationController::store() (formulaire public), pour
      * les familles sans email (voir le prompt §3.1). `statut_contact`
      * passe directement à 'confirme' si les 3 champs sont fournis, ou à
      * une valeur intermédiaire ('contacte'/'injoignable') si l'appel n'a
-     * pas abouti à une confirmation complète.
+     * pas abouti à une confirmation complète — ou, depuis le 03/09/2026,
+     * à 'rejetee'/'archive' si le staff détermine au contact que la
+     * famille n'a plus besoin d'aide ou doit être écartée (voir
+     * Livraison::STATUTS_CONTACT_EFFETS, appliqué via
+     * FamilleConfirmationSyncService::appliquerEffetStatut()).
      */
     public function contacterManuel(Request $request, Livraison $livraison): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'statut_contact' => 'required|in:contacte,injoignable,confirme',
+            'statut_contact' => 'required|in:' . implode(',', Livraison::STATUTS_CONTACT_POSTABLES),
             'adresse_confirmee' => 'required_if:statut_contact,confirme|nullable|string|max:500',
             'code_postal_confirme' => 'nullable|string|max:10',
             'ville_confirmee' => 'nullable|string|max:150',
@@ -122,10 +167,11 @@ class ContactTrackingController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $donnees = ['statut_contact' => $request->input('statut_contact')];
+        $statut = $request->input('statut_contact');
+        $donnees = ['statut_contact' => $statut];
         $donneesConfirmees = null;
 
-        if ($request->input('statut_contact') === 'confirme') {
+        if ($statut === 'confirme') {
             $donneesConfirmees = $validator->safe()->only([
                 'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
                 'nombre_adulte_confirme', 'nombre_enfant_confirme',
@@ -142,6 +188,12 @@ class ContactTrackingController extends Controller
             foreach ($request->input('creneaux') as $creneau) {
                 $livraison->creneaux()->create(['creneau' => $creneau]);
             }
+        } else {
+            // 'rejetee'/'archive' (et tout futur statut à effet dossier
+            // non-'sync') : voir STATUTS_CONTACT_EFFETS. 'contacte'/
+            // 'injoignable' n'ont aucun effet dossier, appliquerEffetStatut()
+            // est alors un no-op.
+            $this->syncService->appliquerEffetStatut($livraison, $statut);
         }
 
         return response()->json(['success' => true]);

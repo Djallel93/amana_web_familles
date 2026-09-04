@@ -50,6 +50,32 @@
                         </li>
                     @endforeach
                 </ol>
+
+                @if(in_array($route->statut, ['en_cours', 'livraisons_terminees'], true))
+                    {{--
+                        Boutons de fin de tournée — voir le prompt du
+                        03/09/2026. Grisés tant que toutes les étapes ne
+                        sont pas traitées (livrée/ignorée) ; "Retour QG"
+                        grisé tant que "Livraison terminé" n'a pas été
+                        cliqué. Volontairement deux étapes distinctes : si
+                        le bénévole ne tape jamais "Retour QG" (oubli, ou
+                        il repart directement sur une autre tournée sans
+                        repasser par le QG), admin/gestionnaire voit quand
+                        même "livraisons_terminees" au tableau de bord.
+                    --}}
+                    <div class="flex gap-2 mt-4 pt-4 border-t border-surface-border">
+                        <button type="button" onclick="livraisonTerminee({{ $route->id }})"
+                            {{ $route->statut !== 'en_cours' || !$route->toutesEtapesTraitees() ? 'disabled' : '' }}
+                            class="flex-1 text-[13px] px-3 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
+                            Livraison terminé
+                        </button>
+                        <button type="button" onclick="retourQg({{ $route->id }})"
+                            {{ $route->statut !== 'livraisons_terminees' ? 'disabled' : '' }}
+                            class="flex-1 text-[13px] px-3 py-2 rounded-lg bg-ink text-white disabled:opacity-40 disabled:cursor-not-allowed">
+                            Retour QG
+                        </button>
+                    </div>
+                @endif
             </div>
         @empty
             <p class="text-[14px] text-ink-muted">Aucune tournée active pour le moment.</p>
@@ -73,6 +99,22 @@
                 method: 'POST',
                 headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({ notes }),
+            });
+            window.location.reload();
+        }
+
+        async function livraisonTerminee(routeId) {
+            await fetch(`/livraison/benevole/routes/${routeId}/livraison-terminee`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+            });
+            window.location.reload();
+        }
+
+        async function retourQg(routeId) {
+            await fetch(`/livraison/benevole/routes/${routeId}/retour-qg`, {
+                method: 'POST',
+                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
             });
             window.location.reload();
         }

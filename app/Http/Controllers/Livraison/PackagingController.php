@@ -5,12 +5,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Livraison;
 
+use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
 use App\Models\Livraison;
+use App\Notifications\RoutePretePourChargementNotification;
 use App\Services\QrCodeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Écran packaging — équipe_packaging compose les colis à partir de la
@@ -76,6 +79,22 @@ class PackagingController extends Controller
 
             if ($toutesPretes && $route->statut === 'planifiee') {
                 $route->update(['statut' => 'chargement']);
+
+                // "loading team and driver are notified" — voir le prompt
+                // du 03/09/2026 §2.9. Équipe de chargement = tout
+                // équipe_chargement de l'app (pas scopé à un lot précis :
+                // n'importe qui de cette équipe peut prendre le
+                // chargement) + le chauffeur déjà assigné à CETTE tournée.
+                $destinataires = Personne::avecRole('equipe_chargement')->get();
+
+                if ($route->id_benevole) {
+                    $chauffeur = Personne::find($route->id_benevole);
+                    if ($chauffeur) {
+                        $destinataires->push($chauffeur);
+                    }
+                }
+
+                Notification::send($destinataires, new RoutePretePourChargementNotification($route));
             }
         }
 

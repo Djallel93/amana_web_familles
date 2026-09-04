@@ -50,6 +50,9 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('id_famille')->constrained('familles')->cascadeOnDelete();
             $table->foreignId('id_campagne')->constrained('campagnes')->cascadeOnDelete();
+            $table->foreignId('id_campagne_journee')->nullable()
+                ->constrained('campagne_journees')->nullOnDelete()
+                ->comment('Journée précise de la campagne pour laquelle cette livraison est prévue (collecte/livraison à J, J+1... — voir campagne_journees). Nullable : campagnes historiques mono-jour et don_ponctuel n\'ont pas de journée déclarée.');
 
             $table->enum('statut', ['non_assignee', 'assignee', 'en_cours', 'livree', 'ignoree'])
                 ->default('non_assignee');
@@ -66,8 +69,15 @@ return new class extends Migration {
             $table->text('note_besoins_speciaux')->nullable()
                 ->comment('Copiée depuis familles.specificites à la génération, puis éditable indépendamment (admin/gestionnaire) — ne réécrit jamais familles.specificites');
 
-            $table->enum('statut_contact', ['a_contacter', 'contacte', 'injoignable', 'confirme'])
-                ->default('a_contacter');
+            // string plutôt qu'enum depuis le 03/09/2026 (voir le prompt de
+            // cette date) : la liste des statuts de contact est un point de
+            // départ, volontairement amenée à s'enrichir une fois l'app
+            // testée en conditions réelles (cas non prévus au contact). Un
+            // enum SQL exigerait une migration à chaque ajout ; la liste
+            // valide (et l'effet de chacune sur familles.etat_dossier — mise
+            // à jour, exclusion, ou ni l'un ni l'autre) vit maintenant dans
+            // App\Models\Livraison::STATUTS_CONTACT (voir ce fichier).
+            $table->string('statut_contact', 30)->default('a_contacter');
             $table->unsignedInteger('id_personne_assignee')->nullable()
                 ->comment('ref_personnes.id du gestionnaire chargé de contacter cette famille — rôle vérifié côté application, pas de FK');
 
@@ -82,6 +92,7 @@ return new class extends Migration {
 
             $table->index(['id_campagne', 'statut']);
             $table->index(['id_campagne', 'statut_contact']);
+            $table->index('id_campagne_journee');
             $table->index('id_famille');
             $table->index('locked_by');
         });

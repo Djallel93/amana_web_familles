@@ -108,6 +108,18 @@ Route::get('/vehicules', [\App\Http\Controllers\VehiculeTypesController::class, 
 
 // ── Dossiers familles (staff — tous rôles) ───────────────────────────────
 Route::middleware('auth')->group(function () {
+    // Centre de notifications partagé (voir le prompt du 03/09/2026,
+    // Amana\Shared\Http\Controllers\NotificationsController) — accessible
+    // à toute personne connectée, pas restreint à admin/gestionnaire : le
+    // contenu réel (urgent vs info, qui reçoit quoi) est déjà filtré côté
+    // service par destinataire (voir RouteIncident::booted() et
+    // PackagingController::marquerPret()), cette route ne fait qu'exposer
+    // "mes notifications à moi".
+    Route::get('/notifications', [\Amana\Shared\Http\Controllers\NotificationsController::class, 'index'])
+        ->name('notifications.index');
+    Route::post('/notifications/{id}/lue', [\Amana\Shared\Http\Controllers\NotificationsController::class, 'marquerLue'])
+        ->name('notifications.marquer-lue');
+
     Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
     Route::get('/nouvelles', [\App\Http\Controllers\FamillesController::class, 'nouvelles'])->name('familles.nouvelles');
     // Placée avant /familles/{id} par convention (whereNumber la protège déjà
@@ -274,6 +286,8 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.show');
     Route::post('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'store'])
         ->name('campagnes.store');
+    Route::post('/campagnes/{campagne}/journees', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'ajouterJournee'])
+        ->name('campagnes.journees.store');
     Route::get('/campagnes/{campagne}/eligibles', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'eligibles'])
         ->name('campagnes.eligibles');
     Route::post('/campagnes/{campagne}/generer-livraisons', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'genererLivraisons'])
@@ -287,6 +301,8 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('contacts.queue');
     Route::post('/contacts/{livraison}/assigner', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'assigner'])
         ->name('contacts.assigner');
+    Route::post('/contacts/assigner-lot', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'assignerLot'])
+        ->name('contacts.assigner-lot');
     Route::post('/contacts/{livraison}/contacter-manuel', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'contacterManuel'])
         ->name('contacts.contacter-manuel');
 
@@ -356,8 +372,10 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
         ->name('etapes.scan');
     Route::post('/etapes/{etape}/ignoree', [\App\Http\Controllers\Livraison\MaRouteController::class, 'signalerIgnoree'])
         ->name('etapes.ignoree');
-    Route::post('/routes/{route}/nouvelle-tournee', [\App\Http\Controllers\Livraison\MaRouteController::class, 'demanderNouvelleTournee'])
-        ->name('routes.nouvelle-tournee');
+    Route::post('/routes/{route}/livraison-terminee', [\App\Http\Controllers\Livraison\MaRouteController::class, 'livraisonTerminee'])
+        ->name('routes.livraison-terminee');
+    Route::post('/routes/{route}/retour-qg', [\App\Http\Controllers\Livraison\MaRouteController::class, 'retourQg'])
+        ->name('routes.retour-qg');
 });
 
 // ── Équipes latérales (équipe_reception/pesee/packaging/chargement) —
