@@ -103,5 +103,15 @@ return [
         ['route' => 'livraison.contacts.index', 'label' => 'Suivi des contacts', 'icon' => '📞', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.contacts.*'],
         ['route' => 'livraison.tableau-de-bord.index', 'label' => 'Tableau de bord', 'icon' => '🗺️', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.tableau-de-bord.*'],
         ['route' => 'livraison.statistiques.index', 'label' => 'Statistiques', 'icon' => '📊', 'role' => null, 'route_pattern' => 'livraison.statistiques.*'],
+        // 'role' => null (comme Statistiques ci-dessus) plutôt que
+        // 'gestionnaire' : Ma tournée s'adresse aux bénévoles chauffeurs,
+        // qui n'ont typiquement pas le rôle gestionnaire. Pas un souci de
+        // sécurité de le rendre visible à tous — l'écran lui-même
+        // (MaRouteController::show()) ne montre que la tournée d'
+        // auth()->id() et reste vide/neutre pour quiconque n'en a pas.
+        // Ajouté le 03/09/2026 : jusque-là accessible seulement en tapant
+        // l'URL /livraison/benevole/ma-route à la main, aucun lien nulle
+        // part n'y menait.
+        ['route' => 'livraison.benevole.ma-route.show', 'label' => 'Ma tournée', 'icon' => '🚚', 'role' => null, 'route_pattern' => 'livraison.benevole.*'],
     ],
 ];

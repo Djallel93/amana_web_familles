@@ -22,7 +22,13 @@
             data-generer-livraisons-url="{{ route('livraison.campagnes.generer-livraisons', $campagne) }}"
             data-notifier-benevoles-url="{{ route('livraison.campagnes.notifier-benevoles', $campagne) }}"
             data-generer-routes-url="{{ route('livraison.campagnes.generer-routes', $campagne) }}"
-            data-non-couvertes-url="{{ route('livraison.campagnes.non-couvertes', $campagne) }}">
+            data-non-couvertes-url="{{ route('livraison.campagnes.non-couvertes', $campagne) }}"
+            data-avancement-url="{{ route('livraison.campagnes.avancement', $campagne) }}"
+            data-contacts-url="{{ route('livraison.contacts.index', ['id_campagne' => $campagne->id]) }}"
+            data-pesee-url="{{ route('livraison.pesee.show', $campagne) }}"
+            data-packaging-url="{{ route('livraison.packaging.index', $campagne) }}"
+            data-chargement-url="{{ route('livraison.chargement.index', $campagne) }}"
+            data-tableau-de-bord-url="{{ route('livraison.tableau-de-bord.index') }}">
         </div>
     </div>
 @endsection

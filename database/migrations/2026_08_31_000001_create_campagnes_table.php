@@ -49,6 +49,8 @@ return new class extends Migration {
             $table->date('date_livraison');
             $table->decimal('poids_moyen_kg', 6, 2)->default(0)
                 ->comment('Poids moyen par colis, ajustable manuellement en cours de campagne — voir admin/gestionnaire');
+            $table->timestamp('benevoles_notifies_le')->nullable()
+                ->comment('Horodatage du dernier envoi de CampagneDisponibiliteNotification (voir BenevoleDisponibiliteService::notifierCampagne) — ajouté le 03/09/2026 uniquement pour que la checklist de progression (CampagneProgressBar.vue) sache si cette étape a déjà eu lieu, sans avoir à deviner depuis les réponses des bénévoles (qui peuvent tarder ou ne jamais venir).');
             $table->timestamps();
 
             $table->index(['type', 'statut']);

@@ -64,7 +64,12 @@ function formatDateFr(iso: string): string {
 }
 
 // ── Filtre + file ────────────────────────────────────────────────────────
-const filtreCampagne = ref('');
+// Pré-sélection depuis l'URL (?id_campagne=…) — ajouté le 03/09/2026 pour
+// permettre un lien direct "Suivi des contacts" depuis CampagneDetail.vue,
+// plutôt que d'atterrir systématiquement sur la file non filtrée et devoir
+// re-sélectionner la campagne à la main.
+const paramsUrl = new URLSearchParams(window.location.search);
+const filtreCampagne = ref(paramsUrl.get('id_campagne') ?? '');
 const filtreMine = ref(false);
 
 const file = ref<Livraison[]>([]);

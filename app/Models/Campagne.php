@@ -38,6 +38,7 @@ class Campagne extends Model
     protected $fillable = [
         'type', 'statut', 'date_livraison',
         'poids_moyen_kg', 'poids_moyen_hotel_kg', 'poids_moyen_etudiant_kg',
+        'benevoles_notifies_le',
     ];
 
     protected $casts = [
@@ -45,6 +46,7 @@ class Campagne extends Model
         'poids_moyen_kg' => 'decimal:2',
         'poids_moyen_hotel_kg' => 'decimal:2',
         'poids_moyen_etudiant_kg' => 'decimal:2',
+        'benevoles_notifies_le' => 'datetime',
     ];
 
     public const TYPES = ['zakat_el_fitr', 'collecte_alimentaire', 'don_ponctuel'];

@@ -18,6 +18,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class BenevoleDisponibiliteCreneau extends Model
 {
+    // Même correctif que LivraisonCreneau : Eloquent pluraliserait
+    // "benevole_disponibilite_creneau" en "...creneaus" (règle anglaise) —
+    // la migration crée bien 'benevole_disponibilite_creneaux'.
+    protected $table = 'benevole_disponibilite_creneaux';
+
     public $timestamps = false;
 
     public function getConnectionName(): ?string

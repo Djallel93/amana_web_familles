@@ -290,6 +290,8 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.journees.store');
     Route::get('/campagnes/{campagne}/eligibles', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'eligibles'])
         ->name('campagnes.eligibles');
+    Route::get('/campagnes/{campagne}/avancement', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'avancement'])
+        ->name('campagnes.avancement');
     Route::post('/campagnes/{campagne}/generer-livraisons', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'genererLivraisons'])
         ->name('campagnes.generer-livraisons');
     Route::post('/campagnes/{campagne}/notifier-benevoles', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'notifierBenevoles'])

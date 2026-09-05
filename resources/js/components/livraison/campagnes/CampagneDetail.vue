@@ -21,6 +21,7 @@ import { ref, onMounted } from 'vue';
 import { useToast, useConfirm } from '@amana/shared-ui';
 import { apiGet, apiPost } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
+import CampagneProgressBar, { type AvancementCampagne } from './CampagneProgressBar.vue';
 import {
     CAMPAGNE_TYPES,
     normalizePaginated,
@@ -53,6 +54,14 @@ const urls = {
     notifierBenevoles: el.dataset.notifierBenevolesUrl ?? '',
     genererRoutes: el.dataset.genererRoutesUrl ?? '',
     nonCouvertes: el.dataset.nonCouvertesUrl ?? '',
+    avancement: el.dataset.avancementUrl ?? '',
+    // Hub de navigation vers les écrans des étapes suivantes — voir le
+    // panneau ajouté au template le 03/09/2026.
+    contacts: el.dataset.contactsUrl ?? '',
+    pesee: el.dataset.peseeUrl ?? '',
+    packaging: el.dataset.packagingUrl ?? '',
+    chargement: el.dataset.chargementUrl ?? '',
+    tableauDeBord: el.dataset.tableauDeBordUrl ?? '',
 };
 
 function formatDateFr(iso: string): string {
@@ -139,6 +148,7 @@ async function genererLivraisons() {
     selectionnees.value = new Set();
     toast.success(`${resultat.data.generees} livraison(s) générée(s).`);
     chargerNonCouvertes();
+    chargerAvancement();
 }
 
 // ── Notification bénévoles ──────────────────────────────────────────────
@@ -159,6 +169,7 @@ async function notifierBenevoles() {
 
     resultatNotif.value = resultat.data;
     toast.success(`Email envoyé à ${resultat.data.envoyes} bénévole(s).`);
+    chargerAvancement();
 }
 
 // ── Génération des routes ───────────────────────────────────────────────
@@ -195,6 +206,7 @@ async function genererRoutes() {
     resultatRoutes.value = resultat.data;
     toast.success(`${resultat.data.routes_creees} tournée(s) créée(s).`);
     chargerNonCouvertes();
+    chargerAvancement();
 }
 
 // ── Livraisons confirmées jamais couvertes ─────────────────────────────
@@ -220,7 +232,16 @@ async function chargerNonCouvertes() {
 onMounted(() => {
     chargerEligibles(1);
     chargerNonCouvertes();
+    chargerAvancement();
 });
+
+// ── Avancement (checklist) ───────────────────────────────────────────────
+const avancement = ref<AvancementCampagne | null>(null);
+
+async function chargerAvancement() {
+    const resultat = await apiGet<AvancementCampagne>(urls.avancement);
+    if (resultat.ok) avancement.value = resultat.data;
+}
 </script>
 
 <template>
@@ -229,6 +250,39 @@ onMounted(() => {
             {{ CAMPAGNE_TYPES[campagne.type] ?? campagne.type }} — {{ formatDateFr(campagne.date_livraison) }}
         </h1>
         <p class="text-[13px] text-ink-muted mb-6">Statut : {{ campagne.statut }}</p>
+
+        <CampagneProgressBar :avancement="avancement" />
+
+        <!--
+            Panneau ajouté le 03/09/2026 : avant, rien sur cet écran ne
+            menait vers les écrans des étapes suivantes (contact,
+            pesée, packaging, chargement) — ils existent (voir
+            routes/web.php) mais n'étaient accessibles qu'en tapant
+            l'URL à la main, faute de lien depuis quelque part. Ce
+            panneau sert de hub de navigation pour CETTE campagne :
+            Suivi des contacts est pré-filtré sur son id (voir
+            ContactsQueue.vue, lit ?id_campagne= au montage) ; Pesée/
+            Packaging/Chargement ne le sont pas dans l'URL (ces écrans
+            n'ont qu'un seul {campagne} en route, pas de filtre à
+            pré-remplir), ils s'ouvrent directement sur cette campagne.
+        -->
+        <div class="flex flex-wrap gap-2 mb-6">
+            <a :href="urls.contacts" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+                📞 Suivi des contacts
+            </a>
+            <a :href="urls.pesee" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+                ⚖️ Pesée
+            </a>
+            <a :href="urls.packaging" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+                📦 Packaging
+            </a>
+            <a :href="urls.chargement" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+                🚛 Chargement
+            </a>
+            <a :href="urls.tableauDeBord" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+                🗺️ Tableau de bord
+            </a>
+        </div>
 
         <div class="flex flex-col sm:flex-row gap-3 mb-3">
             <button type="button" :disabled="chargementNotif" @click="notifierBenevoles"

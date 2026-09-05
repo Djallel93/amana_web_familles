@@ -14,7 +14,7 @@
              plus pour un select de campagnes qui ne change pas pendant la
              session. --}}
         <div id="vue-livraison-contacts-queue" data-campagnes="{{ $campagnes->toJson() }}"
-            data-queue-url="{{ route('livraison.contacts.file') }}"
+            data-queue-url="{{ route('livraison.contacts.queue') }}"
             data-assigner-url-template="{{ route('livraison.contacts.assigner', '__ID__') }}"
             data-assigner-lot-url="{{ route('livraison.contacts.assigner-lot') }}"
             data-contacter-manuel-url-template="{{ route('livraison.contacts.contacter-manuel', '__ID__') }}">

@@ -7,8 +7,10 @@ namespace App\Http\Controllers\Admin\Livraison;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
+use App\Models\Livraison;
 use App\Models\Organisation;
 use App\Models\Quartier;
+use App\Models\RouteLivraison;
 use App\Services\BenevoleDisponibiliteService;
 use App\Services\LivraisonGenerationService;
 use Illuminate\Contracts\View\View;
@@ -165,6 +167,59 @@ class CampagnesController extends Controller
     {
         $resultat = $this->disponibiliteService->notifierCampagne($campagne);
 
+        // Voir create_campagnes_table.php (colonne ajoutée le 03/09/2026) :
+        // seule trace persistée que cette étape a eu lieu, pour
+        // CampagneProgressBar.vue — indépendante du nombre d'envois
+        // réussis/échoués, l'étape "notifier" est considérée franchie dès
+        // qu'on a tenté, pas seulement si 100% des emails sont partis.
+        $campagne->update(['benevoles_notifies_le' => now()]);
+
         return response()->json(['success' => true, ...$resultat]);
+    }
+
+    /**
+     * Résumé d'avancement de la campagne à travers les étapes du workflow
+     * livraison — voir le prompt du 03/09/2026 (checklist de progression
+     * CampagneProgressBar.vue, amana_shared_ui n'a pas cette pièce, elle
+     * est propre au domaine livraison donc reste locale à cette app).
+     * Un seul aller-retour plutôt que le front ne recalcule depuis
+     * plusieurs endpoints déjà existants (eligibles/non-couvertes...) qui
+     * ne portent chacun qu'un fragment de l'image d'ensemble.
+     */
+    public function avancement(Campagne $campagne): JsonResponse
+    {
+        $livraisons = Livraison::where('id_campagne', $campagne->id)
+            ->select('statut_contact', 'statut_conditionnement')
+            ->get();
+
+        $livraisonsTotal = $livraisons->count();
+        $livraisonsAConfirmer = $livraisons->whereIn('statut_contact', ['a_contacter', 'contacte'])->count();
+        $livraisonsConfirmees = $livraisons->where('statut_contact', 'confirme')->count();
+        $livraisonsPretes = $livraisons->where('statut_conditionnement', 'prete')->count();
+
+        $routes = RouteLivraison::where('id_campagne', $campagne->id)->select('statut')->get();
+        $routesTotal = $routes->count();
+        $routesChargees = $routes->whereIn('statut', ['chargement', 'en_cours', 'livraisons_terminees', 'terminee'])->count();
+        $routesEnLivraison = $routes->whereIn('statut', ['en_cours', 'livraisons_terminees', 'terminee'])->count();
+        $routesTerminees = $routes->where('statut', 'terminee')->count();
+
+        return response()->json([
+            'livraisons_generees' => $livraisonsTotal > 0,
+            'contacts_termines' => $livraisonsTotal > 0 && $livraisonsAConfirmer === 0,
+            'contacts_en_cours' => $livraisonsTotal > 0 && $livraisonsAConfirmer > 0 && $livraisonsAConfirmer < $livraisonsTotal,
+            'benevoles_notifies' => $campagne->benevoles_notifies_le !== null,
+            'routes_generees' => $routesTotal > 0,
+            'pesee_demarree' => $campagne->donations()->exists(),
+            'packaging_termine' => $livraisonsConfirmees > 0 && $livraisonsPretes >= $livraisonsConfirmees,
+            'chargement_termine' => $routesTotal > 0 && $routesChargees === $routesTotal,
+            'livraison_en_cours' => $routesTotal > 0 && $routesEnLivraison > 0,
+            'terminee' => $routesTotal > 0 && $routesTerminees === $routesTotal,
+            'compteurs' => [
+                'livraisons_total' => $livraisonsTotal,
+                'livraisons_confirmees' => $livraisonsConfirmees,
+                'routes_total' => $routesTotal,
+                'routes_terminees' => $routesTerminees,
+            ],
+        ]);
     }
 }
