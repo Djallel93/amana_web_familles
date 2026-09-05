@@ -32,6 +32,16 @@ use Illuminate\Support\Facades\Schema;
  * calculée à l'écriture (voir HotelAddress::normaliser()), stockée plutôt
  * que recalculée à chaque comparaison pour permettre un index et une
  * recherche SQL directe depuis FamilleUpsertService::upsert().
+ *
+ * Unique (depuis le 05/09/2026, décision : empêcher la saisie deux fois de
+ * la même adresse hôtel) plutôt qu'un simple index — la comparaison se
+ * fait volontairement sur la forme NORMALISÉE, pas sur `adresse` brute :
+ * deux adresses réellement différentes pour un même établissement
+ * (plusieurs bâtiments, ou forme "rue" vs forme "POI Google", voir plus
+ * haut) restent toutes les deux acceptées, seule une resaisie strictement
+ * identique une fois normalisée est bloquée. Voir
+ * Admin\HotelAddressesController::store()/update() pour le message
+ * d'erreur convivial rendu avant que cette contrainte ne soit atteinte.
  */
 return new class extends Migration {
     public function up(): void
@@ -42,7 +52,7 @@ return new class extends Migration {
                 ->comment('Libellé affiché au staff — brut ou préfixé du nom de l\'établissement (autocomplétion Google Places)');
             $table->string('adresse_normalisee', 255)
                 ->comment('Forme normalisée de `adresse` (minuscules, sans accents/ponctuation) — voir HotelAddress::normaliser()');
-            $table->index('adresse_normalisee');
+            $table->unique('adresse_normalisee');
             $table->timestamps();
         });
     }

@@ -21,9 +21,22 @@ use Illuminate\View\View;
  * vue générique du package — voir SettingsControllerBase pour ce schéma
  * de surcharge. Section "Adresses hôtel" ajoutée le 30/08/2026 sur le
  * même principe.
+ *
+ * Onglets ajoutés le 05/09/2026 (page jugée trop chargée/trop de scroll) :
+ * regroupement par thème calqué sur le même principe que
+ * amana_web_planning\SettingsController::grouperDecalages() (filtrage par
+ * préfixe de clé), mais en PHP simple ici plutôt qu'un vrai regroupement
+ * imbriqué — seulement deux sous-ensembles de la boucle générique à
+ * séparer : les deux interrupteurs d'inscription ("Général") et les
+ * réglages d'algorithme de clustering ("Itinéraires"). Les clés
+ * route_hq_latitude/route_hq_longitude sont exclues de $reglagesItineraires
+ * : elles ont leur propre widget dédié dans l'onglet "Itinéraires" (voir
+ * HqCoordinatesAutocomplete.vue) plutôt que la boucle générique.
  */
 class SettingsController extends SettingsControllerBase
 {
+    private const CLES_HQ = ['route_hq_latitude', 'route_hq_longitude'];
+
     protected function appCode(): string
     {
         return 'familles';
@@ -31,8 +44,14 @@ class SettingsController extends SettingsControllerBase
 
     public function index(): View
     {
+        $settings = Setting::allForApp($this->appCode());
+
         return view('settings.index', [
-            'settings' => Setting::allForApp($this->appCode()),
+            'settings' => $settings,
+            'reglagesGeneraux' => $settings->only(['inscription_familles_ouverte', 'inscription_benevoles_ouverte']),
+            'reglagesItineraires' => $settings->filter(
+                fn($_, $cle) => str_starts_with($cle, 'route_') && !in_array($cle, self::CLES_HQ, true)
+            ),
             'vehicules' => VehiculeType::orderBy('id')->get(),
             'organisations' => Organisation::orderByDesc('est_principale')->orderBy('nom')->get(),
             'hotelAddresses' => HotelAddress::orderBy('adresse')->get(),

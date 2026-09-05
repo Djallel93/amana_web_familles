@@ -4,8 +4,15 @@ Surcharge locale de amana-shared::settings.index (voir SettingsControllerBase
 pour le schéma de surcharge) — ajoutée le 26/08/2026 pour intégrer la
 section "Types de véhicule" à la même page que les réglages génériques,
 plutôt qu'une page/entrée de menu séparée (voir VehiculeTypesController).
-Le formulaire des réglages génériques est un copier-strict de la vue
-partagée ; seule la section véhicules en dessous est propre à familles.
+Le formulaire des réglages génériques réutilise settings._reglage_row pour
+le rendu de chaque ligne ; les sections Véhicules/Organisations/Adresses
+hôtel en dessous restent propres à familles.
+
+Onglets ajoutés le 05/09/2026 (voir SettingsTabs.vue) : cinq sections
+(Général, Itinéraires, Véhicules, Organisations, Adresses hôtel) marquées
+data-settings-tab="..." — la page reste du Blade classique avec ses <form>
+POST habituels, les onglets ne font que montrer/cacher ces blocs, aucune
+conversion en SPA.
 --}}
 @extends('layouts.app')
 
@@ -20,46 +27,79 @@ partagée ; seule la section véhicules en dessous est propre à familles.
         </div>
     </div>
 
+    {{-- Onglets ajoutés le 05/09/2026 (page trop chargée) — voir
+         SettingsTabs.vue, qui montre/cache chaque bloc data-settings-tab
+         ci-dessous. Onglet par défaut calculé ici plutôt que toujours
+         "general" : si une soumission échoue la validation, on rouvre
+         l'onglet où se trouve l'erreur au lieu de la cacher. --}}
+    @php
+        $defaultTab = 'general';
+        if (collect($errors->keys())->contains(fn($cle) => str_starts_with($cle, 'settings.route_'))) {
+            $defaultTab = 'itineraires';
+        } elseif ($errors->has('code') || $errors->has('nom')) {
+            $defaultTab = 'organisations';
+        } elseif ($errors->has('adresse')) {
+            $defaultTab = 'hotels';
+        } elseif (collect($errors->keys())->contains(fn($cle) => str_starts_with($cle, 'vehicules.'))) {
+            $defaultTab = 'vehicules';
+        }
+    @endphp
+    <div id="vue-settings-tabs" data-default-tab="{{ $defaultTab }}"></div>
+
     <form action="{{ route('settings.update') }}" method="POST" class="max-w-2xl mb-8">
         @csrf
 
-        <div class="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border">
-            @forelse($settings as $cle => $data)
-                <div class="p-4 flex {{ $data['type'] === 'encrypted' ? 'flex-col' : 'items-center justify-between' }} gap-4">
-                    <div class="min-w-0">
-                        <label for="setting-{{ $cle }}"
-                            class="block text-sm font-semibold text-ink">{{ $data['libelle'] }}</label>
-                        @if($data['description'])
-                            <p class="text-xs text-ink-muted mt-0.5">{{ $data['description'] }}</p>
-                        @endif
+        <div data-settings-tab="general">
+            <div class="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border">
+                @forelse($reglagesGeneraux as $cle => $data)
+                    @include('settings._reglage_row', ['cle' => $cle, 'data' => $data])
+                @empty
+                    <p class="p-4 text-sm text-ink-muted">Aucun paramètre configuré pour cette application.</p>
+                @endforelse
+            </div>
+        </div>
+
+        <div data-settings-tab="itineraires">
+            <div class="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border">
+                @forelse($reglagesItineraires as $cle => $data)
+                    @include('settings._reglage_row', ['cle' => $cle, 'data' => $data])
+                @empty
+                    <p class="p-4 text-sm text-ink-muted">Aucun réglage d'itinéraire configuré.</p>
+                @endforelse
+            </div>
+
+            <div class="mt-6">
+                <h3 class="font-heading text-base font-semibold text-ink tracking-tight mb-1">HQ par défaut</h3>
+                <p class="text-[13px] text-ink-muted mb-3">
+                    Coordonnées du point de départ des tournées (local de l'association). Requises avant tout
+                    clustering. Recherchez une adresse pour remplir automatiquement les coordonnées, ou
+                    saisissez-les manuellement — seules les coordonnées sont conservées, pas l'adresse recherchée.
+                </p>
+
+                <div id="vue-hq-coordinates-autocomplete" class="mb-3"
+                    data-google-places-key="{{ $googlePlacesKey }}"
+                    data-target-lat-id="setting-route_hq_latitude"
+                    data-target-lng-id="setting-route_hq_longitude"></div>
+
+                <div class="flex gap-3 max-w-md">
+                    <div class="flex-1">
+                        <label for="setting-route_hq_latitude" class="block text-xs font-bold text-ink mb-1.5">Latitude</label>
+                        <input type="number" step="any" id="setting-route_hq_latitude" name="settings[route_hq_latitude]"
+                            value="{{ old('settings.route_hq_latitude', $settings['route_hq_latitude']['valeur']) }}"
+                            readonly
+                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted">
                     </div>
-                    <div class="flex-shrink-0 {{ $data['type'] === 'encrypted' ? 'w-full' : 'w-56' }}">
-                        @if($data['type'] === 'boolean')
-                            {{-- Interrupteur (remplace le <select> Activé/Désactivé le
-                                 29/08/2026) — le hidden à '0' avant la checkbox garantit
-                                 qu'une valeur est toujours soumise même décochée (la
-                                 checkbox l'écrase à '1' si cochée, même name donc même
-                                 clé dans settings[], le dernier gagne). --}}
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="hidden" name="settings[{{ $cle }}]" value="0">
-                                <input type="checkbox" id="setting-{{ $cle }}" name="settings[{{ $cle }}]" value="1"
-                                    @checked($data['valeur']) class="sr-only peer">
-                                <div class="w-11 h-6 bg-ink-faint/40 rounded-full peer peer-checked:bg-accent transition-colors
-                                            after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white
-                                            after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
-                            </label>
-                        @elseif($data['type'] === 'encrypted')
-                            <textarea id="setting-{{ $cle }}" name="settings[{{ $cle }}]" rows="3"
-                                class="w-full max-w-md px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-xs font-mono bg-surface-2 text-ink resize-y">{{ $data['valeur'] }}</textarea>
-                        @else
-                            <input type="text" id="setting-{{ $cle }}" name="settings[{{ $cle }}]" value="{{ $data['valeur'] }}"
-                                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
-                        @endif
+                    <div class="flex-1">
+                        <label for="setting-route_hq_longitude" class="block text-xs font-bold text-ink mb-1.5">Longitude</label>
+                        <input type="number" step="any" id="setting-route_hq_longitude" name="settings[route_hq_longitude]"
+                            value="{{ old('settings.route_hq_longitude', $settings['route_hq_longitude']['valeur']) }}"
+                            readonly
+                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted">
                     </div>
                 </div>
-            @empty
-                <p class="p-4 text-sm text-ink-muted">Aucun paramètre configuré pour cette application.</p>
-            @endforelse
+                @error('settings.route_hq_latitude')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+                @error('settings.route_hq_longitude')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
+            </div>
         </div>
 
         <button type="submit"
@@ -68,7 +108,7 @@ partagée ; seule la section véhicules en dessous est propre à familles.
         </button>
     </form>
 
-    <div class="max-w-2xl">
+    <div class="max-w-2xl" data-settings-tab="vehicules">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Types de véhicule</h2>
         <p class="text-[13px] text-ink-muted mb-4">
             Capacité de charge et nombre de colis transportables par type de véhicule — utilisés par le
@@ -116,7 +156,7 @@ partagée ; seule la section véhicules en dessous est propre à familles.
         </form>
     </div>
 
-    <div class="max-w-2xl mt-10">
+    <div class="max-w-2xl mt-10" data-settings-tab="organisations">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Organisations partenaires</h2>
         <p class="text-[13px] text-ink-muted mb-4">
             Organisations pouvant enregistrer des familles dans un dossier commun avec AMANA — voir le rôle
@@ -193,7 +233,7 @@ partagée ; seule la section véhicules en dessous est propre à familles.
         </form>
     </div>
 
-    <div class="max-w-2xl mt-10">
+    <div class="max-w-2xl mt-10" data-settings-tab="hotels">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Adresses hôtel</h2>
         <p class="text-[13px] text-ink-muted mb-4">
             Adresses d'hébergement d'urgence connues (hôtels, appart-hôtels). Quand l'adresse d'une famille

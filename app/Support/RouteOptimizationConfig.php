@@ -66,6 +66,13 @@ final class RouteOptimizationConfig
      * RouteGenerationService de refuser de lancer un clustering dans ce
      * cas plutôt que de calculer des distances depuis (0, 0).
      *
+     * route_hq_latitude/route_hq_longitude sont de type 'float' (depuis le
+     * 05/09/2026, voir la migration de seed) : Setting::get() renvoie déjà
+     * un float, ou null tant que la valeur stockée est une chaîne vide
+     * (Setting::cast() ne caste plus '' en 0.0, voir amana/shared) — plus
+     * besoin de vérifier is_string()/chaîne vide ici comme avant leur
+     * passage en type natif.
+     *
      * @return array{lat: float, lng: float}|null
      */
     public static function coordonneesHq(): ?array
@@ -73,10 +80,10 @@ final class RouteOptimizationConfig
         $lat = Setting::get('route_hq_latitude', 'familles');
         $lng = Setting::get('route_hq_longitude', 'familles');
 
-        if (!is_string($lat) || !is_string($lng) || $lat === '' || $lng === '') {
+        if ($lat === null || $lng === null) {
             return null;
         }
 
-        return ['lat' => (float) $lat, 'lng' => (float) $lng];
+        return ['lat' => $lat, 'lng' => $lng];
     }
 }

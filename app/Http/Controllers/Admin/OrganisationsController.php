@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Organisation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * CRUD du référentiel organisations partenaires — décision du 28/08/2026 :
@@ -33,10 +34,11 @@ class OrganisationsController extends Controller
     {
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:50', 'alpha_dash', 'unique:organisations,code'],
-            'nom' => ['required', 'string', 'max:150'],
+            'nom' => ['required', 'string', 'max:150', 'unique:organisations,nom'],
         ], [
             'code.unique' => 'Ce code est déjà utilisé par une autre organisation.',
             'code.alpha_dash' => 'Le code ne peut contenir que lettres, chiffres, tirets et underscores.',
+            'nom.unique' => 'Une organisation porte déjà ce nom.',
         ]);
 
         $organisation = Organisation::create($validated + ['actif' => true]);
@@ -49,8 +51,10 @@ class OrganisationsController extends Controller
     public function update(Request $request, Organisation $organisation): RedirectResponse
     {
         $validated = $request->validate([
-            'nom' => ['required', 'string', 'max:150'],
+            'nom' => ['required', 'string', 'max:150', Rule::unique('organisations', 'nom')->ignore($organisation->id)],
             'actif' => ['required', 'boolean'],
+        ], [
+            'nom.unique' => 'Une organisation porte déjà ce nom.',
         ]);
 
         // La ligne AMANA (est_principale) ne peut jamais être désactivée —

@@ -38,6 +38,14 @@ use Illuminate\Support\Facades\Schema;
  *     AMANA, pas de gestionnaire_externe impliqué) ;
  *   - protéger cette ligne contre la désactivation/suppression depuis
  *     l'écran Paramètres (voir Admin\OrganisationsController).
+ *
+ * `nom` unique (depuis le 05/09/2026, décision : empêcher la création de la
+ * même organisation deux fois, même sous un `code` différent) — la
+ * collation par défaut de la connexion (utf8mb4_unicode_ci, voir
+ * config/database.php) rend cette contrainte déjà insensible à la casse,
+ * pas besoin d'une colonne normalisée dédiée comme pour
+ * hotel_addresses.adresse_normalisee (qui doit en plus ignorer
+ * accents/ponctuation, ce qu'un index unique seul ne fait pas).
  */
 return new class extends Migration {
     public function up(): void
@@ -45,7 +53,7 @@ return new class extends Migration {
         Schema::create('organisations', function (Blueprint $table) {
             $table->id();
             $table->string('code', 50)->unique();
-            $table->string('nom', 150);
+            $table->string('nom', 150)->unique();
             $table->boolean('actif')->default(true);
             $table->boolean('est_principale')->default(false)
                 ->comment('AMANA elle-même — exactement une ligne à true, voir Organisation::principale()');

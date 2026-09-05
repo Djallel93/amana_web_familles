@@ -21,7 +21,13 @@ use Illuminate\Support\Facades\DB;
  *
  * Type 'string' (pas de type décimal dans Setting::cast(), voir
  * amana/shared) : converties en float/bool côté PHP dans
- * RouteOptimizationConfig, pas ici.
+ * RouteOptimizationConfig, pas ici. Concerne les 7 réglages d'algorithme
+ * ci-dessous — PAS route_hq_latitude/route_hq_longitude (voir plus bas),
+ * passées en type 'float' natif le 05/09/2026 en même temps que la
+ * refonte de leur UI dans l'écran Paramètres (recherche d'adresse Google
+ * Places + saisie manuelle, voir HqCoordinatesAutocomplete.vue) —
+ * volontairement pas rétroporté sur les 7 réglages d'algorithme dans ce
+ * changement, à faire dans un futur ticket séparé.
  */
 return new class extends Migration {
     public function up(): void
@@ -106,23 +112,33 @@ return new class extends Migration {
         // (chaîne vide, pas de ligne omise) pour qu'elles apparaissent dans l'écran
         // Paramètres même non configurées — voir
         // App\Support\RouteOptimizationConfig::coordonneesHq(), qui renvoie null
-        // tant qu'elles ne sont pas renseignées, et
-        // RouteGenerationService::genererPourCampagne(), qui refuse de lancer un
+        // tant qu'elles ne sont pas renseignées (Setting::cast() renvoie null pour
+        // une valeur vide de type 'float'/'integer', pas 0.0 — voir amana/shared),
+        // et RouteGenerationService::genererPourCampagne(), qui refuse de lancer un
         // clustering sans elles plutôt que de calculer des distances aberrantes
         // depuis (0, 0).
+        //
+        // Renommées "HQ par défaut" (label + libelle, décision du 05/09/2026,
+        // en prévision d'une future fonctionnalité multi-QG) et passées en
+        // type 'float' natif : contrairement aux réglages d'algorithme
+        // ci-dessus, ces deux clés sont désormais éditées via un widget dédié
+        // (recherche d'adresse Google Places → coordonnées, avec repli sur
+        // une saisie manuelle) plutôt que par la boucle générique de l'écran
+        // Paramètres — voir resources/views/settings/index.blade.php et
+        // HqCoordinatesAutocomplete.vue.
         $reglagesHq = [
             [
                 'cle' => 'route_hq_latitude',
                 'valeur' => '',
-                'type' => 'string',
-                'libelle' => 'QG — Latitude',
+                'type' => 'float',
+                'libelle' => 'HQ par défaut — Latitude',
                 'description' => "Coordonnée du point de départ des tournées (local de l'association). Requise avant tout clustering.",
             ],
             [
                 'cle' => 'route_hq_longitude',
                 'valeur' => '',
-                'type' => 'string',
-                'libelle' => 'QG — Longitude',
+                'type' => 'float',
+                'libelle' => 'HQ par défaut — Longitude',
                 'description' => "Coordonnée du point de départ des tournées (local de l'association). Requise avant tout clustering.",
             ],
         ];
