@@ -48,4 +48,14 @@ class CampagneJournee extends Model
     {
         return $this->hasMany(RouteLivraison::class, 'id_campagne_journee');
     }
+
+    /**
+     * Disponibilités bénévoles confirmées pour CETTE journée précise —
+     * voir BenevoleDisponibilite, rescopée de Campagne vers
+     * CampagneJournee le 05/09/2026.
+     */
+    public function disponibilites(): HasMany
+    {
+        return $this->hasMany(BenevoleDisponibilite::class, 'id_campagne_journee');
+    }
 }

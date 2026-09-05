@@ -11,12 +11,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * Confirmation de disponibilité d'un bénévole pour une campagne donnée —
- * voir create_benevole_disponibilites_table.php.
+ * Confirmation de disponibilité d'un bénévole pour une journée de
+ * campagne donnée — voir create_benevole_disponibilites_table.php.
+ *
+ * Rescopée de Campagne vers CampagneJournee le 05/09/2026 (suivi du
+ * patch multi-jours du 03/09/2026) : un bénévole confirme séparément
+ * pour chaque journée (ex: dispo le jour de collecte, pas le jour de
+ * livraison). Pas de relation directe vers Campagne ici — elle reste
+ * accessible via `$disponibilite->journee->campagne`.
  *
  * @property int    $id
  * @property int    $id_personne
- * @property int    $id_campagne
+ * @property int    $id_campagne_journee
  * @property bool   $vehicule_confirme
  * @property bool   $coverage_confirmee
  * @property string|null $coverage_notes
@@ -30,7 +36,7 @@ class BenevoleDisponibilite extends Model
     }
 
     protected $fillable = [
-        'id_personne', 'id_campagne',
+        'id_personne', 'id_campagne_journee',
         'vehicule_confirme', 'coverage_confirmee', 'coverage_notes', 'statut',
     ];
 
@@ -46,9 +52,9 @@ class BenevoleDisponibilite extends Model
         return $this->belongsTo(Personne::class, 'id_personne');
     }
 
-    public function campagne(): BelongsTo
+    public function journee(): BelongsTo
     {
-        return $this->belongsTo(Campagne::class, 'id_campagne');
+        return $this->belongsTo(CampagneJournee::class, 'id_campagne_journee');
     }
 
     public function creneaux(): HasMany

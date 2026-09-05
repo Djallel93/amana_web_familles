@@ -53,7 +53,10 @@ class CampagnesController extends Controller
         // d'ajouter un endpoint JSON dédié pour un référentiel déjà
         // disponible en lecture partout ailleurs dans l'app.
         return view('livraison.campagne-detail', [
-            'campagne' => $campagne,
+            // journees chargées (05/09/2026) pour alimenter le sélecteur de
+            // journée de CampagneDetail.vue avant génération — masqué côté
+            // Vue quand il n'y en a qu'une (cas mono-jour).
+            'campagne' => $campagne->load('journees'),
             'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom']),
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
         ]);
@@ -78,7 +81,17 @@ class CampagnesController extends Controller
             'statut' => 'preparation',
         ]);
 
-        return response()->json(['success' => true, 'campagne' => $campagne], 201);
+        // Depuis le 05/09/2026 : une CampagneJournee est toujours créée dès
+        // la création de la campagne, y compris pour une campagne
+        // "classique" à une seule journée — voir Campagne::ajouterJournee()
+        // (qui synchronise déjà date_livraison sur cette première journée).
+        // Sans ça, id_campagne_journee resterait NULL sur toutes les
+        // disponibilités/livraisons/routes d'une campagne mono-jour, alors
+        // que RouteGenerationService/BenevoleDisponibilite/
+        // CampagneStatsService raisonnent désormais tous par journée.
+        $campagne->ajouterJournee($campagne->date_livraison);
+
+        return response()->json(['success' => true, 'campagne' => $campagne->load('journees')], 201);
     }
 
     /**
@@ -134,13 +147,20 @@ class CampagnesController extends Controller
         $validator = Validator::make($request->all(), [
             'ids_familles' => 'required|array|min:1',
             'ids_familles.*' => 'integer|exists:familles,id',
+            // Requis depuis le 05/09/2026 : toute campagne a désormais au
+            // moins une CampagneJournee (voir store()), donc les
+            // livraisons générées doivent toujours être rattachées à l'une
+            // d'elles — plus de génération "orpheline" de journée.
+            'id_campagne_journee' => 'required|integer|exists:campagne_journees,id',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $resultat = $this->generationService->genererPour($campagne, $request->input('ids_familles'));
+        $journee = $campagne->journees()->findOrFail($request->integer('id_campagne_journee'));
+
+        $resultat = $this->generationService->genererPour($campagne, $request->input('ids_familles'), $journee);
 
         return response()->json([
             'success' => true,

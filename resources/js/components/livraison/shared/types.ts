@@ -67,6 +67,19 @@ export interface Campagne {
     poids_moyen_kg: number;
     poids_moyen_hotel_kg: number | null;
     poids_moyen_etudiant_kg: number | null;
+    // Chargées via Campagne::journees() (voir CampagnesController::show())
+    // — au moins une journée depuis le 05/09/2026, toute campagne en a une
+    // (voir CampagnesController::store()).
+    journees?: CampagneJournee[];
+}
+
+/** Une journée de collecte/livraison d'une campagne — voir CampagneJournee. */
+export interface CampagneJournee {
+    id: number;
+    id_campagne: number;
+    date: string;
+    label: string | null;
+    ordre: number;
 }
 
 export interface Quartier {
@@ -255,6 +268,22 @@ export interface ResoudreIncidentResultat {
 export interface StatistiquesDonnees {
     nombre_menages: number;
     poids_collecte_kg: number;
+    livraisons_total: number;
+    livraisons_par_statut: Record<string, number>;
+    poids_livre_kg: number;
+    routes_total: number;
+    routes_par_statut: Record<string, number>;
+    distance_totale_km: number;
+    taux_livraison: number;
+    // Ventilation par journée (05/09/2026) — indexée par id_campagne_journee
+    // (clé JSON = string même si numérique, voir CampagneStatsService).
+    // Absente/vide pour les campagnes créées avant cette évolution.
+    par_journee: Record<string, StatistiquesParJournee>;
+}
+
+export interface StatistiquesParJournee {
+    label: string | null;
+    date: string;
     livraisons_total: number;
     livraisons_par_statut: Record<string, number>;
     poids_livre_kg: number;

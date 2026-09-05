@@ -8,6 +8,7 @@ namespace App\Services;
 use Amana\Shared\Models\BenevoleProfil;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
+use App\Models\CampagneJournee;
 use App\Notifications\CampagneDisponibiliteNotification;
 use Illuminate\Support\Facades\Log;
 
@@ -50,17 +51,23 @@ class BenevoleDisponibiliteService
     }
 
     /**
-     * Crée ou met à jour la disponibilité d'un bénévole pour une
-     * campagne — éditable à tout moment après la confirmation initiale
-     * (voir le prompt §3.2 : "Editable by them at any time after"), donc
-     * un simple upsert plutôt qu'un flux "renvoyer le formulaire".
+     * Crée ou met à jour la disponibilité d'un bénévole pour UNE journée
+     * de campagne — éditable à tout moment après la confirmation
+     * initiale (voir le prompt §3.2 : "Editable by them at any time
+     * after"), donc un simple upsert plutôt qu'un flux "renvoyer le
+     * formulaire".
+     *
+     * Rescopée de Campagne vers CampagneJournee le 05/09/2026 : un
+     * bénévole confirme désormais séparément pour chaque journée (ex:
+     * dispo le jour de collecte, pas le jour de livraison) — voir
+     * create_benevole_disponibilites_table.php.
      *
      * @param string[] $creneaux
      */
-    public function confirmer(int $idPersonne, Campagne $campagne, array $donnees, array $creneaux): BenevoleDisponibilite
+    public function confirmer(int $idPersonne, CampagneJournee $journee, array $donnees, array $creneaux): BenevoleDisponibilite
     {
         $disponibilite = BenevoleDisponibilite::updateOrCreate(
-            ['id_personne' => $idPersonne, 'id_campagne' => $campagne->id],
+            ['id_personne' => $idPersonne, 'id_campagne_journee' => $journee->id],
             [
                 'vehicule_confirme' => $donnees['vehicule_confirme'] ?? false,
                 'coverage_confirmee' => $donnees['coverage_confirmee'] ?? false,

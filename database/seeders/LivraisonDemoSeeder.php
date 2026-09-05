@@ -184,10 +184,16 @@ class LivraisonDemoSeeder extends Seeder
 
     /**
      * Bénévoles/chauffeurs (permis + véhicule) avec disponibilité
-     * CONFIRMÉE pour cette campagne — réutilise BenevoleSeeder pour la
-     * génération des personnes/profils (déjà 'Validé' de bout en bout),
-     * puis BenevoleDisponibiliteService::confirmer() pour la disponibilité
+     * CONFIRMÉE pour CHAQUE journée de cette campagne — réutilise
+     * BenevoleSeeder pour la génération des personnes/profils (déjà
+     * 'Validé' de bout en bout), puis
+     * BenevoleDisponibiliteService::confirmer() pour la disponibilité
      * elle-même, même service que l'écran public de confirmation.
+     *
+     * Rescopée par journée le 05/09/2026 (confirmer() prend désormais une
+     * CampagneJournee, pas une Campagne) : la démo confirme le même pool
+     * de chauffeurs sur les 2 journées créées par run() — utile pour
+     * exercer le clustering/génération de routes sur chacune séparément.
      */
     private function confirmerChauffeurs(Campagne $campagne): void
     {
@@ -205,22 +211,24 @@ class LivraisonDemoSeeder extends Seeder
             return;
         }
 
-        foreach ($chauffeurs as $profil) {
-            $creneaux = fake()->randomElements(Creneau::TOUS, fake()->numberBetween(2, 4));
+        foreach ($campagne->journees as $journee) {
+            foreach ($chauffeurs as $profil) {
+                $creneaux = fake()->randomElements(Creneau::TOUS, fake()->numberBetween(2, 4));
 
-            $this->disponibiliteService->confirmer(
-                $profil->id_personne,
-                $campagne,
-                [
-                    'vehicule_confirme' => true,
-                    'coverage_confirmee' => fake()->boolean(70),
-                    'coverage_notes' => fake()->boolean(20) ? fake()->realText(60) : null,
-                ],
-                $creneaux,
-            );
+                $this->disponibiliteService->confirmer(
+                    $profil->id_personne,
+                    $journee,
+                    [
+                        'vehicule_confirme' => true,
+                        'coverage_confirmee' => fake()->boolean(70),
+                        'coverage_notes' => fake()->boolean(20) ? fake()->realText(60) : null,
+                    ],
+                    $creneaux,
+                );
+            }
         }
 
         $this->command->info("✅ {$chauffeurs->count()} bénévoles chauffeurs avec disponibilité "
-            . "confirmée (véhicule confirmé) pour la campagne #{$campagne->id}.");
+            . "confirmée (véhicule confirmé) sur {$campagne->journees->count()} journée(s) de la campagne #{$campagne->id}.");
     }
 }

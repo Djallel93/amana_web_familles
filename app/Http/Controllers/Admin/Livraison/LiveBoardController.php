@@ -51,16 +51,33 @@ class LiveBoardController extends Controller
     }
 
     /**
-     * Déclenche le cycle complet clustering→assignation→TSP pour une
-     * campagne — voir RouteGenerationService::genererPourCampagne().
-     * Idempotent au sens où seules les livraisons encore non_assignee
-     * sont considérées à chaque appel (relancer après une confirmation
-     * tardive ne recrée pas les tournées déjà générées).
+     * Déclenche le cycle complet clustering→assignation→TSP pour UNE
+     * journée d'une campagne — voir
+     * RouteGenerationService::genererPourCampagne(). Idempotent au sens
+     * où seules les livraisons encore non_assignee sont considérées à
+     * chaque appel (relancer après une confirmation tardive ne recrée pas
+     * les tournées déjà générées).
+     *
+     * id_campagne_journee requis depuis le 05/09/2026 (voir
+     * RouteGenerationService) — la campagne a toujours au moins une
+     * journée (CampagnesController::store()), le sélecteur de
+     * CampagneDetail.vue l'envoie toujours, y compris pour une campagne
+     * mono-jour (une seule option, choisie silencieusement côté Vue).
      */
-    public function genererRoutes(Campagne $campagne): JsonResponse
+    public function genererRoutes(Request $request, Campagne $campagne): JsonResponse
     {
+        $validator = Validator::make($request->all(), [
+            'id_campagne_journee' => 'required|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $journee = $campagne->journees()->findOrFail($request->integer('id_campagne_journee'));
+
         try {
-            $resultat = $this->generationService->genererPourCampagne($campagne);
+            $resultat = $this->generationService->genererPourCampagne($campagne, $journee);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -82,10 +99,19 @@ class LiveBoardController extends Controller
      * RouteGenerationService::livraisonsNonCouvertes() et le prompt §3.3
      * point 7 ("do not silently drop anyone — raise a visible admin-board
      * item").
+     *
+     * ?id_campagne_journee (05/09/2026, optionnel) : scope l'affichage à
+     * la journée en cours de sélection dans CampagneDetail.vue ; omis,
+     * remonte les non-couvertes de toute la campagne (comportement
+     * inchangé pour une campagne mono-jour).
      */
-    public function nonCouvertes(Campagne $campagne): JsonResponse
+    public function nonCouvertes(Request $request, Campagne $campagne): JsonResponse
     {
-        return response()->json($this->generationService->livraisonsNonCouvertes($campagne));
+        $journee = $request->filled('id_campagne_journee')
+            ? $campagne->journees()->findOrFail($request->integer('id_campagne_journee'))
+            : null;
+
+        return response()->json($this->generationService->livraisonsNonCouvertes($campagne, $journee));
     }
 
     /**

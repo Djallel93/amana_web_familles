@@ -17,7 +17,7 @@
         organisation de familles/index.blade.php).
 -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useToast, useConfirm } from '@amana/shared-ui';
 import { apiGet, apiPost } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
@@ -26,6 +26,7 @@ import {
     CAMPAGNE_TYPES,
     normalizePaginated,
     type Campagne,
+    type CampagneJournee,
     type FamilleEligible,
     type GenererLivraisonsResultat,
     type GenererRoutesResultat,
@@ -68,6 +69,15 @@ function formatDateFr(iso: string): string {
     const [annee, mois, jour] = iso.split('T')[0].split('-');
     return `${jour}/${mois}/${annee}`;
 }
+
+// ── Sélection de journée (05/09/2026) ───────────────────────────────────
+// Toute campagne a désormais au moins une CampagneJournee (voir
+// CampagnesController::store()) — pré-sélectionne la première
+// silencieusement ; le sélecteur ne s'affiche (voir template) que si
+// plusieurs journées existent, pour ne rien changer visuellement au cas
+// mono-jour.
+const journees = ref<CampagneJournee[]>(campagne.value.journees ?? []);
+const idJourneeSelectionnee = ref<number | null>(journees.value[0]?.id ?? null);
 
 // ── Filtre + checklist familles éligibles ──────────────────────────────
 const filtreCriticiteMin = ref('');
@@ -128,6 +138,10 @@ async function genererLivraisons() {
         erreurGeneration.value = 'Sélectionnez au moins une famille.';
         return;
     }
+    if (idJourneeSelectionnee.value === null) {
+        erreurGeneration.value = 'Aucune journée disponible pour cette campagne.';
+        return;
+    }
 
     chargementGeneration.value = true;
     erreurGeneration.value = '';
@@ -135,6 +149,7 @@ async function genererLivraisons() {
 
     const resultat = await apiPost<GenererLivraisonsResultat>(urls.genererLivraisons, {
         ids_familles: [...selectionnees.value],
+        id_campagne_journee: idJourneeSelectionnee.value,
     });
 
     chargementGeneration.value = false;
@@ -178,13 +193,18 @@ const resultatRoutes = ref<GenererRoutesResultat | null>(null);
 const erreurRoutes = ref('');
 
 async function genererRoutes() {
+    if (idJourneeSelectionnee.value === null) {
+        erreurRoutes.value = 'Aucune journée disponible pour cette campagne.';
+        return;
+    }
+
     // Opération lourde (clustering + TSP) qui peut recréer/déplacer des
     // tournées déjà notifiées à des bénévoles — confirmation avant
     // lancement plutôt qu'un simple bouton, contrairement à la version
     // placeholder.
     const confirmed = await confirmDialog.ask({
         title: 'Lancer la génération des routes',
-        message: 'Le clustering et l\'assignation des tournées vont être (re)calculés pour cette campagne. Continuer ?',
+        message: 'Le clustering et l\'assignation des tournées vont être (re)calculés pour cette journée. Continuer ?',
         confirmLabel: 'Lancer',
     });
     if (!confirmed) return;
@@ -193,7 +213,9 @@ async function genererRoutes() {
     erreurRoutes.value = '';
     resultatRoutes.value = null;
 
-    const resultat = await apiPost<GenererRoutesResultat>(urls.genererRoutes);
+    const resultat = await apiPost<GenererRoutesResultat>(urls.genererRoutes, {
+        id_campagne_journee: idJourneeSelectionnee.value,
+    });
     chargementRoutes.value = false;
 
     if (!resultat.ok) {
@@ -218,7 +240,10 @@ async function chargerNonCouvertes() {
     chargementNonCouvertes.value = true;
     erreurNonCouvertes.value = false;
 
-    const resultat = await apiGet<Livraison[]>(urls.nonCouvertes);
+    const params = idJourneeSelectionnee.value !== null
+        ? `?id_campagne_journee=${idJourneeSelectionnee.value}`
+        : '';
+    const resultat = await apiGet<Livraison[]>(`${urls.nonCouvertes}${params}`);
     chargementNonCouvertes.value = false;
 
     if (!resultat.ok) {
@@ -228,6 +253,11 @@ async function chargerNonCouvertes() {
 
     nonCouvertes.value = resultat.data;
 }
+
+// Recharge la liste des non-couvertes quand l'admin change de journée
+// dans le sélecteur (§3.4) — évite d'afficher les non-couvertes d'une
+// autre journée par erreur.
+watch(idJourneeSelectionnee, () => chargerNonCouvertes());
 
 onMounted(() => {
     chargerEligibles(1);
@@ -282,6 +312,22 @@ async function chargerAvancement() {
             <a :href="urls.tableauDeBord" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
                 🗺️ Tableau de bord
             </a>
+        </div>
+
+        <!--
+            Sélecteur de journée (05/09/2026) — affiché seulement si la
+            campagne a plusieurs journées (voir §3.4) ; pour une campagne
+            mono-jour, idJourneeSelectionnee pointe silencieusement vers
+            l'unique journée sans rien montrer à l'écran.
+        -->
+        <div v-if="journees.length > 1" class="mb-3">
+            <label class="block text-[12.5px] font-medium text-ink-muted mb-1">Journée</label>
+            <select v-model.number="idJourneeSelectionnee"
+                class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
+                <option v-for="journee in journees" :key="journee.id" :value="journee.id">
+                    {{ journee.label ?? formatDateFr(journee.date) }} — {{ formatDateFr(journee.date) }}
+                </option>
+            </select>
         </div>
 
         <div class="flex flex-col sm:flex-row gap-3 mb-3">

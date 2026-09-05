@@ -19,7 +19,7 @@
     pour ne jamais présenter un bouton qui échouerait systématiquement.
 -->
 <script setup lang="ts">
-import { ref, onUnmounted, nextTick } from 'vue';
+import { ref, onUnmounted, nextTick, computed } from 'vue';
 import { useToast } from '@amana/shared-ui';
 import {
     Chart,
@@ -32,7 +32,7 @@ import {
     type ChartConfiguration,
 } from 'chart.js';
 import { apiGet, apiPost } from '../shared/api';
-import type { Campagne, StatistiquesDonnees } from '../shared/types';
+import type { Campagne, StatistiquesDonnees, StatistiquesParJournee } from '../shared/types';
 
 Chart.register(BarController, BarElement, LinearScale, CategoryScale, Tooltip, Legend);
 
@@ -56,6 +56,18 @@ function formatDateFr(iso: string): string {
     const [annee, mois, jour] = iso.split('T')[0].split('-');
     return `${jour}/${mois}/${annee}`;
 }
+
+// ── Ventilation par journée (05/09/2026) ────────────────────────────────
+// N'a d'intérêt que pour une campagne à PLUSIEURS journées — pour une
+// campagne mono-jour, le seul bucket dupliquerait exactement les totaux
+// déjà affichés ci-dessus, d'où le seuil > 1 plutôt qu'un simple v-if
+// sur la présence de la clé.
+const ventilationParJournee = computed<Array<StatistiquesParJournee & { id: string }>>(() => {
+    if (!donnees.value?.par_journee) return [];
+    return Object.entries(donnees.value.par_journee)
+        .map(([id, v]) => ({ id, ...v }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+});
 
 function urlDonnees(id: string): string {
     return donneesUrlTemplate.replace('__CAMPAGNE__', id);
@@ -223,6 +235,39 @@ onUnmounted(() => {
                         <canvas ref="canvasRoutes"></canvas>
                     </div>
                 </div>
+            </div>
+
+            <!--
+                Ventilation par journée (05/09/2026) — voir
+                CampagneStatsService::calculer()['par_journee']. Affichée
+                seulement pour une campagne à plusieurs journées (voir
+                computed ventilationParJournee) ; en complément des
+                totaux ci-dessus, pas en remplacement.
+            -->
+            <div v-if="ventilationParJournee.length > 1" class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 overflow-x-auto">
+                <p class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.4px] mb-3">Ventilation par journée</p>
+                <table class="w-full text-[12.5px] text-ink">
+                    <thead>
+                        <tr class="text-left text-ink-muted border-b border-surface-border">
+                            <th class="py-1.5 pr-3">Journée</th>
+                            <th class="py-1.5 pr-3">Livraisons</th>
+                            <th class="py-1.5 pr-3">Poids livré</th>
+                            <th class="py-1.5 pr-3">Tournées</th>
+                            <th class="py-1.5 pr-3">Distance</th>
+                            <th class="py-1.5">Taux livraison</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="j in ventilationParJournee" :key="j.id" class="border-b border-surface-border last:border-0">
+                            <td class="py-1.5 pr-3">{{ j.label ?? formatDateFr(j.date) }}</td>
+                            <td class="py-1.5 pr-3">{{ j.livraisons_total }}</td>
+                            <td class="py-1.5 pr-3">{{ j.poids_livre_kg }} kg</td>
+                            <td class="py-1.5 pr-3">{{ j.routes_total }}</td>
+                            <td class="py-1.5 pr-3">{{ j.distance_totale_km.toFixed(1) }} km</td>
+                            <td class="py-1.5">{{ Math.round(j.taux_livraison * 100) }}%</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </template>
     </div>

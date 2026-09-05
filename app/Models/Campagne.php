@@ -7,6 +7,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 /**
  * Une campagne de livraison — zakat_el_fitr (annuelle, toutes les
@@ -80,9 +81,24 @@ class Campagne extends Model
         return $this->hasMany(Livraison::class, 'id_campagne');
     }
 
-    public function disponibilitesBenevoles(): HasMany
+    /**
+     * Disponibilités bénévoles de TOUTES les journées de cette campagne —
+     * rescopée le 05/09/2026 : BenevoleDisponibilite pointe désormais vers
+     * une CampagneJournee, pas directement vers la Campagne (voir
+     * create_benevole_disponibilites_table.php). Utile pour une vue
+     * d'ensemble au niveau campagne ; le filtrage par journée précise se
+     * fait via CampagneJournee::disponibilites().
+     */
+    public function disponibilitesBenevoles(): HasManyThrough
     {
-        return $this->hasMany(BenevoleDisponibilite::class, 'id_campagne');
+        return $this->hasManyThrough(
+            BenevoleDisponibilite::class,
+            CampagneJournee::class,
+            'id_campagne',           // FK sur campagne_journees pointant vers campagnes
+            'id_campagne_journee',   // FK sur benevole_disponibilites pointant vers campagne_journees
+            'id',                    // PK locale (campagnes.id)
+            'id',                    // PK sur campagne_journees
+        );
     }
 
     public function routes(): HasMany
