@@ -54,6 +54,7 @@ const urls = {
     genererLivraisons: el.dataset.genererLivraisonsUrl ?? '',
     notifierBenevoles: el.dataset.notifierBenevolesUrl ?? '',
     genererRoutes: el.dataset.genererRoutesUrl ?? '',
+    ajouterJournee: el.dataset.ajouterJourneeUrl ?? '',
     nonCouvertes: el.dataset.nonCouvertesUrl ?? '',
     avancement: el.dataset.avancementUrl ?? '',
     // Hub de navigation vers les écrans des étapes suivantes — voir le
@@ -78,6 +79,46 @@ function formatDateFr(iso: string): string {
 // mono-jour.
 const journees = ref<CampagneJournee[]>(campagne.value.journees ?? []);
 const idJourneeSelectionnee = ref<number | null>(journees.value[0]?.id ?? null);
+
+// ── Ajout d'une journée après création (05/09/2026) ─────────────────────
+// Réutilise CampagnesController::ajouterJournee() (déjà existant, aucun
+// changement backend) — distinct de la saisie multi-journées de
+// CampagnesIndex.vue à la CRÉATION : ici on ajoute UNE journée à une
+// campagne qui existe déjà, à tout moment (avant ou après son démarrage).
+const afficherFormAjoutJournee = ref(false);
+const nouvelleJourneeDate = ref('');
+const nouvelleJourneeLabel = ref('');
+const chargementAjoutJournee = ref(false);
+const erreurAjoutJournee = ref('');
+
+async function ajouterJournee() {
+    if (!nouvelleJourneeDate.value) {
+        erreurAjoutJournee.value = 'Choisissez une date.';
+        return;
+    }
+
+    chargementAjoutJournee.value = true;
+    erreurAjoutJournee.value = '';
+
+    const resultat = await apiPost<{ success: boolean; journee: CampagneJournee }>(urls.ajouterJournee, {
+        date: nouvelleJourneeDate.value,
+        label: nouvelleJourneeLabel.value || null,
+    });
+
+    chargementAjoutJournee.value = false;
+
+    if (!resultat.ok) {
+        erreurAjoutJournee.value = resultat.message;
+        return;
+    }
+
+    journees.value = [...journees.value, resultat.data.journee];
+    idJourneeSelectionnee.value = resultat.data.journee.id;
+    nouvelleJourneeDate.value = '';
+    nouvelleJourneeLabel.value = '';
+    afficherFormAjoutJournee.value = false;
+    toast.success('Journée ajoutée.');
+}
 
 // ── Filtre + checklist familles éligibles ──────────────────────────────
 const filtreCriticiteMin = ref('');
@@ -328,6 +369,43 @@ async function chargerAvancement() {
                     {{ journee.label ?? formatDateFr(journee.date) }} — {{ formatDateFr(journee.date) }}
                 </option>
             </select>
+        </div>
+
+        <!--
+            Ajout d'une journée après création (05/09/2026) — utilisable à
+            tout moment, campagne démarrée ou non (voir
+            Campagne::ajouterJournee()). Distinct de la saisie
+            multi-journées à la création (CampagnesIndex.vue).
+        -->
+        <div class="mb-6">
+            <button v-if="!afficherFormAjoutJournee" type="button" @click="afficherFormAjoutJournee = true"
+                class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+                + Ajouter une journée
+            </button>
+            <form v-else @submit.prevent="ajouterJournee"
+                class="flex flex-col sm:flex-row gap-2 sm:items-end bg-surface border border-surface-border rounded-xl p-4">
+                <div>
+                    <label class="block text-[12px] text-ink-muted mb-1">Date</label>
+                    <input v-model="nouvelleJourneeDate" type="date" required
+                        class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-[12px] text-ink-muted mb-1">Label (optionnel)</label>
+                    <input v-model="nouvelleJourneeLabel" type="text" placeholder="ex: Livraison (jour 2)"
+                        class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" :disabled="chargementAjoutJournee"
+                        class="min-h-[2.25rem] text-[13px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
+                        {{ chargementAjoutJournee ? 'Ajout…' : 'Ajouter' }}
+                    </button>
+                    <button type="button" @click="afficherFormAjoutJournee = false"
+                        class="min-h-[2.25rem] text-[13px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted">
+                        Annuler
+                    </button>
+                </div>
+            </form>
+            <p v-if="erreurAjoutJournee" class="text-[13px] text-rose-600 mt-2">{{ erreurAjoutJournee }}</p>
         </div>
 
         <div class="flex flex-col sm:flex-row gap-3 mb-3">

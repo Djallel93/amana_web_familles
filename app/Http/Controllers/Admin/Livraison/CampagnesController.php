@@ -62,11 +62,23 @@ class CampagnesController extends Controller
         ]);
     }
 
+    /**
+     * $request->journees : un tableau de journées à créer d'un coup dès
+     * la création de la campagne (05/09/2026, suivi du prompt §3.1/§3.2)
+     * — au lieu d'un unique date_livraison direct. Chaque élément devient
+     * une CampagneJournee via Campagne::ajouterJournee(), y compris le
+     * premier (qui synchronise aussi date_livraison — voir cette
+     * méthode). Le cas mono-jour (le plus courant) est simplement un
+     * tableau à un seul élément, aucune régression de comportement par
+     * rapport à avant cette évolution.
+     */
     public function store(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'type' => 'required|in:' . implode(',', Campagne::TYPES),
-            'date_livraison' => 'required|date',
+            'journees' => 'required|array|min:1',
+            'journees.*.date' => 'required|date',
+            'journees.*.label' => 'nullable|string|max:100',
             'poids_moyen_kg' => 'required|numeric|min:0',
             'poids_moyen_hotel_kg' => 'nullable|numeric|min:0',
             'poids_moyen_etudiant_kg' => 'nullable|numeric|min:0',
@@ -76,29 +88,36 @@ class CampagnesController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
+        $donnees = $validator->validated();
+        $journeesDemandees = $donnees['journees'];
+        unset($donnees['journees']);
+
+        // date_livraison (colonne NOT NULL, voir create_campagnes_table.php)
+        // déduite de la première journée saisie — ajouterJournee()
+        // resynchronisera la même valeur juste après, sans effet
+        // supplémentaire (voir docblock de cette méthode).
         $campagne = Campagne::create([
-            ...$validator->validated(),
+            ...$donnees,
+            'date_livraison' => $journeesDemandees[0]['date'],
             'statut' => 'preparation',
         ]);
 
-        // Depuis le 05/09/2026 : une CampagneJournee est toujours créée dès
-        // la création de la campagne, y compris pour une campagne
-        // "classique" à une seule journée — voir Campagne::ajouterJournee()
-        // (qui synchronise déjà date_livraison sur cette première journée).
-        // Sans ça, id_campagne_journee resterait NULL sur toutes les
-        // disponibilités/livraisons/routes d'une campagne mono-jour, alors
-        // que RouteGenerationService/BenevoleDisponibilite/
-        // CampagneStatsService raisonnent désormais tous par journée.
-        $campagne->ajouterJournee($campagne->date_livraison);
+        foreach ($journeesDemandees as $journeeDemandee) {
+            $campagne->ajouterJournee($journeeDemandee['date'], $journeeDemandee['label'] ?? null);
+        }
 
         return response()->json(['success' => true, 'campagne' => $campagne->load('journees')], 201);
     }
 
     /**
-     * Ajoute une journée à une campagne existante — voir le prompt du
-     * 03/09/2026 §1 (campagnes multi-jours) et Campagne::ajouterJournee().
-     * Couvre le cas "on vient de décider d'un jour de collecte/livraison
-     * en plus" (ex: zakat el-fitr) sans créer une nouvelle campagne.
+     * Ajoute une journée à une campagne existante, à tout moment — avant
+     * comme après le démarrage de l'opération (voir Campagne::ajouterJournee() :
+     * "couvre à la fois la planification initiale... et le cas 'on vient
+     * de décider d'un jour de collecte/livraison en plus'"). Distinct de
+     * store() (§3.1/§3.2 du 05/09/2026) : store() prend plusieurs
+     * journées EN UNE FOIS à la création, cet endpoint en ajoute UNE
+     * SEULE sur une campagne déjà créée (voir le bouton "+ Ajouter une
+     * journée" de CampagneDetail.vue).
      */
     public function ajouterJournee(Request $request, Campagne $campagne): JsonResponse
     {

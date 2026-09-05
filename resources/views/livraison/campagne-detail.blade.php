@@ -22,6 +22,7 @@
             data-generer-livraisons-url="{{ route('livraison.campagnes.generer-livraisons', $campagne) }}"
             data-notifier-benevoles-url="{{ route('livraison.campagnes.notifier-benevoles', $campagne) }}"
             data-generer-routes-url="{{ route('livraison.campagnes.generer-routes', $campagne) }}"
+            data-ajouter-journee-url="{{ route('livraison.campagnes.journees.store', $campagne) }}"
             data-non-couvertes-url="{{ route('livraison.campagnes.non-couvertes', $campagne) }}"
             data-avancement-url="{{ route('livraison.campagnes.avancement', $campagne) }}"
             data-contacts-url="{{ route('livraison.contacts.index', ['id_campagne' => $campagne->id]) }}"
