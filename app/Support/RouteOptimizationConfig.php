@@ -14,26 +14,27 @@ use App\Models\Campagne;
  * valeurs par défaut et leur origine (CONFIG_ROUTE_OPTIMIZATION,
  * amana_livraison).
  *
- * Setting::cast() (amana/shared) n'a pas de type décimal — les valeurs
- * numériques sont stockées en 'string' et converties ici, pas dans le
- * paquet partagé (voir le fallback `?? défaut` sur chaque accesseur, qui
- * protège aussi contre une ligne ref_settings supprimée par erreur).
+ * Les 5 réglages numériques ci-dessous sont de type natif 'float'/
+ * 'integer' depuis le 07/09/2026 (voir la migration de seed) :
+ * Setting::get() renvoie déjà un float/int, plus de cast manuel ici. Le
+ * fallback `?? défaut` sur chaque accesseur protège contre une ligne
+ * ref_settings supprimée par erreur (Setting::get() renvoie alors null).
  */
 final class RouteOptimizationConfig
 {
     public static function distanceProximiteKm(): float
     {
-        return (float) (Setting::get('route_distance_proximite_km', 'familles') ?? 2.5);
+        return Setting::get('route_distance_proximite_km', 'familles') ?? 2.5;
     }
 
     public static function maxClusterDiameterKm(): float
     {
-        return (float) (Setting::get('route_max_cluster_diameter_km', 'familles') ?? 5);
+        return Setting::get('route_max_cluster_diameter_km', 'familles') ?? 5;
     }
 
     public static function sameBuildingThresholdKm(): float
     {
-        $metres = (float) (Setting::get('route_same_building_threshold_m', 'familles') ?? 50);
+        $metres = Setting::get('route_same_building_threshold_m', 'familles') ?? 50;
         return $metres / 1000;
     }
 
@@ -51,12 +52,12 @@ final class RouteOptimizationConfig
 
     public static function minCompactnessRatio(): float
     {
-        return (float) (Setting::get('route_min_compactness_ratio', 'familles') ?? 0.4);
+        return Setting::get('route_min_compactness_ratio', 'familles') ?? 0.4;
     }
 
     public static function maxLivraisonsParRoute(): int
     {
-        return (int) (Setting::get('route_max_livraisons_par_route', 'familles') ?? 15);
+        return Setting::get('route_max_livraisons_par_route', 'familles') ?? 15;
     }
 
     /**

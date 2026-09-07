@@ -123,6 +123,33 @@ class Campagne extends Model
     }
 
     /**
+     * Affectations équipe_* (equipe_reception/pesee/packaging/chargement)
+     * de cette campagne — voir create_campagne_equipe_membres_table.php et
+     * App\Policies\CampagnePolicy, seul consommateur attendu de
+     * aRole() ci-dessous.
+     */
+    public function equipeMembres(): HasMany
+    {
+        return $this->hasMany(CampagneEquipeMembre::class, 'id_campagne');
+    }
+
+    /**
+     * Cette personne tient-elle CE rôle équipe_* sur CETTE campagne
+     * précisément (pas le rôle global ref_personnes_roles, voir le
+     * docblock de create_campagne_equipe_membres_table.php) ? Ne fait
+     * PAS le bypass admin/gestionnaire — c'est le rôle de
+     * App\Policies\CampagnePolicy, pas de cette méthode, qui ne répond
+     * qu'à la question d'affectation brute.
+     */
+    public function aRole(int $idPersonne, string $role): bool
+    {
+        return $this->equipeMembres()
+            ->where('id_personne', $idPersonne)
+            ->where('role', $role)
+            ->exists();
+    }
+
+    /**
      * Journal des modifications de poids_moyen_kg/hotel/etudiant — voir
      * create_campagne_poids_moyen_historiques_table.php et le prompt du
      * 05/09/2026 §5.2. Ordonné du plus récent au plus ancien pour

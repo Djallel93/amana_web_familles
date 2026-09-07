@@ -19,15 +19,26 @@ use Illuminate\Support\Facades\DB;
  * via l'écran Paramètres existant plutôt que codées en dur, voir
  * App\Support\RouteOptimizationConfig.
  *
- * Type 'string' (pas de type décimal dans Setting::cast(), voir
- * amana/shared) : converties en float/bool côté PHP dans
- * RouteOptimizationConfig, pas ici. Concerne les 7 réglages d'algorithme
- * ci-dessous — PAS route_hq_latitude/route_hq_longitude (voir plus bas),
- * passées en type 'float' natif le 05/09/2026 en même temps que la
- * refonte de leur UI dans l'écran Paramètres (recherche d'adresse Google
- * Places + saisie manuelle, voir HqCoordinatesAutocomplete.vue) —
- * volontairement pas rétroporté sur les 7 réglages d'algorithme dans ce
- * changement, à faire dans un futur ticket séparé.
+ * Type natif ('float'/'integer', pas 'string') pour les 5 réglages
+ * numériques ci-dessous (07/09/2026) — le ticket séparé évoqué le
+ * 05/09/2026 lors du passage de route_hq_latitude/route_hq_longitude en
+ * 'float' natif (voir plus bas). route_quartier_preference et
+ * route_allow_cross_quartier restent en 'boolean', déjà natif depuis
+ * l'origine. Choix float vs integer : float pour les distances/ratios
+ * (route_distance_proximite_km, route_max_cluster_diameter_km,
+ * route_min_compactness_ratio), integer pour les comptes/entiers
+ * (route_same_building_threshold_m en mètres, route_max_livraisons_par_route)
+ * — voir App\Support\RouteOptimizationConfig, dont les casts (float)/(int)
+ * manuels sont supprimés en même temps que ce changement, désormais
+ * redondants avec Setting::cast().
+ *
+ * Bloc UPDATE en fin de up() : cette migration a déjà tourné en dev (les
+ * 7 réglages existent avec type='string'), donc l'insert idempotent
+ * ci-dessous (if (!$existe)) ne les retype pas tout seul — seul un
+ * migrate:fresh le referait. Le complément UPDATE couvre aussi le cas
+ * d'une DB de dev déjà migrée sans repasser par migrate:fresh. Ne touche
+ * que la colonne 'type', jamais 'valeur' (réglage possiblement modifié
+ * depuis l'écran Paramètres, pas à écraser).
  */
 return new class extends Migration {
     public function up(): void
@@ -40,21 +51,21 @@ return new class extends Migration {
             [
                 'cle' => 'route_distance_proximite_km',
                 'valeur' => '2.5',
-                'type' => 'string',
+                'type' => 'float',
                 'libelle' => 'Distance de proximité pour le clustering (km)',
                 'description' => 'Distance en-dessous de laquelle deux livraisons/groupes sont considérés comme géographiquement proches lors du clustering.',
             ],
             [
                 'cle' => 'route_max_cluster_diameter_km',
                 'valeur' => '5',
-                'type' => 'string',
+                'type' => 'float',
                 'libelle' => 'Diamètre maximum d\'un cluster (km)',
                 'description' => 'Empêche les clusters trop étalés/inefficaces à parcourir.',
             ],
             [
                 'cle' => 'route_same_building_threshold_m',
                 'valeur' => '50',
-                'type' => 'string',
+                'type' => 'integer',
                 'libelle' => 'Seuil "même bâtiment" (mètres)',
                 'description' => 'En-dessous de ce seuil, deux adresses sont considérées identiques et regroupées avant le clustering.',
             ],
@@ -75,14 +86,14 @@ return new class extends Migration {
             [
                 'cle' => 'route_min_compactness_ratio',
                 'valeur' => '0.4',
-                'type' => 'string',
+                'type' => 'float',
                 'libelle' => 'Ratio de compacité minimum (0-1)',
                 'description' => 'Ratio distance_moyenne/distance_max au centre du cluster — plus proche de 1 = plus compact. En-dessous, le cluster est jugé trop allongé.',
             ],
             [
                 'cle' => 'route_max_livraisons_par_route',
                 'valeur' => '15',
-                'type' => 'string',
+                'type' => 'integer',
                 'libelle' => 'Nombre maximum de livraisons par tournée',
                 'description' => 'Plafond du nombre d\'arrêts sur une même tournée, indépendamment du poids/nombre de parts.',
             ],
@@ -159,6 +170,25 @@ return new class extends Migration {
                     'description' => $reglage['description'],
                 ]);
             }
+        }
+
+        // Retype les 5 réglages d'algorithme si cette migration a déjà
+        // tourné avec l'ancien type 'string' (voir commentaire en tête de
+        // fichier) — ne touche que 'type', jamais 'valeur'.
+        $typesCibles = [
+            'route_distance_proximite_km' => 'float',
+            'route_max_cluster_diameter_km' => 'float',
+            'route_same_building_threshold_m' => 'integer',
+            'route_min_compactness_ratio' => 'float',
+            'route_max_livraisons_par_route' => 'integer',
+        ];
+
+        foreach ($typesCibles as $cle => $type) {
+            $commun->table('ref_settings')
+                ->where('id_application', $famillesId)
+                ->where('cle', $cle)
+                ->where('type', '!=', $type)
+                ->update(['type' => $type]);
         }
     }
 
