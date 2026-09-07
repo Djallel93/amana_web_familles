@@ -99,7 +99,10 @@ class RouteGenerationService
      */
     public function genererPourCampagne(Campagne $campagne, CampagneJournee $journee): array
     {
-        $hq = RouteOptimizationConfig::coordonneesHq();
+        // Voir le prompt du 05/09/2026 §1.2 : HQ propre à cette campagne
+        // s'il est renseigné, sinon réglage global (voir
+        // RouteOptimizationConfig::coordonneesHqPourCampagne()).
+        $hq = RouteOptimizationConfig::coordonneesHqPourCampagne($campagne);
 
         if ($hq === null) {
             throw new \RuntimeException('Coordonnées QG non configurées — voir Paramètres avant de lancer un clustering.');
@@ -167,7 +170,7 @@ class RouteGenerationService
      */
     public function relancerPourLivraisonsOrphelines(Campagne $campagne, array $idsLivraisons, int $idBenevoleExclu): array
     {
-        $hq = RouteOptimizationConfig::coordonneesHq();
+        $hq = RouteOptimizationConfig::coordonneesHqPourCampagne($campagne);
         if ($hq === null) {
             throw new \RuntimeException('Coordonnées QG non configurées — voir Paramètres.');
         }

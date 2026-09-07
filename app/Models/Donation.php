@@ -13,11 +13,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Un relevé de pesée au poste "entrée QG" — poids total unique, jamais
  * ventilé par catégorie (voir create_donations_table.php).
  *
- * @property int   $id
- * @property int   $id_campagne
- * @property float $poids_kg
+ * @property int      $id
+ * @property int      $id_campagne
+ * @property int|null $id_campagne_journee  Ajouté le 05/09/2026, voir migration — nullable, pas de FK (ordre des migrations)
+ * @property float    $poids_kg
  * @property \Illuminate\Support\Carbon $horodatage
- * @property int   $logge_par
+ * @property int      $logge_par
  */
 class Donation extends Model
 {
@@ -28,7 +29,7 @@ class Donation extends Model
         return config('database.default');
     }
 
-    protected $fillable = ['id_campagne', 'poids_kg', 'horodatage', 'logge_par'];
+    protected $fillable = ['id_campagne', 'id_campagne_journee', 'poids_kg', 'horodatage', 'logge_par'];
 
     protected $casts = [
         'poids_kg' => 'decimal:2',
@@ -38,6 +39,11 @@ class Donation extends Model
     public function campagne(): BelongsTo
     {
         return $this->belongsTo(Campagne::class, 'id_campagne');
+    }
+
+    public function journee(): BelongsTo
+    {
+        return $this->belongsTo(CampagneJournee::class, 'id_campagne_journee');
     }
 
     public function loggePar(): BelongsTo

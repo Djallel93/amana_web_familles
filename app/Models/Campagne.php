@@ -21,6 +21,10 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
  * @property string $statut        preparation | collecte | en_cours | terminee
  * @property \Illuminate\Support\Carbon $date_livraison  Date de RÉFÉRENCE — voir journees() depuis le 03/09/2026
  * @property float  $poids_moyen_kg
+ * @property string|null $hq_adresse      Libellé HQ propre à cette campagne — voir create_campagnes_table.php
+ * @property float|null  $hq_latitude
+ * @property float|null  $hq_longitude
+ * @property string|null $commentaire     Dernière valeur seulement, pas d'historique
  */
 class Campagne extends Model
 {
@@ -40,6 +44,11 @@ class Campagne extends Model
         'type', 'statut', 'date_livraison',
         'poids_moyen_kg', 'poids_moyen_hotel_kg', 'poids_moyen_etudiant_kg',
         'benevoles_notifies_le',
+        // Ajoutés le 05/09/2026 (prompt §1.2/§1.3) — voir docblock de la
+        // migration campagnes pour le raisonnement HQ (préremplissage à
+        // la création, pas de fallback dynamique) et commentaire (dernière
+        // valeur seulement, pas d'historique).
+        'hq_adresse', 'hq_latitude', 'hq_longitude', 'commentaire',
     ];
 
     protected $casts = [
@@ -48,6 +57,8 @@ class Campagne extends Model
         'poids_moyen_hotel_kg' => 'decimal:2',
         'poids_moyen_etudiant_kg' => 'decimal:2',
         'benevoles_notifies_le' => 'datetime',
+        'hq_latitude' => 'decimal:7',
+        'hq_longitude' => 'decimal:7',
     ];
 
     public const TYPES = ['zakat_el_fitr', 'collecte_alimentaire', 'don_ponctuel'];
@@ -109,6 +120,17 @@ class Campagne extends Model
     public function statsSnapshots(): HasMany
     {
         return $this->hasMany(CampagneStatsSnapshot::class, 'id_campagne');
+    }
+
+    /**
+     * Journal des modifications de poids_moyen_kg/hotel/etudiant — voir
+     * create_campagne_poids_moyen_historiques_table.php et le prompt du
+     * 05/09/2026 §5.2. Ordonné du plus récent au plus ancien pour
+     * affichage direct en timeline (voir CampagneDetail.vue).
+     */
+    public function poidsMoyenHistorique(): HasMany
+    {
+        return $this->hasMany(CampagnePoidsMoyenHistorique::class, 'id_campagne')->orderByDesc('horodatage');
     }
 
     // ── Accesseurs calculés (voir create_campagnes_table.php) ──────────────

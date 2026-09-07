@@ -47,7 +47,17 @@ return new class extends Migration {
             // QG" — voir App\Http\Controllers\Livraison\MaRouteController).
             // Permet à l'admin/gestionnaire de voir "tournée finie sur le
             // terrain" même si le bénévole ne tape jamais le second bouton.
-            $table->enum('statut', ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees', 'terminee'])
+            // 'packaging_annule' ajouté le 05/09/2026 (prompt §5.3) :
+            // l'équipe packaging peut annuler un conditionnement déjà
+            // marqué "prêt" pour reprendre les colis (erreur de
+            // manipulation) — si la tournée avait déjà basculé sur
+            // 'chargement' (équipe chargement/chauffeur déjà notifiés,
+            // voir PackagingController::marquerColisPret()), elle
+            // redescend ici plutôt que de rester en 'chargement' comme si
+            // de rien n'était. Voir PackagingController::annulerConditionnement()
+            // et le nouveau type d'incident du même nom (route_incidents)
+            // pour l'avertissement envoyé à l'équipe chargement.
+            $table->enum('statut', ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule'])
                 ->default('planifiee');
             $table->decimal('distance_totale_km', 6, 2)->nullable();
             $table->decimal('poids_total_kg', 7, 2)->nullable();

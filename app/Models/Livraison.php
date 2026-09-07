@@ -103,8 +103,17 @@ class Livraison extends Model
     ];
 
     public const STATUTS_CONTACT = ['a_contacter', 'contacte', 'injoignable', 'confirme', 'rejetee', 'archive'];
-    /** Sous-ensemble réellement postable — 'a_contacter' est l'état initial, jamais choisi manuellement. */
-    public const STATUTS_CONTACT_POSTABLES = ['contacte', 'injoignable', 'confirme', 'rejetee', 'archive'];
+    /**
+     * Sous-ensemble réellement postable — 'a_contacter' est l'état
+     * initial, jamais choisi manuellement. 'contacte' retiré le
+     * 05/09/2026 (prompt de cette date §2.3 : "Delete the Contacte status
+     * and keep only confirme") — reste dans STATUTS_CONTACT/EFFETS
+     * ci-dessus pour les lignes déjà en base avant ce changement (affichage
+     * de l'historique), mais n'est plus proposable désormais : une
+     * livraison passe directement de 'a_contacter' à 'confirme' (ou
+     * injoignable/rejetee/archive).
+     */
+    public const STATUTS_CONTACT_POSTABLES = ['injoignable', 'confirme', 'rejetee', 'archive'];
 
     // Même filet de sécurité que Famille::VERROU_TTL_MINUTES.
     public const VERROU_TTL_MINUTES = 20;
@@ -114,6 +123,29 @@ class Livraison extends Model
     public function famille(): BelongsTo
     {
         return $this->belongsTo(Famille::class, 'id_famille');
+    }
+
+    /**
+     * Colis individuels (un par personne du foyer) — voir
+     * create_livraison_colis_table.php et le prompt du 05/09/2026 §5.3.
+     * Ordonnés par numero pour un affichage stable sur l'écran packaging.
+     */
+    public function colis(): HasMany
+    {
+        return $this->hasMany(LivraisonColis::class, 'id_livraison')->orderBy('numero');
+    }
+
+    /**
+     * true seulement quand la livraison a des colis ET qu'ils sont tous
+     * 'pret' — utilisé pour dériver/valider statut_conditionnement plutôt
+     * que de le laisser être mis à jour indépendamment de l'état réel des
+     * colis (voir PackagingController::marquerColisPret()).
+     */
+    public function colisTousPrets(): bool
+    {
+        $colis = $this->colis;
+
+        return $colis->isNotEmpty() && $colis->every(fn (LivraisonColis $c) => $c->statut === 'pret');
     }
 
     public function campagne(): BelongsTo

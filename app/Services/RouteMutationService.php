@@ -43,7 +43,7 @@ class RouteMutationService
      */
     public function ajouterLivraison(RouteLivraison $route, Livraison $livraison): RouteLivraison
     {
-        $hq = $this->hqOuEchoue();
+        $hq = $this->hqOuEchoue($route->campagne);
 
         $etapesActuelles = $route->etapes()->with('livraison.famille')->orderBy('ordre')->get();
         $livraisonsArray = $etapesActuelles->map(fn (EtapeRoute $e) => $this->versArray($e->livraison))->all();
@@ -78,7 +78,7 @@ class RouteMutationService
      */
     public function retirerLivraison(RouteLivraison $route, EtapeRoute $etape): RouteLivraison
     {
-        $hq = $this->hqOuEchoue();
+        $hq = $this->hqOuEchoue($route->campagne);
 
         DB::transaction(function () use ($route, $etape) {
             $etape->livraison?->update(['statut' => 'non_assignee']);
@@ -137,7 +137,7 @@ class RouteMutationService
      */
     public function diviser(RouteLivraison $route): RouteLivraison
     {
-        $hq = $this->hqOuEchoue();
+        $hq = $this->hqOuEchoue($route->campagne);
 
         $etapes = $route->etapes()->with('livraison.famille')->orderBy('ordre')->get();
 
@@ -198,7 +198,7 @@ class RouteMutationService
         array $idsLivraisons,
         ?string $creneau,
     ): RouteLivraison {
-        $hq = $this->hqOuEchoue();
+        $hq = $this->hqOuEchoue($campagne);
 
         $livraisons = Livraison::whereIn('id', $idsLivraisons)
             ->where('statut', 'non_assignee')
@@ -242,9 +242,51 @@ class RouteMutationService
         return $route;
     }
 
-    private function hqOuEchoue(): array
+    /**
+     * Voir le prompt du 05/09/2026 §1.2 : $campagne permet de retomber sur
+     * son HQ propre s'il est renseigné (voir
+     * RouteOptimizationConfig::coordonneesHqPourCampagne()) plutôt que
+     * systématiquement le réglage global.
+     */
+    /**
+     * Supprime une tournée pour permettre de la reconstruire avec des
+     * paramètres différents — cas d'usage principal du 05/09/2026 §5.2 :
+     * poids_kg des livraisons a été recalculé après ajustement du poids
+     * moyen de la campagne, et les tournées déjà construites portent des
+     * poids_total_kg désormais obsolètes (voir
+     * CampagnesController::recalculerPoids() : le recalcul lui-même ne
+     * touche jamais une livraison déjà rattachée à une tournée existante,
+     * cette suppression est le geste explicite qui la libère pour que la
+     * prochaine génération de tournées la reprenne avec le nouveau poids).
+     *
+     * Volontairement restreint à statut = 'planifiee' : au-delà (une fois
+     * en 'chargement' ou plus loin), des colis peuvent déjà être
+     * physiquement préparés/chargés sous l'ancien poids — supprimer la
+     * tournée à ce stade serait une opération bien plus risquée qu'un
+     * simple "refaire avant le début du chargement".
+     *
+     * Remet chaque livraison de la tournée à statut = 'non_assignee' (pas
+     * à statut_conditionnement, indépendant) puis supprime les étapes et
+     * la tournée elle-même.
+     */
+    public function supprimer(RouteLivraison $route): void
     {
-        $hq = RouteOptimizationConfig::coordonneesHq();
+        if ($route->statut !== 'planifiee') {
+            throw new \RuntimeException("Seule une tournée encore 'planifiee' peut être supprimée (statut actuel : {$route->statut}).");
+        }
+
+        DB::transaction(function () use ($route) {
+            foreach ($route->etapes as $etape) {
+                $etape->livraison?->update(['statut' => 'non_assignee']);
+            }
+            $route->etapes()->delete();
+            $route->delete();
+        });
+    }
+
+    private function hqOuEchoue(Campagne $campagne): array
+    {
+        $hq = RouteOptimizationConfig::coordonneesHqPourCampagne($campagne);
         if ($hq === null) {
             throw new \RuntimeException('Coordonnées QG non configurées — voir Paramètres.');
         }

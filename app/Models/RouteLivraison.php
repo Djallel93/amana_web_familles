@@ -59,7 +59,14 @@ class RouteLivraison extends Model
      * intermédiaire entre "tous les arrêts sont traités" et "le bénévole
      * a confirmé son retour au QG et est de nouveau disponible".
      */
-    public const STATUTS = ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees', 'terminee'];
+    /**
+     * 'packaging_annule' ajouté le 05/09/2026 (prompt §5.3) : une tournée
+     * déjà en 'chargement' redescend ici quand l'équipe packaging annule
+     * un conditionnement déjà marqué prêt pour reprendre les colis — voir
+     * PackagingController::annulerConditionnement() et le RouteIncident
+     * de même nom levé en même temps pour avertir l'équipe chargement.
+     */
+    public const STATUTS = ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule'];
 
     // ── Relations ─────────────────────────────────────────────────────────
 

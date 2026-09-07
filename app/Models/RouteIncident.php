@@ -16,8 +16,8 @@ use Illuminate\Support\Facades\Notification;
  *
  * @property int      $id
  * @property int      $id_route
- * @property string   $type            benevole_absent|capacite|chargement_termine|livraison_ignoree
- * @property int|null $id_livraison    renseigné uniquement pour type = livraison_ignoree
+ * @property string   $type            benevole_absent|capacite|chargement_termine|livraison_ignoree|packaging_annule
+ * @property int|null $id_livraison    renseigné pour type = livraison_ignoree ou packaging_annule
  * @property int      $signale_par
  * @property string|null $statut       ouvert|resolu — null pour type = chargement_termine
  * @property string|null $notes
@@ -31,7 +31,16 @@ class RouteIncident extends Model
 
     protected $fillable = ['id_route', 'type', 'id_livraison', 'signale_par', 'statut', 'notes'];
 
-    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree'];
+    /**
+     * 'packaging_annule' ajouté le 05/09/2026 (prompt §5.3) — voir
+     * PackagingController::annulerConditionnement(). Actionnable comme
+     * benevole_absent/capacite (statut ouvert/resolu, PAS dans
+     * TYPES_SANS_STATUT ci-dessous) : contrairement à chargement_termine
+     * (simple jalon), un packaging annulé mérite un suivi explicite —
+     * l'équipe chargement doit savoir que ce colis n'est plus disponible
+     * tant que gestionnaire/admin n'a pas marqué l'incident résolu.
+     */
+    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule'];
     public const STATUTS = ['ouvert', 'resolu'];
 
     // Types pour lesquels `statut` est sans objet (jalon, pas alerte actionnable).

@@ -9,7 +9,9 @@ use App\Models\Campagne;
 use App\Models\CampagneJournee;
 use App\Models\Famille;
 use App\Models\Livraison;
+use App\Support\FamilleFilters;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 
 /**
@@ -44,7 +46,17 @@ class LivraisonGenerationService
      *
      * @param array{criticite_min?: int, id_quartier?: int, id_organisation?: int} $filtres
      */
-    public function eligibles(array $filtres = [], ?Campagne $campagne = null): Builder
+    /**
+     * $filtres garde son usage historique (criticite_min/id_quartier/
+     * id_organisation) pour ne rien casser côté appelants existants.
+     * $request, ajouté le 05/09/2026 (prompt §1.6 : "same filter panel as
+     * Dossier Familles"), applique en plus EXACTEMENT les mêmes filtres
+     * que familles/index.blade.php via App\Support\FamilleFilters — les
+     * deux peuvent cohabiter (les critères s'additionnent), mais en
+     * pratique CampagnesController::eligibles() n'utilise plus que
+     * $request désormais.
+     */
+    public function eligibles(array $filtres = [], ?Campagne $campagne = null, ?Request $request = null, bool $appliquerTriParDefaut = true): Builder
     {
         $query = Famille::query()
             ->where('etat_dossier', 'Validé')
@@ -60,6 +72,9 @@ class LivraisonGenerationService
         if (!empty($filtres['id_organisation'])) {
             $query->where('id_organisation', $filtres['id_organisation']);
         }
+        if ($request) {
+            FamilleFilters::appliquer($query, $request);
+        }
 
         if ($campagne) {
             $query->whereDoesntHave('livraisons', function ($q) use ($campagne) {
@@ -67,7 +82,14 @@ class LivraisonGenerationService
             });
         }
 
-        return $query->orderByDesc('criticite')->orderBy('derniere_livraison_le');
+        // appliquerTriParDefaut=false (05/09/2026, prompt §1.2.3) : le tri
+        // proposable colonne par colonne (CampagnesController::appliquerTriEligibles())
+        // remplace ce tri fixe plutôt que de s'y ajouter.
+        if ($appliquerTriParDefaut) {
+            $query->orderByDesc('criticite')->orderBy('derniere_livraison_le');
+        }
+
+        return $query;
     }
 
     /**
@@ -130,7 +152,7 @@ class LivraisonGenerationService
 
             $nombrePersonnes = $famille->nombre_adulte + $famille->nombre_enfant;
 
-            $livraisons->push(Livraison::create([
+            $livraison = Livraison::create([
                 'id_famille' => $famille->id,
                 'id_campagne' => $campagne->id,
                 'id_campagne_journee' => $journee?->id,
@@ -140,7 +162,22 @@ class LivraisonGenerationService
                 'poids_kg' => Livraison::calculerPoidsKg($famille, $campagne, $nombrePersonnes),
                 'note_besoins_speciaux' => $famille->specificites,
                 'statut_contact' => 'a_contacter',
-            ]));
+            ]);
+
+            // Un colis par personne, dès la génération (voir le prompt du
+            // 05/09/2026 §5.3 et create_livraison_colis_table.php) — même
+            // numérotation que "Colis X/N" sur les étiquettes déjà
+            // imprimées (PackagingController::etiquettes()). Si
+            // nombre_personnes change plus tard (ex: confirmation
+            // famille modifiant nombre_adulte_confirme/nombre_enfant_confirme),
+            // le nombre de colis n'est PAS reconcilié automatiquement —
+            // cas jugé suffisamment rare pour rester un suivi manuel pour
+            // l'instant plutôt que d'ajouter cette synchronisation ici.
+            for ($numero = 1; $numero <= $nombrePersonnes; $numero++) {
+                $livraison->colis()->create(['numero' => $numero, 'statut' => 'a_preparer']);
+            }
+
+            $livraisons->push($livraison);
         }
 
         return ['livraisons' => $livraisons, 'conflits' => $conflits, 'deja_existantes' => $dejaExistantesCount];

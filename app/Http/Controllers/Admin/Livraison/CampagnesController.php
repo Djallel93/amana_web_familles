@@ -5,14 +5,18 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin\Livraison;
 
+use Amana\Shared\Models\Secteur;
+use Amana\Shared\Models\Ville;
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
+use App\Models\CampagnePoidsMoyenHistorique;
 use App\Models\Livraison;
 use App\Models\Organisation;
 use App\Models\Quartier;
 use App\Models\RouteLivraison;
 use App\Services\BenevoleDisponibiliteService;
 use App\Services\LivraisonGenerationService;
+use App\Support\RouteOptimizationConfig;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -53,11 +57,14 @@ class CampagnesController extends Controller
         // d'ajouter un endpoint JSON dédié pour un référentiel déjà
         // disponible en lecture partout ailleurs dans l'app.
         return view('livraison.campagne-detail', [
-            // journees chargées (05/09/2026) pour alimenter le sélecteur de
-            // journée de CampagneDetail.vue avant génération — masqué côté
-            // Vue quand il n'y en a qu'une (cas mono-jour).
-            'campagne' => $campagne->load('journees'),
-            'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom']),
+            'campagne' => $campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom']),
+            'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
+            // villes/secteurs ajoutés le 05/09/2026 (prompt §1.6) : même
+            // référentiel que FamillesController::index(), pour le
+            // sélecteur ville → secteur → quartier en cascade du nouveau
+            // FamilleFilterPanel.vue partagé.
+            'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
+            'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
         ]);
     }
@@ -82,6 +89,9 @@ class CampagnesController extends Controller
             'poids_moyen_kg' => 'required|numeric|min:0',
             'poids_moyen_hotel_kg' => 'nullable|numeric|min:0',
             'poids_moyen_etudiant_kg' => 'nullable|numeric|min:0',
+            // Ajoutés le 05/09/2026 (prompt §1.2/§1.3).
+            'commentaire' => 'nullable|string|max:5000',
+            'hq_adresse' => 'nullable|string|max:255',
         ]);
 
         if ($validator->fails()) {
@@ -92,6 +102,14 @@ class CampagnesController extends Controller
         $journeesDemandees = $donnees['journees'];
         unset($donnees['journees']);
 
+        // HQ préremplie depuis le réglage global à la création (prompt du
+        // 05/09/2026 §1.2 : "always prefill with it") — copiée une fois
+        // pour toutes, PAS relue dynamiquement ensuite (voir docblock de
+        // create_campagnes_table.php). L'adresse n'a pas d'équivalent
+        // global (settings ne stocke que lat/lng) : seule celle saisie ici
+        // (le cas échéant) est conservée.
+        $hqGlobal = RouteOptimizationConfig::coordonneesHq();
+
         // date_livraison (colonne NOT NULL, voir create_campagnes_table.php)
         // déduite de la première journée saisie — ajouterJournee()
         // resynchronisera la même valeur juste après, sans effet
@@ -100,6 +118,8 @@ class CampagnesController extends Controller
             ...$donnees,
             'date_livraison' => $journeesDemandees[0]['date'],
             'statut' => 'preparation',
+            'hq_latitude' => $hqGlobal['lat'] ?? null,
+            'hq_longitude' => $hqGlobal['lng'] ?? null,
         ]);
 
         foreach ($journeesDemandees as $journeeDemandee) {
@@ -107,6 +127,130 @@ class CampagnesController extends Controller
         }
 
         return response()->json(['success' => true, 'campagne' => $campagne->load('journees')], 201);
+    }
+
+    /**
+     * Édition de la campagne (commentaire + HQ propre) — voir le prompt
+     * du 05/09/2026 §1.2/§1.3. Pas de page d'édition dédiée dans cette
+     * app : c'est la page détail elle-même (CampagneDetail.vue) qui sert
+     * de surface d'édition, comme pour le reste de la campagne.
+     * Commentaire : dernière valeur seulement (pas d'historique, décision
+     * explicite) — un update() écrase simplement l'ancien.
+     */
+    public function update(Request $request, Campagne $campagne): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'commentaire' => 'nullable|string|max:5000',
+            'hq_adresse' => 'nullable|string|max:255',
+            'hq_latitude' => 'nullable|numeric|between:-90,90',
+            'hq_longitude' => 'nullable|numeric|between:-180,180',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $campagne->update($validator->validated());
+
+        return response()->json(['success' => true, 'campagne' => $campagne->fresh()]);
+    }
+
+    /**
+     * Modifie poids_moyen_kg/hotel/etudiant et journalise chaque
+     * changement effectif dans campagne_poids_moyen_historiques — voir le
+     * prompt du 05/09/2026 §5.2. N'écrit une ligne d'historique QUE si la
+     * valeur soumise diffère réellement de l'existante (évite de polluer
+     * le journal avec des re-soumissions identiques du formulaire).
+     *
+     * Ne touche JAMAIS livraisons.poids_kg ici (voir recalculerPoids() —
+     * action séparée, volontairement manuelle) : les tournées déjà
+     * construites reposent sur les poids figés à la génération, les
+     * modifier silencieusement ici désynchroniserait routes.poids_total_kg
+     * sans que personne ne le sache.
+     */
+    public function mettreAJourPoidsMoyen(Request $request, Campagne $campagne): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'poids_moyen_kg' => 'nullable|numeric|min:0',
+            'poids_moyen_hotel_kg' => 'nullable|numeric|min:0',
+            'poids_moyen_etudiant_kg' => 'nullable|numeric|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $correspondance = [
+            'poids_moyen_kg' => 'normal',
+            'poids_moyen_hotel_kg' => 'hotel',
+            'poids_moyen_etudiant_kg' => 'etudiant',
+        ];
+
+        foreach ($validator->validated() as $colonne => $nouvelleValeur) {
+            if ($nouvelleValeur === null) {
+                continue;
+            }
+            $ancienneValeur = (float) $campagne->{$colonne};
+            if ((float) $nouvelleValeur === $ancienneValeur) {
+                continue;
+            }
+
+            CampagnePoidsMoyenHistorique::create([
+                'id_campagne' => $campagne->id,
+                'type' => $correspondance[$colonne],
+                'ancienne_valeur' => $ancienneValeur,
+                'nouvelle_valeur' => $nouvelleValeur,
+                'logge_par' => auth()->id(),
+            ]);
+            $campagne->{$colonne} = $nouvelleValeur;
+        }
+
+        $campagne->save();
+
+        return response()->json([
+            'success' => true,
+            'campagne' => $campagne->fresh(),
+            'historique' => $campagne->poidsMoyenHistorique()->with('loggePar:id,nom,prenom')->get(),
+        ]);
+    }
+
+    /**
+     * Recalcule livraisons.poids_kg avec les poids moyens ACTUELS de la
+     * campagne — action manuelle distincte de mettreAJourPoidsMoyen() (voir
+     * le prompt du 05/09/2026 §5.2 : "auto-track history + opt-in manual
+     * recalc, never touching already-packaged ones").
+     *
+     * Scopée aux seules livraisons statut_conditionnement = 'en_attente' :
+     * une livraison déjà conditionnée ('prete') peut correspondre à des
+     * colis physiquement déjà préparés sous l'ancien poids — la toucher
+     * ici romprait silencieusement la cohérence entre poids_kg et ce qui a
+     * réellement été pesé/emballé. Si la livraison appartient déjà à une
+     * tournée 'planifiee', son poids_kg change ici mais
+     * routes.poids_total_kg de cette tournée reste, lui, inchangé —
+     * supprimer la tournée (LiveBoardController::supprimerRoute(), qui
+     * remet ses livraisons à 'non_assignee') puis relancer le clustering
+     * est le geste explicite qui la reconstruit avec un total à jour.
+     */
+    public function recalculerPoids(Campagne $campagne): JsonResponse
+    {
+        $livraisons = Livraison::where('id_campagne', $campagne->id)
+            ->where('statut_conditionnement', 'en_attente')
+            ->with('famille')
+            ->get();
+
+        $misesAJour = 0;
+        foreach ($livraisons as $livraison) {
+            if (!$livraison->famille) {
+                continue;
+            }
+            $nouveauPoids = Livraison::calculerPoidsKg($livraison->famille, $campagne, $livraison->nombre_personnes);
+            if ((float) $nouveauPoids !== (float) $livraison->poids_kg) {
+                $livraison->update(['poids_kg' => $nouveauPoids]);
+                $misesAJour++;
+            }
+        }
+
+        return response()->json(['success' => true, 'nombre_livraisons_recalculees' => $misesAJour]);
     }
 
     /**
@@ -143,15 +287,59 @@ class CampagnesController extends Controller
      * familles à cocher avant génération. Exclut les familles déjà
      * pourvues d'une Livraison pour CETTE campagne (voir le service).
      */
+    /**
+     * Liste des familles éligibles à une campagne — voir
+     * LivraisonGenerationService::eligibles(). Filtres alignés le
+     * 05/09/2026 (prompt §1.6) sur EXACTEMENT ceux de Dossier Familles
+     * (App\Support\FamilleFilters), plus les 3 critères historiques
+     * (criticite_min/id_quartier/id_organisation) pour ne rien casser côté
+     * appelants existants. quartier.secteur.ville chargé pour l'affichage
+     * ville/secteur en colonne du tableau (CampagneDetail.vue).
+     */
+    /**
+     * Colonnes triables de la table éligibilité (05/09/2026, prompt
+     * §1.2.3) — même principe de whitelist que
+     * FamillesController::COLONNES_TRIABLES (pas de colonne arbitraire
+     * passée telle quelle à orderBy()).
+     */
+    private const COLONNES_TRIABLES_ELIGIBLES = ['id', 'nom', 'telephone', 'telephone_bis', 'criticite', 'nombre_adulte', 'nombre_enfant', 'derniere_livraison_le'];
+
+    private function appliquerTriEligibles($query, Request $request): void
+    {
+        $colonne = $request->input('tri');
+        $direction = $request->input('direction') === 'desc' ? 'desc' : 'asc';
+
+        if (!in_array($colonne, self::COLONNES_TRIABLES_ELIGIBLES, true)) {
+            $query->orderByDesc('criticite')->orderBy('derniere_livraison_le');
+
+            return;
+        }
+
+        match ($colonne) {
+            'nom' => $query->orderBy('nom', $direction)->orderBy('prenom', $direction),
+            default => $query->orderBy($colonne, $direction),
+        };
+    }
+
     public function eligibles(Request $request, Campagne $campagne): JsonResponse
     {
-        $familles = $this->generationService->eligibles([
+        $query = $this->generationService->eligibles([
             'criticite_min' => $request->integer('criticite_min') ?: null,
             'id_quartier' => $request->integer('id_quartier') ?: null,
             'id_organisation' => $request->integer('id_organisation') ?: null,
-        ], $campagne)->paginate(50);
+        ], $campagne, $request, appliquerTriParDefaut: false)->with('quartier.secteur.ville');
 
-        return response()->json($familles);
+        $this->appliquerTriEligibles($query, $request);
+
+        // ids_only (05/09/2026, prompt §1.6.3 : "option to select/deselect
+        // all after filtering") — mêmes ids que la liste filtrée, TOUTES
+        // pages, pour que "tout sélectionner" côté Vue n'ait pas besoin de
+        // paginer manuellement pour les récupérer.
+        if ($request->boolean('ids_only')) {
+            return response()->json(['ids' => $query->pluck('familles.id')]);
+        }
+
+        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
     }
 
     /**

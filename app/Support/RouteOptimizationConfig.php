@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Support;
 
 use Amana\Shared\Models\Setting;
+use App\Models\Campagne;
 
 /**
  * Lecture des réglages du clustering/assignation/TSP — voir
@@ -85,5 +86,27 @@ final class RouteOptimizationConfig
         }
 
         return ['lat' => $lat, 'lng' => $lng];
+    }
+
+    /**
+     * Coordonnées du QG à utiliser pour LE CLUSTERING/TSP d'une campagne
+     * précise — voir le prompt du 05/09/2026 §1.2 : chaque campagne peut
+     * désormais surcharger le HQ global (campagnes.hq_latitude/
+     * hq_longitude, préremplies au réglage global à la création, voir
+     * CampagnesController::store()). Prend le HQ propre à la campagne
+     * s'il est renseigné, sinon retombe sur coordonneesHq() (réglage
+     * global) — utilisé partout où coordonneesHq() l'était jusqu'ici pour
+     * un calcul de tournée (RouteGenerationService/RouteMutationService),
+     * plutôt que de garder ces services aveugles au HQ par campagne.
+     *
+     * @return array{lat: float, lng: float}|null
+     */
+    public static function coordonneesHqPourCampagne(Campagne $campagne): ?array
+    {
+        if ($campagne->hq_latitude !== null && $campagne->hq_longitude !== null) {
+            return ['lat' => (float) $campagne->hq_latitude, 'lng' => (float) $campagne->hq_longitude];
+        }
+
+        return self::coordonneesHq();
     }
 }

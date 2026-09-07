@@ -76,6 +76,22 @@ class LiveBoardController extends Controller
 
         $journee = $campagne->journees()->findOrFail($request->integer('id_campagne_journee'));
 
+        // Voir le prompt du 05/09/2026 §1.5 : le bouton de lancement a été
+        // déplacé sur l'écran Suivi des contacts, avec pour condition que
+        // plus aucune famille de CETTE journée ne soit encore à
+        // statut_contact = 'a_contacter'. Revalidé ici côté serveur (pas
+        // seulement le bouton grisé côté Vue) : un appel direct à cet
+        // endpoint ne doit pas pouvoir contourner la règle.
+        $resteAContacter = Livraison::where('id_campagne_journee', $journee->id)
+            ->where('statut_contact', 'a_contacter')
+            ->exists();
+        if ($resteAContacter) {
+            return response()->json([
+                'success' => false,
+                'message' => "Certaines familles de cette journée n'ont pas encore été contactées.",
+            ], 422);
+        }
+
         try {
             $resultat = $this->generationService->genererPourCampagne($campagne, $journee);
         } catch (\RuntimeException $e) {
@@ -226,6 +242,22 @@ class LiveBoardController extends Controller
         }
 
         return response()->json(['success' => true, 'nouvelle_route' => $nouvelleRoute]);
+    }
+
+    /**
+     * Voir le prompt du 05/09/2026 §5.2 — supprime une tournée encore
+     * 'planifiee' pour permettre de la reconstruire avec un poids moyen
+     * mis à jour (voir RouteMutationService::supprimer()).
+     */
+    public function supprimerRoute(RouteLivraison $route): JsonResponse
+    {
+        try {
+            $this->mutationService->supprimer($route);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function construireRoutePersonnalisee(Request $request, Campagne $campagne): JsonResponse

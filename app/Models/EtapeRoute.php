@@ -20,6 +20,20 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class EtapeRoute extends Model
 {
+    /**
+     * Bug préexistant repéré le 05/09/2026 (indépendant de tout ce qui
+     * précède dans ce fichier) : la migration crée la table
+     * 'etapes_route' (2026_08_31_000010_create_etapes_route_table.php),
+     * mais la convention Eloquent par défaut pour un modèle EtapeRoute
+     * est 'etape_routes' (snake_case + s) — SANS cette surcharge
+     * explicite, toute requête sur ce modèle échoue avec "Base table or
+     * view not found: etape_routes". Resté invisible jusqu'ici car aucun
+     * chemin de code n'avait encore sollicité cette relation avec une
+     * vraie base de données (voir PackagingController::etiquettes(),
+     * premier appelant réel à l'avoir fait remonter).
+     */
+    protected $table = 'etapes_route';
+
     public $timestamps = false;
 
     public function getConnectionName(): ?string

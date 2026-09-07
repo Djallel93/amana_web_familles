@@ -8,9 +8,11 @@ namespace App\Http\Controllers\Admin\Livraison;
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
+use App\Models\Famille;
 use App\Models\Livraison;
 use App\Services\FamilleConfirmationSyncService;
 use App\Support\Creneau;
+use App\Support\FamilleFilters;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -38,11 +40,29 @@ class ContactTrackingController extends Controller
     ) {
     }
 
+    /**
+     * secteursActivite/organismesAide/googlePlacesKey/googleEmbedKey
+     * ajoutés le 05/09/2026 (prompt §2.3) — mêmes référentiels que
+     * FamillesController::index(), nécessaires pour monter DetailPanel.vue
+     * (voir contacts.blade.php) sur cet écran aussi : "if family needs to
+     * be edited when contacted, open the Family panel" — même panneau
+     * partagé qu'utilise Dossier Familles, pas une copie.
+     */
     public function index(): View
     {
-        $campagnes = Campagne::orderByDesc('date_livraison')->get();
+        $campagnes = Campagne::orderByDesc('date_livraison')->with('journees')->get();
+        $secteursActivite = \App\Models\SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        $organismesAide = \App\Models\OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        // Référentiels du filtre partagé (05/09/2026, prompt §2.6) — mêmes
+        // requêtes que CampagnesController::show()/FamillesController::index().
+        $villes = \Amana\Shared\Models\Ville::orderBy('nom')->get(['id', 'nom']);
+        $secteurs = \Amana\Shared\Models\Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
+        $quartiers = \App\Models\Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        $organisations = \App\Models\Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
 
-        return view('livraison.contacts', ['campagnes' => $campagnes]);
+        return view('livraison.contacts', compact(
+            'campagnes', 'secteursActivite', 'organismesAide', 'villes', 'secteurs', 'quartiers', 'organisations',
+        ));
     }
 
     /**
@@ -52,10 +72,29 @@ class ContactTrackingController extends Controller
      * familles joignables par email en tête de file (email non nul
      * d'abord), pas de tri secondaire au-delà — décision explicite,
      * volontairement simple.
+     *
+     * Filtres Dossier Familles (05/09/2026, prompt §2.6) : appliqués via
+     * App\Support\FamilleFilters, mais PAS directement sur cette requête
+     * (elle interroge Livraison, pas Famille — les scopes locaux de
+     * FamilleFilters comme recherche()/rechercheNom() n'existent que sur
+     * le Builder de Famille). On résout donc d'abord les id_famille
+     * correspondants via une requête Famille séparée, puis un whereIn()
+     * classique — même pattern que id_secteur/id_ville dans
+     * FamillesController::baseQuery() (éviter un whereHas() entre deux
+     * requêtes qui n'ont ici aucune raison structurelle d'être fusionnées).
+     *
+     * per_page (05/09/2026, prompt §2.7) : configurable, 50 par défaut
+     * (comportement historique inchangé si absent).
+     *
+     * ids_only (05/09/2026, prompt §2.6 : "select/deselect all after
+     * filtering") : renvoie uniquement la liste des ids Livraison
+     * correspondant aux filtres courants (TOUTES pages), pour que
+     * "sélectionner tout le filtré" côté Vue n'ait pas à paginer pour
+     * récupérer les ids un par un avant d'assigner en lot.
      */
     public function queue(Request $request): JsonResponse
     {
-        $query = Livraison::with(['famille:id,nom,prenom,telephone,email', 'personneAssignee', 'campagne'])
+        $query = Livraison::with(['famille:id,nom,prenom,telephone,telephone_bis,email,id_quartier', 'famille.quartier.secteur.ville', 'personneAssignee', 'campagne'])
             ->where('statut_contact', '!=', 'confirme')
             ->join('familles', 'familles.id', '=', 'livraisons.id_famille')
             ->orderByRaw('familles.email IS NULL')
@@ -70,8 +109,43 @@ class ContactTrackingController extends Controller
         if ($request->filled('id_campagne')) {
             $query->where('id_campagne', $request->input('id_campagne'));
         }
+        // id_campagne_journee / statut_contact (05/09/2026, prompt §1.5) :
+        // le bouton de lancement du clustering a été déplacé sur cet écran
+        // (voir le prompt) et doit vérifier, pour LA JOURNÉE choisie, qu'il
+        // ne reste plus aucune famille à statut_contact = 'a_contacter' —
+        // le front interroge ce même endpoint avec ids_only=1 pour ce
+        // calcul plutôt que dupliquer la logique de filtre côté serveur.
+        if ($request->filled('id_campagne_journee')) {
+            $query->where('id_campagne_journee', $request->input('id_campagne_journee'));
+        }
+        if ($request->filled('statut_contact')) {
+            $query->where('statut_contact', $request->input('statut_contact'));
+        }
 
-        return response()->json($query->paginate(50));
+        if ($this->requeteAUnFiltreFamille($request)) {
+            $idsFamilles = tap(Famille::query(), fn ($q) => FamilleFilters::appliquer($q, $request))->pluck('id');
+            $query->whereIn('id_famille', $idsFamilles);
+        }
+
+        if ($request->boolean('ids_only')) {
+            return response()->json(['ids' => $query->pluck('livraisons.id')]);
+        }
+
+        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
+    }
+
+    /**
+     * Clés reconnues par App\Support\FamilleFilters — si aucune n'est
+     * présente, on évite l'aller-retour vers Famille (qui retournerait de
+     * toute façon tous les ids sans rien filtrer).
+     */
+    private function requeteAUnFiltreFamille(Request $request): bool
+    {
+        return $request->hasAny([
+            'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa',
+            'se_deplace', 'est_hotel', 'etudiant', 'criticite', 'recherche',
+            'id_selection', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee',
+        ]);
     }
 
     /**

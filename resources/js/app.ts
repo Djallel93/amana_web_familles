@@ -23,6 +23,7 @@ import HqCoordinatesAutocomplete from "@/components/admin/HqCoordinatesAutocompl
 import CampagnesIndex from "@/components/livraison/campagnes/CampagnesIndex.vue";
 import CampagneDetail from "@/components/livraison/campagnes/CampagneDetail.vue";
 import ContactsQueue from "@/components/livraison/contacts/ContactsQueue.vue";
+import BenevoleDisponibiliteQueue from "@/components/livraison/campagnes/BenevoleDisponibiliteQueue.vue";
 import LiveBoard from "@/components/livraison/tableau-de-bord/LiveBoard.vue";
 import LivraisonStatistiques from "@/components/livraison/statistiques/LivraisonStatistiques.vue";
 
@@ -65,6 +66,7 @@ mountIfPresent("vue-hq-coordinates-autocomplete", HqCoordinatesAutocomplete);
 mountIfPresent("vue-livraison-campagnes-index", CampagnesIndex);
 mountIfPresent("vue-livraison-campagne-detail", CampagneDetail);
 mountIfPresent("vue-livraison-contacts-queue", ContactsQueue);
+mountIfPresent("vue-livraison-benevole-disponibilite", BenevoleDisponibiliteQueue);
 mountIfPresent("vue-livraison-tableau-de-bord", LiveBoard);
 mountIfPresent("vue-livraison-statistiques", LivraisonStatistiques);
 

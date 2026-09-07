@@ -67,10 +67,26 @@ export interface Campagne {
     poids_moyen_kg: number;
     poids_moyen_hotel_kg: number | null;
     poids_moyen_etudiant_kg: number | null;
+    // Ajoutés le 05/09/2026 (prompt §1.2/§1.3) — voir Campagne (modèle PHP).
+    hq_adresse: string | null;
+    hq_latitude: number | null;
+    hq_longitude: number | null;
+    commentaire: string | null;
+    poids_moyen_historique?: CampagnePoidsMoyenHistorique[];
     // Chargées via Campagne::journees() (voir CampagnesController::show())
     // — au moins une journée depuis le 05/09/2026, toute campagne en a une
     // (voir CampagnesController::store()).
     journees?: CampagneJournee[];
+}
+
+/** Voir CampagnePoidsMoyenHistorique (modèle PHP) et le prompt du 05/09/2026 §5.2. */
+export interface CampagnePoidsMoyenHistorique {
+    id: number;
+    type: 'normal' | 'hotel' | 'etudiant';
+    ancienne_valeur: number;
+    nouvelle_valeur: number;
+    horodatage: string;
+    logge_par: number | PersonneResume;
 }
 
 /** Une journée de collecte/livraison d'une campagne — voir CampagneJournee. */
@@ -82,27 +98,74 @@ export interface CampagneJournee {
     ordre: number;
 }
 
-export interface Quartier {
+export interface Ville {
     id: number;
     nom: string;
 }
 
-/** Famille telle que renvoyée par GET .../eligibles (checklist paginée). */
+export interface Organisation {
+    id: number;
+    nom: string;
+}
+
+export interface Secteur {
+    id: number;
+    nom: string;
+    id_ville: number;
+}
+
+export interface Quartier {
+    id: number;
+    nom: string;
+    id_secteur?: number;
+}
+
+/**
+ * Famille telle que renvoyée par GET .../eligibles (checklist paginée) —
+ * étendue le 05/09/2026 (prompt §1.6 : "real table with columns") avec
+ * telephone_bis/email/adresse/ville_texte, absentes jusque-là de cette
+ * vue.
+ */
 export interface FamilleEligible {
     id: number;
     nom: string;
     prenom: string;
     telephone: string;
+    telephone_bis?: string | null;
+    email?: string | null;
+    adresse?: string | null;
     nombre_adulte: number;
     nombre_enfant: number;
     criticite: number | null;
     id_quartier: number | null;
-    quartier: Quartier | null;
+    quartier: (Quartier & { secteur?: Secteur & { ville?: Ville } }) | null;
     id_organisation: number | null;
     est_hotel: boolean;
     etudiant: boolean;
     /** Calculée côté serveur — null si jamais livrée. */
     derniere_livraison_le: string | null;
+}
+
+/**
+ * Filtres reconnus par App\Support\FamilleFilters — voir FamilleFilterPanel.vue,
+ * utilisé à la fois par la sélection éligibilité campagne et Suivi des
+ * contacts (prompt du 05/09/2026 §1.6/§2.6 : "same filter panel as
+ * Dossier Familles"). Toutes les clés sont optionnelles : un filtre vide
+ * n'est simplement pas envoyé (voir buildQuery()).
+ */
+export interface FamilleFiltres {
+    id_ville?: number | '';
+    id_secteur?: number | '';
+    id_quartier?: number | '';
+    criticite?: number[];
+    se_deplace?: boolean;
+    est_hotel?: boolean;
+    etudiant?: boolean;
+    zakat_el_fitr?: boolean;
+    sadaqa?: boolean;
+    id_organisation_origine?: number | '';
+    id_organisation_rattachee?: number | '';
+    recherche?: string;
 }
 
 export interface Conflit {
@@ -142,6 +205,7 @@ export interface FamilleResume {
     // charge 'famille:id,nom,prenom,adresse' — pas de colonnes
     // téléphone/email dans ce cas. D'où optionnels plutôt qu'obligatoires.
     telephone?: string;
+    telephone_bis?: string | null;
     email?: string | null;
     adresse?: string;
     code_postal?: string | null;
@@ -166,7 +230,11 @@ export type StatutContact = (typeof STATUTS_CONTACT)[number];
 // source de vérité) — liste de départ volontairement amenée à
 // s'enrichir, donc gardée séparée d'un enum strict côté validation
 // serveur (voir Livraison::STATUTS_CONTACT_POSTABLES).
-export const STATUTS_CONTACT_POSTABLES = ['contacte', 'injoignable', 'confirme', 'rejetee', 'archive'] as const;
+// 'contacte' retiré des postables le 05/09/2026 (prompt §2.3 : "Delete the
+// Contacte status and keep only confirme") — reste un statut affichable
+// pour les lignes déjà en base (voir Livraison::STATUTS_CONTACT côté PHP),
+// mais plus proposable dans le formulaire de contact manuel.
+export const STATUTS_CONTACT_POSTABLES = ['injoignable', 'confirme', 'rejetee', 'archive'] as const;
 export type StatutContactPostable = (typeof STATUTS_CONTACT_POSTABLES)[number];
 
 // Créneaux horaires fixes — source de vérité PHP : app/Support/Creneau.php
@@ -187,6 +255,17 @@ export const CRENEAU_LIBELLES: Record<Creneau, string> = {
 };
 
 /**
+ * Regroupement visuel matin/après-midi (05/09/2026, prompt §2.8) —
+ * PUREMENT côté affichage : les créneaux eux-mêmes restent les 6 blocs de
+ * 2h de App\Support\Creneau (voir CRENEAUX ci-dessus), inchangés côté
+ * validation serveur. 12-14 chevauche la coupure 13h symbolique du
+ * prompt ("8-13 was just an example") — rangé côté matin, choix
+ * arbitraire mais assumé plutôt que de casser ce bloc en deux.
+ */
+export const CRENEAUX_MATIN: Creneau[] = ['08-10', '10-12', '12-14'];
+export const CRENEAUX_APRES_MIDI: Creneau[] = ['14-16', '16-18', '18-19'];
+
+/**
  * Livraison telle qu'utilisée par la file de contact et les écrans
  * tableau de bord. Les relations personne_assignee/campagne ne sont
  * chargées que par ContactTrackingController::queue() — absentes (pas
@@ -197,6 +276,7 @@ export const CRENEAU_LIBELLES: Record<Creneau, string> = {
 export interface Livraison {
     id: number;
     id_campagne: number;
+    id_campagne_journee?: number | null;
     statut_contact: StatutContact;
     statut: string;
     id_personne_assignee: number | null;

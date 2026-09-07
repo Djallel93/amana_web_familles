@@ -113,5 +113,22 @@ return [
         // l'URL /livraison/benevole/ma-route à la main, aucun lien nulle
         // part n'y menait.
         ['route' => 'livraison.benevole.ma-route.show', 'label' => 'Ma tournée', 'icon' => '🚚', 'role' => null, 'route_pattern' => 'livraison.benevole.*'],
+        // Ajoutés le 05/09/2026 (prompt §4.1) : equipe_reception/pesee/
+        // packaging/chargement n'avaient jusqu'ici AUCUN lien de sidebar
+        // vers leur propre écran — les routes exigent un {campagne} que
+        // ces rôles n'ont pas de moyen de choisir sans repasser par un
+        // lien direct, d'où l'impression que l'écran "n'existait pas"
+        // (particulièrement pour la réception, voir le prompt).
+        // 'role' ici n'est PAS un code de la hiérarchie interne
+        // (admin/gestionnaire/membre/benevole) : voir le fallback générique
+        // Personne::hasRole() ajouté dans amana_shared::layouts.partials.sidebar
+        // pour ce cas précis, plutôt que d'apprendre ces rôles au paquet
+        // partagé. Chaque lien mène au point d'entrée "choisir une
+        // campagne" (voir *Controller::choisir()), pas directement à un
+        // écran qui exigerait un {campagne} déjà connu.
+        ['route' => 'livraison.reception.choisir', 'label' => 'Réception', 'icon' => '🧾', 'role' => 'equipe_reception', 'route_pattern' => 'livraison.reception.*'],
+        ['route' => 'livraison.pesee.choisir', 'label' => 'Pesée', 'icon' => '⚖️', 'role' => 'equipe_pesee', 'route_pattern' => 'livraison.pesee.*'],
+        ['route' => 'livraison.packaging.choisir', 'label' => 'Packaging', 'icon' => '📦', 'role' => 'equipe_packaging', 'route_pattern' => 'livraison.packaging.*'],
+        ['route' => 'livraison.chargement.choisir', 'label' => 'Chargement', 'icon' => '🚛', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.chargement.*'],
     ],
 ];

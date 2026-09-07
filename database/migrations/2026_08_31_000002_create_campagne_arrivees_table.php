@@ -38,6 +38,14 @@ return new class extends Migration {
         Schema::create('campagne_arrivees', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_campagne')->constrained('campagnes')->cascadeOnDelete();
+            // Ajouté le 05/09/2026 (prompt §4, même raisonnement que
+            // donations.id_campagne_journee — voir cette migration) : pas
+            // de contrainte FK possible ici, campagne_journees est créée
+            // par une migration postérieure (03/09/2026). Nullable pour
+            // la même raison : la réception reste facultative par
+            // campagne, et les lignes déjà en base n'ont pas de journée à
+            // leur rattacher rétroactivement.
+            $table->unsignedBigInteger('id_campagne_journee')->nullable();
             $table->unsignedSmallInteger('nombre_donateur')->default(1)
                 ->comment('Nombre de donateurs représentés par cette arrivée — 1 en général, >1 pour zakat_el_fitr (une personne couvrant plusieurs foyers)');
             $table->timestamp('horodatage')->useCurrent();
@@ -49,6 +57,7 @@ return new class extends Migration {
                 ->comment('ref_personnes.id du membre du staff tenant le poste — pas de FK, commun est une base séparée');
 
             $table->index('id_campagne');
+            $table->index('id_campagne_journee');
         });
     }
 

@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c24608e73acf6a415c117c9ba9e1462d",
+    "content-hash": "34f4757357f3d9a14ab61563a149be70",
     "packages": [
         {
             "name": "amana/shared",
-            "version": "v2.2.0",
+            "version": "v2.3.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Djallel93/amana_shared.git",
-                "reference": "995e8a60c2e70837c7e381f7416ef616daf2337f"
+                "reference": "db9b2732873932cc68f7600f9f1d532238228638"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/995e8a60c2e70837c7e381f7416ef616daf2337f",
-                "reference": "995e8a60c2e70837c7e381f7416ef616daf2337f",
+                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/db9b2732873932cc68f7600f9f1d532238228638",
+                "reference": "db9b2732873932cc68f7600f9f1d532238228638",
                 "shasum": ""
             },
             "require": {
@@ -62,10 +62,10 @@
                 "shared"
             ],
             "support": {
-                "source": "https://github.com/Djallel93/amana_shared/tree/v2.2.0",
+                "source": "https://github.com/Djallel93/amana_shared/tree/v2.3.1",
                 "issues": "https://github.com/Djallel93/amana_shared/issues"
             },
-            "time": "2026-09-05T18:09:34+00:00"
+            "time": "2026-09-07T04:09:43+00:00"
         },
         {
             "name": "bacon/bacon-qr-code",
@@ -183,16 +183,16 @@
         },
         {
             "name": "carbonphp/carbon-doctrine-types",
-            "version": "3.2.0",
+            "version": "3.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/CarbonPHP/carbon-doctrine-types.git",
-                "reference": "18ba5ddfec8976260ead6e866180bd5d2f71aa1d"
+                "reference": "5fa5eacafd9ef47c8c6ab9143fc901ba0194d3dc"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/CarbonPHP/carbon-doctrine-types/zipball/18ba5ddfec8976260ead6e866180bd5d2f71aa1d",
-                "reference": "18ba5ddfec8976260ead6e866180bd5d2f71aa1d",
+                "url": "https://api.github.com/repos/CarbonPHP/carbon-doctrine-types/zipball/5fa5eacafd9ef47c8c6ab9143fc901ba0194d3dc",
+                "reference": "5fa5eacafd9ef47c8c6ab9143fc901ba0194d3dc",
                 "shasum": ""
             },
             "require": {
@@ -207,6 +207,11 @@
                 "phpunit/phpunit": "^10.3"
             },
             "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "3.x-dev"
+                }
+            },
             "autoload": {
                 "psr-4": {
                     "Carbon\\Doctrine\\": "src/Carbon/Doctrine/"
@@ -232,7 +237,7 @@
             ],
             "support": {
                 "issues": "https://github.com/CarbonPHP/carbon-doctrine-types/issues",
-                "source": "https://github.com/CarbonPHP/carbon-doctrine-types/tree/3.2.0"
+                "source": "https://github.com/CarbonPHP/carbon-doctrine-types/tree/3.2.1"
             },
             "funding": [
                 {
@@ -248,7 +253,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-02-09T16:56:22+00:00"
+            "time": "2026-09-06T14:11:38+00:00"
         },
         {
             "name": "dasprid/enum",
@@ -955,16 +960,16 @@
         },
         {
             "name": "google/apiclient-services",
-            "version": "v0.457.0",
+            "version": "v0.458.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/googleapis/google-api-php-client-services.git",
-                "reference": "d6ad056c8d6683c035a5d4e2c6dd77247150ccc1"
+                "reference": "1bf817c792a3c2112f93d785d1a891510f7366c9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/googleapis/google-api-php-client-services/zipball/d6ad056c8d6683c035a5d4e2c6dd77247150ccc1",
-                "reference": "d6ad056c8d6683c035a5d4e2c6dd77247150ccc1",
+                "url": "https://api.github.com/repos/googleapis/google-api-php-client-services/zipball/1bf817c792a3c2112f93d785d1a891510f7366c9",
+                "reference": "1bf817c792a3c2112f93d785d1a891510f7366c9",
                 "shasum": ""
             },
             "require": {
@@ -993,9 +998,9 @@
             ],
             "support": {
                 "issues": "https://github.com/googleapis/google-api-php-client-services/issues",
-                "source": "https://github.com/googleapis/google-api-php-client-services/tree/v0.457.0"
+                "source": "https://github.com/googleapis/google-api-php-client-services/tree/v0.458.0"
             },
-            "time": "2026-08-31T01:26:27+00:00"
+            "time": "2026-09-07T01:24:24+00:00"
         },
         {
             "name": "google/auth",

@@ -10,6 +10,7 @@ use App\Models\Famille;
 use App\Models\FamilleDocument;
 use App\Models\Organisation;
 use App\Models\OrganismeAide;
+use App\Support\FamilleFilters;
 use App\Models\Personne;
 use App\Models\Quartier;
 use App\Models\SecteurActivite;
@@ -148,100 +149,12 @@ class FamillesController extends Controller
             $query->visiblePar(Organisation::idsPourPersonne($utilisateur->id));
         }
 
-        if ($request->filled('id_quartier')) {
-            $query->where('id_quartier', $request->input('id_quartier'));
-        }
-        // id_secteur / id_ville : Quartier/Secteur/Ville vivent sur la
-        // connexion 'commun' (amana_commun), familles sur la connexion par
-        // défaut (amana_familles) — voir Amana\Shared\Models\Quartier/
-        // Secteur/Ville::getConnectionName(). whereHas() génère un
-        // sous-select 'exists' en réutilisant tel quel le nom de table du
-        // modèle lié, SANS qualifier la base : MySQL le résout alors dans
-        // le schéma de la connexion du modèle PARENT (amana_familles) et
-        // échoue avec "Table 'amana_familles.quartiers' doesn't exist"
-        // (signalé le 13/08/2026). On résout donc les id_quartier
-        // correspondants via une requête séparée sur la connexion
-        // 'commun', puis un whereIn() classique sur familles.id_quartier —
-        // deux requêtes mono-connexion plutôt qu'un exists() cross-DB.
-        if ($request->filled('id_secteur')) {
-            $query->whereIn('id_quartier', Quartier::where('id_secteur', $request->input('id_secteur'))->pluck('id'));
-        }
-        if ($request->filled('id_ville')) {
-            $query->whereIn('id_quartier', Quartier::whereHas('secteur', fn($q) => $q->where('id_ville', $request->input('id_ville')))->pluck('id'));
-        }
-        if ($request->boolean('zakat_el_fitr')) {
-            $query->where('zakat_el_fitr', true);
-        }
-        if ($request->boolean('sadaqa')) {
-            $query->where('sadaqa', true);
-        }
-        // se_deplace / est_hotel / etudiant : cases à cocher simples (voir
-        // familles/index.blade.php) — cochée = filtre sur "Oui" uniquement,
-        // décochée = indifférent, même sémantique que zakat_el_fitr/sadaqa
-        // ci-dessus (remplace le <select> Oui/Non/Indifférent à 3 états du
-        // 13/08/2026 : pas de moyen de filtrer explicitement sur "Non" côté
-        // UI désormais, jugé peu utile en pratique).
-        if ($request->boolean('se_deplace')) {
-            $query->where('se_deplace', true);
-        }
-        if ($request->boolean('est_hotel')) {
-            $query->where('est_hotel', true);
-        }
-        if ($request->boolean('etudiant')) {
-            $query->where('etudiant', true);
-        }
-        // Sélection discrète (cases à cocher 0-5, voir familles/index.blade.php)
-        // plutôt qu'un intervalle min/max — remplace criticite_min/criticite_max
-        // le 13/08/2026 (demande : pouvoir cocher ex. 3 ET 5 sans inclure 4).
-        // Filtrage sur les entiers valides uniquement, silencieusement ignoré
-        // sinon (paramètre trafiqué) plutôt que de faire échouer la requête.
-        if ($request->filled('criticite')) {
-            $valeurs = array_values(array_intersect(
-                array_map('intval', (array) $request->input('criticite')),
-                range(0, 5),
-            ));
-            if (!empty($valeurs)) {
-                $query->whereIn('criticite', $valeurs);
-            }
-        }
-        if ($request->filled('recherche')) {
-            $query->recherche($request->input('recherche'));
-        }
-        // Nom / Téléphone (familles/index.blade.php) : deux champs distincts
-        // avec autocomplétion — voir rechercheSuggestions() ci-dessous. Un
-        // clic sur une suggestion pose id_selection (l'id exact de la
-        // famille visée) plutôt que de compter sur le texte affiché dans le
-        // champ pour matcher via LIKE : le champ est rempli avec le
-        // nom/prénom ou le téléphone complet à des fins d'affichage
-        // uniquement, id_selection prime donc sur nom/telephone quand les
-        // deux sont présents. Un JS annule id_selection dès que l'utilisateur
-        // retape dans le champ (voir le script en bas de la vue), pour
-        // retomber sur une recherche LIKE classique.
-        if ($request->filled('id_selection')) {
-            $query->where('id', (int) $request->input('id_selection'));
-        } else {
-            if ($request->filled('nom')) {
-                $query->rechercheNom($request->input('nom'));
-            }
-            if ($request->filled('telephone')) {
-                $query->rechercheTelephone($request->input('telephone'));
-            }
-        }
-
-        // Organisation d'origine (id_organisation, colonne directe sur
-        // familles) — distinct de "rattachée" ci-dessous : un dossier peut
-        // être rattaché à d'autres organisations que celle qui l'a
-        // initialement enregistré (voir organisationOrigine()/organisations()
-        // sur Famille, feature multi-organisation du 28/08/2026).
-        if ($request->filled('id_organisation_origine')) {
-            $query->where('id_organisation', $request->input('id_organisation_origine'));
-        }
-        // Organisation rattachée — filtre sur la table pivot
-        // famille_organisation (organisations()), indépendant de
-        // l'organisation d'origine.
-        if ($request->filled('id_organisation_rattachee')) {
-            $query->whereHas('organisations', fn($q) => $q->where('organisations.id', $request->input('id_organisation_rattachee')));
-        }
+        // Filtres géographiques/critères — extraits le 05/09/2026 dans
+        // App\Support\FamilleFilters, réutilisé tel quel par l'écran
+        // d'éligibilité campagne et Suivi des contacts (voir le prompt
+        // du 05/09/2026 §1.6/§2.6). Comportement inchangé : c'est
+        // littéralement le même code qu'avant l'extraction.
+        FamilleFilters::appliquer($query, $request);
 
         return $query;
     }

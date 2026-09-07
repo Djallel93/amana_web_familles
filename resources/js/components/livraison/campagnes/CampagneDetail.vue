@@ -1,64 +1,61 @@
 <!-- resources/js/components/livraison/campagnes/CampagneDetail.vue -->
 <!--
-    Écran détail campagne — reconstruit en Vue le 03/09/2026, voir
-    resources/views/livraison/campagne-detail.blade.php.
-
-    Corrige par rapport à la version placeholder :
-      - la checklist familles ignorait la pagination de l'API (page 1
-        seulement) → vraie pagination, voir shared/Paginator.vue ;
-      - le résultat de génération (conflits étudiant/hôtel) était fondu
-        dans une seule chaîne d'alerte → liste de conflits dédiée et
-        toujours visible (section "conflitsGeneration" du template) ;
-      - notifier-benevoles/generer-routes étaient de simples alert() →
-        Toast + panneaux de résultat persistants ;
-      - id_quartier/id_organisation étaient des inputs numériques bruts →
-        selects alimentés par les référentiels passés depuis
-        CampagnesController::show() (même pattern que le filtre quartier/
-        organisation de familles/index.blade.php).
+    Écran détail campagne — reconstruit en Vue le 03/09/2026, révisé le
+    05/09/2026 (voir resources/views/livraison/campagne-detail.blade.php
+    et le prompt de cette date §1) :
+      - HQ propre à la campagne + commentaire (§1.2/§1.3), édition inline ;
+      - rangée de boutons de navigation + Notifier bénévole, une couleur
+        distincte chacun (§1.4) ;
+      - bouton clustering RETIRÉ d'ici (§1.5) — déplacé sur Suivi des
+        contacts (ContactsQueue.vue), la génération de routes ne peut plus
+        être lancée depuis cette page ;
+      - sélection des familles éligibles : vraie table + FamilleFilterPanel
+        partagé + sélection croisant les pages via ids_only (§1.6) ;
+      - bouton renommé, désactivé tant qu'aucune sélection (§1.7) ;
+      - section "Livraisons confirmées jamais couvertes" supprimée (§1.8,
+        reste disponible sur le tableau de bord via ShortfallPanel.vue).
 -->
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import { useToast, useConfirm } from '@amana/shared-ui';
-import { apiGet, apiPost } from '../shared/api';
+import { ref, reactive, onMounted } from 'vue';
+import { useToast } from '@amana/shared-ui';
+import { apiGet, apiPatch, apiPost, buildQuery } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
+import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
 import CampagneProgressBar, { type AvancementCampagne } from './CampagneProgressBar.vue';
+import HqCoordinatesAutocomplete from '../../admin/HqCoordinatesAutocomplete.vue';
 import {
     CAMPAGNE_TYPES,
     normalizePaginated,
     type Campagne,
     type CampagneJournee,
+    type CampagnePoidsMoyenHistorique,
     type FamilleEligible,
+    type FamilleFiltres,
     type GenererLivraisonsResultat,
-    type GenererRoutesResultat,
-    type Livraison,
-    type NotifierBenevolesResultat,
+    type Organisation,
     type Paginated,
     type Quartier,
     type RawLaravelPaginator,
+    type Secteur,
+    type Ville,
 } from '../shared/types';
 
-interface Organisation {
-    id: number;
-    nom: string;
-}
-
 const toast = useToast();
-const confirmDialog = useConfirm();
 
 const el = document.getElementById('vue-livraison-campagne-detail')!;
 const campagne = ref<Campagne>(JSON.parse(el.dataset.campagne ?? '{}'));
 const quartiers = ref<Quartier[]>(JSON.parse(el.dataset.quartiers ?? '[]'));
+const villes = ref<Ville[]>(JSON.parse(el.dataset.villes ?? '[]'));
+const secteurs = ref<Secteur[]>(JSON.parse(el.dataset.secteurs ?? '[]'));
 const organisations = ref<Organisation[]>(JSON.parse(el.dataset.organisations ?? '[]'));
+const googlePlacesKey = el.dataset.googlePlacesKey ?? '';
 const urls = {
     eligibles: el.dataset.eligiblesUrl ?? '',
     genererLivraisons: el.dataset.genererLivraisonsUrl ?? '',
-    notifierBenevoles: el.dataset.notifierBenevolesUrl ?? '',
-    genererRoutes: el.dataset.genererRoutesUrl ?? '',
+    benevoles: el.dataset.benevolesUrl ?? '',
     ajouterJournee: el.dataset.ajouterJourneeUrl ?? '',
-    nonCouvertes: el.dataset.nonCouvertesUrl ?? '',
     avancement: el.dataset.avancementUrl ?? '',
-    // Hub de navigation vers les écrans des étapes suivantes — voir le
-    // panneau ajouté au template le 03/09/2026.
+    update: el.dataset.updateUrl ?? '',
     contacts: el.dataset.contactsUrl ?? '',
     pesee: el.dataset.peseeUrl ?? '',
     packaging: el.dataset.packagingUrl ?? '',
@@ -71,20 +68,11 @@ function formatDateFr(iso: string): string {
     return `${jour}/${mois}/${annee}`;
 }
 
-// ── Sélection de journée (05/09/2026) ───────────────────────────────────
-// Toute campagne a désormais au moins une CampagneJournee (voir
-// CampagnesController::store()) — pré-sélectionne la première
-// silencieusement ; le sélecteur ne s'affiche (voir template) que si
-// plusieurs journées existent, pour ne rien changer visuellement au cas
-// mono-jour.
+// ── Sélection de journée ─────────────────────────────────────────────────
 const journees = ref<CampagneJournee[]>(campagne.value.journees ?? []);
 const idJourneeSelectionnee = ref<number | null>(journees.value[0]?.id ?? null);
 
-// ── Ajout d'une journée après création (05/09/2026) ─────────────────────
-// Réutilise CampagnesController::ajouterJournee() (déjà existant, aucun
-// changement backend) — distinct de la saisie multi-journées de
-// CampagnesIndex.vue à la CRÉATION : ici on ajoute UNE journée à une
-// campagne qui existe déjà, à tout moment (avant ou après son démarrage).
+// ── Ajout d'une journée ──────────────────────────────────────────────────
 const afficherFormAjoutJournee = ref(false);
 const nouvelleJourneeDate = ref('');
 const nouvelleJourneeLabel = ref('');
@@ -96,7 +84,6 @@ async function ajouterJournee() {
         erreurAjoutJournee.value = 'Choisissez une date.';
         return;
     }
-
     chargementAjoutJournee.value = true;
     erreurAjoutJournee.value = '';
 
@@ -104,7 +91,6 @@ async function ajouterJournee() {
         date: nouvelleJourneeDate.value,
         label: nouvelleJourneeLabel.value || null,
     });
-
     chargementAjoutJournee.value = false;
 
     if (!resultat.ok) {
@@ -120,32 +106,98 @@ async function ajouterJournee() {
     toast.success('Journée ajoutée.');
 }
 
-// ── Filtre + checklist familles éligibles ──────────────────────────────
-const filtreCriticiteMin = ref('');
-const filtreIdQuartier = ref('');
-const filtreIdOrganisation = ref('');
+// ── HQ propre à la campagne + commentaire (05/09/2026, prompt §1.2/§1.3) ──
+// Édition inline sur cette page (pas de page d'édition séparée dans cette
+// app) — hq_latitude/hq_longitude préremplies au réglage global à la
+// création (voir CampagnesController::store()), simples champs numériques
+// éditables ici plutôt que de réintégrer le widget Google Places de
+// Paramètres (HqCoordinatesAutocomplete.vue, conçu pour cibler des inputs
+// DOM par id sur cette page-là spécifiquement) : l'adresse saisie ici sert
+// avant tout de LIBELLÉ de log, pas de source d'autorité pour le calcul de
+// tournée (voir docblock de la migration campagnes).
+const afficherFormEdition = ref(false);
+const formEdition = reactive({
+    commentaire: campagne.value.commentaire ?? '',
+    hq_adresse: campagne.value.hq_adresse ?? '',
+    hq_latitude: campagne.value.hq_latitude ?? '',
+    hq_longitude: campagne.value.hq_longitude ?? '',
+});
+const chargementEdition = ref(false);
+const erreurEdition = ref('');
+
+async function enregistrerEdition() {
+    chargementEdition.value = true;
+    erreurEdition.value = '';
+
+    const resultat = await apiPatch<{ success: boolean; campagne: Campagne }>(urls.update, {
+        commentaire: formEdition.commentaire || null,
+        hq_adresse: formEdition.hq_adresse || null,
+        hq_latitude: formEdition.hq_latitude === '' ? null : Number(formEdition.hq_latitude),
+        hq_longitude: formEdition.hq_longitude === '' ? null : Number(formEdition.hq_longitude),
+    });
+    chargementEdition.value = false;
+
+    if (!resultat.ok) {
+        erreurEdition.value = resultat.message;
+        return;
+    }
+
+    campagne.value = { ...campagne.value, ...resultat.data.campagne };
+    afficherFormEdition.value = false;
+    toast.success('Campagne mise à jour.');
+}
+
+// ── Filtre + table des familles éligibles (05/09/2026, prompt §1.6) ──────
+const filtres = ref<FamilleFiltres>({});
+// Tri colonne par colonne (05/09/2026, prompt §1.2.3) — mêmes clés que
+// CampagnesController::COLONNES_TRIABLES_ELIGIBLES.
+const tri = ref<string | null>(null);
+const directionTri = ref<'asc' | 'desc'>('asc');
+
+function trierPar(colonne: string) {
+    if (tri.value === colonne) {
+        directionTri.value = directionTri.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        tri.value = colonne;
+        directionTri.value = 'asc';
+    }
+    chargerEligibles(1);
+}
 
 const eligibles = ref<FamilleEligible[]>([]);
 const metaEligibles = ref<Paginated<FamilleEligible>['meta'] | null>(null);
 const chargementEligibles = ref(true);
 const erreurEligibles = ref(false);
 
-// La sélection survit à la pagination et au changement de filtre (un
-// admin peut cocher des familles sur la page 1, filtrer par quartier,
-// cocher d'autres familles sur ce sous-ensemble, puis générer le tout en
-// une fois) — Set d'ids plutôt qu'un tableau de lignes cochées par page.
+// La sélection survit à la pagination et au changement de filtre — Set
+// d'ids plutôt qu'un tableau de lignes cochées par page.
 const selectionnees = ref<Set<number>>(new Set());
+
+function queryFiltres(page: number) {
+    return buildQuery({
+        page,
+        tri: tri.value,
+        direction: tri.value ? directionTri.value : undefined,
+        id_ville: filtres.value.id_ville,
+        id_secteur: filtres.value.id_secteur,
+        id_quartier: filtres.value.id_quartier,
+        criticite: filtres.value.criticite,
+        se_deplace: filtres.value.se_deplace || undefined,
+        est_hotel: filtres.value.est_hotel || undefined,
+        etudiant: filtres.value.etudiant || undefined,
+        zakat_el_fitr: filtres.value.zakat_el_fitr || undefined,
+        sadaqa: filtres.value.sadaqa || undefined,
+        id_organisation_origine: filtres.value.id_organisation_origine,
+        id_organisation_rattachee: filtres.value.id_organisation_rattachee,
+        recherche: filtres.value.recherche,
+    });
+}
 
 async function chargerEligibles(page = 1) {
     chargementEligibles.value = true;
     erreurEligibles.value = false;
 
-    const params = new URLSearchParams({ page: String(page) });
-    if (filtreCriticiteMin.value) params.set('criticite_min', filtreCriticiteMin.value);
-    if (filtreIdQuartier.value) params.set('id_quartier', filtreIdQuartier.value);
-    if (filtreIdOrganisation.value) params.set('id_organisation', filtreIdOrganisation.value);
-
-    const resultat = await apiGet<RawLaravelPaginator<FamilleEligible>>(`${urls.eligibles}?${params}`);
+    const resultat = await apiGet<RawLaravelPaginator<FamilleEligible>>(`${urls.eligibles}${queryFiltres(page)}`);
     chargementEligibles.value = false;
 
     if (!resultat.ok) {
@@ -159,13 +211,41 @@ async function chargerEligibles(page = 1) {
 }
 
 function toggleFamille(id: number) {
-    if (selectionnees.value.has(id)) {
-        selectionnees.value.delete(id);
-    } else {
-        selectionnees.value.add(id);
+    if (selectionnees.value.has(id)) selectionnees.value.delete(id);
+    else selectionnees.value.add(id);
+    selectionnees.value = new Set(selectionnees.value);
+}
+
+/**
+ * Sélectionner/désélectionner TOUT ce qui correspond au filtre courant,
+ * pas seulement la page affichée (prompt §1.6.3) — interroge
+ * .../eligibles?ids_only=1 pour récupérer les ids sur toutes les pages en
+ * un appel plutôt que de paginer manuellement.
+ */
+const chargementSelectionTout = ref(false);
+
+async function toutSelectionnerFiltre() {
+    const pageActuelleIds = new Set(eligibles.value.map((f) => f.id));
+    const dejaToutSelectionne = eligibles.value.length > 0 && eligibles.value.every((f) => selectionnees.value.has(f.id));
+
+    if (dejaToutSelectionne) {
+        // Décoche uniquement ce qui vient du filtre courant, pas une
+        // sélection faite plus tôt sous un autre filtre.
+        for (const id of pageActuelleIds) selectionnees.value.delete(id);
+        selectionnees.value = new Set(selectionnees.value);
+        return;
     }
-    // Nouvelle référence pour que Vue détecte le changement (mutation
-    // d'un Set n'est pas suivie par la réactivité par défaut).
+
+    chargementSelectionTout.value = true;
+    const resultat = await apiGet<{ ids: number[] }>(`${urls.eligibles}${queryFiltres(1)}&ids_only=1`);
+    chargementSelectionTout.value = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    resultat.data.ids.forEach((id) => selectionnees.value.add(id));
     selectionnees.value = new Set(selectionnees.value);
 }
 
@@ -175,14 +255,7 @@ const resultatGeneration = ref<GenererLivraisonsResultat | null>(null);
 const erreurGeneration = ref('');
 
 async function genererLivraisons() {
-    if (selectionnees.value.size === 0) {
-        erreurGeneration.value = 'Sélectionnez au moins une famille.';
-        return;
-    }
-    if (idJourneeSelectionnee.value === null) {
-        erreurGeneration.value = 'Aucune journée disponible pour cette campagne.';
-        return;
-    }
+    if (selectionnees.value.size === 0 || idJourneeSelectionnee.value === null) return;
 
     chargementGeneration.value = true;
     erreurGeneration.value = '';
@@ -192,7 +265,6 @@ async function genererLivraisons() {
         ids_familles: [...selectionnees.value],
         id_campagne_journee: idJourneeSelectionnee.value,
     });
-
     chargementGeneration.value = false;
 
     if (!resultat.ok) {
@@ -203,106 +275,18 @@ async function genererLivraisons() {
     resultatGeneration.value = resultat.data;
     selectionnees.value = new Set();
     toast.success(`${resultat.data.generees} livraison(s) générée(s).`);
-    chargerNonCouvertes();
     chargerAvancement();
+    chargerEligibles(metaEligibles.value?.current_page ?? 1);
 }
 
 // ── Notification bénévoles ──────────────────────────────────────────────
-const chargementNotif = ref(false);
-const resultatNotif = ref<NotifierBenevolesResultat | null>(null);
-
-async function notifierBenevoles() {
-    chargementNotif.value = true;
-    resultatNotif.value = null;
-
-    const resultat = await apiPost<NotifierBenevolesResultat>(urls.notifierBenevoles);
-    chargementNotif.value = false;
-
-    if (!resultat.ok) {
-        toast.error(resultat.message);
-        return;
-    }
-
-    resultatNotif.value = resultat.data;
-    toast.success(`Email envoyé à ${resultat.data.envoyes} bénévole(s).`);
-    chargerAvancement();
-}
-
-// ── Génération des routes ───────────────────────────────────────────────
-const chargementRoutes = ref(false);
-const resultatRoutes = ref<GenererRoutesResultat | null>(null);
-const erreurRoutes = ref('');
-
-async function genererRoutes() {
-    if (idJourneeSelectionnee.value === null) {
-        erreurRoutes.value = 'Aucune journée disponible pour cette campagne.';
-        return;
-    }
-
-    // Opération lourde (clustering + TSP) qui peut recréer/déplacer des
-    // tournées déjà notifiées à des bénévoles — confirmation avant
-    // lancement plutôt qu'un simple bouton, contrairement à la version
-    // placeholder.
-    const confirmed = await confirmDialog.ask({
-        title: 'Lancer la génération des routes',
-        message: 'Le clustering et l\'assignation des tournées vont être (re)calculés pour cette journée. Continuer ?',
-        confirmLabel: 'Lancer',
-    });
-    if (!confirmed) return;
-
-    chargementRoutes.value = true;
-    erreurRoutes.value = '';
-    resultatRoutes.value = null;
-
-    const resultat = await apiPost<GenererRoutesResultat>(urls.genererRoutes, {
-        id_campagne_journee: idJourneeSelectionnee.value,
-    });
-    chargementRoutes.value = false;
-
-    if (!resultat.ok) {
-        erreurRoutes.value = resultat.message;
-        toast.error(resultat.message);
-        chargerNonCouvertes();
-        return;
-    }
-
-    resultatRoutes.value = resultat.data;
-    toast.success(`${resultat.data.routes_creees} tournée(s) créée(s).`);
-    chargerNonCouvertes();
-    chargerAvancement();
-}
-
-// ── Livraisons confirmées jamais couvertes ─────────────────────────────
-const nonCouvertes = ref<Livraison[]>([]);
-const chargementNonCouvertes = ref(true);
-const erreurNonCouvertes = ref(false);
-
-async function chargerNonCouvertes() {
-    chargementNonCouvertes.value = true;
-    erreurNonCouvertes.value = false;
-
-    const params = idJourneeSelectionnee.value !== null
-        ? `?id_campagne_journee=${idJourneeSelectionnee.value}`
-        : '';
-    const resultat = await apiGet<Livraison[]>(`${urls.nonCouvertes}${params}`);
-    chargementNonCouvertes.value = false;
-
-    if (!resultat.ok) {
-        erreurNonCouvertes.value = true;
-        return;
-    }
-
-    nonCouvertes.value = resultat.data;
-}
-
-// Recharge la liste des non-couvertes quand l'admin change de journée
-// dans le sélecteur (§3.4) — évite d'afficher les non-couvertes d'une
-// autre journée par erreur.
-watch(idJourneeSelectionnee, () => chargerNonCouvertes());
+// notifierBenevoles()/resultatNotif retirés le 05/09/2026 (prompt §1.3 :
+// "transfer Notifier bénévole to this new view") — le bouton et son état
+// vivent désormais sur BenevoleDisponibiliteQueue.vue (écran de suivi des
+// réponses), pas ici.
 
 onMounted(() => {
     chargerEligibles(1);
-    chargerNonCouvertes();
     chargerAvancement();
 });
 
@@ -313,6 +297,10 @@ async function chargerAvancement() {
     const resultat = await apiGet<AvancementCampagne>(urls.avancement);
     if (resultat.ok) avancement.value = resultat.data;
 }
+
+// ── Historique des poids moyens (lecture seule ici — édition sur l'écran
+//    Packaging, voir le prompt §5.2 : "Add a section... under Packaging") ─
+const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids_moyen_historique ?? []);
 </script>
 
 <template>
@@ -325,42 +313,43 @@ async function chargerAvancement() {
         <CampagneProgressBar :avancement="avancement" />
 
         <!--
-            Panneau ajouté le 03/09/2026 : avant, rien sur cet écran ne
-            menait vers les écrans des étapes suivantes (contact,
-            pesée, packaging, chargement) — ils existent (voir
-            routes/web.php) mais n'étaient accessibles qu'en tapant
-            l'URL à la main, faute de lien depuis quelque part. Ce
-            panneau sert de hub de navigation pour CETTE campagne :
-            Suivi des contacts est pré-filtré sur son id (voir
-            ContactsQueue.vue, lit ?id_campagne= au montage) ; Pesée/
-            Packaging/Chargement ne le sont pas dans l'URL (ces écrans
-            n'ont qu'un seul {campagne} en route, pas de filtre à
-            pré-remplir), ils s'ouvrent directement sur cette campagne.
+            Rangée de navigation + Notifier bénévole (05/09/2026, prompt
+            §1.4) : Notifier bénévole rejoint la même rangée que les liens
+            vers les écrans des étapes suivantes, chacun avec sa propre
+            couleur pour les distinguer d'un coup d'œil — contrairement à
+            avant où tous les liens de navigation étaient dans le même
+            style neutre et Notifier bénévole était un bouton à part sur sa
+            propre ligne avec le (désormais retiré) bouton clustering.
         -->
         <div class="flex flex-wrap gap-2 mb-6">
-            <a :href="urls.contacts" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+            <a :href="urls.contacts" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90">
                 📞 Suivi des contacts
             </a>
-            <a :href="urls.pesee" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+            <a :href="urls.pesee" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-amber-600 hover:opacity-90">
                 ⚖️ Pesée
             </a>
-            <a :href="urls.packaging" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+            <a :href="urls.packaging" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-violet-600 hover:opacity-90">
                 📦 Packaging
             </a>
-            <a :href="urls.chargement" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+            <a :href="urls.chargement" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-rose-600 hover:opacity-90">
                 🚛 Chargement
             </a>
-            <a :href="urls.tableauDeBord" class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+            <a :href="urls.tableauDeBord" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-teal-600 hover:opacity-90">
                 🗺️ Tableau de bord
+            </a>
+            <!--
+                Remplacé le 05/09/2026 (prompt §1.3) : "transfer Notifier
+                bénévole to this new view" — n'est plus un bouton d'action
+                ici, juste un lien vers l'écran de suivi
+                (BenevoleDisponibiliteQueue.vue), qui porte maintenant à la
+                fois le bouton d'envoi ET le suivi des réponses.
+            -->
+            <a :href="urls.benevoles" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-emerald-600 hover:opacity-90">
+                👥 Suivi des bénévoles
             </a>
         </div>
 
-        <!--
-            Sélecteur de journée (05/09/2026) — affiché seulement si la
-            campagne a plusieurs journées (voir §3.4) ; pour une campagne
-            mono-jour, idJourneeSelectionnee pointe silencieusement vers
-            l'unique journée sans rien montrer à l'écran.
-        -->
+        <!-- Sélecteur de journée -->
         <div v-if="journees.length > 1" class="mb-3">
             <label class="block text-[12.5px] font-medium text-ink-muted mb-1">Journée</label>
             <select v-model.number="idJourneeSelectionnee"
@@ -371,12 +360,6 @@ async function chargerAvancement() {
             </select>
         </div>
 
-        <!--
-            Ajout d'une journée après création (05/09/2026) — utilisable à
-            tout moment, campagne démarrée ou non (voir
-            Campagne::ajouterJournee()). Distinct de la saisie
-            multi-journées à la création (CampagnesIndex.vue).
-        -->
         <div class="mb-6">
             <button v-if="!afficherFormAjoutJournee" type="button" @click="afficherFormAjoutJournee = true"
                 class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
@@ -408,63 +391,148 @@ async function chargerAvancement() {
             <p v-if="erreurAjoutJournee" class="text-[13px] text-rose-600 mt-2">{{ erreurAjoutJournee }}</p>
         </div>
 
-        <div class="flex flex-col sm:flex-row gap-3 mb-3">
-            <button type="button" :disabled="chargementNotif" @click="notifierBenevoles"
-                class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60">
-                📧 {{ chargementNotif ? 'Envoi…' : 'Notifier les bénévoles' }}
-            </button>
-            <button type="button" :disabled="chargementRoutes" @click="genererRoutes"
-                class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-60">
-                🚚 {{ chargementRoutes ? 'Génération…' : 'Lancer le clustering / génération des routes' }}
-            </button>
-        </div>
-        <p v-if="resultatNotif" class="text-[13px] text-ink-muted mb-2">
-            {{ resultatNotif.envoyes }} email(s) envoyé(s), {{ resultatNotif.echecs }} échec(s).
-        </p>
-        <p v-if="resultatRoutes" class="text-[13px] text-ink-muted mb-2">
-            {{ resultatRoutes.routes_creees }} tournée(s) créée(s), dont {{ resultatRoutes.imposees }} imposée(s).
-        </p>
-        <p v-if="erreurRoutes" class="text-[13px] text-rose-600 mb-6">{{ erreurRoutes }}</p>
+        <!-- HQ + commentaire (05/09/2026, prompt §1.2/§1.3) -->
+        <div class="bg-surface border border-surface-border rounded-xl p-5 mb-6">
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-[14px] font-medium text-ink">HQ &amp; commentaire</h2>
+                <button type="button" @click="afficherFormEdition = !afficherFormEdition"
+                    class="text-[12.5px] text-accent">{{ afficherFormEdition ? 'Fermer' : 'Modifier' }}</button>
+            </div>
 
+            <template v-if="!afficherFormEdition">
+                <p class="text-[13px] text-ink-muted">
+                    HQ : {{ campagne.hq_adresse || 'non renseigné' }}
+                    <span v-if="campagne.hq_latitude && campagne.hq_longitude">
+                        ({{ campagne.hq_latitude }}, {{ campagne.hq_longitude }})
+                    </span>
+                </p>
+                <p class="text-[13px] text-ink mt-2 whitespace-pre-wrap">{{ campagne.commentaire || 'Aucun commentaire.' }}</p>
+            </template>
+
+            <form v-else @submit.prevent="enregistrerEdition" class="space-y-3">
+                <div>
+                    <label class="block text-[12px] text-ink-muted mb-1">Adresse HQ (libellé, pour le log)</label>
+                    <input v-model="formEdition.hq_adresse" type="text"
+                        class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
+                </div>
+                <!--
+                    Autocomplétion Google Maps + bascule saisie manuelle
+                    (05/09/2026, prompt §1.1) — même composant que l'écran
+                    Paramètres (HqCoordinatesAutocomplete.vue, généralisé
+                    ce même jour pour être réutilisable ainsi). Écrit
+                    directement dans les 2 inputs ci-dessous via leur id
+                    (campagne-hq-lat/campagne-hq-lng) + un évènement
+                    'input', que v-model capte normalement.
+                -->
+                <HqCoordinatesAutocomplete :google-places-key="googlePlacesKey"
+                    target-lat-id="campagne-hq-lat" target-lng-id="campagne-hq-lng" />
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[12px] text-ink-muted mb-1">Latitude</label>
+                        <input id="campagne-hq-lat" v-model="formEdition.hq_latitude" type="number" step="any" readonly
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
+                    </div>
+                    <div>
+                        <label class="block text-[12px] text-ink-muted mb-1">Longitude</label>
+                        <input id="campagne-hq-lng" v-model="formEdition.hq_longitude" type="number" step="any" readonly
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[12px] text-ink-muted mb-1">Commentaire</label>
+                    <textarea v-model="formEdition.commentaire" rows="3"
+                        class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px]"></textarea>
+                </div>
+                <button type="submit" :disabled="chargementEdition"
+                    class="min-h-[2.25rem] text-[13px] px-4 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
+                    {{ chargementEdition ? 'Enregistrement…' : 'Enregistrer' }}
+                </button>
+                <p v-if="erreurEdition" class="text-[13px] text-rose-600">{{ erreurEdition }}</p>
+            </form>
+
+            <div v-if="historiquePoids.length > 0" class="mt-4 pt-4 border-t border-surface-border">
+                <p class="text-[12px] font-medium text-ink-muted mb-1">Historique des poids moyens</p>
+                <p class="text-[12px] text-ink-muted">
+                    Voir l'écran Packaging pour modifier les poids moyens et consulter l'historique complet.
+                </p>
+            </div>
+        </div>
+
+        <!-- Sélection des familles éligibles (05/09/2026, prompt §1.6) -->
         <div class="bg-surface border border-surface-border rounded-xl p-5 mb-8">
             <h2 class="text-[14px] font-medium text-ink mb-4">Sélection des familles éligibles</h2>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                <input v-model="filtreCriticiteMin" type="number" placeholder="Criticité min"
-                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                <select v-model="filtreIdQuartier" class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                    <option value="">Tous les quartiers</option>
-                    <option v-for="q in quartiers" :key="q.id" :value="q.id">{{ q.nom }}</option>
-                </select>
-                <select v-model="filtreIdOrganisation" class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                    <option value="">Toutes les organisations</option>
-                    <option v-for="o in organisations" :key="o.id" :value="o.id">{{ o.nom }}</option>
-                </select>
-            </div>
-            <button type="button" @click="chargerEligibles(1)"
-                class="min-h-[2.25rem] text-[13px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted mb-4">
-                Filtrer
-            </button>
+            <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
+                :model-value="filtres" @update:model-value="filtres = $event" @filtrer="chargerEligibles(1)" />
 
-            <div class="max-h-96 overflow-y-auto mb-3 border border-surface-border rounded-lg divide-y divide-surface-border">
-                <p v-if="chargementEligibles" class="text-[13px] text-ink-muted px-3 py-3">Chargement…</p>
-                <p v-else-if="erreurEligibles" class="text-[13px] text-rose-600 px-3 py-3">Impossible de charger les familles éligibles.</p>
-                <p v-else-if="eligibles.length === 0" class="text-[13px] text-ink-muted px-3 py-3">Aucune famille éligible pour ces filtres.</p>
-                <label v-for="famille in eligibles" :key="famille.id"
-                    class="flex items-center gap-2 text-[13px] text-ink px-3 py-2.5 cursor-pointer select-none min-h-[2.5rem]">
-                    <input type="checkbox" :checked="selectionnees.has(famille.id)" @change="toggleFamille(famille.id)" class="w-4 h-4 accent-accent shrink-0">
-                    <span class="flex-1">
-                        {{ famille.prenom }} {{ famille.nom }} — criticité {{ famille.criticite ?? '—' }}
-                        · {{ famille.derniere_livraison_le ? 'dernière livraison ' + formatDateFr(famille.derniere_livraison_le) : 'jamais livrée' }}
-                    </span>
-                </label>
+            <div class="overflow-x-auto mb-3 border border-surface-border rounded-lg">
+                <table class="w-full text-[13px]">
+                    <thead>
+                        <tr class="text-left text-ink-muted border-b border-surface-border bg-stone-50">
+                            <th class="px-3 py-2 font-medium">
+                                <input type="checkbox"
+                                    :checked="eligibles.length > 0 && eligibles.every((f) => selectionnees.has(f.id))"
+                                    :disabled="chargementSelectionTout"
+                                    @change="toutSelectionnerFiltre" class="w-4 h-4 accent-accent">
+                            </th>
+                            <!-- Colonnes triables (05/09/2026, prompt §1.2.3) —
+                                 clic sur l'en-tête, mêmes clés que
+                                 CampagnesController::COLONNES_TRIABLES_ELIGIBLES. -->
+                            <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('id')">
+                                ID <span v-if="tri === 'id'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('nom')">
+                                Nom <span v-if="tri === 'nom'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('telephone')">
+                                Contact <span v-if="tri === 'telephone'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th class="px-3 py-2 font-medium">Adresse</th>
+                            <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('criticite')">
+                                Criticité <span v-if="tri === 'criticite'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                            <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('derniere_livraison_le')">
+                                Dernière livraison <span v-if="tri === 'derniere_livraison_le'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="chargementEligibles"><td colspan="7" class="px-3 py-3 text-ink-muted">Chargement…</td></tr>
+                        <tr v-else-if="erreurEligibles"><td colspan="7" class="px-3 py-3 text-rose-600">Impossible de charger les familles éligibles.</td></tr>
+                        <tr v-else-if="eligibles.length === 0"><td colspan="7" class="px-3 py-3 text-ink-muted">Aucune famille éligible pour ces filtres.</td></tr>
+                        <tr v-for="famille in eligibles" :key="famille.id" class="border-b border-surface-border last:border-0 hover:bg-stone-50">
+                            <td class="px-3 py-2">
+                                <input type="checkbox" :checked="selectionnees.has(famille.id)" @change="toggleFamille(famille.id)"
+                                    class="w-4 h-4 accent-accent">
+                            </td>
+                            <td class="px-3 py-2 text-ink-muted">#{{ famille.id }}</td>
+                            <td class="px-3 py-2 text-ink">{{ famille.prenom }} {{ famille.nom }}</td>
+                            <td class="px-3 py-2 text-ink-muted">
+                                {{ famille.telephone || '—' }}
+                                <span v-if="famille.telephone_bis"> / {{ famille.telephone_bis }}</span>
+                            </td>
+                            <td class="px-3 py-2 text-ink-muted">
+                                {{ famille.adresse || '—' }}
+                                <span v-if="famille.quartier">— {{ famille.quartier.nom }}</span>
+                            </td>
+                            <td class="px-3 py-2 text-ink-muted">{{ famille.criticite ?? '—' }}</td>
+                            <td class="px-3 py-2 text-ink-muted">
+                                {{ famille.derniere_livraison_le ? formatDateFr(famille.derniere_livraison_le) : 'jamais livrée' }}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
             <Paginator v-if="metaEligibles" :meta="metaEligibles" @change="chargerEligibles" />
 
             <p class="text-[12px] text-ink-muted mt-3 mb-2">{{ selectionnees.size }} famille(s) sélectionnée(s)</p>
-            <button type="button" :disabled="chargementGeneration" @click="genererLivraisons"
-                class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-60">
-                {{ chargementGeneration ? 'Génération…' : 'Générer les livraisons pour la sélection' }}
+            <!-- Renommé + désactivé tant qu'aucune sélection (05/09/2026,
+                 prompt §1.7) — auparavant toujours actif dès que
+                 chargementGeneration était faux, cliquable même à 0
+                 sélection. -->
+            <button type="button" :disabled="chargementGeneration || selectionnees.size === 0" @click="genererLivraisons"
+                class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
+                {{ chargementGeneration ? 'Ajout…' : 'Ajouter les familles sélectionnées' }}
             </button>
             <p v-if="erreurGeneration" class="text-[13px] text-rose-600 mt-3">{{ erreurGeneration }}</p>
 
@@ -472,10 +540,6 @@ async function chargerAvancement() {
                 <p class="text-[13px] text-ink">
                     {{ resultatGeneration.generees }} livraison(s) générée(s), {{ resultatGeneration.deja_existantes }} déjà existante(s).
                 </p>
-                <!-- Liste des conflits étudiant/hôtel dans sa propre section
-                     visible, plutôt que fondue dans le texte d'un seul
-                     message comme dans la version placeholder — voir
-                     docblock de fichier. -->
                 <div v-if="resultatGeneration.conflits.length > 0" class="mt-2 bg-rose-50 border border-rose-200 rounded-lg p-3">
                     <p class="text-[12.5px] font-medium text-rose-700 mb-1.5">
                         ⚠ {{ resultatGeneration.conflits.length }} famille(s) en conflit étudiant/hôtel, à corriger avant génération :
@@ -485,18 +549,6 @@ async function chargerAvancement() {
                     </ul>
                 </div>
             </div>
-        </div>
-
-        <div class="bg-surface border border-surface-border rounded-xl p-5">
-            <h2 class="text-[14px] font-medium text-ink mb-3">Livraisons confirmées jamais couvertes</h2>
-            <p v-if="chargementNonCouvertes" class="text-[13px] text-ink-muted">Chargement…</p>
-            <p v-else-if="erreurNonCouvertes" class="text-[13px] text-rose-600">Impossible de charger cette liste.</p>
-            <p v-else-if="nonCouvertes.length === 0" class="text-[13px] text-ink-muted">Aucune.</p>
-            <ul v-else class="text-[13px] text-ink space-y-1">
-                <li v-for="livraison in nonCouvertes" :key="livraison.id">
-                    {{ livraison.famille.prenom }} {{ livraison.famille.nom }} — {{ livraison.famille.adresse }}
-                </li>
-            </ul>
         </div>
     </div>
 </template>

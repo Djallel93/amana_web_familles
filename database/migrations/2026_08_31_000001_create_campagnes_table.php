@@ -51,6 +51,29 @@ return new class extends Migration {
                 ->comment('Poids moyen par colis, ajustable manuellement en cours de campagne — voir admin/gestionnaire');
             $table->timestamp('benevoles_notifies_le')->nullable()
                 ->comment('Horodatage du dernier envoi de CampagneDisponibiliteNotification (voir BenevoleDisponibiliteService::notifierCampagne) — ajouté le 03/09/2026 uniquement pour que la checklist de progression (CampagneProgressBar.vue) sache si cette étape a déjà eu lieu, sans avoir à deviner depuis les réponses des bénévoles (qui peuvent tarder ou ne jamais venir).');
+
+            // HQ par campagne (ajouté le 05/09/2026, prompt §1.2) : le
+            // réglage global (route_hq_latitude/route_hq_longitude, voir
+            // SettingsController::CLES_HQ) reste la valeur par défaut —
+            // recopiée dans ces 3 colonnes à la CRÉATION de chaque
+            // campagne (voir CampagnesController::store()), pas relue
+            // dynamiquement ensuite : décision explicite du 05/09/2026
+            // ("always prefill with it") pour qu'une campagne déjà créée
+            // ne bouge jamais silencieusement si le réglage global change
+            // plus tard — chaque campagne a sa propre valeur indépendante
+            // dès sa création, éditable ensuite au cas par cas (ex:
+            // collecte tenue dans un autre local qu'à l'accoutumée).
+            $table->string('hq_adresse')->nullable()
+                ->comment('Libellé adresse du HQ propre à cette campagne, pour affichage/log uniquement (pas de pendant global — settings ne stocke que lat/lng)');
+            $table->decimal('hq_latitude', 10, 7)->nullable();
+            $table->decimal('hq_longitude', 10, 7)->nullable();
+
+            // Commentaire libre (ajouté le 05/09/2026, prompt §1.3) —
+            // dernière valeur seulement, pas d'historique (décision
+            // explicite) : simple colonne texte, éditable à tout moment
+            // depuis la page détail de la campagne.
+            $table->text('commentaire')->nullable();
+
             $table->timestamps();
 
             $table->index(['type', 'statut']);

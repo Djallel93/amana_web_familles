@@ -29,6 +29,26 @@ use Illuminate\Support\Facades\Validator;
  */
 class ChargementController extends Controller
 {
+    /**
+     * Point d'entrée sans campagne — voir le prompt du 05/09/2026 §4.1,
+     * même raisonnement que ReceptionController::choisir()/PeseeController::choisir()/
+     * PackagingController::choisir() : equipe_chargement n'avait aucune
+     * entrée de menu vers cet écran.
+     */
+    public function choisir(): View
+    {
+        $campagnes = Campagne::whereIn('statut', ['preparation', 'en_cours'])
+            ->orderByDesc('date_livraison')
+            ->get();
+
+        return view('livraison.choisir-poste', [
+            'campagnes' => $campagnes,
+            'titre' => 'Chargement — choisir une campagne',
+            'routeIndex' => 'livraison.chargement.index',
+            'avecJournee' => false,
+        ]);
+    }
+
     public function index(Campagne $campagne): View
     {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)

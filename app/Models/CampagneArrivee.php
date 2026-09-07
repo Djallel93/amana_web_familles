@@ -15,11 +15,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * (notamment pourquoi nombre_donateur existe et pourquoi aucune identité
  * de donateur n'est enregistrée).
  *
- * @property int    $id
- * @property int    $id_campagne
- * @property int    $nombre_donateur
+ * @property int      $id
+ * @property int      $id_campagne
+ * @property int|null $id_campagne_journee  Ajouté le 05/09/2026, voir migration — nullable, pas de FK (ordre des migrations)
+ * @property int      $nombre_donateur
  * @property \Illuminate\Support\Carbon $horodatage
- * @property int    $logge_par
+ * @property int      $logge_par
  */
 class CampagneArrivee extends Model
 {
@@ -30,7 +31,7 @@ class CampagneArrivee extends Model
         return config('database.default');
     }
 
-    protected $fillable = ['id_campagne', 'nombre_donateur', 'horodatage', 'logge_par'];
+    protected $fillable = ['id_campagne', 'id_campagne_journee', 'nombre_donateur', 'horodatage', 'logge_par'];
 
     protected $casts = [
         'nombre_donateur' => 'integer',
@@ -40,6 +41,11 @@ class CampagneArrivee extends Model
     public function campagne(): BelongsTo
     {
         return $this->belongsTo(Campagne::class, 'id_campagne');
+    }
+
+    public function journee(): BelongsTo
+    {
+        return $this->belongsTo(CampagneJournee::class, 'id_campagne_journee');
     }
 
     /**

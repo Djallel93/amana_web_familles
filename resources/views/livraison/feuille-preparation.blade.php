@@ -34,8 +34,9 @@
         <thead>
             <tr>
                 <th>#</th>
-                <th>Famille</th>
-                <th>Personnes</th>
+                <th>ID famille</th>
+                <th>Adultes</th>
+                <th>Enfants</th>
                 <th>Particularités</th>
                 <th>Besoins spéciaux</th>
                 <th>Conditionné</th>
@@ -45,12 +46,16 @@
             @foreach($livraisons as $index => $livraison)
                 <tr>
                     <td>{{ $index + 1 }}</td>
-                    <td>{{ $livraison->famille->prenom }} {{ $livraison->famille->nom }}</td>
-                    <td>{{ $livraison->nombre_personnes }}</td>
+                    {{-- Pas de nom/téléphone ici (05/09/2026, prompt §4.4) —
+                         cette feuille reste entre les mains de l'équipe
+                         packaging, qui n'a besoin que de préparer le bon
+                         nombre de colis, pas de l'identité de la famille. --}}
+                    <td>#{{ $livraison->famille->id }}</td>
+                    <td>{{ $livraison->famille->nombre_adulte }}</td>
+                    <td>{{ $livraison->famille->nombre_enfant }}</td>
                     <td>
                         @if($livraison->famille->etudiant)<span class="badge">Étudiant</span>@endif
                         @if($livraison->famille->est_hotel)<span class="badge">Hôtel</span>@endif
-                        @if($livraison->famille->nombre_enfant > 0)<span class="badge">{{ $livraison->famille->nombre_enfant }} enfant(s)</span>@endif
                     </td>
                     <td class="notes">{{ $livraison->note_besoins_speciaux }}</td>
                     <td>{{ $livraison->statut_conditionnement === 'prete' ? '✓' : '' }}</td>

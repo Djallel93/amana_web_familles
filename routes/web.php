@@ -296,6 +296,28 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.generer-livraisons');
     Route::post('/campagnes/{campagne}/notifier-benevoles', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'notifierBenevoles'])
         ->name('campagnes.notifier-benevoles');
+    // Édition (commentaire, HQ propre à la campagne) — voir le prompt du
+    // 05/09/2026 §1.2/§1.3, éditable depuis la page détail elle-même
+    // (pas de page d'édition séparée dans cette app).
+    Route::patch('/campagnes/{campagne}', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'update'])
+        ->name('campagnes.update');
+    // Poids moyen : mise à jour + historique (§5.2) et recalcul manuel,
+    // volontairement scopé aux seules livraisons pas encore conditionnées
+    // (voir CampagnesController::recalculerPoids()).
+    Route::post('/campagnes/{campagne}/poids-moyen', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'mettreAJourPoidsMoyen'])
+        ->name('campagnes.poids-moyen');
+    Route::post('/campagnes/{campagne}/recalculer-poids', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'recalculerPoids'])
+        ->name('campagnes.recalculer-poids');
+
+    // Suivi des réponses de disponibilité bénévole (05/09/2026, prompt
+    // §1.3) — remplace le bouton "Notifier bénévole" isolé par un vrai
+    // écran de suivi, sur le modèle de Suivi des contacts.
+    Route::get('/campagnes/{campagne}/benevoles', [\App\Http\Controllers\Admin\Livraison\BenevoleDisponibiliteController::class, 'index'])
+        ->name('campagnes.benevoles.index');
+    Route::get('/campagnes/{campagne}/benevoles/queue', [\App\Http\Controllers\Admin\Livraison\BenevoleDisponibiliteController::class, 'queue'])
+        ->name('campagnes.benevoles.queue');
+    Route::post('/campagnes/{campagne}/benevoles/{idPersonne}', [\App\Http\Controllers\Admin\Livraison\BenevoleDisponibiliteController::class, 'mettreAJour'])
+        ->name('campagnes.benevoles.mettre-a-jour');
 
     Route::get('/contacts', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'index'])
         ->name('contacts.index');
@@ -328,6 +350,8 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('routes.reassigner');
     Route::post('/routes/{route}/diviser', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'diviserRoute'])
         ->name('routes.diviser');
+    Route::delete('/routes/{route}', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'supprimerRoute'])
+        ->name('routes.supprimer');
     Route::post('/campagnes/{campagne}/routes-personnalisees', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'construireRoutePersonnalisee'])
         ->name('routes.personnalisee');
 
@@ -388,23 +412,47 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
 //    d'overlap entre elles en dehors d'admin/gestionnaire, déjà couverts
 //    par le middleware). ──────────────────────────────────────────────
 Route::middleware(['auth', 'livraison_role:equipe_reception'])->prefix('livraison/reception')->name('livraison.reception.')->group(function () {
+    // choisir() ajouté le 05/09/2026 (prompt §4.1) : equipe_reception
+    // n'avait aucune entrée de menu vers cet écran (voir
+    // config/amana-shared.php) — ce point d'entrée sans {campagne} liste
+    // les campagnes actives et sert de cible au lien de sidebar.
+    Route::get('/', [\App\Http\Controllers\Livraison\ReceptionController::class, 'choisir'])->name('choisir');
     Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'show'])->name('show');
     Route::post('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'enregistrer'])->name('enregistrer');
+    // Journal des saisies (§4.2) : lister/modifier/supprimer chaque ligne
+    // — pas de restriction de propriété (n'importe quel equipe_reception
+    // peut éditer une ligne saisie par quelqu'un d'autre, voir le prompt).
+    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\ReceptionController::class, 'journal'])->name('journal');
+    Route::patch('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'modifier'])->name('arrivees.modifier');
+    Route::delete('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'supprimer'])->name('arrivees.supprimer');
 });
 
 Route::middleware(['auth', 'livraison_role:equipe_pesee'])->prefix('livraison/pesee')->name('livraison.pesee.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\PeseeController::class, 'choisir'])->name('choisir');
     Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'show'])->name('show');
     Route::post('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'enregistrer'])->name('enregistrer');
+    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\PeseeController::class, 'journal'])->name('journal');
+    Route::patch('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'modifier'])->name('dons.modifier');
+    Route::delete('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'supprimer'])->name('dons.supprimer');
 });
 
 Route::middleware(['auth', 'livraison_role:equipe_packaging'])->prefix('livraison/packaging')->name('livraison.packaging.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\PackagingController::class, 'choisir'])->name('choisir');
     Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PackagingController::class, 'index'])->name('index');
+    // marquer-pret (famille entière) conservé pour compatibilité mais plus
+    // appelé directement par CampagneDetail/packaging.blade.php côté Vue
+    // depuis le 05/09/2026 (prompt §5.3) — remplacé par colis/{colis}/statut,
+    // finaliserConditionnement() étant désormais déclenché automatiquement
+    // quand le dernier colis d'une famille passe à 'pret'.
     Route::post('/{livraison}/pret', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerPret'])->name('marquer-pret');
+    Route::post('/colis/{colis}/statut', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerColisPret'])->name('colis.statut');
+    Route::post('/{livraison}/annuler', [\App\Http\Controllers\Livraison\PackagingController::class, 'annulerConditionnement'])->name('annuler');
     Route::get('/{campagne}/feuille-preparation', [\App\Http\Controllers\Livraison\PackagingController::class, 'feuillePreparation'])->name('feuille-preparation');
     Route::get('/etiquettes/{livraison}', [\App\Http\Controllers\Livraison\PackagingController::class, 'etiquettes'])->name('etiquettes');
 });
 
 Route::middleware(['auth', 'livraison_role:equipe_chargement'])->prefix('livraison/chargement')->name('livraison.chargement.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\ChargementController::class, 'choisir'])->name('choisir');
     Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ChargementController::class, 'index'])->name('index');
     Route::post('/routes/{route}/confirmer', [\App\Http\Controllers\Livraison\ChargementController::class, 'confirmer'])->name('confirmer');
     Route::post('/routes/{route}/benevole-absent', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerBenevoleAbsent'])->name('benevole-absent');

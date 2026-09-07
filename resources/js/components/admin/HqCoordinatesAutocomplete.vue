@@ -23,6 +23,12 @@
     JavaScript) et en lecture seule par défaut — la recherche Google Maps
     est le moyen premier de les renseigner. Le bouton "Saisir manuellement"
     ne fait que retirer l'attribut readonly, sans dupliquer les champs.
+    Généralisé le 05/09/2026 (prompt de cette date §1.1) pour être aussi
+    utilisable directement comme composant enfant (voir CampagneDetail.vue,
+    HQ propre à une campagne) — props optionnelles qui, si fournies,
+    priment sur la détection via #vue-hq-coordinates-autocomplete
+    (comportement historique de l'écran Paramètres, inchangé si les props
+    ne sont pas passées).
 -->
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue';
@@ -34,9 +40,15 @@ declare global {
     }
 }
 
-const googlePlacesKey = ref('');
-const targetLatId = ref('');
-const targetLngId = ref('');
+const props = defineProps<{
+    googlePlacesKey?: string;
+    targetLatId?: string;
+    targetLngId?: string;
+}>();
+
+const googlePlacesKey = ref(props.googlePlacesKey ?? '');
+const targetLatId = ref(props.targetLatId ?? '');
+const targetLngId = ref(props.targetLngId ?? '');
 const showSearch = ref(false);
 const containerRef = ref<HTMLDivElement | null>(null);
 let autocompleteElement: any = null;
@@ -122,6 +134,8 @@ function activerSaisieManuelle(): void {
 }
 
 onMounted(() => {
+    if (props.googlePlacesKey || props.targetLatId || props.targetLngId) return; // fourni par les props, rien à détecter
+
     const el = document.getElementById('vue-hq-coordinates-autocomplete');
     if (el) {
         googlePlacesKey.value = el.dataset.googlePlacesKey ?? '';
