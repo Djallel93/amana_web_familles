@@ -45,7 +45,7 @@ class DemandeNouvelleTourneeNotification extends Notification
         return $this->embedLogo(new MailMessage)
             ->subject('AMANA Livraison — Un bénévole est de retour au QG et disponible')
             ->line("Le bénévole de la tournée #{$this->route->id} (campagne #{$this->route->id_campagne}) est de retour au QG et disponible pour une nouvelle tournée.")
-            ->action('Voir le tableau de bord', route('livraison.tableau-de-bord.index'));
+            ->action('Voir le suivi livraison', route('livraison.suivi-livraison.index'));
     }
 
     public function toDatabase(object $notifiable): array
@@ -53,7 +53,7 @@ class DemandeNouvelleTourneeNotification extends Notification
         return [
             'titre' => 'Bénévole disponible',
             'message' => "Retour QG confirmé pour la tournée #{$this->route->id}.",
-            'url' => route('livraison.tableau-de-bord.index'),
+            'url' => route('livraison.suivi-livraison.index'),
             'id_route' => $this->route->id,
         ];
     }

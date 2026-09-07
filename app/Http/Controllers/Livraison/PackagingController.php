@@ -86,6 +86,7 @@ class PackagingController extends Controller
     {
         $query = Livraison::where('id_campagne', $campagne->id)
             ->where('statut_conditionnement', 'en_attente')
+            ->where('statut_contact', 'confirme') // 07/09/2026, prompt §3.2
             ->whereNotIn('statut', ['ignoree', 'livree']);
 
         if ($request->filled('id_campagne_journee')) {
@@ -255,29 +256,5 @@ class PackagingController extends Controller
             ->values();
 
         return view('livraison.feuille-preparation', ['campagne' => $campagne, 'livraisons' => $livraisons]);
-    }
-
-    /**
-     * Étiquettes imprimables — une par colis (une par personne du foyer,
-     * voir le prompt §2 : "each person gets one package"). Recto : famille
-     * + "colis X/N". Verso : QR de secours vers la confirmation
-     * authentifiée du bénévole (voir QrCodeService/MaRouteController).
-     *
-     * Le packaging étant découplé de l'assignation (voir docblock de
-     * classe), une livraison peut être conditionnée AVANT d'avoir une
-     * tournée — dans ce cas, pas d'étape à laquelle rattacher le QR de
-     * secours : l'écran l'indique clairement plutôt que de générer un
-     * lien qui échouerait au scan (id d'étape inexistant). L'équipe
-     * réimprime l'étiquette une fois la tournée générée (réimpression
-     * déjà supportée par design, voir feuillePreparation()).
-     */
-    public function etiquettes(Livraison $livraison): View
-    {
-        $etape = $livraison->etapesRoute()->first();
-
-        return view('livraison.etiquettes', [
-            'livraison' => $livraison,
-            'qrSvg' => $etape ? $this->qrCode->genererSvg(route('livraison.benevole.etapes.scan', $etape)) : null,
-        ]);
     }
 }

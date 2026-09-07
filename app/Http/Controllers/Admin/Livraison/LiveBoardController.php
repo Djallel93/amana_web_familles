@@ -43,11 +43,18 @@ class LiveBoardController extends Controller
     ) {
     }
 
-    public function index(): View
+    /**
+     * {campagne} optionnel (07/09/2026, prompt §6, écran renommé
+     * 'suivi-livraison') — préremplit le <select> campagne de
+     * LiveBoard.vue quand on arrive depuis CampagneDetail.vue
+     * (/livraison/suivi-livraison/{campagne}), sans rien changer pour
+     * l'accès direct par la sidebar (aucune campagne connue à l'avance).
+     */
+    public function index(?Campagne $campagne = null): View
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->get();
 
-        return view('livraison.tableau-de-bord', ['campagnes' => $campagnes]);
+        return view('livraison.suivi-livraison', ['campagnes' => $campagnes, 'campagneSelectionnee' => $campagne]);
     }
 
     /**

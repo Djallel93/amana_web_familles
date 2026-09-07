@@ -12,7 +12,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useToast } from '@amana/shared-ui';
 import { apiGet, apiPost, buildQuery } from '../shared/api';
-import { CRENEAUX, CRENEAU_LIBELLES, type Campagne, type CampagneJournee, type Creneau } from '../shared/types';
+import { CRENEAUX_MATIN, CRENEAUX_APRES_MIDI, CRENEAU_LIBELLES, type Campagne, type CampagneJournee, type Creneau } from '../shared/types';
 
 interface LigneBenevole {
     id_personne: number;
@@ -34,9 +34,14 @@ const campagne = ref<Campagne>(JSON.parse(el.dataset.campagne ?? '{}'));
 const queueUrl = el.dataset.queueUrl ?? '';
 const mettreAJourUrlTemplate = el.dataset.mettreAJourUrlTemplate ?? '';
 const notifierBenevolesUrl = el.dataset.notifierBenevolesUrl ?? '';
+const personneEditUrlTemplate = el.dataset.personneEditUrlTemplate ?? '';
 
 function urlMettreAJour(idPersonne: number): string {
     return mettreAJourUrlTemplate.replace('__ID__', String(idPersonne));
+}
+
+function urlModifierInformations(idPersonne: number): string {
+    return personneEditUrlTemplate.replace('__ID__', String(idPersonne));
 }
 
 const journees = computed<CampagneJournee[]>(() => campagne.value.journees ?? []);
@@ -72,17 +77,38 @@ async function chargerFile() {
 }
 
 // ── Édition manuelle (05/09/2026, prompt §1.3) ────────────────────────────
+// Réduit à `creneaux` (07/09/2026, prompt §5.1 : "add two buttons, one
+// Modifier informations that opens personnes/{id}/modifier and another
+// for Modifier disponibilités that let me choose créneaux") —
+// vehicule_confirme/coverage_confirmee ne sont plus édités depuis ce
+// panneau : ce n'étaient que des booléens "confirmé inchangé", pas les
+// vraies valeurs (id_vehicule_type/secteurs vivent sur BenevoleProfil,
+// voir resources/views/personnes/form.blade.php) — éditer la vraie
+// valeur se fait maintenant via "Modifier informations". Toujours
+// affichés en lecture seule sur la ligne (voir le template) pour garder
+// le contexte visible sans avoir à ouvrir la fiche personne. Voir
+// BenevoleDisponibiliteService::confirmer(), corrigé dans ce même patch
+// pour ne plus écraser ces deux champs à `false` quand ils ne sont plus
+// envoyés.
 const editionOuverte = reactive<Record<number, boolean>>({});
-const formulaires = reactive<Record<number, { vehicule_confirme: boolean; coverage_confirmee: boolean; creneaux: Creneau[] }>>({});
+const formulaires = reactive<Record<number, { creneaux: Creneau[] }>>({});
 const enregistrementEnCours = reactive<Record<number, boolean>>({});
 
 function ouvrirEdition(ligne: LigneBenevole) {
     formulaires[ligne.id_personne] = {
-        vehicule_confirme: ligne.vehicule_confirme,
-        coverage_confirmee: ligne.coverage_confirmee,
         creneaux: [...ligne.creneaux],
     };
     editionOuverte[ligne.id_personne] = true;
+}
+
+function groupeToutCoche(idPersonne: number, groupe: Creneau[]): boolean {
+    return groupe.every((c) => formulaires[idPersonne]?.creneaux.includes(c));
+}
+
+function toggleGroupeEdition(idPersonne: number, groupe: Creneau[]) {
+    const f = formulaires[idPersonne];
+    if (groupeToutCoche(idPersonne, groupe)) f.creneaux = f.creneaux.filter((c) => !groupe.includes(c));
+    else f.creneaux = [...new Set([...f.creneaux, ...groupe])];
 }
 
 function toggleCreneauEdition(idPersonne: number, creneau: Creneau) {
@@ -99,8 +125,6 @@ async function enregistrerConfirme(ligne: LigneBenevole) {
     const resultat = await apiPost<{ success: boolean }>(urlMettreAJour(ligne.id_personne), {
         id_campagne_journee: idJourneeSelectionnee.value,
         statut: 'confirme',
-        vehicule_confirme: f.vehicule_confirme,
-        coverage_confirmee: f.coverage_confirmee,
         creneaux: f.creneaux,
     });
 
@@ -214,12 +238,25 @@ onMounted(chargerFile);
                 <p v-if="ligne.statut === 'confirme'" class="text-[12.5px] text-ink-muted mt-2">
                     Créneaux : {{ ligne.creneaux.map((c) => CRENEAU_LIBELLES[c]).join(', ') || '—' }}
                     <span v-if="ligne.vehicule_confirme"> · véhicule confirmé</span>
+                    <span v-if="ligne.coverage_confirmee"> · couverture confirmée</span>
                 </p>
 
-                <div class="flex gap-2 mt-3">
+                <!--
+                    Deux boutons distincts (07/09/2026, prompt §5.1) —
+                    remplace l'unique "Modifier la réponse" : "Modifier
+                    informations" ouvre la fiche personne (véhicule réel/
+                    secteurs couverts, voir personnes/form.blade.php),
+                    "Modifier disponibilités" ne touche qu'aux créneaux
+                    (voir formulaires ci-dessus).
+                -->
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <a :href="urlModifierInformations(ligne.id_personne)"
+                        class="min-h-[2rem] inline-flex items-center text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90">
+                        Modifier informations
+                    </a>
                     <button type="button" @click="ouvrirEdition(ligne)"
                         class="min-h-[2rem] text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
-                        Modifier la réponse
+                        Modifier disponibilités
                     </button>
                     <button v-if="ligne.statut === 'confirme'" type="button" :disabled="enregistrementEnCours[ligne.id_personne]"
                         @click="marquerNonConfirme(ligne)"
@@ -228,22 +265,43 @@ onMounted(chargerFile);
                     </button>
                 </div>
 
+                <!--
+                    Regroupement matin/après-midi (07/09/2026, prompt
+                    §5.2 : "use the same layout as with families") — même
+                    structure que ContactsQueue.vue.
+                -->
                 <div v-if="editionOuverte[ligne.id_personne]" class="mt-3 bg-stone-50 rounded-lg p-3 space-y-2">
-                    <label class="flex items-center gap-2 text-[12.5px] text-ink-muted">
-                        <input type="checkbox" v-model="formulaires[ligne.id_personne].vehicule_confirme" class="w-4 h-4 accent-accent">
-                        Véhicule confirmé
-                    </label>
-                    <label class="flex items-center gap-2 text-[12.5px] text-ink-muted">
-                        <input type="checkbox" v-model="formulaires[ligne.id_personne].coverage_confirmee" class="w-4 h-4 accent-accent">
-                        Couverture confirmée
-                    </label>
-                    <div class="flex flex-wrap gap-1.5">
-                        <label v-for="creneau in CRENEAUX" :key="creneau"
-                            class="flex items-center gap-1.5 px-2.5 py-1.5 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none has-[:checked]:border-accent has-[:checked]:text-ink has-[:checked]:font-semibold">
-                            <input type="checkbox" :checked="formulaires[ligne.id_personne].creneaux.includes(creneau)"
-                                @change="toggleCreneauEdition(ligne.id_personne, creneau)" class="w-3.5 h-3.5 accent-accent">
-                            {{ CRENEAU_LIBELLES[creneau] }}
-                        </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="border border-ink-faint rounded-lg p-2">
+                            <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
+                                <input type="checkbox" :checked="groupeToutCoche(ligne.id_personne, CRENEAUX_MATIN)"
+                                    @change="toggleGroupeEdition(ligne.id_personne, CRENEAUX_MATIN)" class="w-3.5 h-3.5 accent-accent">
+                                Matin
+                            </label>
+                            <div class="flex flex-wrap gap-1.5">
+                                <label v-for="creneau in CRENEAUX_MATIN" :key="creneau"
+                                    class="flex items-center gap-1.5 px-2.5 py-1.5 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none has-[:checked]:border-accent has-[:checked]:text-ink has-[:checked]:font-semibold">
+                                    <input type="checkbox" :checked="formulaires[ligne.id_personne].creneaux.includes(creneau)"
+                                        @change="toggleCreneauEdition(ligne.id_personne, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                    {{ CRENEAU_LIBELLES[creneau] }}
+                                </label>
+                            </div>
+                        </div>
+                        <div class="border border-ink-faint rounded-lg p-2">
+                            <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
+                                <input type="checkbox" :checked="groupeToutCoche(ligne.id_personne, CRENEAUX_APRES_MIDI)"
+                                    @change="toggleGroupeEdition(ligne.id_personne, CRENEAUX_APRES_MIDI)" class="w-3.5 h-3.5 accent-accent">
+                                Après-midi
+                            </label>
+                            <div class="flex flex-wrap gap-1.5">
+                                <label v-for="creneau in CRENEAUX_APRES_MIDI" :key="creneau"
+                                    class="flex items-center gap-1.5 px-2.5 py-1.5 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none has-[:checked]:border-accent has-[:checked]:text-ink has-[:checked]:font-semibold">
+                                    <input type="checkbox" :checked="formulaires[ligne.id_personne].creneaux.includes(creneau)"
+                                        @change="toggleCreneauEdition(ligne.id_personne, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                    {{ CRENEAU_LIBELLES[creneau] }}
+                                </label>
+                            </div>
+                        </div>
                     </div>
                     <button type="button" :disabled="enregistrementEnCours[ligne.id_personne]" @click="enregistrerConfirme(ligne)"
                         class="min-h-[2rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">

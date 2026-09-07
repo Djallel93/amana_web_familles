@@ -82,11 +82,6 @@ return [
         ['route' => 'admin.benevoles.index', 'label' => 'Candidatures bénévoles', 'icon' => '🤝', 'role' => 'admin', 'route_pattern' => 'admin.benevoles.*'],
         ['route' => 'admin.personnes.index', 'label' => 'Personnes', 'icon' => '👥', 'role' => 'admin', 'route_pattern' => 'admin.personnes.*'],
 
-        ['section' => 'Administration'],
-        ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],
-        ['route' => 'admin.activite.index', 'label' => "Statistiques d'activité", 'icon' => '📈', 'role' => 'admin', 'route_pattern' => 'admin.activite.*'],
-        ['route' => 'admin.journal.index', 'label' => "Journal d'audit", 'icon' => '📜', 'role' => 'admin', 'route_pattern' => 'admin.journal.*'],
-
         // ── Livraison (ajouté le 03/09/2026, migration frontend des
         //    écrans admin/gestionnaire du domaine livraison) — section à
         //    part plutôt que rattachée à "Dossiers" ou "Administration" :
@@ -98,10 +93,20 @@ return [
         //    Campagnes est livrée à ce stade, Contacts/Tableau de bord/
         //    Statistiques suivront pour éviter un lien vers un écran pas
         //    encore reconstruit. ─────────────────────────────────────
+        // Positionnée au-dessus d'"Administration" (07/09/2026, prompt de
+        // cette date §1) — "Administration" doit toujours rester en
+        // dernier, "Livraison" juste au-dessus, plutôt que sa place
+        // d'origine après Administration.
         ['section' => 'Livraison'],
         ['route' => 'livraison.campagnes.index', 'label' => 'Campagnes', 'icon' => '🎁', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.campagnes.*'],
         ['route' => 'livraison.contacts.index', 'label' => 'Suivi des contacts', 'icon' => '📞', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.contacts.*'],
-        ['route' => 'livraison.tableau-de-bord.index', 'label' => 'Tableau de bord', 'icon' => '🗺️', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.tableau-de-bord.*'],
+        // Renommé depuis 'Tableau de bord' / 'livraison.tableau-de-bord.*'
+        // (07/09/2026, prompt §6) : le nom générique ne reflétait pas ce
+        // que fait l'écran (suivi des tournées en cours/terminées +
+        // construction de routes personnalisées) — aligné sur la
+        // convention des autres écrans du domaine (Suivi des contacts,
+        // Suivi des bénévoles).
+        ['route' => 'livraison.suivi-livraison.index', 'label' => 'Suivi livraison', 'icon' => '🗺️', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.suivi-livraison.*'],
         ['route' => 'livraison.statistiques.index', 'label' => 'Statistiques', 'icon' => '📊', 'role' => null, 'route_pattern' => 'livraison.statistiques.*'],
         // 'role' => null (comme Statistiques ci-dessus) plutôt que
         // 'gestionnaire' : Ma tournée s'adresse aux bénévoles chauffeurs,
@@ -130,5 +135,10 @@ return [
         ['route' => 'livraison.pesee.choisir', 'label' => 'Pesée', 'icon' => '⚖️', 'role' => 'equipe_pesee', 'route_pattern' => 'livraison.pesee.*'],
         ['route' => 'livraison.packaging.choisir', 'label' => 'Packaging', 'icon' => '📦', 'role' => 'equipe_packaging', 'route_pattern' => 'livraison.packaging.*'],
         ['route' => 'livraison.chargement.choisir', 'label' => 'Chargement', 'icon' => '🚛', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.chargement.*'],
+
+        ['section' => 'Administration'],
+        ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],
+        ['route' => 'admin.activite.index', 'label' => "Statistiques d'activité", 'icon' => '📈', 'role' => 'admin', 'route_pattern' => 'admin.activite.*'],
+        ['route' => 'admin.journal.index', 'label' => "Journal d'audit", 'icon' => '📜', 'role' => 'admin', 'route_pattern' => 'admin.journal.*'],
     ],
 ];

@@ -47,7 +47,7 @@ class RouteIncidentNotification extends Notification
             ->subject('AMANA Livraison — Incident : ' . $this->libelleType())
             ->line("Un incident « {$this->libelleType()} » a été signalé sur la tournée #{$this->incident->id_route}.")
             ->when($this->incident->notes, fn ($m) => $m->line("Notes : {$this->incident->notes}"))
-            ->action('Voir le tableau de bord', route('livraison.tableau-de-bord.index'));
+            ->action('Voir le suivi livraison', route('livraison.suivi-livraison.index'));
     }
 
     public function toDatabase(object $notifiable): array
@@ -55,7 +55,7 @@ class RouteIncidentNotification extends Notification
         return [
             'titre' => $this->libelleType(),
             'message' => "Tournée #{$this->incident->id_route}" . ($this->incident->notes ? " — {$this->incident->notes}" : ''),
-            'url' => route('livraison.tableau-de-bord.index'),
+            'url' => route('livraison.suivi-livraison.index'),
             'id_incident' => $this->incident->id,
             'id_route' => $this->incident->id_route,
         ];

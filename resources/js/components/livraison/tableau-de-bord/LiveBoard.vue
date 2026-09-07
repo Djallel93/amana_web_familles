@@ -1,7 +1,8 @@
 <!-- resources/js/components/livraison/tableau-de-bord/LiveBoard.vue -->
 <!--
-    Tableau de bord live — reconstruit en Vue le 03/09/2026, voir
-    resources/views/livraison/tableau-de-bord.blade.php. Écran le plus
+    Suivi livraison — reconstruit en Vue le 03/09/2026, renommé depuis
+    "Tableau de bord" le 07/09/2026 (prompt de cette date §6), voir
+    resources/views/livraison/suivi-livraison.blade.php. Écran le plus
     dense des quatre (voir le commentaire qui occupait ce fichier Blade
     avant ce patch, qui expliquait pourquoi il était resté en JS simple
     jusqu'ici) : orchestrateur unique qui centralise le fetch
@@ -11,7 +12,7 @@
     tournée personnalisée) peut invalider les trois listes à la fois.
 -->
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { apiGet } from '../shared/api';
 import type { Campagne, Livraison, RawLaravelPaginator, RouteIncident, RouteLivraison } from '../shared/types';
 import IncidentsPanel from './IncidentsPanel.vue';
@@ -19,7 +20,7 @@ import RoutesPanel from './RoutesPanel.vue';
 import ShortfallPanel from './ShortfallPanel.vue';
 import BuildRouteFlow from './BuildRouteFlow.vue';
 
-const el = document.getElementById('vue-livraison-tableau-de-bord')!;
+const el = document.getElementById('vue-livraison-suivi-livraison')!;
 const campagnes = ref<Campagne[]>(JSON.parse(el.dataset.campagnes ?? '[]'));
 const urls = JSON.parse(el.dataset.urls ?? '{}') as Record<string, string>;
 
@@ -28,7 +29,9 @@ function formatDateFr(iso: string): string {
     return `${jour}/${mois}/${annee}`;
 }
 
-const campagneId = ref('');
+// Présélectionné quand on arrive depuis CampagneDetail.vue (07/09/2026,
+// prompt §6) — voir data-campagne-id dans suivi-livraison.blade.php.
+const campagneId = ref(el.dataset.campagneId ?? '');
 
 // URLs campagne-scopées : __CAMPAGNE__ substitué une fois l'id connu,
 // mémorisées pour être repassées telles quelles aux panneaux enfants
@@ -97,6 +100,10 @@ function chargerTout() {
 function onCampagneChange() {
     if (campagneId.value) chargerTout();
 }
+
+onMounted(() => {
+    if (campagneId.value) chargerTout();
+});
 </script>
 
 <template>

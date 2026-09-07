@@ -7,8 +7,10 @@ namespace App\Http\Controllers\Livraison;
 
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
+use App\Models\Livraison;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use App\Services\QrCodeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,6 +31,11 @@ use Illuminate\Support\Facades\Validator;
  */
 class ChargementController extends Controller
 {
+    public function __construct(
+        private readonly QrCodeService $qrCode,
+    ) {
+    }
+
     /**
      * Point d'entrée sans campagne — voir le prompt du 05/09/2026 §4.1,
      * même raisonnement que ReceptionController::choisir()/PeseeController::choisir()/
@@ -56,7 +63,54 @@ class ChargementController extends Controller
             ->with(['benevole', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant'])
             ->get();
 
-        return view('livraison.chargement', ['campagne' => $campagne, 'routes' => $routes]);
+        return view('livraison.chargement', [
+            'campagne' => $campagne,
+            'routes' => $routes,
+            // Retour visible (07/09/2026, prompt §4.2) — même règle que
+            // Packaging/Pesee/Réception : équipe_chargement n'a pas accès
+            // à livraison.campagnes.show, repli sur le point d'entrée
+            // "choisir".
+            'urlRetour' => (auth()->user()->isAdmin() || auth()->user()->isGestionnaire())
+                ? route('livraison.campagnes.show', $campagne)
+                : route('livraison.chargement.choisir'),
+        ]);
+    }
+
+    /**
+     * Planche d'étiquettes QR pour TOUTES les familles confirmées de la
+     * campagne, une page unique à découper (07/09/2026, prompt §4.1 :
+     * "We don't print individual labels but rather a full sheet to cut
+     * off each label") — remplace le bouton d'étiquette par famille
+     * retiré de Packaging (§3.1). Un colis = une personne du foyer, même
+     * convention que l'ancien PackagingController::etiquettes() (retiré
+     * par ce même patch) dont ce code reprend la logique de génération
+     * QR — verso : QR de secours vers la confirmation authentifiée du
+     * bénévole quand la tournée existe déjà, sinon la mention
+     * "réimprimer après" plutôt qu'un lien mort.
+     *
+     * Scopée aux familles confirmées (statut_contact = confirme), pas à
+     * "en attente de chargement" : imprimée depuis Chargement mais pensée
+     * comme la planche de LA campagne, à imprimer en une fois en amont
+     * (typiquement pendant/après Packaging) plutôt que route par route.
+     */
+    public function etiquettesCampagne(Campagne $campagne): View
+    {
+        $livraisons = Livraison::where('id_campagne', $campagne->id)
+            ->where('statut_contact', 'confirme')
+            ->with(['famille:id,nom,prenom', 'etapesRoute'])
+            ->get();
+
+        $qrParLivraison = $livraisons->mapWithKeys(function (Livraison $livraison) {
+            $etape = $livraison->etapesRoute->first();
+
+            return [$livraison->id => $etape ? $this->qrCode->genererSvg(route('livraison.benevole.etapes.scan', $etape)) : null];
+        });
+
+        return view('livraison.etiquettes-campagne', [
+            'campagne' => $campagne,
+            'livraisons' => $livraisons,
+            'qrParLivraison' => $qrParLivraison,
+        ]);
     }
 
     public function confirmer(RouteLivraison $route): JsonResponse

@@ -45,7 +45,7 @@
             data-pesee-url="{{ route('livraison.pesee.show', $campagne) }}"
             data-packaging-url="{{ route('livraison.packaging.index', $campagne) }}"
             data-chargement-url="{{ route('livraison.chargement.index', $campagne) }}"
-            data-tableau-de-bord-url="{{ route('livraison.tableau-de-bord.index') }}">
+            data-suivi-livraison-url="{{ route('livraison.suivi-livraison.index', $campagne) }}">
         </div>
     </div>
 @endsection

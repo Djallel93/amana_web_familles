@@ -5,7 +5,26 @@
 
 @section('content')
     <div class="max-w-3xl mx-auto py-8">
-        <h1 class="font-heading text-xl font-semibold text-ink mb-6">Chargement — tournées prêtes</h1>
+        {{--
+            Retour visible (07/09/2026, prompt §4.2) — même bouton plein
+            bg-ink que Pesee/Réception/Packaging/Suivi livraison.
+        --}}
+        <a href="{{ $urlRetour }}"
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
+            ← Retour à la campagne
+        </a>
+
+        <div class="flex items-center justify-between gap-3 mb-6">
+            <h1 class="font-heading text-xl font-semibold text-ink">Chargement — tournées prêtes</h1>
+            {{--
+                Planche d'étiquettes pour toute la campagne (07/09/2026,
+                prompt §4.1) — voir ChargementController::etiquettesCampagne().
+            --}}
+            <a href="{{ route('livraison.chargement.etiquettes', $campagne) }}" target="_blank"
+                class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted shrink-0 bg-white hover:bg-stone-50">
+                🖨️ Étiquettes — toute la campagne
+            </a>
+        </div>
         <form id="csrf-holder">@csrf</form>
 
         <div class="space-y-3">

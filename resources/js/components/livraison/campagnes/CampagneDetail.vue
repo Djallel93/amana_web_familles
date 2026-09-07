@@ -60,7 +60,7 @@ const urls = {
     pesee: el.dataset.peseeUrl ?? '',
     packaging: el.dataset.packagingUrl ?? '',
     chargement: el.dataset.chargementUrl ?? '',
-    tableauDeBord: el.dataset.tableauDeBordUrl ?? '',
+    suiviLivraison: el.dataset.suiviLivraisonUrl ?? '',
 };
 
 function formatDateFr(iso: string): string {
@@ -334,8 +334,8 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
             <a :href="urls.chargement" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-rose-600 hover:opacity-90">
                 🚛 Chargement
             </a>
-            <a :href="urls.tableauDeBord" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-teal-600 hover:opacity-90">
-                🗺️ Tableau de bord
+            <a :href="urls.suiviLivraison" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-teal-600 hover:opacity-90">
+                🗺️ Suivi livraison
             </a>
             <!--
                 Remplacé le 05/09/2026 (prompt §1.3) : "transfer Notifier

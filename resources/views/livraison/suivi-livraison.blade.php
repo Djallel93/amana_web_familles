@@ -1,11 +1,29 @@
-{{-- resources/views/livraison/tableau-de-bord.blade.php --}}
+{{-- resources/views/livraison/suivi-livraison.blade.php --}}
+{{-- Renommé depuis tableau-de-bord.blade.php (07/09/2026, prompt §6). --}}
 @extends('layouts.app')
 
-@section('title', 'Tableau de bord livraison — AMANA Familles')
+@section('title', 'Suivi livraison — AMANA Familles')
 
 @section('content')
     <div class="max-w-5xl mx-auto py-8">
-        <h1 class="font-heading text-xl font-semibold text-ink mb-6">Tableau de bord livraison</h1>
+        {{--
+            Retour (07/09/2026, prompt §6 : "like all other Livraison
+            section add a return button, use same layout as current
+            pesee") — bouton plein bg-ink, comme Pesee/Réception/Packaging/
+            Chargement. Ce groupe de routes est role:gestionnaire
+            uniquement (pas d'équipe_* ici, contrairement à ces écrans),
+            donc pas besoin du fallback vers un point d'entrée "choisir" :
+            on va directement vers la campagne si elle est connue
+            (arrivée depuis CampagneDetail.vue), sinon vers la liste des
+            campagnes (accès direct par la sidebar, sans campagne
+            présélectionnée).
+        --}}
+        <a href="{{ $campagneSelectionnee ? route('livraison.campagnes.show', $campagneSelectionnee) : route('livraison.campagnes.index') }}"
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
+            ← Retour à la campagne
+        </a>
+
+        <h1 class="font-heading text-xl font-semibold text-ink mb-6">Suivi livraison</h1>
 
         {{-- Reconstruit en Vue le 03/09/2026 (voir LiveBoard.vue et ses
              panneaux dans components/livraison/tableau-de-bord/) — seul
@@ -16,8 +34,14 @@
              chargement (route/étape/incident), donc passé sous forme de
              gabarits avec placeholder __CAMPAGNE__/__ID__/__ETAPE__ — même
              technique que urls.deleteDoc dans DetailPanel.vue — plutôt
-             qu'un data-* par action. --}}
-        <div id="vue-livraison-tableau-de-bord" data-campagnes="{{ $campagnes->toJson() }}"
+             qu'un data-* par action.
+
+             data-campagne-id (07/09/2026, prompt §6) : présélectionne le
+             <select> de LiveBoard.vue quand la campagne est déjà connue
+             (arrivée depuis CampagneDetail.vue) — voir onMounted() côté
+             Vue. --}}
+        <div id="vue-livraison-suivi-livraison" data-campagnes="{{ $campagnes->toJson() }}"
+            data-campagne-id="{{ $campagneSelectionnee?->id }}"
             data-urls="{{ json_encode([
                 'incidents' => route('livraison.campagnes.incidents', ['campagne' => '__CAMPAGNE__']),
                 'routes' => route('livraison.campagnes.routes', ['campagne' => '__CAMPAGNE__']),

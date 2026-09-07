@@ -330,8 +330,15 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     Route::post('/contacts/{livraison}/contacter-manuel', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'contacterManuel'])
         ->name('contacts.contacter-manuel');
 
-    Route::get('/tableau-de-bord', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'index'])
-        ->name('tableau-de-bord.index');
+    // Renommé depuis 'tableau-de-bord' (07/09/2026, prompt §6) — voir
+    // config/amana-shared.php. {campagne?} optionnel ajouté au même
+    // moment : accédé depuis CampagneDetail.vue, on veut atterrir
+    // directement sur la campagne choisie plutôt que de forcer un second
+    // choix dans le <select> de LiveBoard.vue (le <select> reste malgré
+    // tout affiché/utilisable pour changer de campagne ensuite ou pour
+    // l'accès direct depuis la sidebar, sans campagne connue).
+    Route::get('/suivi-livraison/{campagne?}', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'index'])
+        ->name('suivi-livraison.index');
     Route::post('/campagnes/{campagne}/generer-routes', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'genererRoutes'])
         ->name('campagnes.generer-routes');
     Route::get('/campagnes/{campagne}/routes', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'routes'])
@@ -448,7 +455,6 @@ Route::middleware(['auth', 'livraison_role:equipe_packaging'])->prefix('livraiso
     Route::post('/colis/{colis}/statut', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerColisPret'])->name('colis.statut');
     Route::post('/{livraison}/annuler', [\App\Http\Controllers\Livraison\PackagingController::class, 'annulerConditionnement'])->name('annuler');
     Route::get('/{campagne}/feuille-preparation', [\App\Http\Controllers\Livraison\PackagingController::class, 'feuillePreparation'])->name('feuille-preparation');
-    Route::get('/etiquettes/{livraison}', [\App\Http\Controllers\Livraison\PackagingController::class, 'etiquettes'])->name('etiquettes');
 });
 
 Route::middleware(['auth', 'livraison_role:equipe_chargement'])->prefix('livraison/chargement')->name('livraison.chargement.')->group(function () {
@@ -457,6 +463,13 @@ Route::middleware(['auth', 'livraison_role:equipe_chargement'])->prefix('livrais
     Route::post('/routes/{route}/confirmer', [\App\Http\Controllers\Livraison\ChargementController::class, 'confirmer'])->name('confirmer');
     Route::post('/routes/{route}/benevole-absent', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerBenevoleAbsent'])->name('benevole-absent');
     Route::post('/routes/{route}/capacite', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerCapacite'])->name('capacite');
+    // Feuille d'étiquettes QR pour TOUTES les familles confirmées de la
+    // campagne, une planche unique à découper (07/09/2026, prompt §4.1) —
+    // remplace le bouton d'étiquette par famille retiré de Packaging (§3.1,
+    // qui n'a plus de raison d'être : ce besoin est couvert ici, en une
+    // seule impression à l'échelle de la campagne plutôt que famille par
+    // famille).
+    Route::get('/{campagne}/etiquettes', [\App\Http\Controllers\Livraison\ChargementController::class, 'etiquettesCampagne'])->name('etiquettes');
 });
 
 // ── Formulaire public de confirmation famille (aucune authentification) ──

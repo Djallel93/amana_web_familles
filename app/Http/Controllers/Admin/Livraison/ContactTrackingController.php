@@ -91,12 +91,19 @@ class ContactTrackingController extends Controller
      * correspondant aux filtres courants (TOUTES pages), pour que
      * "sélectionner tout le filtré" côté Vue n'ait pas à paginer pour
      * récupérer les ids un par un avant d'assigner en lot.
+     *
+     * Familles confirmées incluses (07/09/2026, prompt §2.8 : "after
+     * confirming a family it's no longer listed, keep them displayed
+     * preferably at the bottom, keep them selectable/assignable") — le
+     * `where('statut_contact', '!=', 'confirme')` a été retiré, remplacé
+     * par un tri qui les repousse en dernier (voir orderByRaw ci-dessous),
+     * sans changer leur éligibilité à la sélection/assignation en lot.
      */
     public function queue(Request $request): JsonResponse
     {
         $query = Livraison::with(['famille:id,nom,prenom,telephone,telephone_bis,email,id_quartier', 'famille.quartier.secteur.ville', 'personneAssignee', 'campagne'])
-            ->where('statut_contact', '!=', 'confirme')
             ->join('familles', 'familles.id', '=', 'livraisons.id_famille')
+            ->orderByRaw("livraisons.statut_contact = 'confirme'")
             ->orderByRaw('familles.email IS NULL')
             ->select('livraisons.*');
 
@@ -223,16 +230,31 @@ class ContactTrackingController extends Controller
      * famille n'a plus besoin d'aide ou doit être écartée (voir
      * Livraison::STATUTS_CONTACT_EFFETS, appliqué via
      * FamilleConfirmationSyncService::appliquerEffetStatut()).
+     *
+     * adresse_confirmee/code_postal_confirme/ville_confirmee/
+     * nombre_adulte_confirme/nombre_enfant_confirme ne sont plus requis
+     * pour confirmer depuis CET écran (07/09/2026, prompt §2.5 :
+     * "adress and number of members is useless since they are all in
+     * Modifier le dossier — in addition to single source of truth we
+     * always use the same methode to edit families") — ContactsQueue.vue
+     * ne les envoie plus, seul `creneaux` reste requis. Les champs
+     * restent acceptés ici (nullable) et, s'ils sont fournis,
+     * synchronisés vers Famille exactement comme avant via
+     * FamilleConfirmationSyncService::synchroniser() : le formulaire
+     * public ContactConfirmationController::store() (famille sans accès
+     * à "Modifier le dossier") continue de les envoyer et garde ce
+     * comportement inchangé — une seule et même méthode de
+     * synchronisation, quelle que soit l'origine de l'appel.
      */
     public function contacterManuel(Request $request, Livraison $livraison): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'statut_contact' => 'required|in:' . implode(',', Livraison::STATUTS_CONTACT_POSTABLES),
-            'adresse_confirmee' => 'required_if:statut_contact,confirme|nullable|string|max:500',
+            'adresse_confirmee' => 'nullable|string|max:500',
             'code_postal_confirme' => 'nullable|string|max:10',
             'ville_confirmee' => 'nullable|string|max:150',
-            'nombre_adulte_confirme' => 'required_if:statut_contact,confirme|nullable|integer|min:1|max:30',
-            'nombre_enfant_confirme' => 'required_if:statut_contact,confirme|nullable|integer|min:0|max:30',
+            'nombre_adulte_confirme' => 'nullable|integer|min:1|max:30',
+            'nombre_enfant_confirme' => 'nullable|integer|min:0|max:30',
             'creneaux' => 'required_if:statut_contact,confirme|nullable|array|min:1',
             'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
         ]);
@@ -245,7 +267,7 @@ class ContactTrackingController extends Controller
         $donnees = ['statut_contact' => $statut];
         $donneesConfirmees = null;
 
-        if ($statut === 'confirme') {
+        if ($statut === 'confirme' && $request->filled('adresse_confirmee')) {
             $donneesConfirmees = $validator->safe()->only([
                 'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
                 'nombre_adulte_confirme', 'nombre_enfant_confirme',
@@ -255,8 +277,10 @@ class ContactTrackingController extends Controller
 
         $livraison->update($donnees);
 
-        if ($donneesConfirmees !== null) {
-            $this->syncService->synchroniser($livraison, $donneesConfirmees);
+        if ($statut === 'confirme') {
+            if ($donneesConfirmees !== null) {
+                $this->syncService->synchroniser($livraison, $donneesConfirmees);
+            }
 
             $livraison->creneaux()->delete();
             foreach ($request->input('creneaux') as $creneau) {

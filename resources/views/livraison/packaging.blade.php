@@ -155,9 +155,6 @@
                                 </div>
                             </div>
                         </div>
-
-                        <a href="{{ route('livraison.packaging.etiquettes', $livraison) }}" target="_blank"
-                            class="text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted shrink-0 bg-white">🖨️ Étiquettes</a>
                     </div>
                 </div>
             @empty

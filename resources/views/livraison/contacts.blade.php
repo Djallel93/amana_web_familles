@@ -10,10 +10,14 @@
              reception/packaging, voir pesee.blade.php/reception.blade.php),
              donc ce lien pointe directement vers la campagne d'où l'on
              vient si elle est connue (?id_campagne= dans l'URL), sinon la
-             liste des campagnes. --}}
+             liste des campagnes.
+             Relabellé "← Retour à la campagne" et restylé en bouton
+             plein bg-ink (07/09/2026, prompt §2.6 : "in black, use the
+             same as in Pesee") — cohérent avec Pesee/Réception/
+             Packaging/Chargement/Suivi livraison. --}}
         <a id="lien-retour" href="{{ route('livraison.campagnes.index') }}"
-            class="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink border border-surface-border rounded-lg px-3 py-1.5 mb-4 hover:bg-stone-50">
-            ← Retour
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
+            ← Retour à la campagne
         </a>
 
         <h1 class="font-heading text-xl font-semibold text-ink mb-6">Suivi des contacts</h1>

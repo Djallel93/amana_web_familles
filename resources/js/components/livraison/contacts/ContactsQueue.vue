@@ -94,7 +94,6 @@ function formatDateFr(iso: string): string {
 // ── Filtre + file ────────────────────────────────────────────────────────
 const paramsUrl = new URLSearchParams(window.location.search);
 const filtreCampagne = ref(paramsUrl.get('id_campagne') ?? '');
-const filtreMine = ref(false);
 const filtresFamille = ref<FamilleFiltres>({});
 const parPage = ref(50);
 
@@ -112,7 +111,6 @@ function queryFiltres(page: number) {
         page,
         per_page: parPage.value,
         id_campagne: filtreCampagne.value,
-        mine: filtreMine.value ? 1 : undefined,
         id_ville: filtresFamille.value.id_ville,
         id_secteur: filtresFamille.value.id_secteur,
         id_quartier: filtresFamille.value.id_quartier,
@@ -227,21 +225,20 @@ async function assignerLot(personne: PersonneResume | null) {
  * Formulaire de CONFIRMATION uniquement désormais (05/09/2026, prompt
  * §2.2 : "Delete Saisie Telephonique button since there is now Modifier
  * le dossier" — la correction de champs famille se fait sur ce panneau,
- * pas ici ; ce formulaire ne sert plus qu'à l'action de confirmation
- * elle-même : adresse/ville/adultes/enfants CONFIRMÉS pour CETTE
- * livraison + créneaux, qui restent un concept propre à la livraison,
- * distinct du dossier famille permanent). injoignable/rejetee/archive
- * n'ont plus besoin d'un formulaire du tout (voir marquerStatutSimple()) —
- * un seul champ requis nulle part pour ces 3-là (voir la validation
- * serveur, contacterManuel()).
+ * pas ici). injoignable/rejetee/archive n'ont plus besoin d'un
+ * formulaire du tout (voir marquerStatutSimple()) — un seul champ requis
+ * nulle part pour ces 3-là (voir la validation serveur, contacterManuel()).
+ *
+ * Réduit à `creneaux` uniquement (07/09/2026, prompt §2.5) —
+ * adresse/code postal/ville/adultes/enfants retirés : ces informations
+ * vivent déjà dans le dossier famille, éditable juste au-dessus via
+ * "✏️ Modifier le dossier" — les redemander ici dupliquait une saisie
+ * pour rien et risquait de diverger de la même source de vérité que ce
+ * panneau. Voir ContactTrackingController::contacterManuel(), qui
+ * n'exige plus ces champs pour ce chemin.
  */
 interface FormeConfirmation {
     ouvert: boolean;
-    adresse_confirmee: string;
-    code_postal_confirme: string;
-    ville_confirmee: string;
-    nombre_adulte_confirme: string;
-    nombre_enfant_confirme: string;
     creneaux: Creneau[];
     envoiEnCours: boolean;
     erreurs: Record<string, string[]>;
@@ -249,18 +246,10 @@ interface FormeConfirmation {
 
 const formulaires = reactive<Record<number, FormeConfirmation>>({});
 
-function formulaire(id: number, livraison?: Livraison): FormeConfirmation {
+function formulaire(id: number): FormeConfirmation {
     if (!formulaires[id]) {
-        // Préremplit avec les infos famille actuelles plutôt qu'un
-        // formulaire vide — la personne n'a plus qu'à corriger ce qui a
-        // changé au téléphone, pas tout retaper.
         formulaires[id] = {
             ouvert: false,
-            adresse_confirmee: livraison?.famille.adresse ?? '',
-            code_postal_confirme: livraison?.famille.code_postal ?? '',
-            ville_confirmee: livraison?.famille.ville_texte ?? '',
-            nombre_adulte_confirme: '',
-            nombre_enfant_confirme: '',
             creneaux: [],
             envoiEnCours: false,
             erreurs: {},
@@ -327,17 +316,12 @@ async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' |
 }
 
 async function enregistrerContact(livraison: Livraison) {
-    const f = formulaire(livraison.id, livraison);
+    const f = formulaire(livraison.id);
     f.envoiEnCours = true;
     f.erreurs = {};
 
     const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), {
         statut_contact: 'confirme',
-        adresse_confirmee: f.adresse_confirmee,
-        code_postal_confirme: f.code_postal_confirme || null,
-        ville_confirmee: f.ville_confirmee || null,
-        nombre_adulte_confirme: f.nombre_adulte_confirme,
-        nombre_enfant_confirme: f.nombre_enfant_confirme,
         creneaux: f.creneaux,
     });
     f.envoiEnCours = false;
@@ -458,47 +442,20 @@ onMounted(() => {
                     <option v-for="j in journeesCampagne" :key="j.id" :value="j.id">{{ j.label ?? formatDateFr(j.date) }}</option>
                 </select>
             </div>
-            <label class="flex items-center gap-2 text-[13px] text-ink-muted min-h-[2.5rem]">
-                <input type="checkbox" v-model="filtreMine" @change="chargerFile(1)" class="w-4 h-4 accent-accent">
-                Assignées à moi
-            </label>
-            <div>
-                <label class="block text-[12px] text-ink-muted mb-1">Par page</label>
-                <select v-model.number="parPage" @change="chargerFile(1)"
-                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
-                    <option :value="25">25</option>
-                    <option :value="50">50</option>
-                    <option :value="100">100</option>
-                </select>
-            </div>
-        </div>
-
-        <!--
-            Clustering (05/09/2026, prompt §1.5) : ne peut se lancer que si
-            une campagne (et sa journée s'il y en a plusieurs) est choisie
-            ET qu'il ne reste plus aucune famille à contacter pour cette
-            journée — grisé sinon plutôt que de laisser tenter un appel
-            qui échouera de toute façon côté serveur.
-        -->
-        <div v-if="campagneSelectionnee" class="bg-stone-50 border border-surface-border rounded-xl px-4 py-3 mb-6 flex flex-wrap items-center gap-3">
-            <button type="button" :disabled="chargementRoutes || chargementVerifGate || (resteAContacter ?? 1) > 0" @click="genererRoutes"
-                class="min-h-[2.25rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
-                🚚 {{ chargementRoutes ? 'Génération…' : 'Lancer le clustering / génération des routes' }}
-            </button>
-            <p v-if="chargementVerifGate" class="text-[12.5px] text-ink-muted">Vérification…</p>
-            <p v-else-if="(resteAContacter ?? 0) > 0" class="text-[12.5px] text-amber-700">
-                {{ resteAContacter }} famille(s) encore à contacter pour cette journée.
-            </p>
-            <p v-else-if="resteAContacter === 0" class="text-[12.5px] text-emerald-700">Toutes les familles ont été contactées.</p>
-            <p v-if="resultatRoutes" class="text-[12.5px] text-ink-muted w-full">
-                {{ resultatRoutes.routes_creees }} tournée(s) créée(s), dont {{ resultatRoutes.imposees }} imposée(s).
-            </p>
-            <p v-if="erreurRoutes" class="text-[12.5px] text-rose-600 w-full">{{ erreurRoutes }}</p>
         </div>
 
         <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
             :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" />
 
+        <!--
+            Clustering (05/09/2026, prompt §1.5) déplacé sous le filtre,
+            sur la même rangée que "Tout sélectionner" (07/09/2026, prompt
+            §2.3) — ne peut se lancer que si une campagne (et sa journée
+            s'il y en a plusieurs) est choisie ET qu'il ne reste plus
+            aucune famille à contacter pour cette journée — grisé sinon
+            plutôt que de laisser tenter un appel qui échouera de toute
+            façon côté serveur.
+        -->
         <p v-if="chargement" class="text-[14px] text-ink-muted">Chargement…</p>
         <p v-else-if="erreur" class="text-[14px] text-rose-600">Impossible de charger la file de contact.</p>
         <p v-else-if="file.length === 0" class="text-[14px] text-ink-muted">Aucune livraison en attente de contact.</p>
@@ -516,6 +473,21 @@ onMounted(() => {
                         :model-value="null"
                         @update:model-value="assignerLot" />
                 </div>
+                <template v-if="campagneSelectionnee">
+                    <button type="button" :disabled="chargementRoutes || chargementVerifGate || (resteAContacter ?? 1) > 0" @click="genererRoutes"
+                        class="min-h-[2.25rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
+                        🚚 {{ chargementRoutes ? 'Génération…' : 'Lancer le clustering / génération des routes' }}
+                    </button>
+                    <p v-if="chargementVerifGate" class="text-[12.5px] text-ink-muted">Vérification…</p>
+                    <p v-else-if="(resteAContacter ?? 0) > 0" class="text-[12.5px] text-amber-700">
+                        {{ resteAContacter }} famille(s) encore à contacter pour cette journée.
+                    </p>
+                    <p v-else-if="resteAContacter === 0" class="text-[12.5px] text-emerald-700">Toutes les familles ont été contactées.</p>
+                    <p v-if="resultatRoutes" class="text-[12.5px] text-ink-muted w-full">
+                        {{ resultatRoutes.routes_creees }} tournée(s) créée(s), dont {{ resultatRoutes.imposees }} imposée(s).
+                    </p>
+                    <p v-if="erreurRoutes" class="text-[12.5px] text-rose-600 w-full">{{ erreurRoutes }}</p>
+                </template>
             </div>
 
             <div v-for="livraison in file" :key="livraison.id" class="bg-surface border border-surface-border rounded-xl p-4 shadow-sm">
@@ -524,14 +496,6 @@ onMounted(() => {
                         <input type="checkbox" :checked="selection.has(livraison.id)" @change="toggleSelection(livraison.id)"
                             class="w-4 h-4 accent-accent shrink-0">
                         {{ livraison.famille.prenom }} {{ livraison.famille.nom }}
-                    </span>
-                    <span class="text-[11.5px] font-medium px-2 py-0.5 rounded-full shrink-0"
-                        :class="{
-                            'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
-                            'bg-sky-100 text-sky-700': livraison.statut_contact === 'contacte',
-                            'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
-                        }">
-                        {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
                     </span>
                 </div>
 
@@ -547,6 +511,16 @@ onMounted(() => {
                     </span>
                 </div>
 
+                <!--
+                    Statut + "Modifier le dossier" sur la même rangée
+                    (07/09/2026, prompt §2.4) — le statut était affiché en
+                    haut de carte auparavant, déplacé ici. Boutons colorés
+                    (même prompt) : indigo pour Modifier le dossier
+                    (action neutre "consulter/éditer", cohérent avec les
+                    boutons d'édition ailleurs dans l'app), et une couleur
+                    distincte par statut simple juste en dessous plutôt
+                    que tous en gris indifférencié.
+                -->
                 <div class="flex flex-wrap items-center gap-2 mb-3">
                     <div class="max-w-xs">
                         <PersonPicker role="gestionnaire" placeholder="Assigner à…"
@@ -554,9 +528,17 @@ onMounted(() => {
                             @update:model-value="(p) => assigner(livraison, p)" />
                     </div>
                     <button type="button" @click="modifierDossier(livraison)"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90">
                         ✏️ Modifier le dossier
                     </button>
+                    <span class="text-[11.5px] font-medium px-2 py-0.5 rounded-full shrink-0"
+                        :class="{
+                            'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
+                            'bg-sky-100 text-sky-700': livraison.statut_contact === 'contacte',
+                            'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
+                        }">
+                        {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
+                    </span>
                 </div>
 
                 <!--
@@ -569,58 +551,31 @@ onMounted(() => {
                     vrai bouton visible plutôt qu'un lien discret.
                 -->
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" @click="formulaire(livraison.id, livraison).ouvert = !formulaire(livraison.id, livraison).ouvert"
+                    <button type="button" @click="formulaire(livraison.id).ouvert = !formulaire(livraison.id).ouvert"
                         class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90">
                         ✅ Confirmer
                     </button>
                     <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'injoignable')"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50 disabled:opacity-60">
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:opacity-90 disabled:opacity-60">
                         Injoignable
                     </button>
                     <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'rejetee')"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50 disabled:opacity-60">
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:opacity-90 disabled:opacity-60">
                         Rejetée
                     </button>
                     <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'archive')"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50 disabled:opacity-60">
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-stone-500 text-white hover:opacity-90 disabled:opacity-60">
                         Archivée
                     </button>
                 </div>
 
-                <div v-if="formulaire(livraison.id, livraison).ouvert" class="mt-3 space-y-3 bg-stone-50 rounded-lg p-3">
-                    <div>
-                        <label class="block text-[11px] text-ink-muted mb-1">Adresse</label>
-                        <input v-model="formulaire(livraison.id).adresse_confirmee" type="text"
-                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                        <p v-for="e in formulaire(livraison.id).erreurs.adresse_confirmee ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[11px] text-ink-muted mb-1">Code postal</label>
-                            <input v-model="formulaire(livraison.id).code_postal_confirme" type="text"
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                        </div>
-                        <div>
-                            <label class="block text-[11px] text-ink-muted mb-1">Ville</label>
-                            <input v-model="formulaire(livraison.id).ville_confirmee" type="text"
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-[11px] text-ink-muted mb-1">Adultes</label>
-                            <input v-model="formulaire(livraison.id).nombre_adulte_confirme" type="number" min="1"
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                            <p v-for="e in formulaire(livraison.id).erreurs.nombre_adulte_confirme ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                        </div>
-                        <div>
-                            <label class="block text-[11px] text-ink-muted mb-1">Enfants</label>
-                            <input v-model="formulaire(livraison.id).nombre_enfant_confirme" type="number" min="0"
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
-                        </div>
-                    </div>
-
-                    <!-- Regroupement matin/après-midi (05/09/2026, prompt §2.8) -->
+                <div v-if="formulaire(livraison.id).ouvert" class="mt-3 space-y-3 bg-stone-50 rounded-lg p-3">
+                    <!-- Regroupement matin/après-midi (05/09/2026, prompt §2.8).
+                         Adresse/code postal/ville/adultes/enfants retirés
+                         d'ici (07/09/2026, prompt §2.5) — voir le
+                         commentaire sur FormeConfirmation plus haut :
+                         édition désormais uniquement via "✏️ Modifier le
+                         dossier". -->
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
                             <label class="text-[11px] text-ink-muted">Créneaux</label>
@@ -669,8 +624,21 @@ onMounted(() => {
             </div>
         </div>
 
-        <div v-if="meta" class="mt-4">
+        <div v-if="meta" class="mt-4 flex flex-wrap items-center justify-between gap-3">
             <Paginator :meta="meta" @change="chargerFile" />
+            <!-- Déplacé en bas (07/09/2026, prompt §2.2) : à côté de la
+                 pagination qu'il gouverne, plutôt qu'au-dessus des
+                 filtres campagne/journée où il n'avait pas vraiment sa
+                 place. -->
+            <div>
+                <label class="block text-[12px] text-ink-muted mb-1">Par page</label>
+                <select v-model.number="parPage" @change="chargerFile(1)"
+                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
+                    <option :value="25">25</option>
+                    <option :value="50">50</option>
+                    <option :value="100">100</option>
+                </select>
+            </div>
         </div>
     </div>
 </template>

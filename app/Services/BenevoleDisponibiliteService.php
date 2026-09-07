@@ -63,15 +63,30 @@ class BenevoleDisponibiliteService
      * create_benevole_disponibilites_table.php.
      *
      * @param string[] $creneaux
+     *
+     * vehicule_confirme/coverage_confirmee ne sont plus édités depuis ce
+     * flux pour un enregistrement déjà existant (07/09/2026, prompt §5.1 :
+     * "Modifier disponibilités" ne touche plus qu'aux créneaux, l'édition
+     * réelle du véhicule/de la couverture se fait désormais via
+     * "Modifier informations" → BenevoleProfil). $donnees peut donc ne
+     * plus contenir ces clés du tout — on retombe alors sur la valeur déjà
+     * enregistrée plutôt que sur `false` en dur, pour ne pas écraser
+     * silencieusement une confirmation existante à chaque sauvegarde de
+     * créneaux. `false` reste le défaut uniquement à la toute première
+     * confirmation (aucune ligne existante à préserver).
      */
     public function confirmer(int $idPersonne, CampagneJournee $journee, array $donnees, array $creneaux): BenevoleDisponibilite
     {
+        $existante = BenevoleDisponibilite::where('id_personne', $idPersonne)
+            ->where('id_campagne_journee', $journee->id)
+            ->first();
+
         $disponibilite = BenevoleDisponibilite::updateOrCreate(
             ['id_personne' => $idPersonne, 'id_campagne_journee' => $journee->id],
             [
-                'vehicule_confirme' => $donnees['vehicule_confirme'] ?? false,
-                'coverage_confirmee' => $donnees['coverage_confirmee'] ?? false,
-                'coverage_notes' => $donnees['coverage_notes'] ?? null,
+                'vehicule_confirme' => $donnees['vehicule_confirme'] ?? $existante?->vehicule_confirme ?? false,
+                'coverage_confirmee' => $donnees['coverage_confirmee'] ?? $existante?->coverage_confirmee ?? false,
+                'coverage_notes' => $donnees['coverage_notes'] ?? $existante?->coverage_notes ?? null,
                 'statut' => 'confirme',
             ],
         );
