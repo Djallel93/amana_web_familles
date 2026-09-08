@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Livraison;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\RouteIncident;
@@ -14,6 +15,7 @@ use App\Services\QrCodeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -31,6 +33,8 @@ use Illuminate\Support\Facades\Validator;
  */
 class ChargementController extends Controller
 {
+    use FiltreCampagnesEquipe;
+
     public function __construct(
         private readonly QrCodeService $qrCode,
     ) {
@@ -40,13 +44,14 @@ class ChargementController extends Controller
      * Point d'entrée sans campagne — voir le prompt du 05/09/2026 §4.1,
      * même raisonnement que ReceptionController::choisir()/PeseeController::choisir()/
      * PackagingController::choisir() : equipe_chargement n'avait aucune
-     * entrée de menu vers cet écran.
+     * entrée de menu vers cet écran. Liste restreinte aux campagnes
+     * affectées (08/09/2026, voir FiltreCampagnesEquipe) — sans journées
+     * (avecJournee=false, inchangé, ce poste n'a pas de sélecteur de
+     * journée).
      */
     public function choisir(): View
     {
-        $campagnes = Campagne::whereIn('statut', ['preparation', 'en_cours'])
-            ->orderByDesc('date_livraison')
-            ->get();
+        $campagnes = $this->campagnesPourEquipe(Auth::user(), 'equipe_chargement', avecJournees: false);
 
         return view('livraison.choisir-poste', [
             'campagnes' => $campagnes,

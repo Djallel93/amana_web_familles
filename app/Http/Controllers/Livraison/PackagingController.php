@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Livraison;
 
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\LivraisonColis;
@@ -17,6 +18,7 @@ use App\Services\QrCodeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 
@@ -41,6 +43,8 @@ use Illuminate\Support\Facades\Validator;
  */
 class PackagingController extends Controller
 {
+    use FiltreCampagnesEquipe;
+
     public function __construct(
         private readonly QrCodeService $qrCode,
     ) {
@@ -58,14 +62,12 @@ class PackagingController extends Controller
      * gestionnaire), et les routes existantes exigent un {campagne} que
      * cette équipe n'a pas de moyen de choisir. Liste les campagnes
      * actives, chaque lien mène directement à index() pour la campagne
-     * choisie.
+     * choisie. Liste restreinte aux campagnes affectées (08/09/2026, voir
+     * FiltreCampagnesEquipe).
      */
     public function choisir(): View
     {
-        $campagnes = Campagne::whereIn('statut', ['preparation', 'en_cours'])
-            ->with('journees')
-            ->orderByDesc('date_livraison')
-            ->get();
+        $campagnes = $this->campagnesPourEquipe(Auth::user(), 'equipe_packaging', avecJournees: true);
 
         return view('livraison.choisir-poste', [
             'campagnes' => $campagnes,
@@ -171,7 +173,12 @@ class PackagingController extends Controller
             if ($toutesPretes && $route->statut === 'planifiee') {
                 $route->update(['statut' => 'chargement']);
 
-                $destinataires = Personne::avecRole('equipe_chargement')->get();
+                // Remplacé le 08/09/2026 : Personne::avecRole('equipe_chargement')
+                // notifiait TOUT détenteur du rôle global, toutes campagnes
+                // confondues — voir Campagne::personnesAvecRole() pour le
+                // raisonnement complet (distinction rôle global / affectation
+                // par campagne).
+                $destinataires = $route->campagne->personnesAvecRole('equipe_chargement');
 
                 if ($route->id_benevole) {
                     $chauffeur = Personne::find($route->id_benevole);
@@ -228,7 +235,10 @@ class PackagingController extends Controller
                 'notes' => $request->input('notes'),
             ]);
 
-            $destinataires = Personne::avecRole('equipe_chargement')->get();
+            // Voir le commentaire équivalent dans finaliserConditionnement()
+            // ci-dessus : destinataires résolus par campagne désormais, pas
+            // par le rôle global.
+            $destinataires = $route->campagne->personnesAvecRole('equipe_chargement');
             if ($route->id_benevole) {
                 $chauffeur = Personne::find($route->id_benevole);
                 if ($chauffeur) {

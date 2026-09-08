@@ -37,6 +37,21 @@ class CampagneEquipeMembre extends Model
     }
 
     /**
+     * Cette personne a-t-elle CE rôle équipe_* sur AU MOINS UNE campagne,
+     * n'importe laquelle ? Ajouté le 08/09/2026 pour
+     * App\Http\Middleware\EnsureLivraisonRole : depuis que le picker de
+     * Admin\Livraison\EquipeMembresController n'est pas restreint aux
+     * détenteurs du rôle global (décision du même jour), quelqu'un peut
+     * être affecté ici sans jamais avoir eu la case equipe_* cochée sur
+     * son profil — il doit pouvoir franchir la porte d'entrée choisir()
+     * quand même, pas seulement via le rôle global.
+     */
+    public static function estAffecteQuelquePart(int $idPersonne, string $role): bool
+    {
+        return self::where('id_personne', $idPersonne)->where('role', $role)->exists();
+    }
+
+    /**
      * Cross-connexion (commun) — même précaution que
      * BenevoleDisponibilite::personne(), voir ce modèle.
      */

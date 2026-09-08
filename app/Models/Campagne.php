@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Amana\Shared\Models\Personne;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
@@ -147,6 +149,30 @@ class Campagne extends Model
             ->where('id_personne', $idPersonne)
             ->where('role', $role)
             ->exists();
+    }
+
+    /**
+     * Personnes (modèles Amana\Shared\Models\Personne, connexion
+     * 'commun') affectées à CE rôle équipe_* sur CETTE campagne
+     * précisément — remplace, le 08/09/2026,
+     * Personne::avecRole('equipe_chargement') (rôle GLOBAL, toutes
+     * campagnes confondues) dans
+     * PackagingController::marquerColisPret()/annulerConditionnement()
+     * pour le calcul des destinataires de notification : ces méthodes
+     * doivent notifier l'équipe chargement DE CETTE campagne, pas tout
+     * le monde ayant un jour coché la case equipe_chargement.
+     *
+     * Résolution en deux temps comme
+     * Admin\Livraison\EquipeMembresController::liste() (jointure
+     * cross-connexion en PHP, id_personne → Personne) plutôt qu'une
+     * relation Eloquent directe : campagne_equipe_membres vit dans la
+     * connexion locale, ref_personnes dans 'commun'.
+     */
+    public function personnesAvecRole(string $role): Collection
+    {
+        $idsPersonne = $this->equipeMembres()->where('role', $role)->pluck('id_personne');
+
+        return Personne::whereIn('id', $idsPersonne)->get();
     }
 
     /**

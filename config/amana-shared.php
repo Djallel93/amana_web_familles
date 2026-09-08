@@ -131,10 +131,17 @@ return [
         // partagé. Chaque lien mène au point d'entrée "choisir une
         // campagne" (voir *Controller::choisir()), pas directement à un
         // écran qui exigerait un {campagne} déjà connu.
-        ['route' => 'livraison.reception.choisir', 'label' => 'Réception', 'icon' => '🧾', 'role' => 'equipe_reception', 'route_pattern' => 'livraison.reception.*'],
-        ['route' => 'livraison.pesee.choisir', 'label' => 'Pesée', 'icon' => '⚖️', 'role' => 'equipe_pesee', 'route_pattern' => 'livraison.pesee.*'],
-        ['route' => 'livraison.packaging.choisir', 'label' => 'Packaging', 'icon' => '📦', 'role' => 'equipe_packaging', 'route_pattern' => 'livraison.packaging.*'],
-        ['route' => 'livraison.chargement.choisir', 'label' => 'Chargement', 'icon' => '🚛', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.chargement.*'],
+        //
+        // 'extra_check' ajouté le 08/09/2026 (câblage campagne_equipe_membres,
+        // voir CampagneEquipeMembre::estAffecteQuelquePart()) : depuis que
+        // l'écran d'admin peut affecter quelqu'un à un rôle equipe_* SANS
+        // qu'il ait jamais eu le rôle global coché, hasRole() seul ne
+        // suffit plus à décider qui voit ce lien de sidebar — voir le
+        // docblock du mécanisme générique dans amana_shared.
+        ['route' => 'livraison.reception.choisir', 'label' => 'Réception', 'icon' => '🧾', 'role' => 'equipe_reception', 'route_pattern' => 'livraison.reception.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        ['route' => 'livraison.pesee.choisir', 'label' => 'Pesée', 'icon' => '⚖️', 'role' => 'equipe_pesee', 'route_pattern' => 'livraison.pesee.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        ['route' => 'livraison.packaging.choisir', 'label' => 'Packaging', 'icon' => '📦', 'role' => 'equipe_packaging', 'route_pattern' => 'livraison.packaging.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        ['route' => 'livraison.chargement.choisir', 'label' => 'Chargement', 'icon' => '🚛', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.chargement.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
 
         ['section' => 'Administration'],
         ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],

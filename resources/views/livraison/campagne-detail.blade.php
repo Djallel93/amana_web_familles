@@ -38,6 +38,7 @@
             data-eligibles-url="{{ route('livraison.campagnes.eligibles', $campagne) }}"
             data-generer-livraisons-url="{{ route('livraison.campagnes.generer-livraisons', $campagne) }}"
             data-benevoles-url="{{ route('livraison.campagnes.benevoles.index', $campagne) }}"
+            data-equipes-url="{{ route('livraison.campagnes.equipes.index', $campagne) }}"
             data-ajouter-journee-url="{{ route('livraison.campagnes.journees.store', $campagne) }}"
             data-avancement-url="{{ route('livraison.campagnes.avancement', $campagne) }}"
             data-update-url="{{ route('livraison.campagnes.update', $campagne) }}"

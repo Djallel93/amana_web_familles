@@ -319,6 +319,20 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     Route::post('/campagnes/{campagne}/benevoles/{idPersonne}', [\App\Http\Controllers\Admin\Livraison\BenevoleDisponibiliteController::class, 'mettreAJour'])
         ->name('campagnes.benevoles.mettre-a-jour');
 
+    // Affectations équipe_reception/pesee/packaging/chargement PAR
+    // CAMPAGNE (08/09/2026, prompt de cette date) — voir
+    // create_campagne_equipe_membres_table.php pour le raisonnement
+    // complet et App\Policies\CampagnePolicy pour leur consommation en
+    // autorisation. Écran dédié comme benevoles ci-dessus, pas un onglet.
+    Route::get('/campagnes/{campagne}/equipes', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'index'])
+        ->name('campagnes.equipes.index');
+    Route::get('/campagnes/{campagne}/equipes/liste', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'liste'])
+        ->name('campagnes.equipes.liste');
+    Route::post('/campagnes/{campagne}/equipes', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'ajouter'])
+        ->name('campagnes.equipes.ajouter');
+    Route::delete('/campagnes/{campagne}/equipes/{idPersonne}/{role}', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'retirer'])
+        ->name('campagnes.equipes.retirer');
+
     Route::get('/contacts', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'index'])
         ->name('contacts.index');
     Route::get('/contacts/file', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'queue'])
@@ -413,63 +427,103 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
 
 // ── Équipes latérales (équipe_reception/pesee/packaging/chargement) —
 //    rôles propres à ce domaine, voir
-//    2026_08_31_000000_register_livraison_roles.php et
-//    App\Http\Middleware\EnsureLivraisonRole. Chaque poste n'a accès qu'à
-//    son propre écran (voir matrice §4 — aucune de ces lignes n'a
-//    d'overlap entre elles en dehors d'admin/gestionnaire, déjà couverts
-//    par le middleware). ──────────────────────────────────────────────
-Route::middleware(['auth', 'livraison_role:equipe_reception'])->prefix('livraison/reception')->name('livraison.reception.')->group(function () {
+//    2026_08_31_000000_register_livraison_roles.php.
+//
+//    Câblage revu le 08/09/2026 (prompt de cette date) : le rôle global
+//    equipe_* (EnsureLivraisonRole) ne reste QUE sur choisir() — porte
+//    d'entrée sans {campagne}, rien de plus fin à vérifier là (voir son
+//    docblock et ReceptionController::choisir() et pendants, désormais
+//    filtrés sur campagne_equipe_membres). Toutes les routes qui portent
+//    une ressource rattachable à une campagne précise (directement ou
+//    via CampagnePolicy/CampagneArriveePolicy/DonationPolicy/
+//    LivraisonColisPolicy/LivraisonPolicy/RouteLivraisonPolicy) sont
+//    passées à `can:` — Laravel résout {campagne}/{arrivee}/{don}/
+//    {colis}/{livraison}/{route} par route-model binding implicite
+//    (aucun binding custom dans ce fichier) puis appelle la policy dont
+//    le nom est deviné depuis la classe du modèle
+//    (Gate::guessPolicyName(), pas d'AuthServiceProvider dans cette app).
+//
+//    Middleware de groupe réduit à 'auth' en conséquence : chaque route
+//    porte désormais explicitement son propre contrôle d'accès plutôt
+//    qu'un rôle latéral unique hérité pour tout le groupe. ─────────────
+Route::middleware('auth')->prefix('livraison/reception')->name('livraison.reception.')->group(function () {
     // choisir() ajouté le 05/09/2026 (prompt §4.1) : equipe_reception
     // n'avait aucune entrée de menu vers cet écran (voir
     // config/amana-shared.php) — ce point d'entrée sans {campagne} liste
-    // les campagnes actives et sert de cible au lien de sidebar.
-    Route::get('/', [\App\Http\Controllers\Livraison\ReceptionController::class, 'choisir'])->name('choisir');
-    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'show'])->name('show');
-    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'enregistrer'])->name('enregistrer');
+    // les campagnes actives et sert de cible au lien de sidebar. Reste
+    // sur le rôle global (porte d'entrée grossière) — voir
+    // ReceptionController::choisir() pour le filtrage fin par campagne.
+    Route::get('/', [\App\Http\Controllers\Livraison\ReceptionController::class, 'choisir'])
+        ->middleware('livraison_role:equipe_reception')->name('choisir');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'show'])
+        ->middleware('can:equipeReception,campagne')->name('show');
+    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'enregistrer'])
+        ->middleware('can:equipeReception,campagne')->name('enregistrer');
     // Journal des saisies (§4.2) : lister/modifier/supprimer chaque ligne
     // — pas de restriction de propriété (n'importe quel equipe_reception
     // peut éditer une ligne saisie par quelqu'un d'autre, voir le prompt).
-    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\ReceptionController::class, 'journal'])->name('journal');
-    Route::patch('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'modifier'])->name('arrivees.modifier');
-    Route::delete('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'supprimer'])->name('arrivees.supprimer');
+    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\ReceptionController::class, 'journal'])
+        ->middleware('can:equipeReception,campagne')->name('journal');
+    Route::patch('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'modifier'])
+        ->middleware('can:gerer,arrivee')->name('arrivees.modifier');
+    Route::delete('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'supprimer'])
+        ->middleware('can:gerer,arrivee')->name('arrivees.supprimer');
 });
 
-Route::middleware(['auth', 'livraison_role:equipe_pesee'])->prefix('livraison/pesee')->name('livraison.pesee.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\PeseeController::class, 'choisir'])->name('choisir');
-    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'show'])->name('show');
-    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'enregistrer'])->name('enregistrer');
-    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\PeseeController::class, 'journal'])->name('journal');
-    Route::patch('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'modifier'])->name('dons.modifier');
-    Route::delete('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'supprimer'])->name('dons.supprimer');
+Route::middleware('auth')->prefix('livraison/pesee')->name('livraison.pesee.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\PeseeController::class, 'choisir'])
+        ->middleware('livraison_role:equipe_pesee')->name('choisir');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'show'])
+        ->middleware('can:equipePesee,campagne')->name('show');
+    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'enregistrer'])
+        ->middleware('can:equipePesee,campagne')->name('enregistrer');
+    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\PeseeController::class, 'journal'])
+        ->middleware('can:equipePesee,campagne')->name('journal');
+    Route::patch('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'modifier'])
+        ->middleware('can:gerer,don')->name('dons.modifier');
+    Route::delete('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'supprimer'])
+        ->middleware('can:gerer,don')->name('dons.supprimer');
 });
 
-Route::middleware(['auth', 'livraison_role:equipe_packaging'])->prefix('livraison/packaging')->name('livraison.packaging.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\PackagingController::class, 'choisir'])->name('choisir');
-    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PackagingController::class, 'index'])->name('index');
+Route::middleware('auth')->prefix('livraison/packaging')->name('livraison.packaging.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\PackagingController::class, 'choisir'])
+        ->middleware('livraison_role:equipe_packaging')->name('choisir');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PackagingController::class, 'index'])
+        ->middleware('can:equipePackaging,campagne')->name('index');
     // marquer-pret (famille entière) conservé pour compatibilité mais plus
     // appelé directement par CampagneDetail/packaging.blade.php côté Vue
     // depuis le 05/09/2026 (prompt §5.3) — remplacé par colis/{colis}/statut,
     // finaliserConditionnement() étant désormais déclenché automatiquement
     // quand le dernier colis d'une famille passe à 'pret'.
-    Route::post('/{livraison}/pret', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerPret'])->name('marquer-pret');
-    Route::post('/colis/{colis}/statut', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerColisPret'])->name('colis.statut');
-    Route::post('/{livraison}/annuler', [\App\Http\Controllers\Livraison\PackagingController::class, 'annulerConditionnement'])->name('annuler');
-    Route::get('/{campagne}/feuille-preparation', [\App\Http\Controllers\Livraison\PackagingController::class, 'feuillePreparation'])->name('feuille-preparation');
+    Route::post('/{livraison}/pret', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerPret'])
+        ->middleware('can:gerer,livraison')->name('marquer-pret');
+    Route::post('/colis/{colis}/statut', [\App\Http\Controllers\Livraison\PackagingController::class, 'marquerColisPret'])
+        ->middleware('can:gerer,colis')->name('colis.statut');
+    Route::post('/{livraison}/annuler', [\App\Http\Controllers\Livraison\PackagingController::class, 'annulerConditionnement'])
+        ->middleware('can:gerer,livraison')->name('annuler');
+    Route::get('/{campagne}/feuille-preparation', [\App\Http\Controllers\Livraison\PackagingController::class, 'feuillePreparation'])
+        ->middleware('can:equipePackaging,campagne')->name('feuille-preparation');
 });
 
-Route::middleware(['auth', 'livraison_role:equipe_chargement'])->prefix('livraison/chargement')->name('livraison.chargement.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\ChargementController::class, 'choisir'])->name('choisir');
-    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ChargementController::class, 'index'])->name('index');
-    Route::post('/routes/{route}/confirmer', [\App\Http\Controllers\Livraison\ChargementController::class, 'confirmer'])->name('confirmer');
-    Route::post('/routes/{route}/benevole-absent', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerBenevoleAbsent'])->name('benevole-absent');
-    Route::post('/routes/{route}/capacite', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerCapacite'])->name('capacite');
+Route::middleware('auth')->prefix('livraison/chargement')->name('livraison.chargement.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\ChargementController::class, 'choisir'])
+        ->middleware('livraison_role:equipe_chargement')->name('choisir');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ChargementController::class, 'index'])
+        ->middleware('can:equipeChargement,campagne')->name('index');
+    Route::post('/routes/{route}/confirmer', [\App\Http\Controllers\Livraison\ChargementController::class, 'confirmer'])
+        ->middleware('can:gerer,route')->name('confirmer');
+    Route::post('/routes/{route}/benevole-absent', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerBenevoleAbsent'])
+        ->middleware('can:gerer,route')->name('benevole-absent');
+    Route::post('/routes/{route}/capacite', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerCapacite'])
+        ->middleware('can:gerer,route')->name('capacite');
     // Feuille d'étiquettes QR pour TOUTES les familles confirmées de la
     // campagne, une planche unique à découper (07/09/2026, prompt §4.1) —
     // remplace le bouton d'étiquette par famille retiré de Packaging (§3.1,
     // qui n'a plus de raison d'être : ce besoin est couvert ici, en une
     // seule impression à l'échelle de la campagne plutôt que famille par
     // famille).
-    Route::get('/{campagne}/etiquettes', [\App\Http\Controllers\Livraison\ChargementController::class, 'etiquettesCampagne'])->name('etiquettes');
+    Route::get('/{campagne}/etiquettes', [\App\Http\Controllers\Livraison\ChargementController::class, 'etiquettesCampagne'])
+        ->middleware('can:equipeChargement,campagne')->name('etiquettes');
 });
 
 // ── Formulaire public de confirmation famille (aucune authentification) ──

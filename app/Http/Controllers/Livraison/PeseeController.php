@@ -6,11 +6,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Livraison;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Models\Campagne;
 use App\Models\Donation;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -26,17 +28,17 @@ use Illuminate\Support\Facades\Validator;
  */
 class PeseeController extends Controller
 {
+    use FiltreCampagnesEquipe;
+
     /**
      * Point d'entrée sans campagne — voir le prompt §4.1 (même
      * raisonnement que ReceptionController::choisir()) : equipe_pesee
-     * n'avait aucune entrée de menu vers cet écran.
+     * n'avait aucune entrée de menu vers cet écran. Liste restreinte aux
+     * campagnes affectées (08/09/2026, voir FiltreCampagnesEquipe).
      */
     public function choisir(): View
     {
-        $campagnes = Campagne::whereIn('statut', ['preparation', 'en_cours'])
-            ->with('journees')
-            ->orderByDesc('date_livraison')
-            ->get();
+        $campagnes = $this->campagnesPourEquipe(Auth::user(), 'equipe_pesee', avecJournees: true);
 
         return view('livraison.choisir-poste', [
             'campagnes' => $campagnes,

@@ -6,11 +6,13 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Livraison;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Models\Campagne;
 use App\Models\CampagneArrivee;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -25,19 +27,23 @@ use Illuminate\Support\Facades\Validator;
  */
 class ReceptionController extends Controller
 {
+    use FiltreCampagnesEquipe;
+
     /**
      * Point d'entrée sans campagne — voir le prompt §4.1 : equipe_reception
      * n'avait aucune entrée de menu vers cet écran (config/amana-shared.php
      * ne listait que les écrans gestionnaire) et les routes existantes
      * exigent un {campagne} que cette équipe n'avait aucun moyen de
      * choisir — d'où l'impression que l'écran "n'existait pas".
+     *
+     * Liste désormais restreinte aux campagnes où la personne a une
+     * affectation campagne_equipe_membres (voir FiltreCampagnesEquipe et
+     * le prompt du 08/09/2026) — plus toutes les campagnes actives comme
+     * avant.
      */
     public function choisir(): View
     {
-        $campagnes = Campagne::whereIn('statut', ['preparation', 'en_cours'])
-            ->with('journees')
-            ->orderByDesc('date_livraison')
-            ->get();
+        $campagnes = $this->campagnesPourEquipe(Auth::user(), 'equipe_reception', avecJournees: true);
 
         return view('livraison.choisir-poste', [
             'campagnes' => $campagnes,

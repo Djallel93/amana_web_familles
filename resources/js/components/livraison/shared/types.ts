@@ -218,6 +218,21 @@ export interface PersonneResume {
     prenom: string;
 }
 
+/**
+ * Rôles équipe_* affectables PAR CAMPAGNE (08/09/2026, voir
+ * App\Models\CampagneEquipeMembre::ROLES et
+ * EquipeMembresQueue.vue) — distinct du rôle global de même nom
+ * (ref_personnes_roles), voir le docblock de ce composant.
+ */
+export const EQUIPE_ROLES = {
+    equipe_reception: 'Réception',
+    equipe_pesee: 'Pesée',
+    equipe_packaging: 'Packaging',
+    equipe_chargement: 'Chargement',
+} as const;
+
+export type EquipeRole = keyof typeof EQUIPE_ROLES;
+
 // a_contacter est l'état initial (jamais posté par le front, seulement
 // lu) — seuls contacte/injoignable/confirme sont acceptés par
 // ContactTrackingController::contacterManuel() (voir sa validation).

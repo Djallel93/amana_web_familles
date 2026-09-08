@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Models\CampagneEquipeMembre;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,18 @@ use Symfony\Component\HttpFoundation\Response;
  * équipe_* en plus. Un gestionnaire qui rejoint une équipe physiquement
  * garde son accès gestionnaire complet, les rôles sont additifs (voir §4).
  *
+ * Bypass étendu le 08/09/2026 (prompt de cette date) : en plus du rôle
+ * global (Personne::hasRole()), une personne affectée à CE rôle sur au
+ * moins une campagne via campagne_equipe_membres passe aussi désormais
+ * — voir CampagneEquipeMembre::estAffecteQuelquePart(). Nécessaire
+ * depuis que le picker de l'écran d'admin n'est pas restreint aux
+ * détenteurs du rôle global (décision du même jour) : sans ce second
+ * bypass, quelqu'un affecté uniquement via la nouvelle table (jamais eu
+ * la case equipe_* cochée sur son profil) se ferait bloquer par ce
+ * middleware avant même d'atteindre choisir(), qui pourtant listerait
+ * correctement sa campagne (voir
+ * Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe).
+ *
  * Usage dans routes/web.php :
  *   Route::middleware('livraison_role:equipe_reception')
  *   Route::middleware('livraison_role:equipe_pesee')
@@ -44,7 +57,8 @@ class EnsureLivraisonRole
 
         $autorise = $personne->isAdmin()
             || $personne->isGestionnaire()
-            || $personne->hasRole($role);
+            || $personne->hasRole($role)
+            || CampagneEquipeMembre::estAffecteQuelquePart($personne->id, $role);
 
         if (!$autorise) {
             return redirect()->route(config('amana-shared.home_route'))

@@ -53,6 +53,7 @@ const urls = {
     eligibles: el.dataset.eligiblesUrl ?? '',
     genererLivraisons: el.dataset.genererLivraisonsUrl ?? '',
     benevoles: el.dataset.benevolesUrl ?? '',
+    equipes: el.dataset.equipesUrl ?? '',
     ajouterJournee: el.dataset.ajouterJourneeUrl ?? '',
     avancement: el.dataset.avancementUrl ?? '',
     update: el.dataset.updateUrl ?? '',
@@ -346,6 +347,17 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
             -->
             <a :href="urls.benevoles" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-emerald-600 hover:opacity-90">
                 👥 Suivi des bénévoles
+            </a>
+            <!--
+                Ajouté le 08/09/2026 (prompt de cette date) : écran dédié
+                pour peupler campagne_equipe_membres (affectations
+                équipe_* PAR CAMPAGNE) — voir EquipeMembresQueue.vue.
+                Distinct de "Suivi des bénévoles" ci-dessus, qui gère la
+                disponibilité déclarée par le bénévole lui-même, pas les
+                rôles équipe_reception/pesee/packaging/chargement.
+            -->
+            <a :href="urls.equipes" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90">
+                🧑‍🤝‍🧑 Équipes
             </a>
         </div>
 

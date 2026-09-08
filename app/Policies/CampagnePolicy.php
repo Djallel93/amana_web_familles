@@ -7,6 +7,7 @@ namespace App\Policies;
 
 use Amana\Shared\Models\Personne;
 use App\Models\Campagne;
+use App\Policies\Concerns\AutoriseEquipeCampagne;
 
 /**
  * Autorisation des actions équipe_* PROPRES à une campagne précise (ex:
@@ -37,9 +38,21 @@ use App\Models\Campagne;
  * existantes bloquerait immédiatement toute personne ayant le rôle
  * global equipe_* mais pas encore affectée à une campagne via cette
  * nouvelle table).
+ *
+ * autoriseEquipe() extrait dans App\Policies\Concerns\AutoriseEquipeCampagne
+ * le 08/09/2026 (câblage routes/web.php, prompt du même jour) : les 5
+ * nouvelles policies des sous-ressources livraison (CampagneArrivee,
+ * Donation, LivraisonColis, Livraison, RouteLivraison — voir chacune
+ * pour le chemin de résolution vers sa Campagne ; PAS EtapeRoute, dont
+ * les routes {etape} vivent toutes sous role:benevole, jamais sous un
+ * groupe equipe_*, voir RouteLivraisonPolicy) ont exactement le même
+ * bypass à appliquer une fois leur propre Campagne résolue — un trait
+ * partagé plutôt que dupliquer ces 3 lignes dans 5 classes de plus.
  */
 final class CampagnePolicy
 {
+    use AutoriseEquipeCampagne;
+
     public function equipeReception(Personne $personne, Campagne $campagne): bool
     {
         return $this->autoriseEquipe($personne, $campagne, 'equipe_reception');
@@ -58,12 +71,5 @@ final class CampagnePolicy
     public function equipeChargement(Personne $personne, Campagne $campagne): bool
     {
         return $this->autoriseEquipe($personne, $campagne, 'equipe_chargement');
-    }
-
-    private function autoriseEquipe(Personne $personne, Campagne $campagne, string $role): bool
-    {
-        return $personne->isAdmin()
-            || $personne->isGestionnaire()
-            || $campagne->aRole($personne->id, $role);
     }
 }
