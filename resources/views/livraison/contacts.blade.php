@@ -28,6 +28,7 @@
             data-quartiers="{{ $quartiers->toJson() }}"
             data-organisations="{{ $organisations->toJson() }}"
             data-queue-url="{{ route('livraison.contacts.queue') }}"
+            data-statistiques-url="{{ route('livraison.contacts.statistiques') }}"
             data-assigner-url-template="{{ route('livraison.contacts.assigner', '__ID__') }}"
             data-assigner-lot-url="{{ route('livraison.contacts.assigner-lot') }}"
             data-contacter-manuel-url-template="{{ route('livraison.contacts.contacter-manuel', '__ID__') }}"

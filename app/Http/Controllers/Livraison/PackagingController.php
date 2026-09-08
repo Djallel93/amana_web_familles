@@ -83,16 +83,43 @@ class PackagingController extends Controller
      * — voir le prompt §3.4. Filtrable par journée (05/09/2026, prompt
      * §5.4) via id_campagne_journee, optionnel (toutes journées si non
      * précisé — comportement historique inchangé par défaut).
+     *
+     * Ne filtre plus sur statut_conditionnement (08/09/2026, prompt de
+     * cette date §6.1) : une famille dont tous les colis sont prêts
+     * restait auparavant invisible dès le prochain chargement de cette
+     * page (le filtre `en_attente` l'excluait purement et simplement de
+     * la requête) — corrigé en listant TOUJOURS les deux statuts, chaque
+     * ligne affiche désormais son statut (voir packaging.blade.php) et un
+     * filtre optionnel `filtre_conditionnement` (§6.2, valeurs
+     * restantes/terminees, "toutes" par défaut = comportement décrit
+     * ci-dessus) permet de ne regarder qu'un sous-ensemble sans revenir
+     * au bug d'origine.
      */
     public function index(Request $request, Campagne $campagne): View
     {
         $query = Livraison::where('id_campagne', $campagne->id)
-            ->where('statut_conditionnement', 'en_attente')
             ->where('statut_contact', 'confirme') // 07/09/2026, prompt §3.2
             ->whereNotIn('statut', ['ignoree', 'livree']);
 
         if ($request->filled('id_campagne_journee')) {
             $query->where('id_campagne_journee', $request->input('id_campagne_journee'));
+        }
+
+        // Cartes statistiques (§6.3) calculées AVANT le filtre
+        // restantes/terminees ci-dessous : elles doivent refléter
+        // l'ensemble filtré par campagne/journée uniquement, pas le
+        // sous-ensemble actuellement affiché — sinon la carte "Terminées"
+        // tomberait toujours à 0 dès qu'on filtre sur "Restantes".
+        $stats = [
+            'terminees' => (clone $query)->where('statut_conditionnement', 'prete')->count(),
+            'restantes' => (clone $query)->where('statut_conditionnement', 'en_attente')->count(),
+        ];
+
+        $filtreConditionnement = $request->input('filtre_conditionnement', 'toutes');
+        if ($filtreConditionnement === 'restantes') {
+            $query->where('statut_conditionnement', 'en_attente');
+        } elseif ($filtreConditionnement === 'terminees') {
+            $query->where('statut_conditionnement', 'prete');
         }
 
         $livraisons = $query
@@ -104,6 +131,8 @@ class PackagingController extends Controller
         return view('livraison.packaging', [
             'campagne' => $campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom']),
             'livraisons' => $livraisons,
+            'stats' => $stats,
+            'filtreConditionnement' => $filtreConditionnement,
             'idCampagneJourneeSelectionnee' => $request->integer('id_campagne_journee') ?: null,
             'autresCampagnes' => Campagne::whereIn('statut', ['preparation', 'en_cours'])->orderByDesc('date_livraison')->get(),
             'urlRetour' => (auth()->user()->isAdmin() || auth()->user()->isGestionnaire())

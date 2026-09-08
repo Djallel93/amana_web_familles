@@ -301,6 +301,13 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // (pas de page d'édition séparée dans cette app).
     Route::patch('/campagnes/{campagne}', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'update'])
         ->name('campagnes.update');
+    // Suppression (cascade DB — voir docblock de destroy()) + aperçu des
+    // répercussions pour l'écran de confirmation (prompt du 08/09/2026
+    // §2.1/§2.2).
+    Route::get('/campagnes/{campagne}/resume-suppression', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'resumeSuppression'])
+        ->name('campagnes.resume-suppression');
+    Route::delete('/campagnes/{campagne}', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'destroy'])
+        ->name('campagnes.destroy');
     // Poids moyen : mise à jour + historique (§5.2) et recalcul manuel,
     // volontairement scopé aux seules livraisons pas encore conditionnées
     // (voir CampagnesController::recalculerPoids()).
@@ -337,6 +344,9 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('contacts.index');
     Route::get('/contacts/file', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'queue'])
         ->name('contacts.queue');
+    // Cartes statistiques (08/09/2026, prompt de cette date §3.2).
+    Route::get('/contacts/statistiques', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'statistiques'])
+        ->name('contacts.statistiques');
     Route::post('/contacts/{livraison}/assigner', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'assigner'])
         ->name('contacts.assigner');
     Route::post('/contacts/assigner-lot', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'assignerLot'])

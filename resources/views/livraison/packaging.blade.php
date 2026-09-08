@@ -19,7 +19,7 @@
         </div>
 
         {{-- Sélecteurs campagne / journée (prompt §5.4) --}}
-        <div class="flex gap-2 mb-6">
+        <div class="flex gap-2 mb-4">
             <select id="select-campagne" class="flex-1 text-[13px] rounded-lg border border-surface-border px-3 py-2">
                 @foreach($autresCampagnes as $c)
                     <option value="{{ route('livraison.packaging.index', $c) }}" @selected($c->id === $campagne->id)>
@@ -36,6 +36,32 @@
                     @endforeach
                 </select>
             @endif
+        </div>
+
+        {{--
+            Cartes statistiques + filtre restantes/terminées (08/09/2026,
+            prompt de cette date §6.2/§6.3) — les comptages viennent de
+            PackagingController::index() (portée campagne/journée SEULE,
+            pas affectés par ce filtre, voir son docblock).
+        --}}
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Terminées</p>
+                <p class="text-[20px] font-semibold text-emerald-700">{{ $stats['terminees'] }}</p>
+            </div>
+            <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restantes</p>
+                <p class="text-[20px] font-semibold text-ink">{{ $stats['restantes'] }}</p>
+            </div>
+        </div>
+        <div class="flex gap-2 mb-6" id="filtre-conditionnement">
+            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'terminees' => 'Terminées'] as $valeur => $libelle)
+                <button type="button" data-valeur="{{ $valeur }}"
+                    onclick="appliquerFiltreConditionnement('{{ $valeur }}')"
+                    class="text-[12.5px] px-3 py-1.5 rounded-lg border {{ $filtreConditionnement === $valeur ? 'bg-accent text-white border-accent' : 'border-surface-border text-ink-muted' }}">
+                    {{ $libelle }}
+                </button>
+            @endforeach
         </div>
 
         {{--
@@ -137,6 +163,18 @@
                                     @if($livraison->famille->est_hotel)
                                         <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Hôtel</span>
                                     @endif
+                                    {{--
+                                        Badge de statut (08/09/2026, prompt de
+                                        cette date §6.1) — mis à jour aussi en
+                                        JS par synchroniserCaseFamille(), qui
+                                        reste la source de vérité de l'état
+                                        affiché après un toggle sans recharger
+                                        la page.
+                                    --}}
+                                    <span class="statut-conditionnement text-[11px] px-2 py-0.5 rounded-full {{ $livraison->statut_conditionnement === 'prete' ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-ink-muted' }}"
+                                        data-id-livraison="{{ $livraison->id }}">
+                                        {{ $livraison->statut_conditionnement === 'prete' ? 'Terminée' : 'Restante' }}
+                                    </span>
                                 </div>
                                 @if($livraison->note_besoins_speciaux)
                                     <p class="text-[12px] text-rose-600 mt-1">⚠ {{ $livraison->note_besoins_speciaux }}</p>
@@ -214,6 +252,28 @@
             caseFamille.checked = tousPrets;
             caseFamille.classList.toggle('opacity-40', !tousPrets);
             caseFamille.title = tousPrets ? '' : 'Cochez d\'abord tous les colis de cette famille';
+
+            // Badge de statut (08/09/2026, prompt de cette date §6.1) —
+            // la ligne reste dans le DOM (voir index() : plus de filtre
+            // statut_conditionnement côté serveur), seul ce badge change.
+            const badge = document.querySelector(`.statut-conditionnement[data-id-livraison="${idLivraison}"]`);
+            if (badge) {
+                badge.textContent = tousPrets ? 'Terminée' : 'Restante';
+                badge.classList.toggle('bg-emerald-100', tousPrets);
+                badge.classList.toggle('text-emerald-700', tousPrets);
+                badge.classList.toggle('bg-stone-100', !tousPrets);
+                badge.classList.toggle('text-ink-muted', !tousPrets);
+            }
+        }
+
+        // Filtre restantes/terminées (08/09/2026, prompt de cette date
+        // §6.2) — conserve id_campagne_journee s'il est déjà présent dans
+        // l'URL.
+        function appliquerFiltreConditionnement(valeur) {
+            const url = new URL(window.location.href);
+            if (valeur === 'toutes') url.searchParams.delete('filtre_conditionnement');
+            else url.searchParams.set('filtre_conditionnement', valeur);
+            window.location.href = url.toString();
         }
 
         /**

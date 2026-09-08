@@ -61,12 +61,42 @@ class ChargementController extends Controller
         ]);
     }
 
+    /**
+     * Ne filtre plus sur statut = 'chargement' (08/09/2026, prompt de
+     * cette date §7.1/§7.2) : une tournée confirmée chargée (statut
+     * bascule à 'en_cours', voir confirmer() plus bas) disparaissait
+     * intégralement de cet écran au prochain chargement — corrigée en
+     * élargissant à chargement/en_cours/packaging_annule (planifiee
+     * exclue : pas encore pertinente pour cet écran, les colis ne sont
+     * pas encore tous prêts) et en triant plutôt qu'en filtrant :
+     * en_cours (déjà chargée) toujours en dernier (§7.2 "move row to the
+     * bottom"), et parmi le reste, les plus urgentes en tête (§7.3, voir
+     * calculerUrgence() ci-dessous).
+     */
     public function index(Campagne $campagne): View
     {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)
-            ->where('statut', 'chargement')
-            ->with(['benevole', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant'])
-            ->get();
+            ->whereIn('statut', ['chargement', 'en_cours', 'packaging_annule'])
+            ->with(['benevole', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux'])
+            ->get()
+            ->map(function (RouteLivraison $route) {
+                $route->urgence = $this->calculerUrgence($route);
+
+                return $route;
+            })
+            ->sortBy([
+                // en_cours (déjà chargée) toujours en dernier — §7.2.
+                fn ($route) => $route->statut === 'en_cours' ? 1 : 0,
+                // Puis famille-urgente avant bénévole-urgent avant le
+                // reste — §7.3 : "family-availability should weigh more
+                // since we can replace the driver".
+                fn ($route) => match ($route->urgence) {
+                    'famille' => 0,
+                    'benevole' => 1,
+                    default => 2,
+                },
+            ])
+            ->values();
 
         return view('livraison.chargement', [
             'campagne' => $campagne,
@@ -79,6 +109,45 @@ class ChargementController extends Controller
                 ? route('livraison.campagnes.show', $campagne)
                 : route('livraison.chargement.choisir'),
         ]);
+    }
+
+    /**
+     * Urgence d'une tournée (08/09/2026, prompt de cette date §7.3) : une
+     * famille de la tournée n'a confirmé QUE le créneau en cours (pas de
+     * repli possible si cette tournée n'est pas chargée maintenant), ou à
+     * défaut le chauffeur n'est disponible QUE sur ce créneau (repli
+     * possible : "we can replace the driver", d'où la priorité famille >
+     * bénévole ci-dessus). Retourne null en dehors des heures de créneau
+     * (avant 8h/après 19h) ou si rien ne correspond.
+     */
+    private function calculerUrgence(RouteLivraison $route): ?string
+    {
+        $creneauActuel = \App\Support\Creneau::actuel();
+        if ($creneauActuel === null) {
+            return null;
+        }
+
+        $familleUrgente = $route->etapes->contains(function ($etape) use ($creneauActuel) {
+            $creneauxFamille = $etape->livraison?->creneaux->pluck('creneau') ?? collect();
+
+            return $creneauxFamille->count() === 1 && $creneauxFamille->first() === $creneauActuel;
+        });
+        if ($familleUrgente) {
+            return 'famille';
+        }
+
+        if ($route->id_benevole) {
+            $disponibilite = \App\Models\BenevoleDisponibilite::where('id_personne', $route->id_benevole)
+                ->where('id_campagne_journee', $route->id_campagne_journee)
+                ->with('creneaux')
+                ->first();
+            $creneauxBenevole = $disponibilite?->creneaux->pluck('creneau') ?? collect();
+            if ($creneauxBenevole->count() === 1 && $creneauxBenevole->first() === $creneauActuel) {
+                return 'benevole';
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -57,6 +57,28 @@ final class Creneau
         return in_array($creneau, self::TOUS, true);
     }
 
+    /**
+     * Créneau correspondant à l'heure actuelle — ajouté le 08/09/2026
+     * (prompt de cette date §7.3, tri par urgence de ChargementController)
+     * : null en dehors de la plage 8h-19h, sinon le bloc de 2h
+     * correspondant (SOIR ne fait qu'1h, comme le reste de cette classe —
+     * voir le docblock en tête de fichier).
+     */
+    public static function actuel(): ?string
+    {
+        $heure = (int) now()->format('H');
+
+        return match (true) {
+            $heure < 8 || $heure >= 19 => null,
+            $heure < 10 => self::MATIN_1,
+            $heure < 12 => self::MATIN_2,
+            $heure < 14 => self::MIDI,
+            $heure < 16 => self::APRES_MIDI_1,
+            $heure < 18 => self::APRES_MIDI_2,
+            default => self::SOIR,
+        };
+    }
+
     public static function libelle(string $creneau): string
     {
         return self::LIBELLES[$creneau] ?? $creneau;

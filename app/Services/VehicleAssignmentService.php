@@ -40,16 +40,23 @@ class VehicleAssignmentService
     /**
      * @param array<int, array{id: string, centre: array, livraisons: array, quartier_id: ?int, distance_hq: float, nombre_livraisons: int, nombre_parts: int, poids_total: float}> $clusters Triés par distance_hq DESC
      * @param array<int, array{id_benevole: int, id_vehicule_type: int, capacite_kg: float, nombre_part_max: int}> $vehicules
+     * @param int|null $maxLivraisonsParRoute Cap à appliquer — voir
+     *     RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne() (ajouté
+     *     le 08/09/2026, prompt §2.2.3) : RouteGenerationService, qui connaît
+     *     la campagne concernée, résout la valeur (globale ou surchargée par
+     *     campagne) et la transmet ici — null retombe sur le réglage global,
+     *     pour ne rien casser d'un éventuel autre appelant qui ignorerait ce
+     *     paramètre.
      * @return array{assignations: array<int, array{cluster: array, vehicule: array}>, non_places: array<int, array>}
      */
-    public function assigner(array $clusters, array $vehicules): array
+    public function assigner(array $clusters, array $vehicules, ?int $maxLivraisonsParRoute = null): array
     {
         $fileClusters = $clusters;
         $benevolesAvecRoute = [];
         $assignations = [];
         $nonPlaces = [];
 
-        $maxLivraisonsParRoute = RouteOptimizationConfig::maxLivraisonsParRoute();
+        $maxLivraisonsParRoute ??= RouteOptimizationConfig::maxLivraisonsParRoute();
 
         $gardeFou = 0;
         $maxIterations = count($clusters) * 10 + count($vehicules) * 2;
@@ -83,7 +90,7 @@ class VehicleAssignmentService
                 continue;
             }
 
-            $resultat = $this->splitter->scinder($cluster, $spliteur);
+            $resultat = $this->splitter->scinder($cluster, $spliteur, $maxLivraisonsParRoute);
 
             if (count($resultat['retenu']) === 0) {
                 // Même le plus grand véhicule libre ne peut rien prendre de

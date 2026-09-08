@@ -213,7 +213,7 @@ class RouteGenerationService
         $livraisonsArray = $livraisons->map(fn (Livraison $l) => $this->versArrayClustering($l))->all();
 
         $clusters = $this->clustering->identifierClusters($livraisonsArray, $hq, $plafondPoids);
-        $resultat = $this->assignment->assigner($clusters, $vehicules);
+        $resultat = $this->assignment->assigner($clusters, $vehicules, RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne($campagne));
 
         $routesCreees = 0;
         foreach ($resultat['assignations'] as $assignation) {
@@ -319,7 +319,7 @@ class RouteGenerationService
         $livraisonsArray = $poolRetenu->map(fn (Livraison $l) => $this->versArrayClustering($l))->all();
 
         $clusters = $this->clustering->identifierClusters($livraisonsArray, $hq, $plafondPoids);
-        $resultat = $this->assignment->assigner($clusters, $vehicules);
+        $resultat = $this->assignment->assigner($clusters, $vehicules, RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne($campagne));
 
         $routesCreees = 0;
         foreach ($resultat['assignations'] as $assignation) {

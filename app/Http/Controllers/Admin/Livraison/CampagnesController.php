@@ -45,7 +45,15 @@ class CampagnesController extends Controller
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->get();
 
-        return view('livraison.campagnes', ['campagnes' => $campagnes]);
+        return view('livraison.campagnes', [
+            'campagnes' => $campagnes,
+            // Préremplissage visible du formulaire "Nouvelle campagne" (prompt
+            // du 08/09/2026 §2.2.3) — même valeur que celle effectivement
+            // appliquée à la création si le champ est laissé vide (voir
+            // store() ci-dessous), affichée ici pour que l'admin la voie et
+            // puisse la modifier AVANT de créer, pas seulement après coup.
+            'livraisonsMaxParTourneeDefaut' => RouteOptimizationConfig::maxLivraisonsParRoute(),
+        ]);
     }
 
     public function show(Campagne $campagne): View
@@ -92,6 +100,10 @@ class CampagnesController extends Controller
             // Ajoutés le 05/09/2026 (prompt §1.2/§1.3).
             'commentaire' => 'nullable|string|max:5000',
             'hq_adresse' => 'nullable|string|max:255',
+            // Ajouté le 08/09/2026 (prompt §2.2.3) — même statut que hq_adresse
+            // ci-dessus : optionnel ici, préremplie automatiquement plus bas
+            // si absente (voir $livraisonsMaxParTournee).
+            'livraisons_max_par_tournee' => 'nullable|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -109,6 +121,12 @@ class CampagnesController extends Controller
         // global (settings ne stocke que lat/lng) : seule celle saisie ici
         // (le cas échéant) est conservée.
         $hqGlobal = RouteOptimizationConfig::coordonneesHq();
+
+        // Même logique que hq_* ci-dessus (prompt du 08/09/2026 §2.2.3) :
+        // préremplie depuis le réglage global si l'admin ne l'a pas saisie
+        // explicitement, une fois pour toutes à la création — voir
+        // RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne().
+        $donnees['livraisons_max_par_tournee'] ??= RouteOptimizationConfig::maxLivraisonsParRoute();
 
         // date_livraison (colonne NOT NULL, voir create_campagnes_table.php)
         // déduite de la première journée saisie — ajouterJournee()
@@ -144,6 +162,8 @@ class CampagnesController extends Controller
             'hq_adresse' => 'nullable|string|max:255',
             'hq_latitude' => 'nullable|numeric|between:-90,90',
             'hq_longitude' => 'nullable|numeric|between:-180,180',
+            // Éditable au cas par cas comme hq_* (prompt du 08/09/2026 §2.2.3).
+            'livraisons_max_par_tournee' => 'nullable|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -153,6 +173,51 @@ class CampagnesController extends Controller
         $campagne->update($validator->validated());
 
         return response()->json(['success' => true, 'campagne' => $campagne->fresh()]);
+    }
+
+    /**
+     * Aperçu des répercussions AVANT suppression — alimente l'écran de
+     * confirmation de CampagnesIndex.vue (prompt du 08/09/2026 §2.1/§2.2 :
+     * "confirmation screen explaining repercussions"). Comptages seulement,
+     * aucune écriture ici.
+     */
+    public function resumeSuppression(Campagne $campagne): JsonResponse
+    {
+        return response()->json([
+            'journees' => $campagne->journees()->count(),
+            'livraisons' => $campagne->livraisons()->count(),
+            'routes' => $campagne->routes()->count(),
+            'donations' => $campagne->donations()->count(),
+            'arrivees' => $campagne->arrivees()->count(),
+            'equipe_membres' => $campagne->equipeMembres()->count(),
+        ]);
+    }
+
+    /**
+     * Suppression définitive d'une campagne — prompt du 08/09/2026
+     * §2.1/§2.2 : "Yes I want to always be able to delete. The delete
+     * trigger a cascade delete." Toujours autorisée, y compris sur une
+     * campagne avec de l'activité réelle (app encore en dev — décision
+     * explicite, pas de blocage "campagne non vide").
+     *
+     * Aucune suppression manuelle des tables enfants ici : routes,
+     * livraisons, campagne_journees, donations, campagne_arrivees,
+     * campagne_stats_snapshots, benevole_retours_qg,
+     * campagne_poids_moyen_historiques et campagne_equipe_membres portent
+     * TOUS un ->cascadeOnDelete() vers campagnes (voir chaque migration
+     * create_*_table.php), et leurs propres enfants (etapes_route,
+     * route_incidents, livraison_colis, livraison_creneaux,
+     * benevole_disponibilites → benevole_disponibilite_creneaux) cascadent
+     * de la même façon en chaîne — $campagne->delete() suffit, la
+     * contrainte FK fait le reste au niveau base de données plutôt que de
+     * dupliquer cette liste ici en PHP (qui se désynchroniserait au
+     * premier oubli lors d'un futur ajout de table).
+     */
+    public function destroy(Campagne $campagne): JsonResponse
+    {
+        $campagne->delete();
+
+        return response()->json(['success' => true]);
     }
 
     /**

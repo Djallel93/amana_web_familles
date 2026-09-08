@@ -76,6 +76,22 @@ async function chargerFile() {
     if (!idJourneeSelectionnee.value) idJourneeSelectionnee.value = resultat.data.id_campagne_journee;
 }
 
+// ── Tri + cartes statistiques (08/09/2026, prompt de cette date §5.1/§5.2) ──
+// lignes n'est PAS paginée côté serveur (voir BenevoleDisponibiliteController
+// ::queue(), 'data' contient déjà tout l'ensemble filtré) — les stats se
+// calculent donc directement ici plutôt que via un aller-retour serveur
+// séparé comme pour ContactsQueue.vue (qui, lui, pagine réellement sa
+// liste).
+const lignesTriees = computed(() => [...lignes.value].sort(
+    (a, b) => Number(a.statut === 'confirme') - Number(b.statut === 'confirme'),
+));
+
+const statsBenevoles = computed(() => ({
+    total: lignes.value.length,
+    confirme: lignes.value.filter((l) => l.statut === 'confirme').length,
+    non_confirme: lignes.value.filter((l) => l.statut === 'non_confirme').length,
+}));
+
 // ── Édition manuelle (05/09/2026, prompt §1.3) ────────────────────────────
 // Réduit à `creneaux` (07/09/2026, prompt §5.1 : "add two buttons, one
 // Modifier informations that opens personnes/{id}/modifier and another
@@ -194,6 +210,24 @@ onMounted(chargerFile);
             {{ resultatNotif.envoyes }} email(s) envoyé(s), {{ resultatNotif.echecs }} échec(s).
         </p>
 
+        <!--
+            Cartes statistiques (08/09/2026, prompt de cette date §5.2).
+        -->
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="bg-surface border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">Bénévoles</p>
+                <p class="text-[20px] font-semibold text-ink">{{ statsBenevoles.total }}</p>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Confirmés</p>
+                <p class="text-[20px] font-semibold text-emerald-700">{{ statsBenevoles.confirme }}</p>
+            </div>
+            <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">Non confirmés</p>
+                <p class="text-[20px] font-semibold text-ink">{{ statsBenevoles.non_confirme }}</p>
+            </div>
+        </div>
+
         <div class="flex flex-wrap items-end gap-3 mb-4">
             <div v-if="journees.length > 1">
                 <label class="block text-[12px] text-ink-muted mb-1">Journée</label>
@@ -222,8 +256,12 @@ onMounted(chargerFile);
         <p v-else-if="erreur" class="text-[14px] text-rose-600">Impossible de charger la liste des bénévoles.</p>
         <p v-else-if="lignes.length === 0" class="text-[14px] text-ink-muted">Aucun bénévole ne correspond à ces filtres.</p>
 
+        <!--
+            Triée confirmés-en-bas (08/09/2026, prompt de cette date §5.1)
+            — voir lignesTriees ci-dessus.
+        -->
         <div v-else class="space-y-2">
-            <div v-for="ligne in lignes" :key="ligne.id_personne" class="bg-surface border border-surface-border rounded-xl p-4">
+            <div v-for="ligne in lignesTriees" :key="ligne.id_personne" class="bg-surface border border-surface-border rounded-xl p-4">
                 <div class="flex items-start justify-between gap-2">
                     <div>
                         <p class="text-[14px] font-medium text-ink">{{ ligne.prenom }} {{ ligne.nom }}</p>

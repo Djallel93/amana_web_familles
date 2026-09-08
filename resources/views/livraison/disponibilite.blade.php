@@ -76,7 +76,21 @@
                 </div>
 
                 <div>
-                    <span class="block text-[13px] font-medium text-ink mb-1">Créneaux disponibles</span>
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[13px] font-medium text-ink">Créneaux disponibles</span>
+                        <!--
+                            Ajouté le 08/09/2026 (prompt de cette date §5.3)
+                            : "add a toggle for all/nothing (like in
+                            famille)" — même comportement que toggleTout()
+                            dans ContactsQueue.vue (Suivi des contacts),
+                            réécrit ici en JS vanilla puisque cet écran
+                            n'est pas une île Vue (voir commentaire en tête
+                            de fichier).
+                        -->
+                        <button type="button" class="toggle-tout-rien text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5">
+                            Tout / Rien
+                        </button>
+                    </div>
                     <div class="grid grid-cols-2 gap-2">
                         @foreach($creneaux as $valeur => $libelle)
                             <label class="flex items-center gap-2 text-[13px] text-ink-muted">
@@ -100,6 +114,18 @@
 
     <script>
         document.querySelectorAll('.form-disponibilite').forEach(function (form) {
+            // Tout / Rien (08/09/2026, prompt de cette date §5.3) — coche
+            // tout si au moins une case est décochée, sinon décoche tout,
+            // même règle que toggleTout() côté admin (ContactsQueue.vue).
+            const toggleToutRien = form.querySelector('.toggle-tout-rien');
+            if (toggleToutRien) {
+                toggleToutRien.addEventListener('click', function () {
+                    const cases = [...form.querySelectorAll('input[name="creneaux[]"]')];
+                    const toutCoche = cases.every((c) => c.checked);
+                    cases.forEach((c) => { c.checked = !toutCoche; });
+                });
+            }
+
             form.addEventListener('submit', async function (e) {
                 e.preventDefault();
                 const message = form.querySelector('.disponibilite-message');

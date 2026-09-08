@@ -63,13 +63,13 @@ const secteurs = ref<Secteur[]>(JSON.parse(el.dataset.secteurs ?? '[]'));
 const quartiers = ref<Quartier[]>(JSON.parse(el.dataset.quartiers ?? '[]'));
 const organisations = ref<Organisation[]>(JSON.parse(el.dataset.organisations ?? '[]'));
 const queueUrl = el.dataset.queueUrl ?? '';
+const statistiquesUrl = el.dataset.statistiquesUrl ?? '';
 const assignerUrlTemplate = el.dataset.assignerUrlTemplate ?? '';
 const assignerLotUrl = el.dataset.assignerLotUrl ?? '';
 const contacterManuelUrlTemplate = el.dataset.contacterManuelUrlTemplate ?? '';
 const genererRoutesUrlTemplate = el.dataset.genererRoutesUrlTemplate ?? '';
 
 const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
-    contacte: 'Contacté',
     injoignable: 'Injoignable',
     confirme: 'Confirmé',
     rejetee: 'Rejetée',
@@ -142,6 +142,22 @@ async function chargerFile(page = 1) {
     const paginé = normalizePaginated(resultat.data);
     file.value = paginé.data;
     meta.value = paginé.meta;
+
+    // Rafraîchies avec la même portée (mêmes filtres) à chaque rechargement
+    // de la liste, plutôt que sur ses propres déclencheurs séparés — reste
+    // ainsi toujours cohérente avec ce qui est affiché juste en dessous
+    // sans avoir à traquer chaque appelant de chargerFile() un par un.
+    chargerStatistiques();
+}
+
+// ── Cartes statistiques (08/09/2026, prompt de cette date §3.2) ─────────
+const stats = ref<{ total: number; a_contacter: number; confirme: number; injoignable: number } | null>(null);
+
+async function chargerStatistiques() {
+    const resultat = await apiGet<{ total: number; a_contacter: number; confirme: number; injoignable: number }>(
+        statistiquesUrl + queryFiltres(1),
+    );
+    stats.value = resultat.ok ? resultat.data : null;
 }
 
 // ── Assignation ──────────────────────────────────────────────────────────
@@ -444,6 +460,32 @@ onMounted(() => {
             </div>
         </div>
 
+        <!--
+            Cartes statistiques (08/09/2026, prompt de cette date §3.2) —
+            même portée de filtres que la liste juste en dessous (voir
+            chargerStatistiques()). "contacte" volontairement absent : déjà
+            retiré des statuts utilisables le 05/09/2026, plus affiché nulle
+            part sur cet écran (voir aussi LIBELLES_STATUT_CONTACT).
+        -->
+        <div v-if="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div class="bg-surface border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">Familles</p>
+                <p class="text-[20px] font-semibold text-ink">{{ stats.total }}</p>
+            </div>
+            <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">À contacter</p>
+                <p class="text-[20px] font-semibold text-ink">{{ stats.a_contacter }}</p>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Confirmées</p>
+                <p class="text-[20px] font-semibold text-emerald-700">{{ stats.confirme }}</p>
+            </div>
+            <div class="bg-rose-50 border border-rose-100 rounded-xl p-3">
+                <p class="text-[11px] text-rose-700 uppercase tracking-wide">Injoignables</p>
+                <p class="text-[20px] font-semibold text-rose-700">{{ stats.injoignable }}</p>
+            </div>
+        </div>
+
         <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
             :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" />
 
@@ -491,11 +533,24 @@ onMounted(() => {
             </div>
 
             <div v-for="livraison in file" :key="livraison.id" class="bg-surface border border-surface-border rounded-xl p-4 shadow-sm">
+                <!--
+                    Statut réaffiché ici, à côté du nom (08/09/2026, prompt
+                    de cette date §3.1) — reprend la position d'avant le
+                    07/09/2026 (déplacé ce jour-là à côté de "Modifier le
+                    dossier", décision explicitement reversée maintenant).
+                -->
                 <div class="flex items-start justify-between gap-2 mb-2">
                     <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
                         <input type="checkbox" :checked="selection.has(livraison.id)" @change="toggleSelection(livraison.id)"
                             class="w-4 h-4 accent-accent shrink-0">
                         {{ livraison.famille.prenom }} {{ livraison.famille.nom }}
+                        <span class="text-[11.5px] font-medium px-2 py-0.5 rounded-full shrink-0"
+                            :class="{
+                                'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
+                                'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
+                            }">
+                            {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
+                        </span>
                     </span>
                 </div>
 
@@ -512,14 +567,10 @@ onMounted(() => {
                 </div>
 
                 <!--
-                    Statut + "Modifier le dossier" sur la même rangée
-                    (07/09/2026, prompt §2.4) — le statut était affiché en
-                    haut de carte auparavant, déplacé ici. Boutons colorés
-                    (même prompt) : indigo pour Modifier le dossier
-                    (action neutre "consulter/éditer", cohérent avec les
-                    boutons d'édition ailleurs dans l'app), et une couleur
-                    distincte par statut simple juste en dessous plutôt
-                    que tous en gris indifférencié.
+                    "Modifier le dossier" (07/09/2026, prompt §2.4) —
+                    statut retiré de cette rangée le 08/09/2026 (remonté à
+                    côté du nom ci-dessus, voir commentaire plus haut) :
+                    ne reste ici que l'assignation et l'édition.
                 -->
                 <div class="flex flex-wrap items-center gap-2 mb-3">
                     <div class="max-w-xs">
@@ -531,14 +582,6 @@ onMounted(() => {
                         class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90">
                         ✏️ Modifier le dossier
                     </button>
-                    <span class="text-[11.5px] font-medium px-2 py-0.5 rounded-full shrink-0"
-                        :class="{
-                            'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
-                            'bg-sky-100 text-sky-700': livraison.statut_contact === 'contacte',
-                            'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
-                        }">
-                        {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
-                    </span>
                 </div>
 
                 <!--
@@ -578,8 +621,17 @@ onMounted(() => {
                          dossier". -->
                     <div>
                         <div class="flex items-center justify-between mb-1.5">
+                            <!--
+                                Déplacé à gauche + rendu plus visible
+                                (08/09/2026, prompt de cette date §3.3) —
+                                était un simple lien texte à droite du
+                                label, difficile à repérer.
+                            -->
+                            <button type="button" @click="toggleTout(livraison.id)"
+                                class="min-h-[1.875rem] text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5">
+                                Tout / Rien
+                            </button>
                             <label class="text-[11px] text-ink-muted">Créneaux</label>
-                            <button type="button" @click="toggleTout(livraison.id)" class="text-[11px] text-accent">Tout / Rien</button>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div class="border border-ink-faint rounded-lg p-2">

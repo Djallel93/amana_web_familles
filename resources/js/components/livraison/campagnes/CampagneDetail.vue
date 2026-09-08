@@ -122,6 +122,9 @@ const formEdition = reactive({
     hq_adresse: campagne.value.hq_adresse ?? '',
     hq_latitude: campagne.value.hq_latitude ?? '',
     hq_longitude: campagne.value.hq_longitude ?? '',
+    // Ajouté le 08/09/2026 (prompt §2.2.3) — même statut que hq_* ci-dessus :
+    // préremplie au réglage global à la création, éditable ici au cas par cas.
+    livraisons_max_par_tournee: campagne.value.livraisons_max_par_tournee ?? '',
 });
 const chargementEdition = ref(false);
 const erreurEdition = ref('');
@@ -135,6 +138,8 @@ async function enregistrerEdition() {
         hq_adresse: formEdition.hq_adresse || null,
         hq_latitude: formEdition.hq_latitude === '' ? null : Number(formEdition.hq_latitude),
         hq_longitude: formEdition.hq_longitude === '' ? null : Number(formEdition.hq_longitude),
+        livraisons_max_par_tournee: formEdition.livraisons_max_par_tournee === ''
+            ? null : Number(formEdition.livraisons_max_par_tournee),
     });
     chargementEdition.value = false;
 
@@ -323,27 +328,12 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
             propre ligne avec le (désormais retiré) bouton clustering.
         -->
         <div class="flex flex-wrap gap-2 mb-6">
-            <a :href="urls.contacts" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90">
-                📞 Suivi des contacts
-            </a>
-            <a :href="urls.pesee" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-amber-600 hover:opacity-90">
-                ⚖️ Pesée
-            </a>
-            <a :href="urls.packaging" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-violet-600 hover:opacity-90">
-                📦 Packaging
-            </a>
-            <a :href="urls.chargement" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-rose-600 hover:opacity-90">
-                🚛 Chargement
-            </a>
-            <a :href="urls.suiviLivraison" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-teal-600 hover:opacity-90">
-                🗺️ Suivi livraison
-            </a>
             <!--
-                Remplacé le 05/09/2026 (prompt §1.3) : "transfer Notifier
-                bénévole to this new view" — n'est plus un bouton d'action
-                ici, juste un lien vers l'écran de suivi
-                (BenevoleDisponibiliteQueue.vue), qui porte maintenant à la
-                fois le bouton d'envoi ET le suivi des réponses.
+                Suivi des bénévoles + Équipes déplacés avant Suivi des
+                contacts (08/09/2026, prompt de cette date §4) — les
+                équipes/disponibilités bénévoles sont désormais montrées
+                comme un préalable au contact famille dans le flux, pas
+                après.
             -->
             <a :href="urls.benevoles" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-emerald-600 hover:opacity-90">
                 👥 Suivi des bénévoles
@@ -358,6 +348,21 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
             -->
             <a :href="urls.equipes" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90">
                 🧑‍🤝‍🧑 Équipes
+            </a>
+            <a :href="urls.contacts" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90">
+                📞 Suivi des contacts
+            </a>
+            <a :href="urls.pesee" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-amber-600 hover:opacity-90">
+                ⚖️ Pesée
+            </a>
+            <a :href="urls.packaging" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-violet-600 hover:opacity-90">
+                📦 Packaging
+            </a>
+            <a :href="urls.chargement" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-rose-600 hover:opacity-90">
+                🚛 Chargement
+            </a>
+            <a :href="urls.suiviLivraison" class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-teal-600 hover:opacity-90">
+                🗺️ Suivi livraison
             </a>
         </div>
 
@@ -418,6 +423,9 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
                         ({{ campagne.hq_latitude }}, {{ campagne.hq_longitude }})
                     </span>
                 </p>
+                <p class="text-[13px] text-ink-muted mt-1">
+                    Max livraisons/tournée : {{ campagne.livraisons_max_par_tournee ?? 'réglage global' }}
+                </p>
                 <p class="text-[13px] text-ink mt-2 whitespace-pre-wrap">{{ campagne.commentaire || 'Aucun commentaire.' }}</p>
             </template>
 
@@ -449,6 +457,11 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
                         <input id="campagne-hq-lng" v-model="formEdition.hq_longitude" type="number" step="any" readonly
                             class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
                     </div>
+                </div>
+                <div>
+                    <label class="block text-[12px] text-ink-muted mb-1">Max livraisons/tournée</label>
+                    <input v-model="formEdition.livraisons_max_par_tournee" type="number" min="1" step="1"
+                        class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
                 </div>
                 <div>
                     <label class="block text-[12px] text-ink-muted mb-1">Commentaire</label>

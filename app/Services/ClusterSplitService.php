@@ -39,14 +39,18 @@ class ClusterSplitService
     /**
      * @param array{livraisons: array<int, array{id_livraison: int, latitude: float, longitude: float, nombre_personnes: int, poids_kg: float}>} $cluster
      * @param array{capacite_kg: float, nombre_part_max: int} $vehicule
+     * @param int|null $maxLivraisonsParRoute Cap à appliquer — voir même
+     *     paramètre sur VehicleAssignmentService::assigner() (ajouté le
+     *     08/09/2026, prompt §2.2.3), null retombe sur le réglage global.
      * @return array{retenu: array, reste: array}
      */
-    public function scinder(array $cluster, array $vehicule): array
+    public function scinder(array $cluster, array $vehicule, ?int $maxLivraisonsParRoute = null): array
     {
         $livraisons = array_values($cluster['livraisons']);
         $n = count($livraisons);
 
-        $tailleMax = min($n, $vehicule['nombre_part_max'] > 0 ? $n : 0, RouteOptimizationConfig::maxLivraisonsParRoute());
+        $maxLivraisonsParRoute ??= RouteOptimizationConfig::maxLivraisonsParRoute();
+        $tailleMax = min($n, $vehicule['nombre_part_max'] > 0 ? $n : 0, $maxLivraisonsParRoute);
 
         for ($taille = $tailleMax; $taille >= 1; $taille--) {
             $meilleurSousEnsemble = null;

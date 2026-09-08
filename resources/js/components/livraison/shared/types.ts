@@ -71,6 +71,8 @@ export interface Campagne {
     hq_adresse: string | null;
     hq_latitude: number | null;
     hq_longitude: number | null;
+    // Ajouté le 08/09/2026 (prompt §2.2.3) — voir Campagne (modèle PHP).
+    livraisons_max_par_tournee: number | null;
     commentaire: string | null;
     poids_moyen_historique?: CampagnePoidsMoyenHistorique[];
     // Chargées via Campagne::journees() (voir CampagnesController::show())

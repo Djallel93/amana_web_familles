@@ -68,6 +68,18 @@ return new class extends Migration {
             $table->decimal('hq_latitude', 10, 7)->nullable();
             $table->decimal('hq_longitude', 10, 7)->nullable();
 
+            // Cap par campagne (ajouté le 08/09/2026, prompt §2.2.3) — même
+            // logique que hq_* ci-dessus : le réglage global
+            // (route_max_livraisons_par_route, voir RouteOptimizationConfig)
+            // reste la valeur par défaut, recopiée dans cette colonne à la
+            // CRÉATION de chaque campagne (voir CampagnesController::store()),
+            // pas relue dynamiquement ensuite — chaque campagne garde sa
+            // propre valeur indépendante, éditable au cas par cas (ex: gros
+            // véhicules disponibles ce jour-là), sans jamais bouger le
+            // réglage global ni les campagnes déjà créées.
+            $table->unsignedInteger('livraisons_max_par_tournee')->nullable()
+                ->comment('Cap propre à cette campagne — préremplie depuis route_max_livraisons_par_route à la création, voir RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne()');
+
             // Commentaire libre (ajouté le 05/09/2026, prompt §1.3) —
             // dernière valeur seulement, pas d'historique (décision
             // explicite) : simple colonne texte, éditable à tout moment

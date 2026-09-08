@@ -101,11 +101,56 @@ class ContactTrackingController extends Controller
      */
     public function queue(Request $request): JsonResponse
     {
-        $query = Livraison::with(['famille:id,nom,prenom,telephone,telephone_bis,email,id_quartier', 'famille.quartier.secteur.ville', 'personneAssignee', 'campagne'])
-            ->join('familles', 'familles.id', '=', 'livraisons.id_famille')
+        $query = $this->queteBase($request)
+            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email,id_quartier', 'famille.quartier.secteur.ville', 'personneAssignee', 'campagne'])
             ->orderByRaw("livraisons.statut_contact = 'confirme'")
             ->orderByRaw('familles.email IS NULL')
             ->select('livraisons.*');
+
+        if ($request->boolean('ids_only')) {
+            return response()->json(['ids' => $query->pluck('livraisons.id')]);
+        }
+
+        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
+    }
+
+    /**
+     * Cartes statistiques de l'écran (08/09/2026, prompt de cette date
+     * §3.2) : total + un comptage par statut_contact retenu ("contacte"
+     * exclu — déjà retiré de STATUTS_CONTACT_POSTABLES le 05/09/2026, non
+     * utilisé). Reprend EXACTEMENT les mêmes filtres que queue() (voir
+     * queteBase()) pour rester cohérent avec la liste affichée juste en
+     * dessous — comptés en une seule requête groupée plutôt que 4 allers-
+     * retours comme resteAContacter() (ids_only) le fait côté front pour
+     * un seul statut.
+     *
+     * @return JsonResponse{total: int, a_contacter: int, confirme: int, injoignable: int}
+     */
+    public function statistiques(Request $request): JsonResponse
+    {
+        $comptages = $this->queteBase($request)
+            ->select('livraisons.statut_contact')
+            ->selectRaw('count(*) as total')
+            ->groupBy('livraisons.statut_contact')
+            ->pluck('total', 'statut_contact');
+
+        return response()->json([
+            'total' => $comptages->sum(),
+            'a_contacter' => $comptages->get('a_contacter', 0),
+            'confirme' => $comptages->get('confirme', 0),
+            'injoignable' => $comptages->get('injoignable', 0),
+        ]);
+    }
+
+    /**
+     * Filtres partagés par queue() et statistiques() ci-dessus — extrait
+     * le 08/09/2026 pour éviter de dupliquer ces conditions entre les
+     * deux (le prompt de cette date §3.2 ajoute le second appelant).
+     */
+    private function queteBase(Request $request): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = Livraison::query()
+            ->join('familles', 'familles.id', '=', 'livraisons.id_famille');
 
         if ($request->boolean('mine')) {
             $query->where('id_personne_assignee', auth()->id());
@@ -134,11 +179,7 @@ class ContactTrackingController extends Controller
             $query->whereIn('id_famille', $idsFamilles);
         }
 
-        if ($request->boolean('ids_only')) {
-            return response()->json(['ids' => $query->pluck('livraisons.id')]);
-        }
-
-        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
+        return $query;
     }
 
     /**

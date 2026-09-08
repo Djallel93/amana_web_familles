@@ -27,15 +27,54 @@
         </div>
         <form id="csrf-holder">@csrf</form>
 
-        <div class="space-y-3">
+        <div class="space-y-3" id="liste-routes">
             @forelse($routes as $route)
-                <div class="bg-surface border border-surface-border rounded-xl p-4" id="route-{{ $route->id }}">
+                {{--
+                    Urgence + statut affichés en permanence (08/09/2026,
+                    prompt de cette date §7.1/§7.2/§7.3) : la ligne ne
+                    disparaît plus au chargement confirmé (voir
+                    ChargementController::index(), qui n'exclut plus
+                    'en_cours'/'packaging_annule'), et les tournées urgentes
+                    (créneau en cours = seul créneau possible pour une
+                    famille, ou à défaut pour le chauffeur — voir
+                    calculerUrgence()) remontent en tête avec une bordure
+                    colorée plutôt qu'un badge discret, pour être
+                    repérables au premier coup d'œil sur cet écran souvent
+                    consulté en vitesse.
+                --}}
+                <div class="bg-surface border rounded-xl p-4
+                    {{ match($route->urgence) {
+                        'famille' => 'border-rose-400 border-2 bg-rose-50',
+                        'benevole' => 'border-amber-400 border-2 bg-amber-50',
+                        default => 'border-surface-border',
+                    } }}
+                    {{ $route->statut === 'en_cours' ? 'opacity-60' : '' }}"
+                    id="route-{{ $route->id }}" data-statut="{{ $route->statut }}">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-[14px] font-medium text-ink">
                             {{ $route->benevole->prenom ?? '' }} {{ $route->benevole->nom ?? '' }}
                             — {{ $route->etapes->count() }} arrêt(s)
                         </span>
-                        <span class="text-[12px] text-ink-muted">{{ $route->creneau ? \App\Support\Creneau::libelle($route->creneau) : 'Imposée' }}</span>
+                        <div class="flex items-center gap-1.5">
+                            @if($route->urgence === 'famille')
+                                <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-rose-600 text-white">🔴 Urgent — famille</span>
+                            @elseif($route->urgence === 'benevole')
+                                <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-600 text-white">🟠 Urgent — chauffeur</span>
+                            @endif
+                            <span class="statut-route text-[11px] font-medium px-2 py-0.5 rounded-full
+                                {{ match($route->statut) {
+                                    'en_cours' => 'bg-emerald-100 text-emerald-700',
+                                    'packaging_annule' => 'bg-rose-100 text-rose-700',
+                                    default => 'bg-stone-100 text-ink-muted',
+                                } }}">
+                                {{ match($route->statut) {
+                                    'en_cours' => 'Chargée',
+                                    'packaging_annule' => 'Packaging annulé',
+                                    default => 'Prête à charger',
+                                } }}
+                            </span>
+                            <span class="text-[12px] text-ink-muted">{{ $route->creneau ? \App\Support\Creneau::libelle($route->creneau) : 'Imposée' }}</span>
+                        </div>
                     </div>
 
                     <ul class="text-[12px] text-ink-muted space-y-1 mb-3">
@@ -49,7 +88,7 @@
                         @endforeach
                     </ul>
 
-                    <div class="flex gap-2">
+                    <div class="flex gap-2" @if($route->statut !== 'chargement') style="display:none" @endif>
                         <button type="button" onclick="confirmerChargement({{ $route->id }})"
                             class="text-[12px] px-3 py-1.5 rounded-lg bg-accent text-white">Chargement confirmé</button>
                         <button type="button" onclick="signalerAbsent({{ $route->id }})"
@@ -78,7 +117,22 @@
 
         async function confirmerChargement(id) {
             const r = await poster(`/livraison/chargement/routes/${id}/confirmer`);
-            if (r.success) document.getElementById(`route-${id}`).remove();
+            if (!r.success) return;
+
+            // Ne retire plus la ligne du DOM (08/09/2026, prompt de cette
+            // date §7.1/§7.2) : reste visible avec son statut "Chargée",
+            // déplacée en bas de liste plutôt que supprimée — voir
+            // ChargementController::index() côté serveur pour le même tri
+            // au prochain chargement de page.
+            const ligne = document.getElementById(`route-${id}`);
+            if (!ligne) return;
+
+            ligne.dataset.statut = 'en_cours';
+            ligne.classList.add('opacity-60');
+            ligne.querySelector('.statut-route').textContent = 'Chargée';
+            ligne.querySelector('.statut-route').className = 'statut-route text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+            ligne.querySelector('.flex.gap-2').style.display = 'none';
+            ligne.parentElement.appendChild(ligne);
         }
 
         async function signalerAbsent(id) {

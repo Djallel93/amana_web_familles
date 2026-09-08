@@ -19,7 +19,7 @@
     dédiée reste propre à Dossier Familles.
 -->
 <script setup lang="ts">
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from './types';
 
 const props = defineProps<{
@@ -69,10 +69,33 @@ function reinitialiser() {
     });
     emit('filtrer');
 }
+
+// Repliable (08/09/2026, prompt §2.2.3/§3.4 : "like in dossier famille")
+// — même pattern que familles/index.blade.php : <details>/<summary>
+// natif plutôt qu'un ref + v-show, pour bénéficier gratuitement du même
+// comportement (contenu simplement masqué, pas démonté — les v-model
+// des champs restent actifs même repliés) sans dupliquer de logique JS.
+// Badge "actifs" affiché même repliée, pour ne pas cacher silencieusement
+// qu'un filtre est appliqué.
+const filtresActifs = computed(() => Boolean(
+    filtres.recherche || filtres.id_ville || filtres.id_secteur || filtres.id_quartier
+    || (filtres.criticite ?? []).length > 0
+    || filtres.se_deplace || filtres.est_hotel || filtres.etudiant
+    || filtres.zakat_el_fitr || filtres.sadaqa
+    || filtres.id_organisation_origine || filtres.id_organisation_rattachee,
+));
 </script>
 
 <template>
-    <div class="bg-surface border border-surface-border rounded-xl p-4 mb-4">
+    <details class="group bg-surface border border-surface-border rounded-xl p-4 mb-4" open>
+        <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 mb-2 rounded-lg hover:bg-surface-2 transition-colors">
+            <span class="text-[13px] font-bold text-ink flex items-center gap-1.5">
+                🔎 Filtres
+                <span v-if="filtresActifs" class="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent-dark text-[10px] font-bold">actifs</span>
+            </span>
+            <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
+        </summary>
+
         <div class="mb-4">
             <label :class="CHAMP_LABEL">🔎 Recherche (nom, téléphone…)</label>
             <input v-model="filtres.recherche" type="text" placeholder="Rechercher…"
@@ -174,5 +197,5 @@ function reinitialiser() {
                 Réinitialiser
             </button>
         </div>
-    </div>
+    </details>
 </template>

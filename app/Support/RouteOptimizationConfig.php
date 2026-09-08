@@ -110,4 +110,24 @@ final class RouteOptimizationConfig
 
         return self::coordonneesHq();
     }
+
+    /**
+     * Cap de livraisons/tournée à utiliser pour LE CLUSTERING d'une
+     * campagne précise — même logique que coordonneesHqPourCampagne()
+     * ci-dessus (prompt du 08/09/2026 §2.2.3) : chaque campagne peut
+     * surcharger le réglage global (campagnes.livraisons_max_par_tournee,
+     * préremplie au réglage global à la création, voir
+     * CampagnesController::store()). Prend la valeur propre à la
+     * campagne si renseignée, sinon retombe sur maxLivraisonsParRoute()
+     * (réglage global) — à utiliser à la place de maxLivraisonsParRoute()
+     * partout où RouteGenerationService connaît déjà la campagne
+     * concernée (VehicleAssignmentService::assigner()/
+     * ClusterSplitService::scinder() restent, eux, agnostiques de
+     * Campagne — voir leurs docblocks — et reçoivent la valeur déjà
+     * résolue en paramètre plutôt que de la relire elles-mêmes).
+     */
+    public static function maxLivraisonsParRoutePourCampagne(Campagne $campagne): int
+    {
+        return $campagne->livraisons_max_par_tournee ?? self::maxLivraisonsParRoute();
+    }
 }
