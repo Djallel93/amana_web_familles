@@ -29,6 +29,12 @@ const props = defineProps<{
     placeholder?: string;
     /** Personne déjà sélectionnée (affichage initial), le cas échéant. */
     modelValue?: PersonneResume | null;
+    /**
+     * Ne proposer que les bénévoles ayant déclaré un véhicule (09/09/2026,
+     * prompt de cette date §5.1.2/5.2.1 : "filter them and keep only
+     * drivers with vehicules") — voir PickersController::personnes().
+     */
+    avecVehicule?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -55,7 +61,7 @@ watch(terme, (valeur) => {
 async function rechercher(valeur: string) {
     chargement.value = true;
     erreur.value = false;
-    const url = '/livraison/personnes/recherche' + buildQuery({ q: valeur, role: props.role });
+    const url = '/livraison/personnes/recherche' + buildQuery({ q: valeur, role: props.role, avec_vehicule: props.avecVehicule || undefined });
     const resultat = await apiGet<PersonneResume[]>(url);
     chargement.value = false;
 
@@ -88,7 +94,10 @@ onBeforeUnmount(() => {
 <template>
     <div class="relative">
         <div v-if="modelValue" class="flex items-center justify-between gap-2 px-3 py-2 border border-accent bg-accent/5 rounded-lg text-[13px]">
-            <span class="text-ink font-medium truncate">{{ modelValue.prenom }} {{ modelValue.nom }}</span>
+            <span class="truncate">
+                <span class="text-ink font-medium">{{ modelValue.prenom }} {{ modelValue.nom }}</span>
+                <span v-if="modelValue.vehicule_type" class="text-ink-muted"> — {{ modelValue.vehicule_type }}</span>
+            </span>
             <button type="button" @click="effacerSelection"
                 class="text-ink-muted hover:text-ink text-[12px] shrink-0 min-h-[2rem] px-2"
                 aria-label="Changer de personne">
@@ -108,6 +117,7 @@ onBeforeUnmount(() => {
             <button v-for="personne in resultats" :key="personne.id" type="button" @click="choisir(personne)"
                 class="block w-full text-left px-3 py-2.5 text-[13px] text-ink hover:bg-surface-2 transition-colors">
                 {{ personne.prenom }} {{ personne.nom }}
+                <span v-if="avecVehicule && personne.vehicule_type" class="text-ink-muted"> — {{ personne.vehicule_type }}</span>
             </button>
         </div>
     </div>

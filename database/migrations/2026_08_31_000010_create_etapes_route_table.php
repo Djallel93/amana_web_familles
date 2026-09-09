@@ -28,7 +28,15 @@ return new class extends Migration {
                 ->nullOnDelete()
                 ->comment('Null = arrêt retour QG, pas de famille associée');
             $table->unsignedSmallInteger('ordre');
-            $table->enum('statut', ['en_attente', 'livree', 'ignoree'])->default('en_attente');
+            // 'en_cours' ajouté le 09/09/2026 (prompt de cette date §5.2.3 :
+            // "en cours, delivered, skiped, etc") — jamais posé par le
+            // parcours bénévole (MaRouteController ne connaît toujours que
+            // en_attente/livree/ignoree), seulement disponible via l'override
+            // manuel gestionnaire ajouté ce même jour (voir
+            // LiveBoardController::changerStatutEtape()) pour signaler
+            // "le chauffeur est en train de livrer cette famille" quand le
+            // suivi terrain n'est pas à jour.
+            $table->enum('statut', ['en_attente', 'en_cours', 'livree', 'ignoree'])->default('en_attente');
 
             $table->index(['id_route', 'ordre']);
         });

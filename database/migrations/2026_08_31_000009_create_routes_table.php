@@ -67,7 +67,16 @@ return new class extends Migration {
             // alors qu'il n'avait souvent pas encore quitté le QG. Le
             // découpage sépare "chargement terminé" (equipe_chargement)
             // de "tournée démarrée" (bénévole, voir MaRouteController).
-            $table->enum('statut', ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule'])
+            // 'annulee' ajouté le 09/09/2026 (prompt de cette date §5.2.2) :
+            // RouteMutationService::supprimer() faisait jusqu'ici un hard
+            // delete (ligne + étapes supprimées) — remplacé par un passage
+            // à ce statut ("still displayed... but no status indicates
+            // that it's no longer used") pour garder la tournée visible en
+            // historique sur Suivi livraison au lieu de la faire
+            // disparaître silencieusement. Reste soumis à la même règle
+            // que le delete d'origine : seule une tournée 'planifiee' peut
+            // être annulée (voir RouteMutationService::supprimer()).
+            $table->enum('statut', ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule', 'annulee'])
                 ->default('planifiee');
             $table->decimal('distance_totale_km', 6, 2)->nullable();
             $table->decimal('poids_total_kg', 7, 2)->nullable();

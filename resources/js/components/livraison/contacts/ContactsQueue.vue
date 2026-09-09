@@ -442,23 +442,24 @@ onMounted(() => {
 
             <div v-for="livraison in file" :key="livraison.id" class="bg-surface border border-surface-border rounded-xl p-4 shadow-sm">
                 <!--
-                    Statut réaffiché ici, à côté du nom (08/09/2026, prompt
-                    de cette date §3.1) — reprend la position d'avant le
-                    07/09/2026 (déplacé ce jour-là à côté de "Modifier le
-                    dossier", décision explicitement reversée maintenant).
+                    Statut déplacé en haut à droite + agrandi (09/09/2026,
+                    prompt de cette date §3 : "move the current status of
+                    each family to upper right corner and make it a little
+                    bigger") — remplace la position à côté du nom
+                    (08/09/2026, prompt §3.1).
                 -->
                 <div class="flex items-start justify-between gap-2 mb-2">
                     <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
                         <input type="checkbox" :checked="selection.has(livraison.id)" @change="toggleSelection(livraison.id)"
                             class="w-4 h-4 accent-accent shrink-0">
                         {{ livraison.famille.prenom }} {{ livraison.famille.nom }}
-                        <span class="text-[11.5px] font-medium px-2 py-0.5 rounded-full shrink-0"
-                            :class="{
-                                'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
-                                'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
-                            }">
-                            {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
-                        </span>
+                    </span>
+                    <span class="text-[13px] font-medium px-2.5 py-1 rounded-full shrink-0"
+                        :class="{
+                            'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
+                            'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
+                        }">
+                        {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
                     </span>
                 </div>
 

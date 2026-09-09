@@ -5,15 +5,21 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin\Livraison;
 
+use Amana\Shared\Models\Secteur;
+use Amana\Shared\Models\Ville;
 use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
 use App\Models\EtapeRoute;
 use App\Models\Livraison;
+use App\Models\Organisation;
+use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use App\Services\LivraisonGenerationService;
 use App\Services\RouteGenerationService;
 use App\Services\RouteMutationService;
+use App\Support\FamilleFilters;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,6 +46,7 @@ class LiveBoardController extends Controller
         private readonly RouteGenerationService $generationService,
         private readonly RouteMutationService $mutationService,
         private readonly NotificationCenterService $notificationCenter,
+        private readonly LivraisonGenerationService $livraisonGenerationService,
     ) {
     }
 
@@ -54,7 +61,19 @@ class LiveBoardController extends Controller
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->get();
 
-        return view('livraison.suivi-livraison', ['campagnes' => $campagnes, 'campagneSelectionnee' => $campagne]);
+        // quartiers/villes/secteurs/organisations (09/09/2026, prompt de
+        // cette date §5.1.3) : mêmes référentiels que CampagnesController::
+        // show(), nécessaires ici pour FamilleFilterPanel.vue dans
+        // BuildRouteFlow.vue (table "Livraisons à inclure" désormais
+        // filtrable comme les familles éligibles).
+        return view('livraison.suivi-livraison', [
+            'campagnes' => $campagnes,
+            'campagneSelectionnee' => $campagne,
+            'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
+            'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
+            'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+        ]);
     }
 
     /**
@@ -108,6 +127,45 @@ class LiveBoardController extends Controller
         return response()->json(['success' => true, ...$resultat]);
     }
 
+    /**
+     * Cartes statistiques de Suivi livraison (09/09/2026, prompt de cette
+     * date §5.2.4 : "Add statistique cards at the top like the rest of the
+     * pages") — même esprit que StatistiquesController/PackagingController
+     * (comptages simples, pas de pagination). 'annulee' compté à part
+     * (tournées actives = tout sauf annulee) pour ne pas fausser
+     * l'avancement avec des tournées qui ne seront jamais exécutées — voir
+     * RouteMutationService::supprimer().
+     *
+     * L'avancement % ne porte que sur les arrêts avec une livraison
+     * associée (id_livraison non null) : un arrêt "retour QG" n'est pas
+     * une famille à livrer, l'inclure fausserait le taux à la baisse.
+     */
+    public function statistiques(Campagne $campagne): JsonResponse
+    {
+        $routes = RouteLivraison::where('id_campagne', $campagne->id)->select('statut')->get();
+        $routesParStatut = $routes->countBy('statut');
+
+        $etapes = EtapeRoute::whereHas('route', fn ($q) => $q->where('id_campagne', $campagne->id))
+            ->whereNotNull('id_livraison')
+            ->select('statut')
+            ->get();
+        $etapesParStatut = $etapes->countBy('statut');
+        $etapesTotal = $etapes->count();
+        $etapesLivrees = $etapesParStatut['livree'] ?? 0;
+
+        return response()->json([
+            'tournees_total' => $routes->count(),
+            'tournees_actives' => $routes->count() - ($routesParStatut['annulee'] ?? 0),
+            'tournees_annulees' => $routesParStatut['annulee'] ?? 0,
+            'tournees_terminees' => $routesParStatut['terminee'] ?? 0,
+            'livraisons_restantes' => $etapesParStatut['en_attente'] ?? 0,
+            'livraisons_en_cours' => $etapesParStatut['en_cours'] ?? 0,
+            'livraisons_livrees' => $etapesLivrees,
+            'livraisons_ignorees' => $etapesParStatut['ignoree'] ?? 0,
+            'avancement_pct' => $etapesTotal > 0 ? round($etapesLivrees / $etapesTotal, 4) : 0.0,
+        ]);
+    }
+
     public function routes(Campagne $campagne): JsonResponse
     {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)
@@ -135,6 +193,56 @@ class LiveBoardController extends Controller
             : null;
 
         return response()->json($this->generationService->livraisonsNonCouvertes($campagne, $journee));
+    }
+
+    /**
+     * Colonnes triables pour nonCouvertesTable() — même liste que
+     * CampagnesController::COLONNES_TRIABLES_ELIGIBLES (même table, mêmes
+     * colonnes de familles ; dupliquée plutôt qu'extraite en constante
+     * partagée pour ne pas faire dépendre les deux contrôleurs l'un de
+     * l'autre pour un simple tableau de noms de colonnes).
+     */
+    private const COLONNES_TRIABLES_NON_COUVERTES = ['id', 'nom', 'telephone', 'telephone_bis', 'criticite', 'nombre_adulte', 'nombre_enfant', 'derniere_livraison_le'];
+
+    /**
+     * Version tableau, filtrable et paginée de nonCouvertes() ci-dessus —
+     * ajoutée le 09/09/2026 (prompt de cette date §5.1.3 : "Selecting
+     * livraison should be a table [...] Use the same layout and the same
+     * filter collapsable filter panel [as campagne/{id}]"). Endpoint
+     * séparé plutôt que de modifier nonCouvertes() : celui-ci reste tel
+     * quel pour ShortfallPanel.vue et le picker "ajouter une livraison"
+     * de RoutesPanel.vue, qui n'ont besoin que d'une liste simple.
+     */
+    public function nonCouvertesTable(Request $request, Campagne $campagne): JsonResponse
+    {
+        $journee = $request->filled('id_campagne_journee')
+            ? $campagne->journees()->findOrFail($request->integer('id_campagne_journee'))
+            : null;
+
+        $query = $this->livraisonGenerationService->nonCouvertesEligibles($campagne, $journee)->with('quartier.secteur.ville');
+        FamilleFilters::appliquer($query, $request);
+
+        $colonne = $request->input('tri');
+        $direction = $request->input('direction') === 'desc' ? 'desc' : 'asc';
+        if (in_array($colonne, self::COLONNES_TRIABLES_NON_COUVERTES, true)) {
+            match ($colonne) {
+                'nom' => $query->orderBy('nom', $direction)->orderBy('prenom', $direction),
+                default => $query->orderBy($colonne, $direction),
+            };
+        } else {
+            $query->orderByDesc('criticite')->orderBy('derniere_livraison_le');
+        }
+
+        // ids_only : mêmes ids/id_livraison que la liste filtrée, TOUTES
+        // pages — même besoin "tout sélectionner après filtrage" que
+        // CampagnesController::eligibles() (prompt §1.6.3), mais on a
+        // aussi besoin de l'id_livraison associé pour construire la
+        // tournée personnalisée, pas seulement l'id de la famille.
+        if ($request->boolean('ids_only')) {
+            return response()->json(['ids' => $query->pluck('id_livraison')]);
+        }
+
+        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
     }
 
     /**
@@ -223,6 +331,33 @@ class LiveBoardController extends Controller
         }
 
         return response()->json(['success' => true, 'route' => $route]);
+    }
+
+    /**
+     * Override manuel du statut d'un arrêt par un gestionnaire (09/09/2026,
+     * prompt de cette date §5.2.3) — voir
+     * RouteMutationService::changerStatutEtape().
+     */
+    public function changerStatutEtape(Request $request, RouteLivraison $route, EtapeRoute $etape): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'statut' => 'required|in:' . implode(',', EtapeRoute::STATUTS),
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        if ($etape->id_route !== $route->id) {
+            return response()->json(['success' => false, 'message' => "Cet arrêt n'appartient pas à cette tournée."], 422);
+        }
+
+        try {
+            $etape = $this->mutationService->changerStatutEtape($etape, $request->input('statut'));
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json(['success' => true, 'etape' => $etape]);
     }
 
     public function reassignerRoute(Request $request, RouteLivraison $route): JsonResponse

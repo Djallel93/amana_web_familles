@@ -93,6 +93,43 @@ class LivraisonGenerationService
     }
 
     /**
+     * Variante Famille-based de RouteGenerationService::livraisonsNonCouvertes(),
+     * ajoutée le 09/09/2026 (prompt de cette date §5.1.3 : "Selecting
+     * livraison should be a table [...] Use the same layout and the same
+     * filter collapsable filter panel" que la sélection des familles
+     * éligibles) — permet de réutiliser FamilleFilters::appliquer() et le
+     * même patron de tri/pagination que eligibles() ci-dessus, ce qui
+     * n'était pas possible sur une requête Livraison (les scopes
+     * recherche()/rechercheNom() etc. vivent sur Famille, pas Livraison).
+     *
+     * id_livraison exposé via selectSub plutôt qu'une relation chargée
+     * séparément : BuildRouteFlow.vue a besoin de l'id de la Livraison
+     * (pas de la Famille) pour construire une tournée personnalisée, et
+     * une sous-requête scalaire évite un with() + accès imbriqué côté
+     * front pour une seule valeur.
+     */
+    public function nonCouvertesEligibles(Campagne $campagne, ?CampagneJournee $journee = null): Builder
+    {
+        $livraisonMatch = function ($q) use ($campagne, $journee) {
+            $q->where('id_campagne', $campagne->id)
+                ->when($journee !== null, fn ($qq) => $qq->where('id_campagne_journee', $journee->id))
+                ->where('statut', 'non_assignee')
+                ->where('statut_contact', 'confirme');
+
+            return $q;
+        };
+
+        $sousRequeteIdLivraison = Livraison::query()->whereColumn('livraisons.id_famille', 'familles.id')->select('id');
+        $livraisonMatch($sousRequeteIdLivraison);
+
+        return Famille::query()
+            ->select('familles.*')
+            ->selectSub($this->dateDerniereLivraisonSql(), 'derniere_livraison_le')
+            ->selectSub($sousRequeteIdLivraison, 'id_livraison')
+            ->whereHas('livraisons', $livraisonMatch);
+    }
+
+    /**
      * "Dernière livraison" n'est pas une colonne de familles — calculée en
      * sous-requête : date de campagne la plus récente pour laquelle cette
      * famille a une livraison au statut 'livree'. NULL (jamais livré) est

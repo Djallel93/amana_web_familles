@@ -42,10 +42,19 @@
              Vue. --}}
         <div id="vue-livraison-suivi-livraison" data-campagnes="{{ $campagnes->toJson() }}"
             data-campagne-id="{{ $campagneSelectionnee?->id }}"
+            data-quartiers="{{ $quartiers->toJson() }}"
+            data-villes="{{ $villes->toJson() }}"
+            data-secteurs="{{ $secteurs->toJson() }}"
+            data-organisations="{{ $organisations->toJson() }}"
             data-urls="{{ json_encode([
                 'incidents' => route('livraison.campagnes.incidents', ['campagne' => '__CAMPAGNE__']),
                 'routes' => route('livraison.campagnes.routes', ['campagne' => '__CAMPAGNE__']),
                 'nonCouvertes' => route('livraison.campagnes.non-couvertes', ['campagne' => '__CAMPAGNE__']),
+                // Ajoutés le 09/09/2026 (prompt de cette date §5) :
+                'nonCouvertesTableau' => route('livraison.campagnes.non-couvertes-tableau', ['campagne' => '__CAMPAGNE__']),
+                'statistiques' => route('livraison.campagnes.suivi-livraison-statistiques', ['campagne' => '__CAMPAGNE__']),
+                'routeSupprimer' => route('livraison.routes.supprimer', ['route' => '__ID__']),
+                'etapeStatut' => route('livraison.routes.etapes.statut', ['route' => '__ID__', 'etape' => '__ETAPE__']),
                 'routesPersonnalisees' => route('livraison.routes.personnalisee', ['campagne' => '__CAMPAGNE__']),
                 'incidentResoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
                 'routeAjouter' => route('livraison.routes.ajouter-livraison', ['route' => '__ID__']),

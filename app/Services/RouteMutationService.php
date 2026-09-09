@@ -100,6 +100,29 @@ class RouteMutationService
     }
 
     /**
+     * Change manuellement le statut d'un arrêt — ajouté le 09/09/2026
+     * (prompt de cette date §5.2.3 : "User needs to be able to manually
+     * change [family statuses] in case driver does not") : le parcours
+     * bénévole normal (MaRouteController::confirmerEtape()/
+     * signalerIgnoree()) ne pose que en_attente→livree/ignoree, ce
+     * endpoint permet à un gestionnaire de corriger/compléter le suivi
+     * terrain sur n'importe quel arrêt de la tournée, y compris pour poser
+     * 'en_cours' (jamais posé par le bénévole lui-même). Aucune
+     * vérification de statut de la tournée ici : une correction manuelle
+     * doit rester possible quel que soit l'état d'avancement affiché.
+     */
+    public function changerStatutEtape(EtapeRoute $etape, string $statut): EtapeRoute
+    {
+        if (!in_array($statut, EtapeRoute::STATUTS, true)) {
+            throw new \RuntimeException("Statut d'arrêt invalide : {$statut}.");
+        }
+
+        $etape->update(['statut' => $statut]);
+
+        return $etape->fresh();
+    }
+
+    /**
      * Réassigne une tournée à un autre bénévole/véhicule — utile pour le
      * redimensionnement ("resize per actual vehicle capacity discovered
      * at load time", voir le prompt §3.3) : ne vérifie PAS que la
@@ -269,6 +292,17 @@ class RouteMutationService
      * à statut_conditionnement, indépendant) puis supprime les étapes et
      * la tournée elle-même.
      */
+    /**
+     * Annule une tournée — soft-cancel (statut 'annulee') depuis le
+     * 09/09/2026 (prompt de cette date §5.2.2 : "After I delete a tournee
+     * it's still displayed which is good but no status indicates that
+     * it's no longer used"), remplace le hard delete d'origine du
+     * 31/08/2026. La tournée et ses étapes restent en base pour rester
+     * visibles en historique sur Suivi livraison (voir RoutesPanel.vue) ;
+     * chaque livraison couverte redevient 'non_assignee' comme avant, pour
+     * être re-proposée par Clustering / génération des routes ou une
+     * tournée personnalisée.
+     */
     public function supprimer(RouteLivraison $route): void
     {
         if ($route->statut !== 'planifiee') {
@@ -279,8 +313,7 @@ class RouteMutationService
             foreach ($route->etapes as $etape) {
                 $etape->livraison?->update(['statut' => 'non_assignee']);
             }
-            $route->etapes()->delete();
-            $route->delete();
+            $route->update(['statut' => 'annulee']);
         });
     }
 

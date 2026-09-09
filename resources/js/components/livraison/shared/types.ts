@@ -149,6 +149,12 @@ export interface FamilleEligible {
     etudiant: boolean;
     /** Calculée côté serveur — null si jamais livrée. */
     derniere_livraison_le: string | null;
+    // id_livraison (09/09/2026, prompt §5.1.3) : présent seulement sur la
+    // réponse de LiveBoardController::nonCouvertesTable() — cette table
+    // réutilise FamilleEligible (mêmes colonnes) mais a besoin de l'id de
+    // la Livraison (pas de la Famille) pour construire une tournée
+    // personnalisée.
+    id_livraison?: number;
 }
 
 /**
@@ -221,6 +227,13 @@ export interface PersonneResume {
     id: number;
     nom: string;
     prenom: string;
+    // id_vehicule_type/vehicule_type (09/09/2026, prompt de cette date
+    // §5.1.2/5.2.1) : présents seulement pour les bénévoles (voir
+    // PickersController::personnes()) — le picker chauffeur de
+    // BuildRouteFlow.vue/RoutesPanel.vue n'a plus de VehiculePicker à
+    // côté, le véhicule est dérivé du profil du bénévole choisi.
+    id_vehicule_type?: number | null;
+    vehicule_type?: string | null;
 }
 
 /**
@@ -321,20 +334,52 @@ export interface VehiculeType {
 /**
  * Un arrêt d'une tournée — id_livraison peut être null côté DB pour un
  * arrêt "retour QG" (voir EtapeRoute), d'où livraison nullable ici. statut
- * de l'étape elle-même (en_attente|livree|ignoree, voir EtapeRoute::STATUTS)
- * est distinct de livraison.statut.
+ * de l'étape elle-même (en_attente|en_cours|livree|ignoree, voir
+ * EtapeRoute::STATUTS) est distinct de livraison.statut. 'en_cours' ajouté
+ * le 09/09/2026 (prompt de cette date §5.2.3) — jamais posé par le
+ * parcours bénévole, seulement via l'override manuel gestionnaire (voir
+ * changerStatutEtape() dans RoutesPanel.vue).
  */
+export const STATUTS_ETAPE = ['en_attente', 'en_cours', 'livree', 'ignoree'] as const;
+export type StatutEtape = (typeof STATUTS_ETAPE)[number];
+
+export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
+    en_attente: 'Restante',
+    en_cours: 'En cours',
+    livree: 'Livrée',
+    ignoree: 'Ignorée',
+};
+
 export interface Etape {
     id: number;
     ordre: number;
-    statut: 'en_attente' | 'livree' | 'ignoree';
+    statut: StatutEtape;
     livraison: Livraison | null;
 }
+
+/**
+ * 'annulee' ajouté le 09/09/2026 (prompt de cette date §5.2.2) — soft-cancel
+ * (voir RouteMutationService::supprimer()), la tournée reste visible en
+ * historique sur Suivi livraison.
+ */
+export const STATUTS_ROUTE = ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule', 'annulee'] as const;
+export type StatutRoute = (typeof STATUTS_ROUTE)[number];
+
+export const LIBELLES_STATUT_ROUTE: Record<StatutRoute, string> = {
+    planifiee: 'Planifiée',
+    chargement: 'Chargement',
+    charge: 'Chargée',
+    en_cours: 'En cours',
+    livraisons_terminees: 'Livraisons terminées',
+    terminee: 'Terminée',
+    packaging_annule: 'Packaging annulé',
+    annulee: 'Annulée',
+};
 
 export interface RouteLivraison {
     id: number;
     id_campagne: number;
-    statut: string;
+    statut: StatutRoute;
     creneau: Creneau | null;
     benevole: PersonneResume | null;
     // vehiculeType() côté modèle → Eloquent snake_case automatiquement le
@@ -391,4 +436,20 @@ export interface StatistiquesParJournee {
     routes_par_statut: Record<string, number>;
     distance_totale_km: number;
     taux_livraison: number;
+}
+
+/**
+ * Cartes statistiques de Suivi livraison — ajoutées le 09/09/2026 (prompt
+ * de cette date §5.2.4). Voir LiveBoardController::statistiques().
+ */
+export interface SuiviLivraisonStatistiques {
+    tournees_total: number;
+    tournees_actives: number;
+    tournees_annulees: number;
+    tournees_terminees: number;
+    livraisons_restantes: number;
+    livraisons_en_cours: number;
+    livraisons_livrees: number;
+    livraisons_ignorees: number;
+    avancement_pct: number;
 }

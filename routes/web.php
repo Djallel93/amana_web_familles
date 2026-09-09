@@ -369,6 +369,13 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.routes');
     Route::get('/campagnes/{campagne}/non-couvertes', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'nonCouvertes'])
         ->name('campagnes.non-couvertes');
+    // Version tableau filtrable/paginée pour BuildRouteFlow.vue (09/09/2026,
+    // prompt de cette date §5.1.3).
+    Route::get('/campagnes/{campagne}/non-couvertes-tableau', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'nonCouvertesTable'])
+        ->name('campagnes.non-couvertes-tableau');
+    // Cartes statistiques Suivi livraison (09/09/2026, prompt §5.2.4).
+    Route::get('/campagnes/{campagne}/suivi-livraison-statistiques', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'statistiques'])
+        ->name('campagnes.suivi-livraison-statistiques');
     Route::get('/campagnes/{campagne}/incidents', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'incidents'])
         ->name('campagnes.incidents');
     Route::post('/incidents/{incident}/resoudre', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'resoudreIncident'])
@@ -377,6 +384,11 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('routes.ajouter-livraison');
     Route::delete('/routes/{route}/etapes/{etape}', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'retirerLivraison'])
         ->name('routes.retirer-livraison');
+    // Override manuel du statut d'un arrêt par un gestionnaire (09/09/2026,
+    // prompt de cette date §5.2.3 : "User needs to be able to manually
+    // change these in case driver does not").
+    Route::post('/routes/{route}/etapes/{etape}/statut', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'changerStatutEtape'])
+        ->name('routes.etapes.statut');
     Route::post('/routes/{route}/reassigner', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'reassignerRoute'])
         ->name('routes.reassigner');
     Route::post('/routes/{route}/diviser', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'diviserRoute'])

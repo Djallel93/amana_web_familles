@@ -169,18 +169,6 @@
                                     @if($livraison->famille->est_hotel)
                                         <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Hôtel</span>
                                     @endif
-                                    {{--
-                                        Badge de statut (08/09/2026, prompt de
-                                        cette date §6.1) — mis à jour aussi en
-                                        JS par synchroniserCaseFamille(), qui
-                                        reste la source de vérité de l'état
-                                        affiché après un toggle sans recharger
-                                        la page.
-                                    --}}
-                                    <span class="statut-conditionnement text-[11px] px-2 py-0.5 rounded-full {{ $livraison->statut_conditionnement === 'prete' ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-ink-muted' }}"
-                                        data-id-livraison="{{ $livraison->id }}">
-                                        {{ $livraison->statut_conditionnement === 'prete' ? 'Terminée' : 'Restante' }}
-                                    </span>
                                 </div>
                                 @if($livraison->note_besoins_speciaux)
                                     <p class="text-[12px] text-rose-600 mt-1">⚠ {{ $livraison->note_besoins_speciaux }}</p>
@@ -199,6 +187,22 @@
                                 </div>
                             </div>
                         </div>
+
+                        {{--
+                            Badge de statut déplacé en haut à droite + agrandi
+                            (09/09/2026, prompt de cette date §4 : "Move
+                            status (Restante, Terminée) to upper right corner
+                            and make it a little bigger") — reprend la
+                            position d'avant §6.1, seule la taille/position
+                            changent ; mis à jour en JS par
+                            synchroniserCaseFamille(), toujours la source de
+                            vérité de l'état affiché après un toggle sans
+                            recharger la page.
+                        --}}
+                        <span class="statut-conditionnement shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full {{ $livraison->statut_conditionnement === 'prete' ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-ink-muted' }}"
+                            data-id-livraison="{{ $livraison->id }}">
+                            {{ $livraison->statut_conditionnement === 'prete' ? 'Terminée' : 'Restante' }}
+                        </span>
                     </div>
                 </div>
             @empty

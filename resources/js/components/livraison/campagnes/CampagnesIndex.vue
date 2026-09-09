@@ -279,10 +279,25 @@ async function supprimerCampagne(campagne: Campagne) {
         <div class="bg-surface border border-surface-border rounded-xl p-5 mb-8">
             <h2 class="text-[14px] font-medium text-ink mb-4">Nouvelle campagne</h2>
             <form class="space-y-6" @submit.prevent="creerCampagne">
-                <!-- Section : Type -->
-                <div>
-                    <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide mb-2">Type</h3>
-                    <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Type de campagne">
+                <!--
+                    Section : Type — repliable par thème (09/09/2026, prompt
+                    de cette date §1 : "all options/parameters are in a same
+                    block, create collapsable sections by theme") — même
+                    patron <details>/<summary> que FamilleFilterPanel.vue,
+                    repliée par défaut.
+                -->
+                <details class="group border border-surface-border rounded-lg p-3">
+                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
+                        <span class="flex items-center gap-2">
+                            <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Type</h3>
+                            <span class="text-[11px] font-medium px-2 py-0.5 rounded-full border"
+                                :class="CAMPAGNE_TYPE_STYLES[form.type].pastille">
+                                {{ CAMPAGNE_TYPES[form.type] }}
+                            </span>
+                        </span>
+                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
+                    </summary>
+                    <div class="flex flex-wrap gap-2 mt-2" role="radiogroup" aria-label="Type de campagne">
                         <button v-for="(label, code) in CAMPAGNE_TYPES" :key="code" type="button"
                             role="radio" :aria-checked="form.type === code" @click="form.type = code as CampagneType"
                             class="min-h-[2.25rem] px-4 py-1.5 rounded-full text-[13px] font-medium border transition-colors"
@@ -291,12 +306,15 @@ async function supprimerCampagne(campagne: Campagne) {
                         </button>
                     </div>
                     <p v-for="e in erreursPourChamp('type')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                </div>
+                </details>
 
-                <!-- Section : Poids -->
-                <div>
-                    <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide mb-2">Poids</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <!-- Section : Poids — repliable (09/09/2026, prompt §1) -->
+                <details class="group border border-surface-border rounded-lg p-3">
+                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
+                        <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Poids</h3>
+                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
+                    </summary>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
                         <div>
                             <label class="block text-[12px] text-ink-muted mb-1">Poids moyen / personne (kg)</label>
                             <input v-model="form.poids_moyen_kg" type="number" step="0.1" required
@@ -316,17 +334,24 @@ async function supprimerCampagne(campagne: Campagne) {
                             <p v-for="e in erreursPourChamp('poids_moyen_etudiant_kg')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
                         </div>
                     </div>
-                </div>
+                </details>
 
                 <!--
-                    Section : Journées — au moins une ligne, bouton de
+                    Section : Journées — repliable (09/09/2026, prompt §1) ;
+                    au moins une ligne, bouton de
                     suppression masqué s'il n'en reste qu'une (voir
                     retirerLigneJournee, min 1 imposé côté serveur).
                 -->
-                <div>
-                    <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide mb-2">Journée(s) de collecte/livraison</h3>
+                <details class="group border border-surface-border rounded-lg p-3">
+                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
+                        <span class="flex items-center gap-2">
+                            <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Journée(s) de collecte/livraison</h3>
+                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-accent/10 text-accent-dark">{{ form.journees.length }}</span>
+                        </span>
+                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
+                    </summary>
                     <div v-for="(journee, index) in form.journees" :key="index"
-                        class="flex flex-col sm:flex-row gap-2 sm:items-start mb-2">
+                        class="flex flex-col sm:flex-row gap-2 sm:items-start mb-2 mt-2">
                         <div>
                             <input v-model="journee.date" type="date" required
                                 class="rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
@@ -347,12 +372,15 @@ async function supprimerCampagne(campagne: Campagne) {
                         class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50 mt-1">
                         + Ajouter une date
                     </button>
-                </div>
+                </details>
 
-                <!-- Section : Paramètres avancés -->
-                <div>
-                    <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide mb-2">Paramètres avancés</h3>
-                    <div class="max-w-xs">
+                <!-- Section : Paramètres avancés — repliable (09/09/2026, prompt §1) -->
+                <details class="group border border-surface-border rounded-lg p-3">
+                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
+                        <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Paramètres avancés</h3>
+                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
+                    </summary>
+                    <div class="max-w-xs mt-2">
                         <label class="block text-[12px] text-ink-muted mb-1">Nombre maximum de livraisons par tournée</label>
                         <input v-model="form.livraisons_max_par_tournee" type="number" min="1" step="1"
                             class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
@@ -393,7 +421,7 @@ async function supprimerCampagne(campagne: Campagne) {
                                 class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
                         </div>
                     </div>
-                </div>
+                </details>
 
                 <div>
                     <button type="submit" :disabled="envoiEnCours"
