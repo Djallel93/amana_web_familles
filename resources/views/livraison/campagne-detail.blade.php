@@ -37,6 +37,10 @@
             data-google-places-key="{{ config('services.google.maps.places_api_key') }}"
             data-eligibles-url="{{ route('livraison.campagnes.eligibles', $campagne) }}"
             data-generer-livraisons-url="{{ route('livraison.campagnes.generer-livraisons', $campagne) }}"
+            {{-- Clustering déplacé ici depuis Suivi des contacts (09/09/2026, prompt §2.2). --}}
+            data-generer-routes-url="{{ route('livraison.campagnes.generer-routes', $campagne) }}"
+            {{-- Réutilisée pour la gate du clustering (09/09/2026 §2.2) — même endpoint que ContactsQueue.vue. --}}
+            data-queue-url="{{ route('livraison.contacts.queue') }}"
             data-benevoles-url="{{ route('livraison.campagnes.benevoles.index', $campagne) }}"
             data-equipes-url="{{ route('livraison.campagnes.equipes.index', $campagne) }}"
             data-ajouter-journee-url="{{ route('livraison.campagnes.journees.store', $campagne) }}"

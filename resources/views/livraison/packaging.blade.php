@@ -39,15 +39,21 @@
         </div>
 
         {{--
-            Cartes statistiques + filtre restantes/terminées (08/09/2026,
-            prompt de cette date §6.2/§6.3) — les comptages viennent de
-            PackagingController::index() (portée campagne/journée SEULE,
-            pas affectés par ce filtre, voir son docblock).
+            Cartes statistiques + filtre restantes/en cours/terminées
+            (08/09/2026, prompt de cette date §6.2/§6.3 ; "En cours"
+            ajouté le 09/09/2026, prompt de cette date §4) — les
+            comptages viennent de PackagingController::index() (portée
+            campagne/journée SEULE, pas affectés par ce filtre, voir son
+            docblock).
         --}}
-        <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="grid grid-cols-3 gap-3 mb-4">
             <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
                 <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Terminées</p>
                 <p class="text-[20px] font-semibold text-emerald-700">{{ $stats['terminees'] }}</p>
+            </div>
+            <div class="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                <p class="text-[11px] text-amber-700 uppercase tracking-wide">En cours</p>
+                <p class="text-[20px] font-semibold text-amber-700">{{ $stats['en_cours'] }}</p>
             </div>
             <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
                 <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restantes</p>
@@ -55,7 +61,7 @@
             </div>
         </div>
         <div class="flex gap-2 mb-6" id="filtre-conditionnement">
-            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'terminees' => 'Terminées'] as $valeur => $libelle)
+            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'en_cours' => 'En cours', 'terminees' => 'Terminées'] as $valeur => $libelle)
                 <button type="button" data-valeur="{{ $valeur }}"
                     onclick="appliquerFiltreConditionnement('{{ $valeur }}')"
                     class="text-[12.5px] px-3 py-1.5 rounded-lg border {{ $filtreConditionnement === $valeur ? 'bg-accent text-white border-accent' : 'border-surface-border text-ink-muted' }}">

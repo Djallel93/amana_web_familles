@@ -27,27 +27,41 @@
         qu'avant, vers la page détail, qui sert déjà de surface
         d'édition — voir CampagneDetail.vue) ;
       - filtre type + date sur "Campagnes existantes" ;
-      - "Nouvelle campagne" réorganisée en sections (Type, Poids,
-        Journées, Paramètres avancés), type sur sa propre ligne en
-        pastilles colorées (voir CAMPAGNE_TYPE_STYLES) plutôt qu'un
-        <select> natif — aucun composant listbox/Teleport réutilisable
-        dans cette app (contrairement à amana_web_planning), un simple
-        groupe de boutons façon "segmented control" reste plus cohérent
-        avec le reste de l'app (boutons bruts partout ailleurs) qu'une
+      - type sur sa propre ligne en pastilles colorées (voir
+        CAMPAGNE_TYPE_STYLES) plutôt qu'un <select> natif — aucun
+        composant listbox/Teleport réutilisable dans cette app
+        (contrairement à amana_web_planning), un simple groupe de
+        boutons façon "segmented control" reste plus cohérent avec le
+        reste de l'app (boutons bruts partout ailleurs) qu'une
         dépendance nouvelle pour ce seul écran — et les poids partagent
         une seule ligne à 3 colonnes.
+
+    HQ OPTIONNEL À LA CRÉATION (09/09/2026, prompt de cette date §2.1) :
+    le formulaire n'avait jusque-là que type/poids/max livraisons/
+    journées — le champ HQ existait déjà côté serveur (store()
+    l'acceptait) mais jamais affiché ici. Ajouté dans "Paramètres
+    avancés", mêmes champs que la section HQ & commentaire de
+    CampagneDetail.vue (adresse + autocomplétion Google Maps + lat/lng
+    en lecture seule) ; laissé vide, retombe sur le réglage global comme
+    avant.
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useConfirm, useToast } from '@amana/shared-ui';
 import { apiDelete, apiGet, apiPost } from '../shared/api';
 import { CAMPAGNE_TYPES, type Campagne, type CampagneType } from '../shared/types';
+import HqCoordinatesAutocomplete from '../../admin/HqCoordinatesAutocomplete.vue';
 
 const el = document.getElementById('vue-livraison-campagnes-index');
 const storeUrl = el?.dataset.storeUrl ?? '';
 const resumeSuppressionUrlTemplate = el?.dataset.resumeSuppressionUrlTemplate ?? '';
 const destroyUrlTemplate = el?.dataset.destroyUrlTemplate ?? '';
 const livraisonsMaxParTourneeDefaut = el?.dataset.livraisonsMaxParTourneeDefaut ?? '';
+const googlePlacesKey = el?.dataset.googlePlacesKey ?? '';
+// Ajouté le 09/09/2026 (prompt de cette date §2.1) — affiché à titre
+// indicatif à côté du champ HQ, comme livraisonsMaxParTourneeDefaut
+// ci-dessus (même page, même patron de préremplissage visible).
+const hqGlobalDefaut = JSON.parse(el?.dataset.hqGlobalDefaut ?? 'null') as { lat: number; lng: number } | null;
 const campagnes = ref<Campagne[]>(JSON.parse(el?.dataset.campagnes ?? '[]'));
 
 const toast = useToast();
@@ -86,6 +100,12 @@ interface FormCampagne {
     poids_moyen_hotel_kg: string;
     poids_moyen_etudiant_kg: string;
     livraisons_max_par_tournee: string;
+    // Ajoutés le 09/09/2026 (prompt §2.1) — optionnels, voir
+    // CampagnesController::store() pour le repli sur le réglage global
+    // si laissés vides.
+    hq_adresse: string;
+    hq_latitude: string;
+    hq_longitude: string;
 }
 
 function nouvelleLigneJournee(): FormJournee {
@@ -103,6 +123,9 @@ const form = ref<FormCampagne>({
     // envoi, laissée vide retombe de toute façon sur le même réglage
     // côté serveur (voir store()).
     livraisons_max_par_tournee: livraisonsMaxParTourneeDefaut,
+    hq_adresse: '',
+    hq_latitude: '',
+    hq_longitude: '',
 });
 
 function ajouterLigneJournee() {
@@ -144,6 +167,9 @@ async function creerCampagne() {
         poids_moyen_hotel_kg: form.value.poids_moyen_hotel_kg || null,
         poids_moyen_etudiant_kg: form.value.poids_moyen_etudiant_kg || null,
         livraisons_max_par_tournee: form.value.livraisons_max_par_tournee || null,
+        hq_adresse: form.value.hq_adresse || null,
+        hq_latitude: form.value.hq_latitude === '' ? null : Number(form.value.hq_latitude),
+        hq_longitude: form.value.hq_longitude === '' ? null : Number(form.value.hq_longitude),
     });
 
     envoiEnCours.value = false;
@@ -332,6 +358,40 @@ async function supprimerCampagne(campagne: Campagne) {
                             class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
                         <p class="text-[11px] text-ink-muted mt-1">Préremplie depuis les réglages, modifiable pour cette campagne uniquement.</p>
                         <p v-for="e in erreursPourChamp('livraisons_max_par_tournee')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                    </div>
+
+                    <!--
+                        HQ (09/09/2026, prompt de cette date §2.1) —
+                        entièrement optionnel, laissé vide retombe sur le
+                        réglage global comme avant cette évolution (voir
+                        CampagnesController::store()). Mêmes champs/même
+                        composant que la section HQ & commentaire de
+                        CampagneDetail.vue, ids d'autocomplétion distincts
+                        pour ne jamais coexister avec cette page-là.
+                    -->
+                    <div class="max-w-xs mt-4">
+                        <label class="block text-[12px] text-ink-muted mb-1">Adresse HQ (optionnel)</label>
+                        <input v-model="form.hq_adresse" type="text"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
+                        <p class="text-[11px] text-ink-muted mt-1">
+                            Laissée vide, cette campagne utilisera le réglage global
+                            <template v-if="hqGlobalDefaut">({{ hqGlobalDefaut.lat }}, {{ hqGlobalDefaut.lng }})</template>
+                            <template v-else>— non configuré actuellement, pensez à le renseigner ci-dessous ou dans les réglages.</template>
+                        </p>
+                    </div>
+                    <HqCoordinatesAutocomplete :google-places-key="googlePlacesKey"
+                        target-lat-id="nouvelle-campagne-hq-lat" target-lng-id="nouvelle-campagne-hq-lng" />
+                    <div class="max-w-xs grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                            <label class="block text-[12px] text-ink-muted mb-1">Latitude</label>
+                            <input id="nouvelle-campagne-hq-lat" v-model="form.hq_latitude" type="number" step="any" readonly
+                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
+                        </div>
+                        <div>
+                            <label class="block text-[12px] text-ink-muted mb-1">Longitude</label>
+                            <input id="nouvelle-campagne-hq-lng" v-model="form.hq_longitude" type="number" step="any" readonly
+                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
+                        </div>
                     </div>
                 </div>
 

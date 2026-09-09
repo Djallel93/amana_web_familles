@@ -110,9 +110,23 @@ class PackagingController extends Controller
         // l'ensemble filtré par campagne/journée uniquement, pas le
         // sous-ensemble actuellement affiché — sinon la carte "Terminées"
         // tomberait toujours à 0 dès qu'on filtre sur "Restantes".
+        //
+        // 'en_cours' ajouté le 09/09/2026 (prompt de cette date §4) :
+        // statut_conditionnement reste binaire au niveau livraison
+        // (en_attente/prete, posé seulement quand TOUS les colis du
+        // foyer sont prêts — voir finaliserConditionnement() plus bas),
+        // donc une famille partiellement conditionnée (certains colis
+        // prêts, pas tous) était jusque-là indiscernable d'une famille
+        // pas encore commencée dans "Restantes". Sous-ensemble de
+        // restantes (pas un statut concurrent) : whereHas colis 'pret'
+        // suffit, une livraison avec TOUS ses colis prêts serait de
+        // toute façon déjà passée à statut_conditionnement = 'prete'.
+        $enCoursQuery = (clone $query)->where('statut_conditionnement', 'en_attente')
+            ->whereHas('colis', fn ($q) => $q->where('statut', 'pret'));
         $stats = [
             'terminees' => (clone $query)->where('statut_conditionnement', 'prete')->count(),
             'restantes' => (clone $query)->where('statut_conditionnement', 'en_attente')->count(),
+            'en_cours' => (clone $enCoursQuery)->count(),
         ];
 
         $filtreConditionnement = $request->input('filtre_conditionnement', 'toutes');
@@ -120,6 +134,9 @@ class PackagingController extends Controller
             $query->where('statut_conditionnement', 'en_attente');
         } elseif ($filtreConditionnement === 'terminees') {
             $query->where('statut_conditionnement', 'prete');
+        } elseif ($filtreConditionnement === 'en_cours') {
+            $query->where('statut_conditionnement', 'en_attente')
+                ->whereHas('colis', fn ($q) => $q->where('statut', 'pret'));
         }
 
         $livraisons = $query
@@ -229,12 +246,15 @@ class PackagingController extends Controller
      * case "famille entière"), ce champ revalide juste côté serveur
      * qu'elle a bien eu lieu plutôt que de faire confiance à l'UI seule.
      *
-     * Si la tournée avait déjà basculé en 'chargement' (équipe
-     * chargement/chauffeur déjà notifiés), elle redescend à
-     * 'packaging_annule' et un RouteIncident du même type est levé +
-     * notifié — sinon (tournée encore 'planifiee', ou pas encore de
-     * tournée du tout), rien à avertir : personne n'a encore été informé
-     * que ce colis était prêt.
+     * Si la tournée avait déjà basculé en 'chargement' OU 'charge'
+     * (équipe chargement/chauffeur déjà notifiés — 'charge' ajouté le
+     * 09/09/2026, prompt de cette date §4, voir docblock de la migration
+     * routes), elle redescend à 'packaging_annule' et un RouteIncident du
+     * même type est levé + notifié — sinon (tournée encore 'planifiee',
+     * pas encore de tournée du tout, ou déjà 'en_cours' — le bénévole est
+     * déjà parti, hors scope de cette annulation), rien à avertir :
+     * personne n'a encore été informé que ce colis était prêt (ou il est
+     * trop tard pour le rattraper par ce biais).
      */
     public function annulerConditionnement(Request $request, Livraison $livraison): JsonResponse
     {
@@ -252,7 +272,7 @@ class PackagingController extends Controller
         $etape = $livraison->etapesRoute()->first();
         $route = $etape?->route;
 
-        if ($route && $route->statut === 'chargement') {
+        if ($route && in_array($route->statut, ['chargement', 'charge'], true)) {
             $route->update(['statut' => 'packaging_annule']);
 
             RouteIncident::create([

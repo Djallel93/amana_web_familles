@@ -53,6 +53,13 @@ class CampagnesController extends Controller
             // store() ci-dessous), affichée ici pour que l'admin la voie et
             // puisse la modifier AVANT de créer, pas seulement après coup.
             'livraisonsMaxParTourneeDefaut' => RouteOptimizationConfig::maxLivraisonsParRoute(),
+            // Ajouté le 09/09/2026 (prompt de cette date §2.1) : le
+            // formulaire de création expose désormais le même champ HQ
+            // optionnel que la page détail — même principe de
+            // préremplissage visible que ci-dessus, voir aussi
+            // CampagnesController::store() pour le repli côté serveur si
+            // laissé vide.
+            'hqGlobalDefaut' => RouteOptimizationConfig::coordonneesHq(),
         ]);
     }
 
@@ -100,6 +107,13 @@ class CampagnesController extends Controller
             // Ajoutés le 05/09/2026 (prompt §1.2/§1.3).
             'commentaire' => 'nullable|string|max:5000',
             'hq_adresse' => 'nullable|string|max:255',
+            // Ajoutés le 09/09/2026 (prompt §2.1) : le formulaire "Nouvelle
+            // campagne" expose désormais le même champ HQ optionnel que la
+            // page détail (auparavant saisissable seulement après coup) —
+            // voir plus bas : si absents, la valeur reste le réglage
+            // global recopié, comme avant cette évolution.
+            'hq_latitude' => 'nullable|numeric|between:-90,90',
+            'hq_longitude' => 'nullable|numeric|between:-180,180',
             // Ajouté le 08/09/2026 (prompt §2.2.3) — même statut que hq_adresse
             // ci-dessus : optionnel ici, préremplie automatiquement plus bas
             // si absente (voir $livraisonsMaxParTournee).
@@ -119,8 +133,15 @@ class CampagnesController extends Controller
         // pour toutes, PAS relue dynamiquement ensuite (voir docblock de
         // create_campagnes_table.php). L'adresse n'a pas d'équivalent
         // global (settings ne stocke que lat/lng) : seule celle saisie ici
-        // (le cas échéant) est conservée.
+        // (le cas échéant) est conservée. Depuis le 09/09/2026 (prompt
+        // §2.1), l'admin peut aussi saisir explicitement lat/lng dès la
+        // création (nouveau champ optionnel du formulaire) — dans ce cas
+        // c'est cette valeur qui prime, le réglage global ne servant plus
+        // que de repli si le champ est laissé vide, exactement comme pour
+        // livraisons_max_par_tournee juste en dessous.
         $hqGlobal = RouteOptimizationConfig::coordonneesHq();
+        $donnees['hq_latitude'] ??= $hqGlobal['lat'] ?? null;
+        $donnees['hq_longitude'] ??= $hqGlobal['lng'] ?? null;
 
         // Même logique que hq_* ci-dessus (prompt du 08/09/2026 §2.2.3) :
         // préremplie depuis le réglage global si l'admin ne l'a pas saisie
@@ -136,8 +157,6 @@ class CampagnesController extends Controller
             ...$donnees,
             'date_livraison' => $journeesDemandees[0]['date'],
             'statut' => 'preparation',
-            'hq_latitude' => $hqGlobal['lat'] ?? null,
-            'hq_longitude' => $hqGlobal['lng'] ?? null,
         ]);
 
         foreach ($journeesDemandees as $journeeDemandee) {
@@ -154,6 +173,15 @@ class CampagnesController extends Controller
      * de surface d'édition, comme pour le reste de la campagne.
      * Commentaire : dernière valeur seulement (pas d'historique, décision
      * explicite) — un update() écrase simplement l'ancien.
+     *
+     * hq_confirmee_le (09/09/2026, prompt de cette date §3.2) : posé à
+     * now() à CHAQUE appel de ce endpoint, quels que soient les champs
+     * effectivement modifiés — c'est justement le bouton "Confirmer" (
+     * renommé depuis "Enregistrer" ce même jour) de la section HQ &
+     * commentaire de CampagneDetail.vue qui appelle update(), donc
+     * l'atteindre EST l'action de confirmation ; pas de logique
+     * conditionnelle à dupliquer côté serveur pour deviner si le HQ a
+     * "vraiment" changé.
      */
     public function update(Request $request, Campagne $campagne): JsonResponse
     {
@@ -170,7 +198,7 @@ class CampagnesController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $campagne->update($validator->validated());
+        $campagne->update([...$validator->validated(), 'hq_confirmee_le' => now()]);
 
         return response()->json(['success' => true, 'campagne' => $campagne->fresh()]);
     }
@@ -491,7 +519,12 @@ class CampagnesController extends Controller
 
         $routes = RouteLivraison::where('id_campagne', $campagne->id)->select('statut')->get();
         $routesTotal = $routes->count();
-        $routesChargees = $routes->whereIn('statut', ['chargement', 'en_cours', 'livraisons_terminees', 'terminee'])->count();
+        // 'charge' ajouté le 09/09/2026 (prompt §4) : nouveau statut
+        // intercalé entre 'chargement' et 'en_cours' (voir docblock de la
+        // migration routes) — doit rester compté ici au même titre que
+        // les deux, cette ligne mesure "route sortie de planifiee", pas
+        // "route effectivement chargée".
+        $routesChargees = $routes->whereIn('statut', ['chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee'])->count();
         $routesEnLivraison = $routes->whereIn('statut', ['en_cours', 'livraisons_terminees', 'terminee'])->count();
         $routesTerminees = $routes->where('statut', 'terminee')->count();
 
@@ -501,6 +534,11 @@ class CampagnesController extends Controller
             'contacts_en_cours' => $livraisonsTotal > 0 && $livraisonsAConfirmer > 0 && $livraisonsAConfirmer < $livraisonsTotal,
             'benevoles_notifies' => $campagne->benevoles_notifies_le !== null,
             'routes_generees' => $routesTotal > 0,
+            // Ajouté le 09/09/2026 (prompt de cette date §3.3) : aucune
+            // pilule ne représentait le poste réception sur cet écran —
+            // même raisonnement/étape facultative que pesee_demarree
+            // ci-dessous, voir ReceptionController.
+            'reception_demarree' => $campagne->arrivees()->exists(),
             'pesee_demarree' => $campagne->donations()->exists(),
             'packaging_termine' => $livraisonsConfirmees > 0 && $livraisonsPretes >= $livraisonsConfirmees,
             'chargement_termine' => $routesTotal > 0 && $routesChargees === $routesTotal,

@@ -68,6 +68,20 @@ return new class extends Migration {
             $table->decimal('hq_latitude', 10, 7)->nullable();
             $table->decimal('hq_longitude', 10, 7)->nullable();
 
+            // Ajouté le 09/09/2026 (prompt de cette date §3.2) : NULL tant
+            // que le HQ de cette campagne n'est encore que la copie
+            // silencieuse du réglage global faite à la création (voir plus
+            // haut) et n'a jamais été revu par un humain pour CETTE
+            // campagne précisément — posé à now() uniquement par
+            // CampagnesController::update() (bouton "Confirmer", renommé
+            // depuis "Enregistrer" ce même jour), jamais par store(). Sert
+            // uniquement à CampagneDetail.vue pour colorer la section HQ &
+            // commentaire (orange : hérité non confirmé, rouge : aucun HQ
+            // du tout, ni saisi ni réglage global, voir aussi
+            // hq_latitude/hq_longitude).
+            $table->timestamp('hq_confirmee_le')->nullable()
+                ->comment('Horodatage de la dernière confirmation explicite du HQ par un admin/gestionnaire sur CETTE campagne — NULL si le HQ vient encore uniquement du réglage global recopié à la création');
+
             // Cap par campagne (ajouté le 08/09/2026, prompt §2.2.3) — même
             // logique que hq_* ci-dessus : le réglage global
             // (route_max_livraisons_par_route, voir RouteOptimizationConfig)

@@ -6,9 +6,12 @@
       - HQ propre à la campagne + commentaire (§1.2/§1.3), édition inline ;
       - rangée de boutons de navigation + Notifier bénévole, une couleur
         distincte chacun (§1.4) ;
-      - bouton clustering RETIRÉ d'ici (§1.5) — déplacé sur Suivi des
-        contacts (ContactsQueue.vue), la génération de routes ne peut plus
-        être lancée depuis cette page ;
+      - bouton clustering RETIRÉ d'ici (05/09/2026 §1.5) — déplacé sur
+        Suivi des contacts (ContactsQueue.vue) — puis RE-déplacé ICI le
+        09/09/2026 (prompt de cette date §2.2), toujours gated sur "plus
+        aucune famille à contacter pour la journée choisie" (même règle,
+        vérifiée à nouveau côté serveur par LiveBoardController::
+        genererRoutes()) ;
       - sélection des familles éligibles : vraie table + FamilleFilterPanel
         partagé + sélection croisant les pages via ids_only (§1.6) ;
       - bouton renommé, désactivé tant qu'aucune sélection (§1.7) ;
@@ -16,8 +19,8 @@
         reste disponible sur le tableau de bord via ShortfallPanel.vue).
 -->
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
-import { useToast } from '@amana/shared-ui';
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useToast, useConfirm } from '@amana/shared-ui';
 import { apiGet, apiPatch, apiPost, buildQuery } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
 import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
@@ -32,6 +35,7 @@ import {
     type FamilleEligible,
     type FamilleFiltres,
     type GenererLivraisonsResultat,
+    type GenererRoutesResultat,
     type Organisation,
     type Paginated,
     type Quartier,
@@ -41,6 +45,7 @@ import {
 } from '../shared/types';
 
 const toast = useToast();
+const confirmDialog = useConfirm();
 
 const el = document.getElementById('vue-livraison-campagne-detail')!;
 const campagne = ref<Campagne>(JSON.parse(el.dataset.campagne ?? '{}'));
@@ -52,6 +57,9 @@ const googlePlacesKey = el.dataset.googlePlacesKey ?? '';
 const urls = {
     eligibles: el.dataset.eligiblesUrl ?? '',
     genererLivraisons: el.dataset.genererLivraisonsUrl ?? '',
+    // Ajoutés le 09/09/2026 (prompt §2.2) : bouton clustering déplacé ici.
+    genererRoutes: el.dataset.genererRoutesUrl ?? '',
+    queue: el.dataset.queueUrl ?? '',
     benevoles: el.dataset.benevolesUrl ?? '',
     equipes: el.dataset.equipesUrl ?? '',
     ajouterJournee: el.dataset.ajouterJourneeUrl ?? '',
@@ -150,8 +158,22 @@ async function enregistrerEdition() {
 
     campagne.value = { ...campagne.value, ...resultat.data.campagne };
     afficherFormEdition.value = false;
-    toast.success('Campagne mise à jour.');
+    toast.success('HQ & commentaire confirmés.');
 }
+
+// Couleur de la section HQ & commentaire (09/09/2026, prompt de cette date
+// §3.2) : rouge si cette campagne n'a AUCUN HQ, ni saisi ni hérité du
+// réglage global (hq_latitude/hq_longitude toutes deux vides — ne peut
+// arriver que si le réglage global lui-même n'était pas configuré au
+// moment de la création, voir CampagnesController::store()) ; orange si un
+// HQ existe mais n'a encore jamais été confirmé pour CETTE campagne
+// (hq_confirmee_le NULL — simple copie silencieuse du réglage global à la
+// création, jamais revue) ; normal une fois confirmé.
+const hqCouleur = computed<'rouge' | 'orange' | null>(() => {
+    if (!campagne.value.hq_latitude && !campagne.value.hq_longitude) return 'rouge';
+    if (!campagne.value.hq_confirmee_le) return 'orange';
+    return null;
+});
 
 // ── Filtre + table des familles éligibles (05/09/2026, prompt §1.6) ──────
 const filtres = ref<FamilleFiltres>({});
@@ -291,9 +313,73 @@ async function genererLivraisons() {
 // vivent désormais sur BenevoleDisponibiliteQueue.vue (écran de suivi des
 // réponses), pas ici.
 
+// ── Clustering / génération des routes (09/09/2026, prompt de cette date
+// §2.2 : déplacé ici depuis ContactsQueue.vue) ───────────────────────────
+// Gate : plus aucune livraison à statut_contact = 'a_contacter' pour la
+// journée choisie — revérifié aussi côté serveur (voir
+// LiveBoardController::genererRoutes()), ce calcul côté Vue ne sert qu'à
+// griser le bouton avant même de tenter l'appel. Même logique que
+// l'ancienne verifierGateClustering() de ContactsQueue.vue.
+const chargementVerifGate = ref(false);
+const resteAContacter = ref<number | null>(null);
+
+async function verifierGateClustering() {
+    if (idJourneeSelectionnee.value === null) {
+        resteAContacter.value = null;
+        return;
+    }
+    chargementVerifGate.value = true;
+    const resultat = await apiGet<{ ids: number[] }>(urls.queue + buildQuery({
+        id_campagne: campagne.value.id,
+        id_campagne_journee: idJourneeSelectionnee.value,
+        statut_contact: 'a_contacter',
+        ids_only: 1,
+    }));
+    chargementVerifGate.value = false;
+    resteAContacter.value = resultat.ok ? resultat.data.ids.length : null;
+}
+
+const chargementRoutes = ref(false);
+const resultatRoutes = ref<GenererRoutesResultat | null>(null);
+const erreurRoutes = ref('');
+
+async function genererRoutes() {
+    if (idJourneeSelectionnee.value === null) return;
+
+    const confirmed = await confirmDialog.ask({
+        title: 'Lancer la génération des routes',
+        message: "Le clustering et l'assignation des tournées vont être (re)calculés pour cette journée. Continuer ?",
+        confirmLabel: 'Lancer',
+    });
+    if (!confirmed) return;
+
+    chargementRoutes.value = true;
+    erreurRoutes.value = '';
+    resultatRoutes.value = null;
+
+    const resultat = await apiPost<GenererRoutesResultat>(urls.genererRoutes, {
+        id_campagne_journee: idJourneeSelectionnee.value,
+    });
+    chargementRoutes.value = false;
+
+    if (!resultat.ok) {
+        erreurRoutes.value = resultat.message;
+        toast.error(resultat.message);
+        return;
+    }
+
+    resultatRoutes.value = resultat.data;
+    toast.success(`${resultat.data.routes_creees} tournée(s) créée(s).`);
+}
+
+function surChangementJournee() {
+    verifierGateClustering();
+}
+
 onMounted(() => {
     chargerEligibles(1);
     chargerAvancement();
+    verifierGateClustering();
 });
 
 // ── Avancement (checklist) ───────────────────────────────────────────────
@@ -369,7 +455,7 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
         <!-- Sélecteur de journée -->
         <div v-if="journees.length > 1" class="mb-3">
             <label class="block text-[12.5px] font-medium text-ink-muted mb-1">Journée</label>
-            <select v-model.number="idJourneeSelectionnee"
+            <select v-model.number="idJourneeSelectionnee" @change="surChangementJournee"
                 class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
                 <option v-for="journee in journees" :key="journee.id" :value="journee.id">
                     {{ journee.label ?? formatDateFr(journee.date) }} — {{ formatDateFr(journee.date) }}
@@ -408,8 +494,19 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
             <p v-if="erreurAjoutJournee" class="text-[13px] text-rose-600 mt-2">{{ erreurAjoutJournee }}</p>
         </div>
 
-        <!-- HQ + commentaire (05/09/2026, prompt §1.2/§1.3) -->
-        <div class="bg-surface border border-surface-border rounded-xl p-5 mb-6">
+        <!--
+            HQ + commentaire (05/09/2026, prompt §1.2/§1.3).
+            Couleur (09/09/2026, prompt de cette date §3.2) — voir
+            hqCouleur ci-dessus : rouge = aucun HQ du tout (ni saisi, ni
+            réglage global configuré), orange = HQ hérité du réglage
+            global mais jamais confirmé pour cette campagne.
+        -->
+        <div class="bg-surface border rounded-xl p-5 mb-6"
+            :class="{
+                'border-rose-300 bg-rose-50/60': hqCouleur === 'rouge',
+                'border-amber-300 bg-amber-50/60': hqCouleur === 'orange',
+                'border-surface-border': hqCouleur === null,
+            }">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="text-[14px] font-medium text-ink">HQ &amp; commentaire</h2>
                 <button type="button" @click="afficherFormEdition = !afficherFormEdition"
@@ -468,9 +565,12 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
                     <textarea v-model="formEdition.commentaire" rows="3"
                         class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px]"></textarea>
                 </div>
+                <!-- Renommé "Enregistrer" → "Confirmer" (09/09/2026, prompt
+                     §3.2) : pressé = HQ confirmé pour cette campagne, voir
+                     hq_confirmee_le/hqCouleur ci-dessus. -->
                 <button type="submit" :disabled="chargementEdition"
                     class="min-h-[2.25rem] text-[13px] px-4 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
-                    {{ chargementEdition ? 'Enregistrement…' : 'Enregistrer' }}
+                    {{ chargementEdition ? 'Confirmation…' : 'Confirmer' }}
                 </button>
                 <p v-if="erreurEdition" class="text-[13px] text-rose-600">{{ erreurEdition }}</p>
             </form>
@@ -574,6 +674,31 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(campagne.value.poids
                     </ul>
                 </div>
             </div>
+        </div>
+
+        <!--
+            Clustering / génération des routes (09/09/2026, prompt de cette
+            date §2.2) — déplacé ici depuis Suivi des contacts. Ne peut se
+            lancer que si une journée est choisie ET qu'il ne reste plus
+            aucune famille à contacter pour cette journée — grisé sinon
+            plutôt que de laisser tenter un appel qui échouera de toute
+            façon côté serveur (même règle qu'avant le déplacement).
+        -->
+        <div class="bg-surface border border-surface-border rounded-xl p-5 mb-6">
+            <h2 class="text-[14px] font-medium text-ink mb-3">Clustering / génération des routes</h2>
+            <button type="button" :disabled="chargementRoutes || chargementVerifGate || (resteAContacter ?? 1) > 0" @click="genererRoutes"
+                class="min-h-[2.25rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
+                🚚 {{ chargementRoutes ? 'Génération…' : 'Lancer le clustering / génération des routes' }}
+            </button>
+            <p v-if="chargementVerifGate" class="text-[12.5px] text-ink-muted mt-2">Vérification…</p>
+            <p v-else-if="(resteAContacter ?? 0) > 0" class="text-[12.5px] text-amber-700 mt-2">
+                {{ resteAContacter }} famille(s) encore à contacter pour cette journée.
+            </p>
+            <p v-else-if="resteAContacter === 0" class="text-[12.5px] text-emerald-700 mt-2">Toutes les familles ont été contactées.</p>
+            <p v-if="resultatRoutes" class="text-[12.5px] text-ink-muted mt-2">
+                {{ resultatRoutes.routes_creees }} tournée(s) créée(s), dont {{ resultatRoutes.imposees }} imposée(s).
+            </p>
+            <p v-if="erreurRoutes" class="text-[12.5px] text-rose-600 mt-2">{{ erreurRoutes }}</p>
         </div>
     </div>
 </template>

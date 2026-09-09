@@ -64,19 +64,22 @@ class ChargementController extends Controller
     /**
      * Ne filtre plus sur statut = 'chargement' (08/09/2026, prompt de
      * cette date §7.1/§7.2) : une tournée confirmée chargée (statut
-     * bascule à 'en_cours', voir confirmer() plus bas) disparaissait
-     * intégralement de cet écran au prochain chargement — corrigée en
-     * élargissant à chargement/en_cours/packaging_annule (planifiee
-     * exclue : pas encore pertinente pour cet écran, les colis ne sont
-     * pas encore tous prêts) et en triant plutôt qu'en filtrant :
-     * en_cours (déjà chargée) toujours en dernier (§7.2 "move row to the
-     * bottom"), et parmi le reste, les plus urgentes en tête (§7.3, voir
-     * calculerUrgence() ci-dessous).
+     * bascule à 'charge', voir confirmer() plus bas — RENOMMÉ le
+     * 09/09/2026 depuis 'en_cours', voir le docblock de la migration
+     * routes) disparaissait intégralement de cet écran au prochain
+     * chargement — corrigée en élargissant à chargement/charge/
+     * packaging_annule (planifiee exclue : pas encore pertinente pour
+     * cet écran, les colis ne sont pas encore tous prêts ; en_cours
+     * exclue depuis le 09/09/2026 : une fois la tournée réellement
+     * démarrée par le bénévole, elle ne concerne plus cet écran) et en
+     * triant plutôt qu'en filtrant : charge (déjà chargée) toujours en
+     * dernier (§7.2 "move row to the bottom"), et parmi le reste, les
+     * plus urgentes en tête (§7.3, voir calculerUrgence() ci-dessous).
      */
-    public function index(Campagne $campagne): View
+    public function index(Request $request, Campagne $campagne): View
     {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)
-            ->whereIn('statut', ['chargement', 'en_cours', 'packaging_annule'])
+            ->whereIn('statut', ['chargement', 'charge', 'packaging_annule'])
             ->with(['benevole', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux'])
             ->get()
             ->map(function (RouteLivraison $route) {
@@ -85,8 +88,8 @@ class ChargementController extends Controller
                 return $route;
             })
             ->sortBy([
-                // en_cours (déjà chargée) toujours en dernier — §7.2.
-                fn ($route) => $route->statut === 'en_cours' ? 1 : 0,
+                // charge (déjà chargée) toujours en dernier — §7.2.
+                fn ($route) => $route->statut === 'charge' ? 1 : 0,
                 // Puis famille-urgente avant bénévole-urgent avant le
                 // reste — §7.3 : "family-availability should weigh more
                 // since we can replace the driver".
@@ -98,9 +101,30 @@ class ChargementController extends Controller
             ])
             ->values();
 
+        // Stats + filtre (09/09/2026, prompt de cette date §4) — mêmes
+        // stats/filtres que Packaging (voir PackagingController::index())
+        // : "Toutes"/"Restantes"/"Chargée" plutôt que "Terminées", cet
+        // écran n'a que deux statuts pertinents (packaging_annule compté
+        // avec 'chargement' dans "Restantes", comme dans le tri
+        // ci-dessus) — voir hors scope les tournées 'en_cours', pas
+        // récupérées par la requête au-dessus.
+        $stats = [
+            'chargees' => $routes->where('statut', 'charge')->count(),
+            'restantes' => $routes->whereIn('statut', ['chargement', 'packaging_annule'])->count(),
+        ];
+
+        $filtreChargement = $request->input('filtre_chargement', 'toutes');
+        if ($filtreChargement === 'restantes') {
+            $routes = $routes->whereIn('statut', ['chargement', 'packaging_annule'])->values();
+        } elseif ($filtreChargement === 'chargees') {
+            $routes = $routes->where('statut', 'charge')->values();
+        }
+
         return view('livraison.chargement', [
             'campagne' => $campagne,
             'routes' => $routes,
+            'stats' => $stats,
+            'filtreChargement' => $filtreChargement,
             // Retour visible (07/09/2026, prompt §4.2) — même règle que
             // Packaging/Pesee/Réception : équipe_chargement n'a pas accès
             // à livraison.campagnes.show, repli sur le point d'entrée
@@ -187,9 +211,18 @@ class ChargementController extends Controller
         ]);
     }
 
+    /**
+     * Bascule sur 'charge' (RENOMMÉ le 09/09/2026, prompt de cette date
+     * §4 — c'était 'en_cours' jusque-là) : "l'équipe chargement a fini de
+     * charger le véhicule" n'est PAS la même chose que "le bénévole a
+     * démarré sa tournée" — un chauffeur peut légitimement s'attarder au
+     * QG un moment avant de partir. Le passage à 'en_cours' proprement
+     * dit vit désormais côté MaRouteController, déclenché par le
+     * bénévole lui-même.
+     */
     public function confirmer(RouteLivraison $route): JsonResponse
     {
-        $route->update(['statut' => 'en_cours']);
+        $route->update(['statut' => 'charge']);
 
         RouteIncident::create([
             'id_route' => $route->id,

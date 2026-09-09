@@ -31,6 +31,9 @@ export interface AvancementCampagne {
     contacts_en_cours: boolean;
     benevoles_notifies: boolean;
     routes_generees: boolean;
+    // Ajouté le 09/09/2026 (prompt de cette date §3.3) — voir docblock de
+    // CampagnesController::avancement().
+    reception_demarree: boolean;
     pesee_demarree: boolean;
     packaging_termine: boolean;
     chargement_termine: boolean;
@@ -60,6 +63,9 @@ const etapes = computed<Etape[]>(() => {
         { label: 'Contacts', fait: a?.contacts_termines ?? false },
         { label: 'Bénévoles notifiés', fait: a?.benevoles_notifies ?? false },
         { label: 'Routes générées', fait: a?.routes_generees ?? false },
+        // Ajouté le 09/09/2026 (prompt §3.3) — avant Pesée, la réception
+        // des dons précède leur pesée dans le workflow réel.
+        { label: 'Réception', fait: a?.reception_demarree ?? false },
         { label: 'Pesée', fait: a?.pesee_demarree ?? false },
         { label: 'Packaging', fait: a?.packaging_termine ?? false },
         { label: 'Chargement', fait: a?.chargement_termine ?? false },

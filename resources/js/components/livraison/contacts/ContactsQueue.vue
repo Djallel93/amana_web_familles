@@ -16,11 +16,13 @@
       - téléphone bis affiché, layout contact retravaillé (§2.5) ;
       - clustering déplacé ici depuis CampagneDetail.vue (§1.5), gated côté
         serveur ET côté Vue sur "plus aucune famille à a_contacter pour la
-        journée choisie".
+        journée choisie" — RE-déplacé sur CampagneDetail.vue le 09/09/2026
+        (prompt de cette date §2.2), voir ce fichier pour le bouton/gate
+        désormais.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useToast, useConfirm } from '@amana/shared-ui';
+import { useToast } from '@amana/shared-ui';
 import { apiGet, apiPost, buildQuery } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
 import PersonPicker from '../shared/PersonPicker.vue';
@@ -35,7 +37,6 @@ import {
     type CampagneJournee,
     type Creneau,
     type FamilleFiltres,
-    type GenererRoutesResultat,
     type Livraison,
     type Organisation,
     type Paginated,
@@ -54,7 +55,6 @@ declare global {
 }
 
 const toast = useToast();
-const confirmDialog = useConfirm();
 
 const el = document.getElementById('vue-livraison-contacts-queue')!;
 const campagnes = ref<Campagne[]>(JSON.parse(el.dataset.campagnes ?? '[]'));
@@ -67,7 +67,6 @@ const statistiquesUrl = el.dataset.statistiquesUrl ?? '';
 const assignerUrlTemplate = el.dataset.assignerUrlTemplate ?? '';
 const assignerLotUrl = el.dataset.assignerLotUrl ?? '';
 const contacterManuelUrlTemplate = el.dataset.contacterManuelUrlTemplate ?? '';
-const genererRoutesUrlTemplate = el.dataset.genererRoutesUrlTemplate ?? '';
 
 const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
     injoignable: 'Injoignable',
@@ -81,9 +80,6 @@ function urlAssigner(id: number): string {
 }
 function urlContacterManuel(id: number): string {
     return contacterManuelUrlTemplate.replace('__ID__', String(id));
-}
-function urlGenererRoutes(idCampagne: number): string {
-    return genererRoutesUrlTemplate.replace('__ID__', String(idCampagne));
 }
 
 function formatDateFr(iso: string): string {
@@ -323,12 +319,6 @@ async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' |
 
     toast.success('Statut mis à jour.');
     chargerFile(meta.value?.current_page ?? 1);
-    // Corrigé le 05/09/2026 (prompt §2.4) : le bouton de clustering restait
-    // grisé/pas à jour tant que la page n'était pas rechargée — la gate ne
-    // se revérifiait qu'au montage du composant. Revérifiée maintenant
-    // après CHAQUE changement de statut_contact, ici et dans
-    // enregistrerContact() ci-dessous.
-    verifierGateClustering();
 }
 
 async function enregistrerContact(livraison: Livraison) {
@@ -350,7 +340,6 @@ async function enregistrerContact(livraison: Livraison) {
 
     toast.success('Contact enregistré.');
     chargerFile(meta.value?.current_page ?? 1);
-    verifierGateClustering();
 }
 
 // ── Modifier le dossier famille (05/09/2026, prompt §2.3) ────────────────
@@ -365,76 +354,17 @@ function modifierDossier(livraison: Livraison) {
     window.openFamilleDetail(livraison.famille.id);
 }
 
-// ── Clustering (05/09/2026, prompt §1.5 : déplacé depuis CampagneDetail.vue) ─
-// Gate : plus aucune livraison à statut_contact = 'a_contacter' pour la
-// journée choisie — revérifié aussi côté serveur (voir
-// LiveBoardController::genererRoutes()), ce calcul côté Vue ne sert qu'à
-// griser le bouton avant même de tenter l'appel.
-const chargementVerifGate = ref(false);
-const resteAContacter = ref<number | null>(null);
-
-async function verifierGateClustering() {
-    if (!campagneSelectionnee.value || idJourneeSelectionnee.value === '') {
-        resteAContacter.value = null;
-        return;
-    }
-    chargementVerifGate.value = true;
-    const resultat = await apiGet<{ ids: number[] }>(queueUrl + buildQuery({
-        id_campagne: campagneSelectionnee.value.id,
-        id_campagne_journee: idJourneeSelectionnee.value,
-        statut_contact: 'a_contacter',
-        ids_only: 1,
-    }));
-    chargementVerifGate.value = false;
-    resteAContacter.value = resultat.ok ? resultat.data.ids.length : null;
-}
-
-const chargementRoutes = ref(false);
-const resultatRoutes = ref<GenererRoutesResultat | null>(null);
-const erreurRoutes = ref('');
-
-async function genererRoutes() {
-    if (!campagneSelectionnee.value || idJourneeSelectionnee.value === '') return;
-
-    const confirmed = await confirmDialog.ask({
-        title: 'Lancer la génération des routes',
-        message: "Le clustering et l'assignation des tournées vont être (re)calculés pour cette journée. Continuer ?",
-        confirmLabel: 'Lancer',
-    });
-    if (!confirmed) return;
-
-    chargementRoutes.value = true;
-    erreurRoutes.value = '';
-    resultatRoutes.value = null;
-
-    const resultat = await apiPost<GenererRoutesResultat>(urlGenererRoutes(campagneSelectionnee.value.id), {
-        id_campagne_journee: idJourneeSelectionnee.value,
-    });
-    chargementRoutes.value = false;
-
-    if (!resultat.ok) {
-        erreurRoutes.value = resultat.message;
-        toast.error(resultat.message);
-        return;
-    }
-
-    resultatRoutes.value = resultat.data;
-    toast.success(`${resultat.data.routes_creees} tournée(s) créée(s).`);
-}
-
 function surChangementCampagne() {
     idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? '';
     chargerFile(1);
-    verifierGateClustering();
 }
 function surChangementJournee() {
-    verifierGateClustering();
+    chargerFile(1);
 }
 
 onMounted(() => {
     if (campagneSelectionnee.value) idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? '';
     chargerFile(1);
-    verifierGateClustering();
 });
 </script>
 
@@ -489,15 +419,6 @@ onMounted(() => {
         <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
             :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" />
 
-        <!--
-            Clustering (05/09/2026, prompt §1.5) déplacé sous le filtre,
-            sur la même rangée que "Tout sélectionner" (07/09/2026, prompt
-            §2.3) — ne peut se lancer que si une campagne (et sa journée
-            s'il y en a plusieurs) est choisie ET qu'il ne reste plus
-            aucune famille à contacter pour cette journée — grisé sinon
-            plutôt que de laisser tenter un appel qui échouera de toute
-            façon côté serveur.
-        -->
         <p v-if="chargement" class="text-[14px] text-ink-muted">Chargement…</p>
         <p v-else-if="erreur" class="text-[14px] text-rose-600">Impossible de charger la file de contact.</p>
         <p v-else-if="file.length === 0" class="text-[14px] text-ink-muted">Aucune livraison en attente de contact.</p>
@@ -515,21 +436,8 @@ onMounted(() => {
                         :model-value="null"
                         @update:model-value="assignerLot" />
                 </div>
-                <template v-if="campagneSelectionnee">
-                    <button type="button" :disabled="chargementRoutes || chargementVerifGate || (resteAContacter ?? 1) > 0" @click="genererRoutes"
-                        class="min-h-[2.25rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
-                        🚚 {{ chargementRoutes ? 'Génération…' : 'Lancer le clustering / génération des routes' }}
-                    </button>
-                    <p v-if="chargementVerifGate" class="text-[12.5px] text-ink-muted">Vérification…</p>
-                    <p v-else-if="(resteAContacter ?? 0) > 0" class="text-[12.5px] text-amber-700">
-                        {{ resteAContacter }} famille(s) encore à contacter pour cette journée.
-                    </p>
-                    <p v-else-if="resteAContacter === 0" class="text-[12.5px] text-emerald-700">Toutes les familles ont été contactées.</p>
-                    <p v-if="resultatRoutes" class="text-[12.5px] text-ink-muted w-full">
-                        {{ resultatRoutes.routes_creees }} tournée(s) créée(s), dont {{ resultatRoutes.imposees }} imposée(s).
-                    </p>
-                    <p v-if="erreurRoutes" class="text-[12.5px] text-rose-600 w-full">{{ erreurRoutes }}</p>
-                </template>
+                <!-- Bouton clustering retiré d'ici (09/09/2026, prompt §2.2) —
+                     déplacé sur CampagneDetail.vue (livraison/campagnes/{id}). -->
             </div>
 
             <div v-for="livraison in file" :key="livraison.id" class="bg-surface border border-surface-border rounded-xl p-4 shadow-sm">

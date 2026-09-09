@@ -71,6 +71,9 @@ export interface Campagne {
     hq_adresse: string | null;
     hq_latitude: number | null;
     hq_longitude: number | null;
+    // NULL tant que le HQ n'est qu'hérité du réglage global — voir
+    // create_campagnes_table.php (ajouté le 09/09/2026, prompt §3.2).
+    hq_confirmee_le: string | null;
     // Ajouté le 08/09/2026 (prompt §2.2.3) — voir Campagne (modèle PHP).
     livraisons_max_par_tournee: number | null;
     commentaire: string | null;

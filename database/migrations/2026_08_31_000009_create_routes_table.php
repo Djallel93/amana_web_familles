@@ -57,7 +57,17 @@ return new class extends Migration {
             // de rien n'était. Voir PackagingController::annulerConditionnement()
             // et le nouveau type d'incident du même nom (route_incidents)
             // pour l'avertissement envoyé à l'équipe chargement.
-            $table->enum('statut', ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule'])
+            // 'charge' ajouté le 09/09/2026 (prompt de cette date §4) :
+            // état intermédiaire entre 'chargement' (à charger) et
+            // 'en_cours' (tournée effectivement démarrée par le
+            // bénévole/chauffeur) — auparavant ChargementController::
+            // confirmer() basculait DIRECTEMENT sur 'en_cours', ce qui
+            // faisait dire à l'écran "Ma Route" du bénévole que sa
+            // tournée était démarrée dès la confirmation de chargement,
+            // alors qu'il n'avait souvent pas encore quitté le QG. Le
+            // découpage sépare "chargement terminé" (equipe_chargement)
+            // de "tournée démarrée" (bénévole, voir MaRouteController).
+            $table->enum('statut', ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule'])
                 ->default('planifiee');
             $table->decimal('distance_totale_km', 6, 2)->nullable();
             $table->decimal('poids_total_kg', 7, 2)->nullable();

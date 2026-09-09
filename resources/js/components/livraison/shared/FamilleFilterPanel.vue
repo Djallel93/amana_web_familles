@@ -87,7 +87,10 @@ const filtresActifs = computed(() => Boolean(
 </script>
 
 <template>
-    <details class="group bg-surface border border-surface-border rounded-xl p-4 mb-4" open>
+    <!-- Repliés par défaut (09/09/2026, prompt de cette date §1) — cohérent
+         avec le reste du domaine livraison, contrairement à l'attribut
+         `open` d'origine (08/09/2026) qui les affichait ouverts. -->
+    <details class="group bg-surface border border-surface-border rounded-xl p-4 mb-4">
         <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 mb-2 rounded-lg hover:bg-surface-2 transition-colors">
             <span class="text-[13px] font-bold text-ink flex items-center gap-1.5">
                 🔎 Filtres

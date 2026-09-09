@@ -31,8 +31,7 @@
             data-statistiques-url="{{ route('livraison.contacts.statistiques') }}"
             data-assigner-url-template="{{ route('livraison.contacts.assigner', '__ID__') }}"
             data-assigner-lot-url="{{ route('livraison.contacts.assigner-lot') }}"
-            data-contacter-manuel-url-template="{{ route('livraison.contacts.contacter-manuel', '__ID__') }}"
-            data-generer-routes-url-template="{{ route('livraison.campagnes.generer-routes', '__ID__') }}">
+            data-contacter-manuel-url-template="{{ route('livraison.contacts.contacter-manuel', '__ID__') }}">
         </div>
     </div>
 

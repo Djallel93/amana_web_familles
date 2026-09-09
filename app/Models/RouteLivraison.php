@@ -25,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int         $id_benevole
  * @property int         $id_vehicule_type
  * @property string|null $creneau             null pour une tournée composée uniquement de livraisons imposées (voir RouteGenerationService)
- * @property string      $statut              planifiee|chargement|en_cours|livraisons_terminees|terminee
+ * @property string      $statut              planifiee|chargement|charge|en_cours|livraisons_terminees|terminee
  * @property float|null  $distance_totale_km
  * @property float|null  $poids_total_kg
  * @property string|null $lien_maps
@@ -66,7 +66,13 @@ class RouteLivraison extends Model
      * PackagingController::annulerConditionnement() et le RouteIncident
      * de même nom levé en même temps pour avertir l'équipe chargement.
      */
-    public const STATUTS = ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule'];
+    /**
+     * 'charge' ajouté le 09/09/2026 (prompt §4) : voir le docblock de la
+     * migration routes pour le raisonnement complet — sépare "chargement
+     * confirmé par l'équipe chargement" de "tournée démarrée par le
+     * bénévole" (en_cours), auparavant confondus.
+     */
+    public const STATUTS = ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule'];
 
     // ── Relations ─────────────────────────────────────────────────────────
 

@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
  * @property string|null $hq_adresse      Libellé HQ propre à cette campagne — voir create_campagnes_table.php
  * @property float|null  $hq_latitude
  * @property float|null  $hq_longitude
+ * @property \Illuminate\Support\Carbon|null $hq_confirmee_le  NULL tant que le HQ n'est qu'hérité du réglage global — voir create_campagnes_table.php (ajouté le 09/09/2026)
  * @property int|null    $livraisons_max_par_tournee  Cap propre à cette campagne, préremplie depuis le réglage global à la création — voir RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne()
  * @property string|null $commentaire     Dernière valeur seulement, pas d'historique
  */
@@ -56,6 +57,11 @@ class Campagne extends Model
         // migration campagnes pour le raisonnement (préremplissage à la
         // création, pas de fallback dynamique, comme hq_*).
         'livraisons_max_par_tournee',
+        // Ajouté le 09/09/2026 (prompt §3.2) — toujours posé à now() côté
+        // serveur (jamais depuis une valeur envoyée par le client, voir
+        // CampagnesController::update()), même statut que
+        // benevoles_notifies_le ci-dessus.
+        'hq_confirmee_le',
     ];
 
     protected $casts = [
@@ -67,6 +73,7 @@ class Campagne extends Model
         'hq_latitude' => 'decimal:7',
         'hq_longitude' => 'decimal:7',
         'livraisons_max_par_tournee' => 'integer',
+        'hq_confirmee_le' => 'datetime',
     ];
 
     public const TYPES = ['zakat_el_fitr', 'collecte_alimentaire', 'don_ponctuel'];

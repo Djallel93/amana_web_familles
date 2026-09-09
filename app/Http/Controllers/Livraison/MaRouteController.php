@@ -32,13 +32,36 @@ class MaRouteController extends Controller
 {
     public function show(): View
     {
+        // 'charge' ajouté le 09/09/2026 (prompt de cette date §4) : sans
+        // cet ajout la tournée disparaîtrait de cet écran entre la
+        // confirmation de chargement (désormais 'charge', pas 'en_cours'
+        // directement — voir ChargementController::confirmer()) et le
+        // premier arrêt traité par le bénévole (voir demarrerSiBesoin()
+        // ci-dessous, qui bascule alors sur 'en_cours').
         $routes = RouteLivraison::where('id_benevole', auth()->id())
-            ->whereIn('statut', ['planifiee', 'chargement', 'en_cours', 'livraisons_terminees'])
+            ->whereIn('statut', ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees'])
             ->with(['etapes.livraison.famille:id,nom,prenom,adresse,telephone'])
             ->orderByDesc('created_at')
             ->get();
 
         return view('livraison.ma-route', ['routes' => $routes]);
+    }
+
+    /**
+     * Bascule 'charge' → 'en_cours' (ajouté le 09/09/2026, prompt de
+     * cette date §4) : la tournée est considérée réellement démarrée au
+     * premier arrêt traité par le bénévole (confirmé, scanné, ou
+     * signalé ignoré — les trois indiquent qu'il est sur le terrain),
+     * pas au moment où l'équipe chargement a fini de charger le
+     * véhicule (le chauffeur peut s'attarder au QG avant de partir).
+     * No-op si la tournée est dans un autre statut (déjà en_cours,
+     * planifiee sans passage par le chargement, etc.).
+     */
+    private function demarrerSiBesoin(RouteLivraison $route): void
+    {
+        if ($route->statut === 'charge') {
+            $route->update(['statut' => 'en_cours']);
+        }
     }
 
     /**
@@ -49,6 +72,7 @@ class MaRouteController extends Controller
     {
         $this->assertProprietaire($etape);
 
+        $this->demarrerSiBesoin($etape->route);
         $etape->update(['statut' => 'livree']);
         $etape->livraison->update(['statut' => 'livree']);
 
@@ -65,6 +89,7 @@ class MaRouteController extends Controller
         $this->assertProprietaire($etape);
 
         if ($etape->statut !== 'livree') {
+            $this->demarrerSiBesoin($etape->route);
             $etape->update(['statut' => 'livree']);
             $etape->livraison->update(['statut' => 'livree']);
         }
@@ -81,6 +106,7 @@ class MaRouteController extends Controller
     {
         $this->assertProprietaire($etape);
 
+        $this->demarrerSiBesoin($etape->route);
         $etape->update(['statut' => 'ignoree']);
         $etape->livraison->update(['statut' => 'ignoree']);
 

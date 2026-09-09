@@ -142,7 +142,7 @@ mountIfPresent(
     ),
 );
 mountIfPresent(
-    "vue-livraison-tableau-de-bord",
+    "vue-livraison-suivi-livraison",
     lazy(() => import("@/components/livraison/tableau-de-bord/LiveBoard.vue")),
 );
 mountIfPresent(

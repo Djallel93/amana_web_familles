@@ -17,6 +17,8 @@
             data-campagnes="{{ $campagnes->toJson() }}"
             data-store-url="{{ route('livraison.campagnes.store') }}"
             data-livraisons-max-par-tournee-defaut="{{ $livraisonsMaxParTourneeDefaut }}"
+            data-google-places-key="{{ config('services.google.maps.places_api_key') }}"
+            data-hq-global-defaut="{{ json_encode($hqGlobalDefaut) }}"
             data-resume-suppression-url-template="{{ route('livraison.campagnes.resume-suppression', ['campagne' => '__CAMPAGNE__']) }}"
             data-destroy-url-template="{{ route('livraison.campagnes.destroy', ['campagne' => '__CAMPAGNE__']) }}">
         </div>

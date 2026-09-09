@@ -134,6 +134,13 @@ function toggleCreneauEdition(idPersonne: number, creneau: Creneau) {
     else f.creneaux.splice(index, 1);
 }
 
+// Tout/Rien (09/09/2026, prompt de cette date §5) — même comportement que
+// toggleTout() côté famille dans ContactsQueue.vue.
+function toggleToutEdition(idPersonne: number) {
+    const toutesCoches = groupeToutCoche(idPersonne, CRENEAUX_MATIN) && groupeToutCoche(idPersonne, CRENEAUX_APRES_MIDI);
+    formulaires[idPersonne].creneaux = toutesCoches ? [] : [...CRENEAUX_MATIN, ...CRENEAUX_APRES_MIDI];
+}
+
 async function enregistrerConfirme(ligne: LigneBenevole) {
     const f = formulaires[ligne.id_personne];
     enregistrementEnCours[ligne.id_personne] = true;
@@ -309,6 +316,15 @@ onMounted(chargerFile);
                     structure que ContactsQueue.vue.
                 -->
                 <div v-if="editionOuverte[ligne.id_personne]" class="mt-3 bg-stone-50 rounded-lg p-3 space-y-2">
+                    <!-- Tout/Rien (09/09/2026, prompt de cette date §5) — même
+                         emplacement/style que ContactsQueue.vue côté famille. -->
+                    <div class="flex items-center justify-between mb-1.5">
+                        <button type="button" @click="toggleToutEdition(ligne.id_personne)"
+                            class="min-h-[1.875rem] text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5">
+                            Tout / Rien
+                        </button>
+                        <label class="text-[11px] text-ink-muted">Créneaux</label>
+                    </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="border border-ink-faint rounded-lg p-2">
                             <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">

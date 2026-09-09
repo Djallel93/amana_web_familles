@@ -27,6 +27,37 @@
         </div>
         <form id="csrf-holder">@csrf</form>
 
+        {{--
+            Cartes statistiques + filtre restantes/chargée (09/09/2026,
+            prompt de cette date §4) — même principe que Packaging (voir
+            packaging.blade.php/PackagingController::index()), adapté aux
+            deux seuls statuts pertinents ici : "Chargée" (statut =
+            'charge') et "Restantes" (chargement/packaging_annule) — pas
+            de "Terminées" sur cet écran, une tournée quitte ce périmètre
+            dès que le bénévole démarre réellement sa tournée (statut
+            'en_cours', voir MaRouteController), ça ne concerne plus
+            l'équipe chargement.
+        --}}
+        <div class="grid grid-cols-2 gap-3 mb-4">
+            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Chargée(s)</p>
+                <p class="text-[20px] font-semibold text-emerald-700">{{ $stats['chargees'] }}</p>
+            </div>
+            <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restantes</p>
+                <p class="text-[20px] font-semibold text-ink">{{ $stats['restantes'] }}</p>
+            </div>
+        </div>
+        <div class="flex gap-2 mb-6" id="filtre-chargement">
+            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'chargees' => 'Chargée'] as $valeur => $libelle)
+                <button type="button" data-valeur="{{ $valeur }}"
+                    onclick="appliquerFiltreChargement('{{ $valeur }}')"
+                    class="text-[12.5px] px-3 py-1.5 rounded-lg border {{ $filtreChargement === $valeur ? 'bg-accent text-white border-accent' : 'border-surface-border text-ink-muted' }}">
+                    {{ $libelle }}
+                </button>
+            @endforeach
+        </div>
+
         <div class="space-y-3" id="liste-routes">
             @forelse($routes as $route)
                 {{--
@@ -34,7 +65,9 @@
                     prompt de cette date §7.1/§7.2/§7.3) : la ligne ne
                     disparaît plus au chargement confirmé (voir
                     ChargementController::index(), qui n'exclut plus
-                    'en_cours'/'packaging_annule'), et les tournées urgentes
+                    'charge'/'packaging_annule' — RENOMMÉ le 09/09/2026
+                    depuis 'en_cours', voir le docblock de la migration
+                    routes), et les tournées urgentes
                     (créneau en cours = seul créneau possible pour une
                     famille, ou à défaut pour le chauffeur — voir
                     calculerUrgence()) remontent en tête avec une bordure
@@ -48,7 +81,7 @@
                         'benevole' => 'border-amber-400 border-2 bg-amber-50',
                         default => 'border-surface-border',
                     } }}
-                    {{ $route->statut === 'en_cours' ? 'opacity-60' : '' }}"
+                    {{ $route->statut === 'charge' ? 'opacity-60' : '' }}"
                     id="route-{{ $route->id }}" data-statut="{{ $route->statut }}">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-[14px] font-medium text-ink">
@@ -63,12 +96,12 @@
                             @endif
                             <span class="statut-route text-[11px] font-medium px-2 py-0.5 rounded-full
                                 {{ match($route->statut) {
-                                    'en_cours' => 'bg-emerald-100 text-emerald-700',
+                                    'charge' => 'bg-emerald-100 text-emerald-700',
                                     'packaging_annule' => 'bg-rose-100 text-rose-700',
                                     default => 'bg-stone-100 text-ink-muted',
                                 } }}">
                                 {{ match($route->statut) {
-                                    'en_cours' => 'Chargée',
+                                    'charge' => 'Chargée',
                                     'packaging_annule' => 'Packaging annulé',
                                     default => 'Prête à charger',
                                 } }}
@@ -115,6 +148,16 @@
             return reponse.json();
         }
 
+        // Filtre restantes/chargée (09/09/2026, prompt de cette date §4)
+        // — même principe que appliquerFiltreConditionnement() côté
+        // Packaging.
+        function appliquerFiltreChargement(valeur) {
+            const url = new URL(window.location.href);
+            if (valeur === 'toutes') url.searchParams.delete('filtre_chargement');
+            else url.searchParams.set('filtre_chargement', valeur);
+            window.location.href = url.toString();
+        }
+
         async function confirmerChargement(id) {
             const r = await poster(`/livraison/chargement/routes/${id}/confirmer`);
             if (!r.success) return;
@@ -127,7 +170,8 @@
             const ligne = document.getElementById(`route-${id}`);
             if (!ligne) return;
 
-            ligne.dataset.statut = 'en_cours';
+            // Renommé 'en_cours' → 'charge' le 09/09/2026 (prompt §4).
+            ligne.dataset.statut = 'charge';
             ligne.classList.add('opacity-60');
             ligne.querySelector('.statut-route').textContent = 'Chargée';
             ligne.querySelector('.statut-route').className = 'statut-route text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
