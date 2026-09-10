@@ -5,17 +5,20 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Livraison;
 
+use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use App\Notifications\RouteChargeeNotification;
 use App\Services\QrCodeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -219,6 +222,13 @@ class ChargementController extends Controller
      * QG un moment avant de partir. Le passage à 'en_cours' proprement
      * dit vit désormais côté MaRouteController, déclenché par le
      * bénévole lui-même.
+     *
+     * Notifie aussi le chauffeur (09/09/2026, prompt de cette date §2.5) :
+     * jusque-là, rien n'était envoyé au-delà du RouteIncident
+     * 'chargement_termine' ci-dessous (traçabilité seulement). Chauffeur
+     * uniquement, voir RouteChargeeNotification — silencieux si la
+     * tournée n'a pas (encore) de chauffeur assigné (id_benevole NULL,
+     * cas d'une tournée purement imposée par exemple).
      */
     public function confirmer(RouteLivraison $route): JsonResponse
     {
@@ -230,6 +240,13 @@ class ChargementController extends Controller
             'signale_par' => auth()->id(),
             'statut' => null,
         ]);
+
+        if ($route->id_benevole) {
+            $chauffeur = Personne::find($route->id_benevole);
+            if ($chauffeur) {
+                Notification::send($chauffeur, new RouteChargeeNotification($route));
+            }
+        }
 
         return response()->json(['success' => true]);
     }

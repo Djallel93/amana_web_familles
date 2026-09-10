@@ -314,9 +314,25 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
                             <td class="py-1.5 text-ink-muted">{{ e.ordre }}</td>
                             <td class="py-1.5 text-ink">{{ e.livraison ? `${e.livraison.famille.prenom} ${e.livraison.famille.nom}` : 'Retour QG' }}</td>
                             <td class="py-1.5">
+                                {{--
+                                    Ajouté le 09/09/2026 (prompt de cette
+                                    date §3.1) : "the down arrow is
+                                    overlapping on the text" — la pastille
+                                    (rounded-full px-2 py-0.5) était trop
+                                    étroite pour à la fois le texte et la
+                                    flèche native du <select>. appearance-none
+                                    retire cette flèche native (jamais
+                                    réintroduite en CSS ici : la pastille
+                                    colorée suffit déjà à signaler qu'il
+                                    s'agit d'un contrôle cliquable, comme les
+                                    autres pastilles de statut de l'app qui
+                                    n'ont pas de flèche du tout) et pr-2
+                                    remplace le pr-2 implicite qui laissait
+                                    la place à cette flèche.
+                                --}}
                                 <select v-if="e.livraison" :value="e.statut" :disabled="etat(route.id).statutEnCours[e.id]"
                                     @change="changerStatutEtape(route, e, ($event.target as HTMLSelectElement).value as StatutEtape)"
-                                    class="text-[11.5px] font-medium rounded-full px-2 py-0.5 border-0 disabled:opacity-60" :class="STYLES_STATUT_ETAPE[e.statut]">
+                                    class="text-[11.5px] font-medium rounded-full pl-2 pr-2 py-0.5 border-0 appearance-none disabled:opacity-60" :class="STYLES_STATUT_ETAPE[e.statut]">
                                     <option v-for="s in STATUTS_ETAPE" :key="s" :value="s">{{ LIBELLES_STATUT_ETAPE[s] }}</option>
                                 </select>
                                 <span v-else class="text-[11.5px] text-ink-muted">—</span>

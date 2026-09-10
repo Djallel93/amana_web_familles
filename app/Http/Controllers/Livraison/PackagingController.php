@@ -111,22 +111,18 @@ class PackagingController extends Controller
         // sous-ensemble actuellement affiché — sinon la carte "Terminées"
         // tomberait toujours à 0 dès qu'on filtre sur "Restantes".
         //
-        // 'en_cours' ajouté le 09/09/2026 (prompt de cette date §4) :
-        // statut_conditionnement reste binaire au niveau livraison
-        // (en_attente/prete, posé seulement quand TOUS les colis du
-        // foyer sont prêts — voir finaliserConditionnement() plus bas),
-        // donc une famille partiellement conditionnée (certains colis
-        // prêts, pas tous) était jusque-là indiscernable d'une famille
-        // pas encore commencée dans "Restantes". Sous-ensemble de
-        // restantes (pas un statut concurrent) : whereHas colis 'pret'
-        // suffit, une livraison avec TOUS ses colis prêts serait de
-        // toute façon déjà passée à statut_conditionnement = 'prete'.
-        $enCoursQuery = (clone $query)->where('statut_conditionnement', 'en_attente')
-            ->whereHas('colis', fn ($q) => $q->where('statut', 'pret'));
+        // 'en_cours' simplifié le 09/09/2026 (prompt de cette date §2.1) :
+        // statut_conditionnement est désormais un vrai statut à 3 valeurs
+        // (en_attente/en_cours/prete, voir create_livraisons_table.php et
+        // Livraison::statutConditionnementDerive()), posé par
+        // marquerColisPret() dès qu'au moins un colis (mais pas tous) est
+        // prêt — le whereHas('colis', ...) qui servait auparavant à
+        // dériver ce sous-ensemble à la volée n'est plus nécessaire, ces
+        // trois comptages sont désormais mutuellement exclusifs.
         $stats = [
             'terminees' => (clone $query)->where('statut_conditionnement', 'prete')->count(),
             'restantes' => (clone $query)->where('statut_conditionnement', 'en_attente')->count(),
-            'en_cours' => (clone $enCoursQuery)->count(),
+            'en_cours' => (clone $query)->where('statut_conditionnement', 'en_cours')->count(),
         ];
 
         $filtreConditionnement = $request->input('filtre_conditionnement', 'toutes');
@@ -135,14 +131,29 @@ class PackagingController extends Controller
         } elseif ($filtreConditionnement === 'terminees') {
             $query->where('statut_conditionnement', 'prete');
         } elseif ($filtreConditionnement === 'en_cours') {
-            $query->where('statut_conditionnement', 'en_attente')
-                ->whereHas('colis', fn ($q) => $q->where('statut', 'pret'));
+            $query->where('statut_conditionnement', 'en_cours');
         }
 
+        // 'creneaux' ajouté le 09/09/2026 (prompt de cette date §2.2) pour
+        // calculerUrgencePackaging() ci-dessous — voir son docblock :
+        // distinct de ChargementController::calculerUrgence(), pas de
+        // comparaison au créneau horaire actuel ici.
         $livraisons = $query
-            ->with(['famille:id,nom,prenom,criticite,etudiant,est_hotel,nombre_adulte,nombre_enfant', 'colis'])
+            ->with(['famille:id,nom,prenom,criticite,etudiant,est_hotel,nombre_adulte,nombre_enfant', 'colis', 'creneaux'])
             ->get()
-            ->sortByDesc(fn (Livraison $l) => $l->famille->criticite ?? 0)
+            ->map(function (Livraison $livraison) {
+                $livraison->urgente = $this->calculerUrgencePackaging($livraison);
+
+                return $livraison;
+            })
+            ->sortBy([
+                // Urgente (créneau unique confirmé, aucun repli possible)
+                // toujours en tête, avant même la criticité — §2.2 : "the
+                // packaging team sees this family at the top AND with the
+                // red border", indépendant de criticite.
+                fn (Livraison $l) => $l->urgente ? 0 : 1,
+                fn (Livraison $l) => -($l->famille->criticite ?? 0),
+            ])
             ->values();
 
         return view('livraison.packaging', [
@@ -162,9 +173,23 @@ class PackagingController extends Controller
      * Voir le prompt du 05/09/2026 §5.3 : un colis par personne du foyer
      * (livraisons.nombre_personnes), pas une case unique par famille —
      * chaque colis se marque indépendamment, la case "famille entière" ne
-     * se coche que lorsque TOUS ses colis sont prêts (voir colisTousPrets()
-     * sur Livraison), et reste grisée/indisponible tant que ce n'est pas
-     * le cas (contrôle côté Vue ET revalidé ici côté serveur).
+     * se coche que lorsque TOUS ses colis sont prêts (voir
+     * statutConditionnementDerive() sur Livraison), et reste grisée/
+     * indisponible tant que ce n'est pas le cas (contrôle côté Vue ET
+     * revalidé ici côté serveur).
+     *
+     * Verrouillée une fois statut_conditionnement = 'prete' (09/09/2026,
+     * prompt de cette date §2.1, en même temps que l'ajout du statut
+     * 'en_cours' — voir create_livraisons_table.php et
+     * statutConditionnementDerive() sur Livraison) : décocher un colis
+     * individuel une fois la livraison prête contournait jusque-là
+     * annulerConditionnement() (pas de confirmation, pas d'incident/
+     * notification à l'équipe chargement/chauffeur si la tournée était
+     * déjà passée en 'chargement'/'charge') — désormais refusé ici avec
+     * un message explicite, seule la case "famille entière" (qui, elle,
+     * appelle annulerConditionnement() avec confirmation, voir
+     * packaging.blade.php) peut faire revenir en arrière une livraison
+     * déjà prête.
      */
     public function marquerColisPret(Request $request, LivraisonColis $colis): JsonResponse
     {
@@ -175,17 +200,27 @@ class PackagingController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
+        $livraison = $colis->livraison;
+        if ($livraison->statut_conditionnement === 'prete') {
+            return response()->json([
+                'success' => false,
+                'message' => "Cette livraison est déjà conditionnée — décochez la case famille entière pour reprendre les colis.",
+            ], 422);
+        }
+
         $colis->update([
             'statut' => $request->input('statut'),
             'pret_le' => $request->input('statut') === 'pret' ? now() : null,
             'pret_par' => $request->input('statut') === 'pret' ? auth()->id() : null,
         ]);
 
-        $livraison = $colis->livraison;
         $livraison->refresh();
+        $statutDerive = $livraison->statutConditionnementDerive();
 
-        if ($livraison->colisTousPrets() && $livraison->statut_conditionnement !== 'prete') {
+        if ($statutDerive === 'prete') {
             $this->finaliserConditionnement($livraison);
+        } elseif ($statutDerive !== $livraison->statut_conditionnement) {
+            $livraison->update(['statut_conditionnement' => $statutDerive]);
         }
 
         return response()->json([
@@ -193,6 +228,23 @@ class PackagingController extends Controller
             'colis' => $livraison->colis,
             'statut_conditionnement' => $livraison->fresh()->statut_conditionnement,
         ]);
+    }
+
+    /**
+     * Urgence PACKAGING (09/09/2026, prompt de cette date §2.2) — distincte
+     * de ChargementController::calculerUrgence() : ici "urgente" veut dire
+     * "cette famille n'a confirmé qu'UN SEUL créneau, aucun repli possible
+     * si elle n'est pas prête à temps", indépendamment de l'heure actuelle
+     * (contrairement à Chargement, qui ne signale l'urgence que pendant le
+     * créneau concerné lui-même — packaging a lieu en amont, souvent avant
+     * même l'ouverture du créneau). Sans lien avec familles.criticite : une
+     * famille peu critique mais sans repli de créneau reste prioritaire en
+     * tête de liste (voir le tri dans index() ci-dessus), une famille très
+     * critique mais disponible sur tous les créneaux ne l'est pas.
+     */
+    private function calculerUrgencePackaging(Livraison $livraison): bool
+    {
+        return $livraison->creneaux->count() === 1;
     }
 
     /**

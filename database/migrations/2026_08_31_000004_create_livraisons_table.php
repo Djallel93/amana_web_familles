@@ -56,7 +56,14 @@ return new class extends Migration {
 
             $table->enum('statut', ['non_assignee', 'assignee', 'en_cours', 'livree', 'ignoree'])
                 ->default('non_assignee');
-            $table->enum('statut_conditionnement', ['en_attente', 'prete'])->default('en_attente');
+            // 'en_cours' ajouté le 09/09/2026 (prompt de cette date §2.1) :
+            // certains colis du foyer sont prêts mais pas tous — jusque-là
+            // purement dérivé côté requête (whereHas colis 'pret', voir
+            // PackagingController::index() avant cette date), maintenant
+            // un vrai statut posé par marquerColisPret() pour simplifier
+            // ces requêtes et permettre un badge par livraison (pas
+            // seulement une carte statistique agrégée).
+            $table->enum('statut_conditionnement', ['en_attente', 'en_cours', 'prete'])->default('en_attente');
 
             $table->unsignedTinyInteger('nombre_personnes')
                 ->comment('Snapshot du foyer au moment de la génération de la livraison');

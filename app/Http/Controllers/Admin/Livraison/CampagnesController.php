@@ -314,10 +314,11 @@ class CampagnesController extends Controller
      * recalc, never touching already-packaged ones").
      *
      * Scopée aux seules livraisons statut_conditionnement = 'en_attente' :
-     * une livraison déjà conditionnée ('prete') peut correspondre à des
-     * colis physiquement déjà préparés sous l'ancien poids — la toucher
-     * ici romprait silencieusement la cohérence entre poids_kg et ce qui a
-     * réellement été pesé/emballé. Si la livraison appartient déjà à une
+     * une livraison déjà conditionnée ('prete') OU déjà partiellement
+     * conditionnée ('en_cours', ajouté le 09/09/2026 — prompt de cette
+     * date §2.1) peut correspondre à des colis physiquement déjà préparés
+     * sous l'ancien poids — la toucher ici romprait silencieusement la
+     * cohérence entre poids_kg et ce qui a réellement été pesé/emballé. Si la livraison appartient déjà à une
      * tournée 'planifiee', son poids_kg change ici mais
      * routes.poids_total_kg de cette tournée reste, lui, inchangé —
      * supprimer la tournée (LiveBoardController::supprimerRoute(), qui

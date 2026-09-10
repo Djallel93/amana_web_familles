@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int         $id_famille
  * @property int         $id_campagne
  * @property string      $statut                  non_assignee|assignee|en_cours|livree|ignoree
- * @property string      $statut_conditionnement  en_attente|prete
+ * @property string      $statut_conditionnement  en_attente|en_cours|prete
  * @property int         $nombre_personnes
  * @property float       $poids_kg
  * @property int|null    $id_benevole_impose
@@ -136,16 +136,31 @@ class Livraison extends Model
     }
 
     /**
-     * true seulement quand la livraison a des colis ET qu'ils sont tous
-     * 'pret' — utilisé pour dériver/valider statut_conditionnement plutôt
-     * que de le laisser être mis à jour indépendamment de l'état réel des
-     * colis (voir PackagingController::marquerColisPret()).
+     * Statut de conditionnement dérivé de l'état RÉEL des colis — ajouté
+     * le 09/09/2026 (prompt de cette date §2.1) en même temps que
+     * l'ajout de 'en_cours' à l'enum (voir create_livraisons_table.php),
+     * remplace l'ancienne colisTousPrets() (qui ne distinguait que
+     * "tous prêts ou non", insuffisant depuis que 'en_cours' existe) :
+     * 'prete' si tous les colis sont 'pret', 'en_attente' si aucun ne
+     * l'est, 'en_cours' sinon (au moins un mais pas tous). Centralisé ici
+     * plutôt que recalculé séparément dans marquerColisPret()/
+     * annulerConditionnement() pour n'avoir qu'un seul endroit qui
+     * connaisse cette règle.
      */
-    public function colisTousPrets(): bool
+    public function statutConditionnementDerive(): string
     {
         $colis = $this->colis;
+        if ($colis->isEmpty()) {
+            return 'en_attente';
+        }
+        if ($colis->every(fn (LivraisonColis $c) => $c->statut === 'pret')) {
+            return 'prete';
+        }
+        if ($colis->contains(fn (LivraisonColis $c) => $c->statut === 'pret')) {
+            return 'en_cours';
+        }
 
-        return $colis->isNotEmpty() && $colis->every(fn (LivraisonColis $c) => $c->statut === 'pret');
+        return 'en_attente';
     }
 
     public function campagne(): BelongsTo

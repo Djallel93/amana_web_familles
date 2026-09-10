@@ -41,8 +41,12 @@
             data-generer-routes-url="{{ route('livraison.campagnes.generer-routes', $campagne) }}"
             {{-- Réutilisée pour la gate du clustering (09/09/2026 §2.2) — même endpoint que ContactsQueue.vue. --}}
             data-queue-url="{{ route('livraison.contacts.queue') }}"
+            {{-- Ajoutée le 09/09/2026 (prompt de cette date §1.5, second passage) : total de la journée pour distinguer "rien à contacter" de "rien du tout". --}}
+            data-contacts-statistiques-url="{{ route('livraison.contacts.statistiques') }}"
             data-benevoles-url="{{ route('livraison.campagnes.benevoles.index', $campagne) }}"
             data-equipes-url="{{ route('livraison.campagnes.equipes.index', $campagne) }}"
+            {{-- Ajoutée le 09/09/2026 (prompt de cette date §1.1). --}}
+            data-reception-url="{{ route('livraison.reception.show', $campagne) }}"
             data-ajouter-journee-url="{{ route('livraison.campagnes.journees.store', $campagne) }}"
             data-avancement-url="{{ route('livraison.campagnes.avancement', $campagne) }}"
             data-update-url="{{ route('livraison.campagnes.update', $campagne) }}"
@@ -50,7 +54,9 @@
             data-pesee-url="{{ route('livraison.pesee.show', $campagne) }}"
             data-packaging-url="{{ route('livraison.packaging.index', $campagne) }}"
             data-chargement-url="{{ route('livraison.chargement.index', $campagne) }}"
-            data-suivi-livraison-url="{{ route('livraison.suivi-livraison.index', $campagne) }}">
+            data-suivi-livraison-url="{{ route('livraison.suivi-livraison.index', $campagne) }}"
+            {{-- Ajoutée le 09/09/2026 (prompt de cette date §1.3) : campagne présélectionnée sur Statistiques, même patron que suivi-livraison-url ci-dessus. --}}
+            data-statistiques-url="{{ route('livraison.statistiques.index', $campagne) }}">
         </div>
     </div>
 @endsection

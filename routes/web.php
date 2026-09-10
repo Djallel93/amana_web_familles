@@ -415,7 +415,9 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
 //    lecture/écriture en interne selon le rôle une fois la logique
 //    écrite (Patch 5).
 Route::middleware(['auth', 'role:benevole'])->prefix('livraison')->name('livraison.')->group(function () {
-    Route::get('/statistiques', [\App\Http\Controllers\Admin\Livraison\StatistiquesController::class, 'index'])
+    // {campagne?} ajouté le 09/09/2026 (prompt de cette date §1.3) — voir
+    // StatistiquesController::index().
+    Route::get('/statistiques/{campagne?}', [\App\Http\Controllers\Admin\Livraison\StatistiquesController::class, 'index'])
         ->name('statistiques.index');
     Route::get('/statistiques/{campagne}/donnees', [\App\Http\Controllers\Admin\Livraison\StatistiquesController::class, 'donnees'])
         ->name('statistiques.donnees');

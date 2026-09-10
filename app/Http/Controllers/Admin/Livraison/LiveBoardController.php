@@ -102,6 +102,23 @@ class LiveBoardController extends Controller
 
         $journee = $campagne->journees()->findOrFail($request->integer('id_campagne_journee'));
 
+        // Ajouté le 09/09/2026 (prompt de cette date §1.5) : distinct de la
+        // vérification "reste à contacter" ci-dessous — sans lui, une
+        // journée sans AUCUNE famille ajoutée passait ce test par le vide
+        // (aucune ligne 'a_contacter' puisqu'aucune ligne du tout) et
+        // laissait genererPourCampagne() tourner pour rien
+        // ("0 livraison créé", inoffensif mais confus — voir le prompt).
+        // Revalidé ici côté serveur pour la même raison que le test
+        // suivant : le bouton grisé côté Vue (CampagneDetail.vue) ne doit
+        // pas être la seule protection.
+        $aucuneLivraison = !Livraison::where('id_campagne_journee', $journee->id)->exists();
+        if ($aucuneLivraison) {
+            return response()->json([
+                'success' => false,
+                'message' => "Aucune famille n'a été ajoutée pour cette journée.",
+            ], 422);
+        }
+
         // Voir le prompt du 05/09/2026 §1.5 : le bouton de lancement a été
         // déplacé sur l'écran Suivi des contacts, avec pour condition que
         // plus aucune famille de CETTE journée ne soit encore à

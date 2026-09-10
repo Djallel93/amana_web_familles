@@ -65,8 +65,15 @@ const urls = {
     // Ajoutés le 09/09/2026 (prompt §2.2) : bouton clustering déplacé ici.
     genererRoutes: el.dataset.genererRoutesUrl ?? "",
     queue: el.dataset.queueUrl ?? "",
+    // Ajouté le 09/09/2026 (prompt de cette date §1.5, second passage) :
+    // total des livraisons de la journée (indépendamment de
+    // statut_contact) — voir aucuneLivraison ci-dessous, distinct de
+    // resteAContacter qui ne compte que 'a_contacter'.
+    contactsStatistiques: el.dataset.contactsStatistiquesUrl ?? "",
     benevoles: el.dataset.benevolesUrl ?? "",
     equipes: el.dataset.equipesUrl ?? "",
+    // Ajouté le 09/09/2026 (prompt de cette date §1.1/§1.2).
+    reception: el.dataset.receptionUrl ?? "",
     ajouterJournee: el.dataset.ajouterJourneeUrl ?? "",
     avancement: el.dataset.avancementUrl ?? "",
     update: el.dataset.updateUrl ?? "",
@@ -75,6 +82,10 @@ const urls = {
     packaging: el.dataset.packagingUrl ?? "",
     chargement: el.dataset.chargementUrl ?? "",
     suiviLivraison: el.dataset.suiviLivraisonUrl ?? "",
+    // Ajouté le 09/09/2026 (prompt de cette date §1.3) : campagne
+    // présélectionnée sur l'écran Statistiques, même patron que
+    // suivi-livraison (data-campagne-id).
+    statistiques: el.dataset.statistiquesUrl ?? "",
 };
 
 function formatDateFr(iso: string): string {
@@ -181,17 +192,19 @@ async function enregistrerEdition() {
 }
 
 // Couleur de la section HQ & commentaire (09/09/2026, prompt de cette date
-// §3.2) : rouge si cette campagne n'a AUCUN HQ, ni saisi ni hérité du
-// réglage global (hq_latitude/hq_longitude toutes deux vides — ne peut
-// arriver que si le réglage global lui-même n'était pas configuré au
-// moment de la création, voir CampagnesController::store()) ; orange si un
-// HQ existe mais n'a encore jamais été confirmé pour CETTE campagne
-// (hq_confirmee_le NULL — simple copie silencieuse du réglage global à la
-// création, jamais revue) ; normal une fois confirmé.
-const hqCouleur = computed<"rouge" | "orange" | null>(() => {
+// §3.2 ; orange RETIRÉ le 09/09/2026, prompt de cette date §1.4 : "If HQ
+// was define at campagne creation do not color HQ & commentaire section
+// in orange" — un HQ est TOUJOURS défini à la création dès que le réglage
+// global l'est (CampagnesController::store() le recopie automatiquement),
+// donc l'ancien état orange "hérité mais jamais confirmé" ne signalait pas
+// une vraie donnée manquante. hq_confirmee_le reste posé par le bouton
+// "Confirmer" (traçabilité côté serveur) mais n'a plus d'effet visuel ici.
+// Seul cas restant : rouge si cette campagne n'a AUCUN HQ du tout (ni
+// saisi, ni hérité — ne peut arriver que si le réglage global lui-même
+// n'était pas configuré au moment de la création).
+const hqCouleur = computed<"rouge" | null>(() => {
     if (!campagne.value.hq_latitude && !campagne.value.hq_longitude)
         return "rouge";
-    if (!campagne.value.hq_confirmee_le) return "orange";
     return null;
 });
 
@@ -341,6 +354,13 @@ async function genererLivraisons() {
     toast.success(`${resultat.data.generees} famille(s) ajoutée(s).`);
     chargerAvancement();
     chargerEligibles(metaEligibles.value?.current_page ?? 1);
+    // Ajouté le 09/09/2026 (prompt de cette date §1.5) : le bouton
+    // "Génération des routes" restait grisé-à-tort ou actif-à-tort après
+    // un ajout de familles tant que la page n'était pas rechargée
+    // (resteAContacter/aucuneLivraison ne se recalculaient qu'au montage
+    // ou au changement de journée) — recalculé ici pour rester à jour
+    // sans rechargement.
+    verifierGateClustering();
 }
 
 // ── Notification bénévoles ──────────────────────────────────────────────
@@ -356,26 +376,51 @@ async function genererLivraisons() {
 // LiveBoardController::genererRoutes()), ce calcul côté Vue ne sert qu'à
 // griser le bouton avant même de tenter l'appel. Même logique que
 // l'ancienne verifierGateClustering() de ContactsQueue.vue.
+//
+// aucuneLivraison ajouté le 09/09/2026 (prompt de cette date §1.5) : le
+// bouton restait cliquable tant qu'AUCUNE famille n'avait encore été
+// ajoutée à la journée (resteAContacter tombe à 0 "par le vide" — aucune
+// ligne 'a_contacter' puisqu'aucune ligne du tout), menant à un
+// "0 livraison créé" inoffensif mais confus plutôt qu'un vrai refus.
+// Distingue donc désormais "rien à contacter parce que tout est
+// contacté" de "rien à contacter parce qu'il n'y a rien du tout" via le
+// total (contacts.statistiques, même filtre id_campagne/
+// id_campagne_journee que resteAContacter ci-dessus).
 const chargementVerifGate = ref(false);
 const resteAContacter = ref<number | null>(null);
+const aucuneLivraison = ref<boolean | null>(null);
 
 async function verifierGateClustering() {
     if (idJourneeSelectionnee.value === null) {
         resteAContacter.value = null;
+        aucuneLivraison.value = null;
         return;
     }
     chargementVerifGate.value = true;
-    const resultat = await apiGet<{ ids: number[] }>(
-        urls.queue +
-            buildQuery({
-                id_campagne: campagne.value.id,
-                id_campagne_journee: idJourneeSelectionnee.value,
-                statut_contact: "a_contacter",
-                ids_only: 1,
-            }),
-    );
+    const filtresJournee = {
+        id_campagne: campagne.value.id,
+        id_campagne_journee: idJourneeSelectionnee.value,
+    };
+    const [resultatReste, resultatTotal] = await Promise.all([
+        apiGet<{ ids: number[] }>(
+            urls.queue +
+                buildQuery({
+                    ...filtresJournee,
+                    statut_contact: "a_contacter",
+                    ids_only: 1,
+                }),
+        ),
+        apiGet<{ total: number }>(
+            urls.contactsStatistiques + buildQuery(filtresJournee),
+        ),
+    ]);
     chargementVerifGate.value = false;
-    resteAContacter.value = resultat.ok ? resultat.data.ids.length : null;
+    resteAContacter.value = resultatReste.ok
+        ? resultatReste.data.ids.length
+        : null;
+    aucuneLivraison.value = resultatTotal.ok
+        ? resultatTotal.data.total === 0
+        : null;
 }
 
 const chargementRoutes = ref(false);
@@ -457,8 +502,17 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
             avant où tous les liens de navigation étaient dans le même
             style neutre et Notifier bénévole était un bouton à part sur sa
             propre ligne avec le (désormais retiré) bouton clustering.
+
+            Scindée en deux rangées le 09/09/2026 (prompt de cette date
+            §1.3 : "Since there are more and more pills split them on two
+            rows") — Réception et Statistiques ajoutées le même jour
+            (§1.1/§1.3) ont fait passer le total à 9, plus assez lisible
+            sur une seule ligne y compris en wrap. Rangée 1 = préparation/
+            staffing de la journée (bénévoles → équipes → contact →
+            réception → pesée) ; rangée 2 = suite de la chaîne matérielle
+            (packaging → chargement → suivi → statistiques).
         -->
-        <div class="flex flex-wrap gap-2 mb-6">
+        <div class="flex flex-wrap gap-2 mb-2">
             <!--
                 Suivi des bénévoles + Équipes déplacés avant Suivi des
                 contacts (08/09/2026, prompt de cette date §4) — les
@@ -479,13 +533,10 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
                 Distinct de "Suivi des bénévoles" ci-dessus, qui gère la
                 disponibilité déclarée par le bénévole lui-même, pas les
                 rôles équipe_reception/pesee/packaging/chargement.
+
+                Déplacée entre Suivi des contacts et Réception le
+                09/09/2026 (prompt de cette date §1.2).
             -->
-            <a
-                :href="urls.equipes"
-                class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90"
-            >
-                🧑‍🤝‍🧑 Équipes
-            </a>
             <a
                 :href="urls.contacts"
                 class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90"
@@ -493,11 +544,30 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
                 📞 Suivi des contacts
             </a>
             <a
+                :href="urls.equipes"
+                class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-sky-600 hover:opacity-90"
+            >
+                🧑‍🤝‍🧑 Équipes
+            </a>
+            <!-- Ajouté le 09/09/2026 (prompt de cette date §1.1) : équipe_
+                 reception n'avait jusqu'ici aucun lien depuis cet écran
+                 (seulement via son propre point d'entrée "choisir", voir
+                 config/amana-shared.php) — même route que Pesée/Packaging/
+                 Chargement ci-dessous (livraison.reception.show). -->
+            <a
+                :href="urls.reception"
+                class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-indigo-600 hover:opacity-90"
+            >
+                🧾 Réception
+            </a>
+            <a
                 :href="urls.pesee"
                 class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-amber-600 hover:opacity-90"
             >
                 ⚖️ Pesée
             </a>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-6">
             <a
                 :href="urls.packaging"
                 class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-violet-600 hover:opacity-90"
@@ -515,6 +585,16 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
                 class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-teal-600 hover:opacity-90"
             >
                 🗺️ Suivi livraison
+            </a>
+            <!-- Ajouté le 09/09/2026 (prompt de cette date §1.3) : pointe
+                 directement sur cette campagne, même patron que
+                 Suivi livraison (data-campagne-id, voir
+                 StatistiquesController::index()). -->
+            <a
+                :href="urls.statistiques"
+                class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-fuchsia-600 hover:opacity-90"
+            >
+                📊 Statistiques
             </a>
         </div>
 
@@ -599,16 +679,15 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
 
         <!--
             HQ + commentaire (05/09/2026, prompt §1.2/§1.3).
-            Couleur (09/09/2026, prompt de cette date §3.2) — voir
-            hqCouleur ci-dessus : rouge = aucun HQ du tout (ni saisi, ni
-            réglage global configuré), orange = HQ hérité du réglage
-            global mais jamais confirmé pour cette campagne.
+            Couleur (09/09/2026, prompt de cette date §3.2 ; orange retiré
+            le 09/09/2026, prompt de cette date §1.4) — voir hqCouleur
+            ci-dessus : rouge = aucun HQ du tout (ni saisi, ni réglage
+            global configuré).
         -->
         <div
             class="bg-surface border rounded-xl p-5 mb-6"
             :class="{
                 'border-rose-300 bg-rose-50/60': hqCouleur === 'rouge',
-                'border-amber-300 bg-amber-50/60': hqCouleur === 'orange',
                 'border-surface-border': hqCouleur === null,
             }"
         >
@@ -770,7 +849,8 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
                 :disabled="
                     chargementRoutes ||
                     chargementVerifGate ||
-                    (resteAContacter ?? 1) > 0
+                    (resteAContacter ?? 1) > 0 ||
+                    aucuneLivraison !== false
                 "
                 @click="genererRoutes"
                 class="min-h-[2.25rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed"
@@ -783,6 +863,15 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
                 class="text-[12.5px] text-ink-muted mt-2"
             >
                 Vérification…
+            </p>
+            <!-- Ajouté le 09/09/2026 (prompt de cette date §1.5) : distinct
+                 du message "toutes contactées" ci-dessous — aucune famille
+                 n'a même été ajoutée à cette journée. -->
+            <p
+                v-else-if="aucuneLivraison === true"
+                class="text-[12.5px] text-amber-700 mt-2"
+            >
+                Aucune famille n'a encore été ajoutée à cette journée.
             </p>
             <p
                 v-else-if="(resteAContacter ?? 0) > 0"

@@ -14,7 +14,9 @@
              serveur et n'a aucune interactivité, pas de raison d'en faire
              un aller-retour JSON de plus (même logique que la liste
              campagnes déjà chargée sur campagnes.blade.php). --}}
+        {{-- data-campagne-id (09/09/2026, prompt de cette date §1.3) : présélectionne le <select> de LivraisonStatistiques.vue quand la campagne est déjà connue (arrivée depuis CampagneDetail.vue) — même patron que data-campagne-id sur suivi-livraison.blade.php. --}}
         <div id="vue-livraison-statistiques" data-campagnes="{{ $campagnes->toJson() }}"
+            data-campagne-id="{{ $campagneSelectionnee?->id }}"
             data-donnees-url-template="{{ route('livraison.statistiques.donnees', ['campagne' => '__CAMPAGNE__']) }}"
             data-snapshot-url-template="{{ route('livraison.statistiques.snapshot', ['campagne' => '__CAMPAGNE__']) }}"
             data-peut-snapshotter="{{ auth()->user()->isAdmin() || auth()->user()->isGestionnaire() ? '1' : '0' }}">

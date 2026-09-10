@@ -19,7 +19,7 @@
     pour ne jamais présenter un bouton qui échouerait systématiquement.
 -->
 <script setup lang="ts">
-import { ref, onUnmounted, nextTick, computed } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
 import { useToast } from '@amana/shared-ui';
 import {
     Chart,
@@ -78,7 +78,10 @@ function urlSnapshot(id: string): string {
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 const loadState = ref<LoadState>('idle');
-const campagneId = ref('');
+// Présélectionnée (09/09/2026, prompt de cette date §1.3) quand on arrive
+// depuis le bouton "📊 Statistiques" de CampagneDetail.vue — voir
+// data-campagne-id sur statistiques.blade.php, même patron que LiveBoard.vue.
+const campagneId = ref(el.dataset.campagneId ?? '');
 const donnees = ref<StatistiquesDonnees | null>(null);
 const snapshotEnCours = ref(false);
 
@@ -159,6 +162,15 @@ function renderCharts(): void {
         chartRoutes = new Chart(canvasRoutes.value, graphiqueRepartition(LIBELLES_ROUTE, donnees.value.routes_par_statut, '#0f766e'));
     }
 }
+
+// Ajouté le 09/09/2026 (prompt de cette date §1.3) : charge immédiatement
+// si une campagne est déjà présélectionnée (voir campagneId ci-dessus),
+// même comportement que le <select> déclenchant charger() sur @change —
+// sans ce onMounted, arriver depuis CampagneDetail.vue présélectionnait le
+// <select> mais laissait l'écran vide (idle) tant qu'on n'y retouchait pas.
+onMounted(() => {
+    if (campagneId.value) charger();
+});
 
 onUnmounted(() => {
     chartLivraisons?.destroy();

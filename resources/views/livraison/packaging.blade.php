@@ -125,9 +125,14 @@
                     (05/09/2026, prompt §4.5) — hôtel prioritaire si une
                     famille est (en théorie jamais) les deux à la fois,
                     simple choix arbitraire plutôt que de mélanger les
-                    teintes.
+                    teintes. Conservée telle quelle (09/09/2026, prompt de
+                    cette date §2.2 : "keep current coloring") — la bordure
+                    d'urgence ci-dessous s'ajoute par-dessus plutôt que de
+                    la remplacer, ce sont deux dimensions indépendantes
+                    (voir PackagingController::calculerUrgencePackaging()).
                 --}}
-                <div class="border border-surface-border rounded-xl p-4
+                <div class="border rounded-xl p-4
+                    {{ $livraison->urgente ? 'border-rose-600 border-l-8' : 'border-surface-border' }}
                     {{ $livraison->famille->est_hotel ? 'bg-amber-50' : ($livraison->famille->etudiant ? 'bg-sky-50' : 'bg-surface') }}"
                     id="livraison-{{ $livraison->id }}">
                     <div class="flex items-start justify-between gap-3">
@@ -145,6 +150,7 @@
                                 changement d'état dynamique en JS).
                             --}}
                             <input type="checkbox" class="mt-1 case-famille" data-id-livraison="{{ $livraison->id }}"
+                                data-statut-conditionnement="{{ $livraison->statut_conditionnement }}"
                                 {{ $livraison->statut_conditionnement === 'prete' ? 'checked' : '' }}
                                 onchange="toggleFamille({{ $livraison->id }}, this.checked)">
                             <div>
@@ -169,17 +175,22 @@
                                     @if($livraison->famille->est_hotel)
                                         <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Hôtel</span>
                                     @endif
+                                    {{-- Ajouté le 09/09/2026 (prompt de cette date §2.3 : "If family has kids make it more visible") — violet comme le tag "· N enfant(s)" de chargement.blade.php, en gras pour ressortir davantage que les deux badges ci-dessus. --}}
+                                    @if($livraison->famille->nombre_enfant > 0)
+                                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">👶 {{ $livraison->famille->nombre_enfant }} enfant(s)</span>
+                                    @endif
                                 </div>
                                 @if($livraison->note_besoins_speciaux)
                                     <p class="text-[12px] text-rose-600 mt-1">⚠ {{ $livraison->note_besoins_speciaux }}</p>
                                 @endif
 
-                                {{-- Un colis = une personne du foyer (prompt §5.3) --}}
+                                {{-- Un colis = une personne du foyer (prompt §5.3). Verrouillées une fois la livraison 'prete' (09/09/2026, prompt de cette date §2.1) : voir PackagingController::marquerColisPret(), seule la case "famille entière" (confirmation + annulerConditionnement()) peut rouvrir les colis à ce stade. --}}
                                 <div class="flex flex-wrap gap-2 mt-2">
                                     @foreach($livraison->colis as $colis)
-                                        <label class="inline-flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-lg border border-surface-border bg-white">
+                                        <label class="inline-flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-lg border border-surface-border bg-white {{ $livraison->statut_conditionnement === 'prete' ? 'opacity-60' : '' }}">
                                             <input type="checkbox" class="case-colis" data-id-colis="{{ $colis->id }}" data-id-livraison="{{ $livraison->id }}"
                                                 {{ $colis->statut === 'pret' ? 'checked' : '' }}
+                                                {{ $livraison->statut_conditionnement === 'prete' ? 'disabled' : '' }}
                                                 onchange="toggleColis({{ $colis->id }}, {{ $livraison->id }}, this.checked)">
                                             Colis {{ $colis->numero }}/{{ $livraison->nombre_personnes }}
                                         </label>
@@ -195,13 +206,23 @@
                             and make it a little bigger") — reprend la
                             position d'avant §6.1, seule la taille/position
                             changent ; mis à jour en JS par
-                            synchroniserCaseFamille(), toujours la source de
-                            vérité de l'état affiché après un toggle sans
-                            recharger la page.
+                            appliquerStatutConditionnement(), toujours la
+                            source de vérité de l'état affiché après un
+                            toggle sans recharger la page.
                         --}}
-                        <span class="statut-conditionnement shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full {{ $livraison->statut_conditionnement === 'prete' ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-100 text-ink-muted' }}"
+                        {{-- Trois états depuis le 09/09/2026 (prompt de cette date §2.1, statut_conditionnement réellement à 3 valeurs désormais) — 'en_cours' inséré entre 'Restante' et 'Terminée', même palette ambre que le reste de l'app pour un état intermédiaire (voir chargement.blade.php/statuts route). --}}
+                        <span class="statut-conditionnement shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full
+                            {{ match($livraison->statut_conditionnement) {
+                                'prete' => 'bg-emerald-100 text-emerald-700',
+                                'en_cours' => 'bg-amber-100 text-amber-700',
+                                default => 'bg-stone-100 text-ink-muted',
+                            } }}"
                             data-id-livraison="{{ $livraison->id }}">
-                            {{ $livraison->statut_conditionnement === 'prete' ? 'Terminée' : 'Restante' }}
+                            {{ match($livraison->statut_conditionnement) {
+                                'prete' => 'Terminée',
+                                'en_cours' => 'En cours',
+                                default => 'Restante',
+                            } }}
                         </span>
                     </div>
                 </div>
@@ -230,49 +251,63 @@
                 resultat = { success: false };
             }
             if (!resultat.success) {
-                // Échec serveur : on annule le changement visuel plutôt que
-                // de laisser la case dans un état qui ne correspond plus à
-                // ce qui est réellement enregistré.
+                // Échec serveur — y compris le refus §2.1 si la livraison
+                // est déjà 'prete' (ne devrait normalement pas arriver ici,
+                // les cases colis sont disabled à ce stade par
+                // appliquerStatutConditionnement() ci-dessous, mais on
+                // annule quand même le changement visuel par sécurité)
+                // plutôt que de laisser la case dans un état qui ne
+                // correspond plus à ce qui est réellement enregistré.
                 if (checkbox) checkbox.checked = !coche;
-                alert("Erreur lors de l'enregistrement de ce colis.");
+                alert(resultat.message ?? "Erreur lors de l'enregistrement de ce colis.");
                 return;
             }
 
-            synchroniserCaseFamille(idLivraison);
+            appliquerStatutConditionnement(idLivraison, resultat.statut_conditionnement);
         }
 
         /**
-         * Recalcule et applique l'état de la case "famille entière" à
-         * partir de l'état RÉEL des cases colis dans le DOM — factorisé
-         * (05/09/2026) et rappelé au chargement de la page en plus
-         * qu'après chaque toggle, pour ne jamais dépendre d'un seul point
-         * d'entrée. N'utilise plus l'attribut `disabled` (05/09/2026 :
-         * signalé comme ne se réactivant pas de façon fiable après une
-         * bascule dynamique en JS dans certains navigateurs) — la case
-         * reste toujours cliquable, le grisé est purement visuel
-         * (opacité) et toute tentative de cochage prématuré est annulée
-         * dans toggleFamille() ci-dessous.
+         * Applique l'état affiché (case famille, verrouillage des cases
+         * colis, badge) à partir du statut_conditionnement RENVOYÉ PAR LE
+         * SERVEUR — remplace le 09/09/2026 (prompt de cette date §2.1)
+         * l'ancienne synchroniserCaseFamille() qui le RECALCULAIT depuis
+         * l'état des cases colis dans le DOM (insuffisant désormais : il y
+         * a 3 états réels en_attente/en_cours/prete à distinguer, pas
+         * juste "tous prêts ou non" — voir
+         * Livraison::statutConditionnementDerive()). Verrouille aussi les
+         * cases colis une fois 'prete' (même prompt) : jusque-là
+         * cliquables même après coup (voir PackagingController::
+         * marquerColisPret()), ce qui contournait annulerConditionnement()
+         * sans confirmation ni notification à l'équipe chargement.
          */
-        function synchroniserCaseFamille(idLivraison) {
+        function appliquerStatutConditionnement(idLivraison, statutConditionnement) {
             const caseFamille = document.querySelector(`.case-famille[data-id-livraison="${idLivraison}"]`);
             const tousLesColis = document.querySelectorAll(`.case-colis[data-id-livraison="${idLivraison}"]`);
-            if (!caseFamille || tousLesColis.length === 0) return;
+            const prete = statutConditionnement === 'prete';
 
-            const tousPrets = Array.from(tousLesColis).every((c) => c.checked);
-            caseFamille.checked = tousPrets;
-            caseFamille.classList.toggle('opacity-40', !tousPrets);
-            caseFamille.title = tousPrets ? '' : 'Cochez d\'abord tous les colis de cette famille';
+            if (caseFamille) {
+                caseFamille.checked = prete;
+                caseFamille.dataset.statutConditionnement = statutConditionnement;
+                caseFamille.classList.toggle('opacity-40', !prete);
+                caseFamille.title = prete ? '' : 'Cochez d\'abord tous les colis de cette famille';
+            }
 
-            // Badge de statut (08/09/2026, prompt de cette date §6.1) —
-            // la ligne reste dans le DOM (voir index() : plus de filtre
-            // statut_conditionnement côté serveur), seul ce badge change.
+            tousLesColis.forEach((c) => {
+                c.disabled = prete;
+                c.closest('label')?.classList.toggle('opacity-60', prete);
+            });
+
             const badge = document.querySelector(`.statut-conditionnement[data-id-livraison="${idLivraison}"]`);
             if (badge) {
-                badge.textContent = tousPrets ? 'Terminée' : 'Restante';
-                badge.classList.toggle('bg-emerald-100', tousPrets);
-                badge.classList.toggle('text-emerald-700', tousPrets);
-                badge.classList.toggle('bg-stone-100', !tousPrets);
-                badge.classList.toggle('text-ink-muted', !tousPrets);
+                const LIBELLES = { en_attente: 'Restante', en_cours: 'En cours', prete: 'Terminée' };
+                const STYLES = {
+                    en_attente: ['bg-stone-100', 'text-ink-muted'],
+                    en_cours: ['bg-amber-100', 'text-amber-700'],
+                    prete: ['bg-emerald-100', 'text-emerald-700'],
+                };
+                badge.textContent = LIBELLES[statutConditionnement] ?? LIBELLES.en_attente;
+                Object.values(STYLES).flat().forEach((classe) => badge.classList.remove(classe));
+                (STYLES[statutConditionnement] ?? STYLES.en_attente).forEach((classe) => badge.classList.add(classe));
             }
         }
 
@@ -288,8 +323,8 @@
 
         /**
          * Cocher : n'est censé arriver qu'automatiquement une fois tous
-         * les colis prêts (voir synchroniserCaseFamille()) — un clic
-         * manuel prématuré est annulé ici plutôt que laissé passer.
+         * les colis prêts (voir appliquerStatutConditionnement()) — un
+         * clic manuel prématuré est annulé ici plutôt que laissé passer.
          * Décocher : demande confirmation puis appelle annuler() (prompt
          * du 05/09/2026 §5.3 : "get a confirmation screen before
          * validating uncheck").
@@ -322,14 +357,23 @@
             }
 
             document.querySelectorAll(`.case-colis[data-id-livraison="${idLivraison}"]`).forEach((c) => c.checked = false);
-            synchroniserCaseFamille(idLivraison);
+            // annulerConditionnement() remet toujours à 'en_attente' (tous
+            // les colis réinitialisés à 'a_preparer', voir le contrôleur) —
+            // pas besoin d'un aller-retour supplémentaire pour connaître le
+            // statut résultant.
+            appliquerStatutConditionnement(idLivraison, 'en_attente');
         }
 
-        // Synchronise l'état visuel de chaque case famille au chargement —
-        // couvre aussi le cas où le rendu Blade initial (checked/non
-        // checked selon statut_conditionnement) ne correspondrait pas
-        // exactement à l'état colis par colis.
-        document.querySelectorAll('.case-famille').forEach((c) => synchroniserCaseFamille(c.dataset.idLivraison));
+        // Synchronise l'état visuel de chaque case famille au chargement à
+        // partir du statut_conditionnement déjà rendu par Blade
+        // (data-statut-conditionnement, voir la case-famille ci-dessus) —
+        // remplace le 09/09/2026 (prompt de cette date §2.1) l'ancienne
+        // version qui le RECALCULAIT depuis l'état des cases colis dans le
+        // DOM (synchroniserCaseFamille()) : superflu maintenant que Blade
+        // rend directement le statut réel à 3 valeurs, et insuffisant pour
+        // verrouiller correctement les cases colis d'une livraison 'prete'.
+        document.querySelectorAll('.case-famille').forEach((c) =>
+            appliquerStatutConditionnement(c.dataset.idLivraison, c.dataset.statutConditionnement));
 
         async function enregistrerPoidsMoyen() {
             const form = document.getElementById('form-poids-moyen');
