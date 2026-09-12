@@ -74,18 +74,11 @@ class FamillesController extends Controller
 
         $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
 
-
-        // Filtres géographiques — listes complètes indépendamment des
-        // résultats courants (villes/secteurs/quartiers sont créées vides
-        // pour l'instant, cf. décision 6.7 : ces selects seront vides tant
-        // que le peuplement des polygones n'est pas fait).
-        $villes = Ville::orderBy('nom')->get(['id', 'nom']);
-        $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
-        // secteur:id,id_ville eager-loadé pour le filtre Ville → Quartier en
-        // cascade côté front (data-id-ville sur chaque <option>, voir
-        // familles/index.blade.php) — Quartier n'a pas de colonne id_ville
-        // directe, seulement via secteur (cf. Amana\Shared\Models\Quartier).
-        $quartiers = Quartier::with('secteur:id,id_ville')->orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        $listesFiltres = $this->listesFiltres();
+        $villes = $listesFiltres['villes'];
+        $secteurs = $listesFiltres['secteurs'];
+        $quartiers = $listesFiltres['quartiers'];
+        $organisations = $listesFiltres['organisations'];
 
         // Listes fermées "Activité"/"Ressources" (mêmes tables que
         // IntakeController::showForm) — consommées par DetailPanel.vue pour
@@ -94,14 +87,16 @@ class FamillesController extends Controller
         $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
         $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
 
-        // Options des deux filtres "Organisation" (origine / rattachée) —
-        // voir baseQuery(). Une seule liste suffit, les deux selects la
-        // consomment (familles/index.blade.php).
-        $organisations = Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
+        // Valeurs actuelles du panneau de filtres partagé (voir
+        // FamilleFiltresBar.vue / familles/partials/filtres.blade.php,
+        // Section A3 du refactor du 10/09/2026) — avec Statut +
+        // autocomplétion Nom/Téléphone, les deux features propres à
+        // Dossier Familles (voir FamilleFilterPanel.vue).
+        $valeursFiltres = $this->valeursFiltres($request, $etatDossier, avecStatut: true, avecAutocompletion: true);
 
         return view('familles.index', compact(
             'familles', 'villes', 'secteurs', 'quartiers', 'etatDossier',
-            'secteursActivite', 'organismesAide', 'organisations',
+            'secteursActivite', 'organismesAide', 'organisations', 'valeursFiltres',
         ));
     }
 
@@ -128,13 +123,93 @@ class FamillesController extends Controller
 
         $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
 
+        // Mêmes listes géographiques/organisation que index() depuis le
+        // 10/09/2026 (Section A3 du refactor) : cette vue monte désormais
+        // le même panneau de filtres complet (voir FamilleFiltresBar.vue),
+        // pas seulement le champ recherche qu'elle avait avant — statut
+        // hors sujet ici (toujours 'Recu', voir la clause where()
+        // ci-dessus) donc avecStatut: false.
+        $listesFiltres = $this->listesFiltres();
+        $villes = $listesFiltres['villes'];
+        $secteurs = $listesFiltres['secteurs'];
+        $quartiers = $listesFiltres['quartiers'];
+        $organisations = $listesFiltres['organisations'];
+
         // Mêmes listes que index() — cette vue monte le même DetailPanel.vue
         // (voir familles/nouvelles.blade.php), qui a besoin des mêmes
         // données pour l'onglet Situation.
         $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
         $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
 
-        return view('familles.nouvelles', compact('familles', 'secteursActivite', 'organismesAide'));
+        $valeursFiltres = $this->valeursFiltres($request, etatDossier: '', avecStatut: false, avecAutocompletion: false);
+
+        return view('familles.nouvelles', compact(
+            'familles', 'villes', 'secteurs', 'quartiers',
+            'secteursActivite', 'organismesAide', 'organisations', 'valeursFiltres',
+        ));
+    }
+
+    /**
+     * Listes complètes pour les groupes Localisation/Organisation du
+     * panneau de filtres (voir familles/partials/filtres.blade.php) —
+     * indépendantes des résultats courants (villes/secteurs/quartiers
+     * peuvent être vides tant que le peuplement des polygones n'est pas
+     * fait, cf. décision 6.7). Partagée par index() et nouvelles() depuis
+     * le 10/09/2026 (Section A3 du refactor : nouvelles() n'avait jusque-là
+     * aucun de ces filtres, seulement un champ recherche).
+     */
+    private function listesFiltres(): array
+    {
+        $villes = Ville::orderBy('nom')->get(['id', 'nom']);
+        $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
+        // secteur:id,id_ville eager-loadé pour le filtre Ville → Quartier en
+        // cascade côté front — Quartier n'a pas de colonne id_ville
+        // directe, seulement via secteur (cf. Amana\Shared\Models\Quartier).
+        $quartiers = Quartier::with('secteur:id,id_ville')->orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        // Options des deux filtres "Organisation" (origine / rattachée) —
+        // voir baseQuery(). Une seule liste suffit, les deux selects la
+        // consomment (FamilleFilterPanel.vue).
+        $organisations = Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
+
+        return compact('villes', 'secteurs', 'quartiers', 'organisations');
+    }
+
+    /**
+     * Valeurs actuelles du panneau de filtres partagé, sérialisées pour
+     * FamilleFiltresBar.vue (data-valeurs) — mêmes clés que
+     * App\Support\FamilleFilters::appliquer() reconnaît, plus etat_dossier/
+     * nom/telephone/id_selection quand $avecStatut/$avecAutocompletion
+     * (voir FamilleFilterPanel.vue).
+     */
+    private function valeursFiltres(Request $request, string $etatDossier, bool $avecStatut, bool $avecAutocompletion): array
+    {
+        $valeurs = [
+            'id_ville' => $request->input('id_ville', ''),
+            'id_secteur' => $request->input('id_secteur', ''),
+            'id_quartier' => $request->input('id_quartier', ''),
+            'criticite' => array_map('intval', (array) $request->input('criticite', [])),
+            'se_deplace' => $request->boolean('se_deplace'),
+            'est_hotel' => $request->boolean('est_hotel'),
+            'etudiant' => $request->boolean('etudiant'),
+            'zakat_el_fitr' => $request->boolean('zakat_el_fitr'),
+            'sadaqa' => $request->boolean('sadaqa'),
+            'id_organisation_origine' => $request->input('id_organisation_origine', ''),
+            'id_organisation_rattachee' => $request->input('id_organisation_rattachee', ''),
+        ];
+
+        if ($avecAutocompletion) {
+            $valeurs['nom'] = $request->input('nom', '');
+            $valeurs['telephone'] = $request->input('telephone', '');
+            $valeurs['id_selection'] = $request->input('id_selection', '');
+        } else {
+            $valeurs['recherche'] = $request->input('recherche', '');
+        }
+
+        if ($avecStatut) {
+            $valeurs['etat_dossier'] = $etatDossier;
+        }
+
+        return $valeurs;
     }
 
     /**

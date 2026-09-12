@@ -76,6 +76,10 @@ mountIfPresent(
     lazy(() => import("@/components/familles/DetailPanel.vue")),
 );
 mountIfPresent(
+    "vue-familles-filtres",
+    lazy(() => import("@/components/familles/FamilleFiltresBar.vue")),
+);
+mountIfPresent(
     "vue-reverse-sync-panel",
     lazy(() => import("@/components/familles/ReverseSyncPanel.vue")),
 );

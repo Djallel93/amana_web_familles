@@ -13,14 +13,26 @@
     Tableau/carte mobile identiques à familles/index.blade.php depuis le
     10/09/2026 (Section A2 du refactor, décision du 10/09/2026 : "same
     everywhere") — mêmes colonnes, sélecteur de colonnes, avatar, criticité,
-    badges, via familles.partials.tableau. Seuls le formulaire de recherche
-    ci-dessous et le tri par défaut restent propres à cette vue.
+    badges, via familles.partials.tableau. Panneau de filtres partagé
+    (Section A3, même jour) : mêmes groupes Localisation/Organisation/
+    Criticité/Caractéristiques que Dossier Familles, sans Statut (toujours
+    etat_dossier='Recu' ici) ni autocomplétion Nom/Téléphone (simple champ
+    recherche, comme les écrans livraison) — voir FamilleFilterPanel.vue.
+    Seul le tri par défaut (le plus vieux d'abord) reste propre à cette vue.
 --}}
 @extends('layouts.app')
 
 @section('title', 'Nouvelles demandes — AMANA Familles')
 
 @section('content')
+
+    @php
+        $aFiltresActifs = request()->anyFilled([
+            'recherche', 'id_ville', 'id_secteur', 'id_quartier', 'criticite',
+            'se_deplace', 'est_hotel', 'etudiant', 'zakat_el_fitr', 'sadaqa',
+            'id_organisation_origine', 'id_organisation_rattachee',
+        ]);
+    @endphp
 
     <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
@@ -32,20 +44,17 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('familles.nouvelles') }}"
-        class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 mb-5">
-        {{-- Voir index.blade.php pour le même correctif du 12/08/2026. --}}
-        <input type="hidden" name="per_page" value="{{ request('per_page', \App\Models\Famille::PAGINATION_PAR_PAGE_DEFAUT) }}">
-        <div class="flex gap-3">
-            <input type="text" name="recherche" value="{{ request('recherche') }}" placeholder="Nom, prénom, téléphone…"
-                class="flex-1 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface-2 outline-none
-                        focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.15)]">
-            <button type="submit"
-                class="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[12.5px] font-semibold rounded-md transition-colors min-h-[38px]">
-                Filtrer
-            </button>
-        </div>
-    </form>
+    @include('familles.partials.filtres', [
+        'villes' => $villes,
+        'secteurs' => $secteurs,
+        'quartiers' => $quartiers,
+        'organisations' => $organisations,
+        'valeursFiltres' => $valeursFiltres,
+        'avecStatut' => false,
+        'avecAutocompletion' => false,
+        'ouvertParDefaut' => false,
+        'routeIndex' => 'familles.nouvelles',
+    ])
 
     @include('familles.partials.tableau', [
         'familles' => $familles,
@@ -54,9 +63,9 @@
         'routeTri' => 'familles.nouvelles',
         'videIcone' => '📭',
         'videTitre' => 'Aucune nouvelle demande',
-        'aFiltresActifs' => request()->filled('recherche'),
+        'aFiltresActifs' => $aFiltresActifs,
         'videMessageBase' => "Tout est à jour — aucune soumission en attente d'ouverture.",
-        'videMessageFiltre' => 'Aucun résultat pour cette recherche.',
+        'videMessageFiltre' => 'Aucun résultat pour ces filtres.',
         'videLienReinitialisation' => null,
     ])
 

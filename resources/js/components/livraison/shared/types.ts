@@ -161,8 +161,10 @@ export interface FamilleEligible {
  * Filtres reconnus par App\Support\FamilleFilters — voir FamilleFilterPanel.vue,
  * utilisé à la fois par la sélection éligibilité campagne et Suivi des
  * contacts (prompt du 05/09/2026 §1.6/§2.6 : "same filter panel as
- * Dossier Familles"). Toutes les clés sont optionnelles : un filtre vide
- * n'est simplement pas envoyé (voir buildQuery()).
+ * Dossier Familles"), et depuis le 10/09/2026 (Section A3 du refactor) par
+ * familles/index.blade.php et nouvelles.blade.php elles-mêmes (voir
+ * FamilleFiltresBar.vue). Toutes les clés sont optionnelles : un filtre
+ * vide n'est simplement pas envoyé (voir buildQuery()).
  */
 export interface FamilleFiltres {
     id_ville?: number | '';
@@ -177,6 +179,29 @@ export interface FamilleFiltres {
     id_organisation_origine?: number | '';
     id_organisation_rattachee?: number | '';
     recherche?: string;
+    // Champs Dossier Familles uniquement (voir FamilleFilterPanel.vue,
+    // props avecStatut/avecAutocompletion — ajoutés le 10/09/2026, Section
+    // A3 du refactor) : etat_dossier n'est PAS couvert par
+    // App\Support\FamilleFilters (voir son docblock), chaque appelant
+    // l'applique séparément avec son propre défaut. nom/telephone/
+    // id_selection sont l'alternative à `recherche` utilisée par Dossier
+    // Familles (autocomplétion — voir FamillesController::rechercheSuggestions()),
+    // mutuellement exclusive avec `recherche` côté UI mais toutes deux
+    // reconnues par FamilleFilters::appliquer() côté serveur.
+    etat_dossier?: string;
+    nom?: string;
+    telephone?: string;
+    id_selection?: number | '';
+}
+
+/** Résultat d'une suggestion d'autocomplétion — voir
+ *  FamillesController::rechercheSuggestions() et FamilleFilterPanel.vue
+ *  (prop avecAutocompletion). */
+export interface FamilleSuggestion {
+    id: number;
+    label: string;
+    sous_label: string;
+    valeur: string;
 }
 
 export interface Conflit {
