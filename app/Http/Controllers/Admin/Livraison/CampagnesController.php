@@ -538,7 +538,7 @@ class CampagnesController extends Controller
             // Ajouté le 09/09/2026 (prompt de cette date §3.3) : aucune
             // pilule ne représentait le poste réception sur cet écran —
             // même raisonnement/étape facultative que pesee_demarree
-            // ci-dessous, voir ReceptionController.
+            // ci-dessous, voir PosteReleveController::show() (type 'reception').
             'reception_demarree' => $campagne->arrivees()->exists(),
             'pesee_demarree' => $campagne->donations()->exists(),
             'packaging_termine' => $livraisonsConfirmees > 0 && $livraisonsPretes >= $livraisonsConfirmees,

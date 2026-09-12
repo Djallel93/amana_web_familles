@@ -11,8 +11,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 /**
- * Filtrage des campagnes proposées par choisir() (ReceptionController,
- * PeseeController, PackagingController, ChargementController) — extrait
+ * Filtrage des campagnes proposées par choisir() (PosteReleveController
+ * pour pesée/réception depuis le 10/09/2026 — voir sa fusion Section A1
+ * du refactor —, PackagingController, ChargementController) — extrait
  * en trait le 08/09/2026 (prompt de cette date), les 4 implémentations
  * étant identiques à la relation ->with('journees') près (absente côté
  * ChargementController, qui n'affiche pas de sélecteur de journée).

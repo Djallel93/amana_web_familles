@@ -45,7 +45,7 @@ class ChargementController extends Controller
 
     /**
      * Point d'entrée sans campagne — voir le prompt du 05/09/2026 §4.1,
-     * même raisonnement que ReceptionController::choisir()/PeseeController::choisir()/
+     * même raisonnement que PosteReleveController::choisir() (pesée/réception)/
      * PackagingController::choisir() : equipe_chargement n'avait aucune
      * entrée de menu vers cet écran. Liste restreinte aux campagnes
      * affectées (08/09/2026, voir FiltreCampagnesEquipe) — sans journées

@@ -470,42 +470,48 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
 //    Middleware de groupe réduit à 'auth' en conséquence : chaque route
 //    porte désormais explicitement son propre contrôle d'accès plutôt
 //    qu'un rôle latéral unique hérité pour tout le groupe. ─────────────
+// PeseeController et ReceptionController fusionnés en PosteReleveController
+// le 10/09/2026 (Section A1 du refactor, voir App\Support\RelevePosteDefinition)
+// — chaque groupe garde son préfixe/nom/rôle propre, `type` est passé en
+// route default aux 4 actions communes (choisir/show/enregistrer/journal).
+// modifier()/supprimer() restent typées par modèle ({arrivee}/{don}) donc
+// n'ont pas besoin de ce default — voir le docblock du contrôleur.
 Route::middleware('auth')->prefix('livraison/reception')->name('livraison.reception.')->group(function () {
     // choisir() ajouté le 05/09/2026 (prompt §4.1) : equipe_reception
     // n'avait aucune entrée de menu vers cet écran (voir
     // config/amana-shared.php) — ce point d'entrée sans {campagne} liste
     // les campagnes actives et sert de cible au lien de sidebar. Reste
     // sur le rôle global (porte d'entrée grossière) — voir
-    // ReceptionController::choisir() pour le filtrage fin par campagne.
-    Route::get('/', [\App\Http\Controllers\Livraison\ReceptionController::class, 'choisir'])
-        ->middleware('livraison_role:equipe_reception')->name('choisir');
-    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'show'])
-        ->middleware('can:equipeReception,campagne')->name('show');
-    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'enregistrer'])
-        ->middleware('can:equipeReception,campagne')->name('enregistrer');
+    // PosteReleveController::choisir() pour le filtrage fin par campagne.
+    Route::get('/', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'choisir'])
+        ->defaults('type', 'reception')->middleware('livraison_role:equipe_reception')->name('choisir');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'show'])
+        ->defaults('type', 'reception')->middleware('can:equipeReception,campagne')->name('show');
+    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'enregistrer'])
+        ->defaults('type', 'reception')->middleware('can:equipeReception,campagne')->name('enregistrer');
     // Journal des saisies (§4.2) : lister/modifier/supprimer chaque ligne
     // — pas de restriction de propriété (n'importe quel equipe_reception
     // peut éditer une ligne saisie par quelqu'un d'autre, voir le prompt).
-    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\ReceptionController::class, 'journal'])
-        ->middleware('can:equipeReception,campagne')->name('journal');
-    Route::patch('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'modifier'])
+    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'journal'])
+        ->defaults('type', 'reception')->middleware('can:equipeReception,campagne')->name('journal');
+    Route::patch('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'modifierArrivee'])
         ->middleware('can:gerer,arrivee')->name('arrivees.modifier');
-    Route::delete('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\ReceptionController::class, 'supprimer'])
+    Route::delete('/arrivees/{arrivee}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'supprimerArrivee'])
         ->middleware('can:gerer,arrivee')->name('arrivees.supprimer');
 });
 
 Route::middleware('auth')->prefix('livraison/pesee')->name('livraison.pesee.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Livraison\PeseeController::class, 'choisir'])
-        ->middleware('livraison_role:equipe_pesee')->name('choisir');
-    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'show'])
-        ->middleware('can:equipePesee,campagne')->name('show');
-    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\PeseeController::class, 'enregistrer'])
-        ->middleware('can:equipePesee,campagne')->name('enregistrer');
-    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\PeseeController::class, 'journal'])
-        ->middleware('can:equipePesee,campagne')->name('journal');
-    Route::patch('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'modifier'])
+    Route::get('/', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'choisir'])
+        ->defaults('type', 'pesee')->middleware('livraison_role:equipe_pesee')->name('choisir');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'show'])
+        ->defaults('type', 'pesee')->middleware('can:equipePesee,campagne')->name('show');
+    Route::post('/{campagne}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'enregistrer'])
+        ->defaults('type', 'pesee')->middleware('can:equipePesee,campagne')->name('enregistrer');
+    Route::get('/{campagne}/journal', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'journal'])
+        ->defaults('type', 'pesee')->middleware('can:equipePesee,campagne')->name('journal');
+    Route::patch('/dons/{don}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'modifierDon'])
         ->middleware('can:gerer,don')->name('dons.modifier');
-    Route::delete('/dons/{don}', [\App\Http\Controllers\Livraison\PeseeController::class, 'supprimer'])
+    Route::delete('/dons/{don}', [\App\Http\Controllers\Livraison\PosteReleveController::class, 'supprimerDon'])
         ->middleware('can:gerer,don')->name('dons.supprimer');
 });
 
