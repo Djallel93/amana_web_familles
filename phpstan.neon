@@ -1,0 +1,33 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+# phpstan.neon
+#
+# Ajouté le 10/09/2026 (Section E1 du refactor) — la codebase n'avait
+# jusqu'ici aucune analyse statique, seule la discipline de
+# `declare(strict_types=1)` déjà en place partout dans app/. Niveau 5
+# choisi comme PLANCHER de départ plutôt que le niveau max (9) : ce projet
+# n'a jamais été passé au crible d'un analyseur statique, un niveau élevé
+# dès le premier lancement produirait des centaines d'erreurs noyant les
+# vrais problèmes plutôt que d'aider à les trouver. À monter
+# progressivement (6, 7...) une fois le niveau 5 stabilisé — voir le
+# prompt d'origine de cette section : "matching the existing code style
+# rather than imposing a new one".
+parameters:
+    level: 5
+
+    paths:
+        - app
+        - database/migrations
+        - routes
+
+    # Laravel resout beaucoup de types (Auth::user(), route model
+    # binding, façades) dynamiquement — Larastan sait déjà interpréter la
+    # plupart de ces cas via son extension (voir includes: ci-dessus),
+    # mais reste volontairement permissif sur les deux points suivants,
+    # propres à cette codebase :
+    checkMissingIterableValueType: false
+    checkGenericClassInNonGenericObjectType: false
+
+rules:
+    - App\PHPStan\Rules\NoForeignIdOnCrossDatabaseColumnsRule
