@@ -23,7 +23,7 @@ class EtapeRoute extends Model
     /**
      * Bug préexistant repéré le 05/09/2026 (indépendant de tout ce qui
      * précède dans ce fichier) : la migration crée la table
-     * 'etapes_route' (2026_08_31_000010_create_etapes_route_table.php),
+     * 'etapes_route' (2026_08_31_000009_create_livraison_routing_tables.php),
      * mais la convention Eloquent par défaut pour un modèle EtapeRoute
      * est 'etape_routes' (snake_case + s) — SANS cette surcharge
      * explicite, toute requête sur ce modèle échoue avec "Base table or

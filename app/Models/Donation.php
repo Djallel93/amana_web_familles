@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Un relevé de pesée au poste "entrée QG" — poids total unique, jamais
- * ventilé par catégorie (voir create_donations_table.php).
+ * ventilé par catégorie (voir create_campagnes_domain_tables.php).
  *
  * @property int      $id
  * @property int      $id_campagne

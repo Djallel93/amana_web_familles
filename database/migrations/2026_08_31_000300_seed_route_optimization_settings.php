@@ -12,6 +12,14 @@ use Illuminate\Support\Facades\DB;
  * 2026_08_27_000000_register_familles_application.php (réglages
  * "inscription ouverte").
  *
+ * Simplifiée le 10/09/2026 (Section D du refactor) : le bloc de fin qui
+ * retypait 'string' → 'float'/'integer' pour les 5 réglages d'algorithme a
+ * été retiré — il n'existait que pour rattraper les bases de dev où cette
+ * migration avait déjà tourné avec l'ancien type 'string', avant le
+ * passage à un type natif le 07/09/2026. Sans objet pour une migration qui
+ * n'a jamais tourné contre cet historique squashé : les 5 réglages
+ * ci-dessous sont directement créés avec leur type natif définitif.
+ *
  * Valeurs par défaut portées telles quelles depuis
  * CONFIG_ROUTE_OPTIMIZATION (amana_livraison, Google_Sheets/Config/
  * 2_configRouteOptimization.js), réglables au runtime via
@@ -20,25 +28,14 @@ use Illuminate\Support\Facades\DB;
  * App\Support\RouteOptimizationConfig.
  *
  * Type natif ('float'/'integer', pas 'string') pour les 5 réglages
- * numériques ci-dessous (07/09/2026) — le ticket séparé évoqué le
- * 05/09/2026 lors du passage de route_hq_latitude/route_hq_longitude en
- * 'float' natif (voir plus bas). route_quartier_preference et
- * route_allow_cross_quartier restent en 'boolean', déjà natif depuis
- * l'origine. Choix float vs integer : float pour les distances/ratios
+ * numériques ci-dessous — float pour les distances/ratios
  * (route_distance_proximite_km, route_max_cluster_diameter_km,
  * route_min_compactness_ratio), integer pour les comptes/entiers
- * (route_same_building_threshold_m en mètres, route_max_livraisons_par_route)
- * — voir App\Support\RouteOptimizationConfig, dont les casts (float)/(int)
- * manuels sont supprimés en même temps que ce changement, désormais
- * redondants avec Setting::cast().
- *
- * Bloc UPDATE en fin de up() : cette migration a déjà tourné en dev (les
- * 7 réglages existent avec type='string'), donc l'insert idempotent
- * ci-dessous (if (!$existe)) ne les retype pas tout seul — seul un
- * migrate:fresh le referait. Le complément UPDATE couvre aussi le cas
- * d'une DB de dev déjà migrée sans repasser par migrate:fresh. Ne touche
- * que la colonne 'type', jamais 'valeur' (réglage possiblement modifié
- * depuis l'écran Paramètres, pas à écraser).
+ * (route_same_building_threshold_m en mètres,
+ * route_max_livraisons_par_route) — voir App\Support\RouteOptimizationConfig,
+ * dont les casts (float)/(int) manuels sont redondants avec Setting::cast()
+ * pour ces 5 réglages. route_quartier_preference et
+ * route_allow_cross_quartier restent en 'boolean'.
  */
 return new class extends Migration {
     public function up(): void
@@ -117,25 +114,26 @@ return new class extends Migration {
             }
         }
 
-        // Coordonnées du QG — AUCUNE valeur par défaut sûre n'existe (contrairement
-        // aux réglages d'algorithme ci-dessus) : propres à AMANA, à renseigner par
-        // l'admin avant tout premier clustering. Volontairement laissées vides
-        // (chaîne vide, pas de ligne omise) pour qu'elles apparaissent dans l'écran
-        // Paramètres même non configurées — voir
-        // App\Support\RouteOptimizationConfig::coordonneesHq(), qui renvoie null
-        // tant qu'elles ne sont pas renseignées (Setting::cast() renvoie null pour
-        // une valeur vide de type 'float'/'integer', pas 0.0 — voir amana/shared),
-        // et RouteGenerationService::genererPourCampagne(), qui refuse de lancer un
-        // clustering sans elles plutôt que de calculer des distances aberrantes
-        // depuis (0, 0).
+        // Coordonnées du QG — AUCUNE valeur par défaut sûre n'existe
+        // (contrairement aux réglages d'algorithme ci-dessus) : propres à
+        // AMANA, à renseigner par l'admin avant tout premier clustering.
+        // Volontairement laissées vides (chaîne vide, pas de ligne omise)
+        // pour qu'elles apparaissent dans l'écran Paramètres même non
+        // configurées — voir App\Support\RouteOptimizationConfig::coordonneesHq(),
+        // qui renvoie null tant qu'elles ne sont pas renseignées
+        // (Setting::cast() renvoie null pour une valeur vide de type
+        // 'float'/'integer', pas 0.0 — voir amana/shared), et
+        // RouteGenerationService::genererPourCampagne(), qui refuse de
+        // lancer un clustering sans elles plutôt que de calculer des
+        // distances aberrantes depuis (0, 0).
         //
-        // Renommées "HQ par défaut" (label + libelle, décision du 05/09/2026,
-        // en prévision d'une future fonctionnalité multi-QG) et passées en
-        // type 'float' natif : contrairement aux réglages d'algorithme
-        // ci-dessus, ces deux clés sont désormais éditées via un widget dédié
-        // (recherche d'adresse Google Places → coordonnées, avec repli sur
-        // une saisie manuelle) plutôt que par la boucle générique de l'écran
-        // Paramètres — voir resources/views/settings/index.blade.php et
+        // "HQ par défaut" (label + libelle, en prévision d'une future
+        // fonctionnalité multi-QG), type 'float' natif : contrairement aux
+        // réglages d'algorithme ci-dessus, ces deux clés sont éditées via
+        // un widget dédié (recherche d'adresse Google Places →
+        // coordonnées, avec repli sur une saisie manuelle) plutôt que par
+        // la boucle générique de l'écran Paramètres — voir
+        // resources/views/settings/index.blade.php et
         // HqCoordinatesAutocomplete.vue.
         $reglagesHq = [
             [
@@ -170,25 +168,6 @@ return new class extends Migration {
                     'description' => $reglage['description'],
                 ]);
             }
-        }
-
-        // Retype les 5 réglages d'algorithme si cette migration a déjà
-        // tourné avec l'ancien type 'string' (voir commentaire en tête de
-        // fichier) — ne touche que 'type', jamais 'valeur'.
-        $typesCibles = [
-            'route_distance_proximite_km' => 'float',
-            'route_max_cluster_diameter_km' => 'float',
-            'route_same_building_threshold_m' => 'integer',
-            'route_min_compactness_ratio' => 'float',
-            'route_max_livraisons_par_route' => 'integer',
-        ];
-
-        foreach ($typesCibles as $cle => $type) {
-            $commun->table('ref_settings')
-                ->where('id_application', $famillesId)
-                ->where('cle', $cle)
-                ->where('type', '!=', $type)
-                ->update(['type' => $type]);
         }
     }
 

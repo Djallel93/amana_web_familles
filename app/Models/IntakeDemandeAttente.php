@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Soumission du formulaire public d'intake en attente de confirmation par
- * email — voir migration 2026_08_11_000000_create_intake_demandes_attente_table
+ * email — voir migration 2026_08_11_000000_create_formulaires_publics_attente_tables.php
  * et IntakeController::store() / IntakeConfirmationController::confirmer().
  *
  * @property int    $id

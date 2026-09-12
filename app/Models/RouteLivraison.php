@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Nommé RouteLivraison et non `Route` — décision du 31/08/2026 — pour ne
  * jamais entrer en collision avec Illuminate\Support\Facades\Route,
  * utilisée partout dans routes/web.php ; la table DB reste `routes` (voir
- * $table ci-dessous et create_routes_table.php).
+ * $table ci-dessous et create_livraison_routing_tables.php).
  *
  * @property int         $id
  * @property int         $id_campagne
@@ -54,7 +54,7 @@ class RouteLivraison extends Model
 
     /**
      * 'livraisons_terminees' ajouté le 03/09/2026 — voir
-     * create_routes_table.php et App\Http\Controllers\Livraison\
+     * create_livraison_routing_tables.php et App\Http\Controllers\Livraison\
      * MaRouteController::livraisonTerminee()/retourQg() : état
      * intermédiaire entre "tous les arrêts sont traités" et "le bénévole
      * a confirmé son retour au QG et est de nouveau disponible".

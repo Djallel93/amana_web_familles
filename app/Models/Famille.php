@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Remplace la feuille "Famille" de l'ancien système Google Apps Script
- * (voir migration 2026_07_12_000004_create_familles_table.php).
+ * (voir migration 2026_07_12_000004_create_familles_domain_tables.php).
  *
  * @property int         $id
  * @property string      $nom
@@ -82,7 +82,7 @@ class Famille extends Model
         'organisme_aide_autre',
         'google_resource_name',
         // Organisation qui a enregistré le dossier À L'ORIGINE — voir
-        // migration add_id_organisation_to_familles_table. Ne pilote pas la
+        // migration create_organisations_domain_tables.php. Ne pilote pas la
         // visibilité seule, voir organisations()/scopeVisiblePar() plus bas.
         'id_organisation',
     ];
@@ -99,7 +99,7 @@ class Famille extends Model
         'work_days' => 'integer',
         // Verrouillage d'édition (décision du 15/08/2026) — voir
         // FamillesController::show()/update()/deverrouiller() et la
-        // migration 2026_08_15_000000_add_verrouillage_edition_to_familles.
+        // migration 2026_07_12_000004_create_familles_domain_tables.php.
         'locked_at' => 'datetime',
         // 'decimal' plutôt que 'float' : évite la notation scientifique de
         // Google (ex: 4.7e1) en JSON pour de grandes latitudes, et donne un
@@ -318,7 +318,7 @@ class Famille extends Model
      * Ville résolue par géocodage — pas de colonne directe sur familles
      * (seul ville_texte, la saisie brute, l'est), la ville "propre" ne
      * s'obtient qu'en remontant quartier → secteur → ville (voir
-     * migration 2026_07_12_000004_create_familles_table.php, commentaire
+     * migration 2026_07_12_000004_create_familles_domain_tables.php, commentaire
      * sur id_quartier). Nécessite quartier.secteur.ville eager-loadé
      * (voir FamillesController::baseQuery) pour éviter le N+1 — retourne
      * null silencieusement sinon plutôt que de déclencher une requête

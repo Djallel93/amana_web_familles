@@ -7,8 +7,17 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Enregistre l'application 'familles' + ses rôles (admin/gestionnaire/
- * membre/benevole) dans ref_applications/ref_roles (amana_commun).
+ * Enregistre l'application 'familles' + ses 9 rôles + les 2 réglages
+ * "inscription ouverte" dans ref_applications/ref_roles/ref_settings
+ * (amana_commun) — squash du 10/09/2026 (Section D du refactor) de :
+ *   - 2026_08_27_000000_register_familles_application.php (admin/
+ *     gestionnaire/membre/benevole/gestionnaire_externe + les 2 réglages
+ *     d'inscription)
+ *   - 2026_08_31_000000_register_livraison_roles.php (equipe_reception/
+ *     equipe_pesee/equipe_packaging/equipe_chargement)
+ * — les deux inséraient déjà dans les mêmes tables via le même mécanisme,
+ * fusionnés en une seule migration/un seul aller-retour DB plutôt que
+ * deux.
  *
  * Anciennement un seeder (FamillesApplicationSeeder) à lancer manuellement
  * — corrigé le 27/08/2026 : une migration cible parfaitement une autre
@@ -29,6 +38,21 @@ use Illuminate\Support\Facades\DB;
  * utile si amana_web_planning a déjà inséré des rôles admin/gestionnaire/
  * membre/benevole par ailleurs (ce n'est pas le cas actuellement, chaque
  * app gérant ses propres rôles scopés, mais reste défensif).
+ *
+ * Les 4 rôles equipe_* sont volontairement absents de
+ * Amana\Shared\Http\Middleware\EnsureRole (son `match` ne connaît que
+ * admin/gestionnaire/membre/benevole/gestionnaire_externe) : ce sont des
+ * concepts métier propres à cette app (livraison), pas des rangs de la
+ * hiérarchie standard partagée entre apps AMANA. Vérifiés via
+ * Personne::hasRole('equipe_reception') directement, dans le middleware
+ * local App\Http\Middleware\EnsureLivraisonRole — voir ce fichier pour le
+ * contrôle d'accès, et NE PAS ajouter ces codes au `match` de
+ * EnsureRole/isXxx() sur Personne (amana_shared), qui reste inchangé par
+ * ce patch. Rôles latéraux et cumulables entre eux (une personne peut
+ * tenir plusieurs postes équipe_* à la fois sur un même compte — voir
+ * ref_personnes_roles, clé composite (id_personne, id_role) sans
+ * contrainte d'unicité par personne) : rien à faire ici pour permettre le
+ * cumul, déjà supporté par le schéma existant.
  */
 return new class extends Migration {
     public function up(): void
@@ -56,6 +80,13 @@ return new class extends Migration {
             // latéral, hors cascade, voir Amana\Shared\Http\Middleware\
             // EnsureRole et App\Models\Personne::isGestionnaireExterne().
             ['code' => 'gestionnaire_externe', 'libelle' => 'Gestionnaire (organisation partenaire)'],
+            // Les 4 rôles ci-dessous : domaine livraison, voir le docblock
+            // de fichier pour pourquoi ils restent hors de la cascade
+            // standard EnsureRole/isXxx().
+            ['code' => 'equipe_reception', 'libelle' => 'Équipe réception (comptage ménages)'],
+            ['code' => 'equipe_pesee', 'libelle' => 'Équipe pesée (dons)'],
+            ['code' => 'equipe_packaging', 'libelle' => 'Équipe packaging (colis)'],
+            ['code' => 'equipe_chargement', 'libelle' => 'Équipe chargement (véhicules)'],
         ];
 
         foreach ($roles as $role) {

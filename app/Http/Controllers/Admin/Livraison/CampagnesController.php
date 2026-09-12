@@ -131,7 +131,7 @@ class CampagnesController extends Controller
         // HQ préremplie depuis le réglage global à la création (prompt du
         // 05/09/2026 §1.2 : "always prefill with it") — copiée une fois
         // pour toutes, PAS relue dynamiquement ensuite (voir docblock de
-        // create_campagnes_table.php). L'adresse n'a pas d'équivalent
+        // create_campagnes_domain_tables.php). L'adresse n'a pas d'équivalent
         // global (settings ne stocke que lat/lng) : seule celle saisie ici
         // (le cas échéant) est conservée. Depuis le 09/09/2026 (prompt
         // §2.1), l'admin peut aussi saisir explicitement lat/lng dès la
@@ -149,7 +149,7 @@ class CampagnesController extends Controller
         // RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne().
         $donnees['livraisons_max_par_tournee'] ??= RouteOptimizationConfig::maxLivraisonsParRoute();
 
-        // date_livraison (colonne NOT NULL, voir create_campagnes_table.php)
+        // date_livraison (colonne NOT NULL, voir create_campagnes_domain_tables.php)
         // déduite de la première journée saisie — ajouterJournee()
         // resynchronisera la même valeur juste après, sans effet
         // supplémentaire (voir docblock de cette méthode).
@@ -488,7 +488,7 @@ class CampagnesController extends Controller
     {
         $resultat = $this->disponibiliteService->notifierCampagne($campagne);
 
-        // Voir create_campagnes_table.php (colonne ajoutée le 03/09/2026) :
+        // Voir create_campagnes_domain_tables.php (colonne ajoutée le 03/09/2026) :
         // seule trace persistée que cette étape a eu lieu, pour
         // CampagneProgressBar.vue — indépendante du nombre d'envois
         // réussis/échoués, l'étape "notifier" est considérée franchie dès

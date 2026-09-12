@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Une journée de collecte/livraison au sein d'une campagne — voir
- * create_campagne_journees_table.php pour le raisonnement complet
+ * create_campagnes_domain_tables.php pour le raisonnement complet
  * (une campagne, plusieurs journées, plutôt qu'une campagne par jour).
  *
  * @property int         $id

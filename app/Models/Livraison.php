@@ -71,7 +71,7 @@ class Livraison extends Model
      * prompt du 03/09/2026 §2.5 : liste de DÉPART, volontairement amenée
      * à s'enrichir une fois l'app testée en conditions réelles (nouveaux
      * cas rencontrés au contact). C'est pour ça que statut_contact est un
-     * VARCHAR (voir create_livraisons_table.php) et pas un enum SQL — un
+     * VARCHAR (voir create_livraison_operations_tables.php) et pas un enum SQL — un
      * nouveau statut devient une entrée ici, jamais une migration.
      *
      * Chaque entrée déclare :
@@ -138,7 +138,7 @@ class Livraison extends Model
     /**
      * Statut de conditionnement dérivé de l'état RÉEL des colis — ajouté
      * le 09/09/2026 (prompt de cette date §2.1) en même temps que
-     * l'ajout de 'en_cours' à l'enum (voir create_livraisons_table.php),
+     * l'ajout de 'en_cours' à l'enum (voir create_livraison_operations_tables.php),
      * remplace l'ancienne colisTousPrets() (qui ne distinguait que
      * "tous prêts ou non", insuffisant depuis que 'en_cours' existe) :
      * 'prete' si tous les colis sont 'pret', 'en_attente' si aucun ne

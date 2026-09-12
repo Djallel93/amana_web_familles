@@ -241,7 +241,7 @@ class RouteGenerationService
      * Résout les livraisons imposées (id_benevole_impose) — retirées du
      * pool créneau, pré-assignées directement, hors correspondance
      * créneau (voir §2/§3.3 point 1). Une route SANS créneau (routes.creneau
-     * = null, voir 2026_08_31_000400_make_routes_creneau_nullable.php) par
+     * = null, voir 2026_08_31_000009_create_livraison_routing_tables.php) par
      * bénévole concerné, regroupant toutes ses livraisons imposées de
      * cette campagne.
      *

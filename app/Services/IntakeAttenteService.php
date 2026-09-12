@@ -36,8 +36,13 @@ use Illuminate\Support\Str;
  * — ça reste dans les contrôleurs, cette classe ne s'occupe que des
  * données/fichiers.
  *
- * Jeton haché à partir du 31/08/2026 (voir App\Support\TokenHasher et
- * migration 2026_08_31_000000_hash_existing_confirmation_tokens.php) :
+ * Jeton haché dès la création (voir App\Support\TokenHasher — la
+ * colonne `token` de intake_demandes_attente/benevole_demandes_attente ne
+ * contient que le hash depuis la migration
+ * 2026_08_11_000000_create_formulaires_publics_attente_tables.php,
+ * squash du 10/09/2026 qui absorbe l'ancien retrofit
+ * hash_existing_confirmation_tokens.php, devenu sans objet une fois le
+ * hachage fait dès la création) :
  * creerDemande() renvoie désormais le jeton EN CLAIR séparément de la
  * ligne créée (dont `token` ne contient plus que le hash) — c'est ce
  * jeton en clair que le contrôleur appelant doit transmettre à la

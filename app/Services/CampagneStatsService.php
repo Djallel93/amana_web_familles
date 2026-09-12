@@ -20,7 +20,7 @@ use Illuminate\Support\Collection;
  * calculer() lit toujours l'état ACTUEL (comme Campagne::nombre_menages/
  * poids_collecte_kg, voir Patch 1) — snapshotter() en fige une copie dans
  * campagne_stats_snapshots à un instant donné. Forme du blob JSON
- * `donnees` provisoire (voir 2026_08_31_000012_create_campagne_stats_snapshots_table.php),
+ * `donnees` provisoire (voir 2026_08_31_000001_create_campagnes_domain_tables.php),
  * à ajuster si le tableau de bord a besoin d'autre chose.
  *
  * VENTILATION PAR JOURNÉE (05/09/2026, suivi du patch multi-jours du

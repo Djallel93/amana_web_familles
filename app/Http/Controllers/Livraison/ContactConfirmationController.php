@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\Validator;
  * qui justifie pleinement Vue.
  *
  * Champs alignés sur la granularité de familles depuis le 31/08/2026 (voir
- * 2026_08_31_000200_revise_livraisons_confirmation_fields.php) :
+ * 2026_08_31_000004_create_livraison_operations_tables.php) :
  * adresse/code_postal/ville séparés (pas un seul champ libre), adulte/
  * enfant séparés (pas un total unique) — et réécrits vers familles via
  * FamilleConfirmationSyncService, qui reste la seule source de vérité.

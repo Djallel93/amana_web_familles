@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Organisation partenaire pouvant enregistrer des familles dans cette app
- * — voir migration create_organisations_table pour le raisonnement
+ * — voir migration create_organisations_domain_tables.php pour le raisonnement
  * complet (notamment la distinction avec OrganismeAide, qui répond à une
  * question totalement différente du formulaire d'intake).
  *
@@ -61,7 +61,7 @@ class Organisation extends Model
     /**
      * L'organisation AMANA elle-même — utilisée comme valeur par défaut
      * pour les dossiers/imports créés en interne (pas de gestionnaire_externe
-     * impliqué). Voir migration create_organisations_table.
+     * impliqué). Voir migration create_organisations_domain_tables.php.
      */
     public static function principale(): ?self
     {

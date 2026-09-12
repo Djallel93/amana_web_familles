@@ -115,7 +115,7 @@ class PackagingController extends Controller
         //
         // 'en_cours' simplifié le 09/09/2026 (prompt de cette date §2.1) :
         // statut_conditionnement est désormais un vrai statut à 3 valeurs
-        // (en_attente/en_cours/prete, voir create_livraisons_table.php et
+        // (en_attente/en_cours/prete, voir create_livraison_operations_tables.php et
         // Livraison::statutConditionnementDerive()), posé par
         // marquerColisPret() dès qu'au moins un colis (mais pas tous) est
         // prêt — le whereHas('colis', ...) qui servait auparavant à
@@ -180,7 +180,7 @@ class PackagingController extends Controller
      *
      * Verrouillée une fois statut_conditionnement = 'prete' (09/09/2026,
      * prompt de cette date §2.1, en même temps que l'ajout du statut
-     * 'en_cours' — voir create_livraisons_table.php et
+     * 'en_cours' — voir create_livraison_operations_tables.php et
      * statutConditionnementDerive() sur Livraison) : décocher un colis
      * individuel une fois la livraison prête contournait jusque-là
      * annulerConditionnement() (pas de confirmation, pas d'incident/

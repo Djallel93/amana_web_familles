@@ -83,7 +83,7 @@ class IntakeController extends Controller
             'secteursActivite' => SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
             'organismesAide' => OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
             // Étape "organisation" (ajoutée le 28/08/2026) — liste fermée,
-            // pas de saisie libre (voir migration create_organisations_table)
+            // pas de saisie libre (voir migration create_organisations_domain_tables.php)
             // : seules les organisations avec de vrais comptes
             // gestionnaire_externe doivent apparaître ici.
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'code', 'nom']),

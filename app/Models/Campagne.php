@@ -23,10 +23,10 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
  * @property string $statut        preparation | collecte | en_cours | terminee
  * @property \Illuminate\Support\Carbon $date_livraison  Date de RÉFÉRENCE — voir journees() depuis le 03/09/2026
  * @property float  $poids_moyen_kg
- * @property string|null $hq_adresse      Libellé HQ propre à cette campagne — voir create_campagnes_table.php
+ * @property string|null $hq_adresse      Libellé HQ propre à cette campagne — voir create_campagnes_domain_tables.php
  * @property float|null  $hq_latitude
  * @property float|null  $hq_longitude
- * @property \Illuminate\Support\Carbon|null $hq_confirmee_le  NULL tant que le HQ n'est qu'hérité du réglage global — voir create_campagnes_table.php (ajouté le 09/09/2026)
+ * @property \Illuminate\Support\Carbon|null $hq_confirmee_le  NULL tant que le HQ n'est qu'hérité du réglage global — voir create_campagnes_domain_tables.php (ajouté le 09/09/2026)
  * @property int|null    $livraisons_max_par_tournee  Cap propre à cette campagne, préremplie depuis le réglage global à la création — voir RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne()
  * @property string|null $commentaire     Dernière valeur seulement, pas d'historique
  */
@@ -83,7 +83,7 @@ class Campagne extends Model
 
     /**
      * Journées de collecte/livraison de cette campagne — voir le prompt du
-     * 03/09/2026 (gestion multi-jours) et create_campagne_journees_table.php.
+     * 03/09/2026 (gestion multi-jours) et create_campagnes_domain_tables.php.
      * Ordonnées par `ordre` (pas forcément par date, voir commentaire sur
      * cette colonne dans la migration).
      */
@@ -199,7 +199,7 @@ class Campagne extends Model
         return $this->hasMany(CampagnePoidsMoyenHistorique::class, 'id_campagne')->orderByDesc('horodatage');
     }
 
-    // ── Accesseurs calculés (voir create_campagnes_table.php) ──────────────
+    // ── Accesseurs calculés (voir create_campagnes_domain_tables.php) ──────────────
 
     /**
      * Nombre de "ménages" (donateurs) comptés au poste parking — somme de

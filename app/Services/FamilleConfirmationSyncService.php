@@ -16,7 +16,7 @@ use App\Models\Livraison;
  * — décision du 31/08/2026 : familles reste la SEULE source de vérité
  * pour l'adresse/coordonnées et la composition du foyer, pas de version
  * dupliquée au niveau livraison qui pourrait diverger silencieusement
- * (voir 2026_08_31_000200_revise_livraisons_confirmation_fields.php).
+ * (voir 2026_08_31_000004_create_livraison_operations_tables.php).
  *
  * Ne touche PAS note_besoins_speciaux, qui reste délibérément découplé de
  * familles.specificites (voir le prompt du 30/08/2026 §2 : "does not

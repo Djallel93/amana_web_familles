@@ -451,7 +451,7 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
 
 // ── Équipes latérales (équipe_reception/pesee/packaging/chargement) —
 //    rôles propres à ce domaine, voir
-//    2026_08_31_000000_register_livraison_roles.php.
+//    2026_08_27_000000_register_familles_application.php.
 //
 //    Câblage revu le 08/09/2026 (prompt de cette date) : le rôle global
 //    equipe_* (EnsureLivraisonRole) ne reste QUE sur choisir() — porte

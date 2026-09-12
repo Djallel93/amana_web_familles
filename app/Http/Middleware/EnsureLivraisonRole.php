@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 /**
  * Contrôle d'accès pour les 4 rôles latéraux du domaine livraison
  * (equipe_reception, equipe_pesee, equipe_packaging, equipe_chargement) —
- * voir 2026_08_31_000000_register_livraison_roles.php.
+ * voir 2026_08_27_000000_register_familles_application.php.
  *
  * Middleware LOCAL à amana_web_familles, volontairement distinct de
  * Amana\Shared\Http\Middleware\EnsureRole (amana/shared) : ces 4 rôles
