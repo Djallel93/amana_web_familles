@@ -3,11 +3,18 @@
     File d'attente des dossiers pas encore ouverts par le staff
     (etat_dossier = 'Recu', réservé aux soumissions du formulaire public
     d'intake — voir Famille::ETATS_MODIFIABLES et
-    FamillesController::nouvelles()). Tri par ancienneté (le plus vieux
-    d'abord) plutôt que par criticité comme la liste générale, pour
-    qu'aucune demande ne reste oubliée. Réutilise le même panneau de
-    détail/édition que familles/index.blade.php (DetailPanel.vue) — ouvrir
-    un dossier ici fonctionne exactement pareil.
+    FamillesController::nouvelles()). Tri par ancienneté par défaut (le
+    plus vieux d'abord) plutôt que par criticité comme la liste générale,
+    pour qu'aucune demande ne reste oubliée — voir
+    FamillesController::appliquerTri(colonneDefaut: 'created_at').
+    Réutilise le même panneau de détail/édition que familles/index.blade.php
+    (DetailPanel.vue) — ouvrir un dossier ici fonctionne exactement pareil.
+
+    Tableau/carte mobile identiques à familles/index.blade.php depuis le
+    10/09/2026 (Section A2 du refactor, décision du 10/09/2026 : "same
+    everywhere") — mêmes colonnes, sélecteur de colonnes, avatar, criticité,
+    badges, via familles.partials.tableau. Seuls le formulaire de recherche
+    ci-dessous et le tri par défaut restent propres à cette vue.
 --}}
 @extends('layouts.app')
 
@@ -40,78 +47,21 @@
         </div>
     </form>
 
-    <div class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden">
-        @if($familles->isEmpty())
-            <div class="text-center py-16 px-8">
-                <div class="text-5xl mb-3 opacity-40">📭</div>
-                <h3 class="font-heading text-base font-semibold text-ink mb-1.5">Aucune nouvelle demande</h3>
-                <p class="text-ink-muted text-[13.5px]">
-                    @if(request()->filled('recherche'))
-                        Aucun résultat pour cette recherche.
-                    @else
-                        Tout est à jour — aucune soumission en attente d'ouverture.
-                    @endif
-                </p>
-            </div>
-        @else
-            <div class="overflow-x-auto">
-                <table class="w-full border-collapse text-[13px]">
-                    <thead>
-                        <tr>
-                            @foreach(['ID', 'Nom', 'Reçue le', 'Ville', 'Téléphone', 'Problème'] as $col)
-                                <th class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap">
-                                    {{ $col }}
-                                </th>
-                            @endforeach
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($familles as $famille)
-                            <tr onclick="openFamilleDetail({{ $famille->id }})"
-                                class="border-b border-surface-3 last:border-0 hover:bg-surface-2 transition-colors cursor-pointer {{ $famille->probleme_traitement ? 'bg-rose-50/60' : '' }}">
-                                <td class="px-4 py-2.5 text-ink-faint font-mono text-[12px]">#{{ $famille->id }}</td>
-                                <td class="px-4 py-2.5">
-                                    <div class="font-semibold text-ink">{{ $famille->prenom }} {{ $famille->nom }}</div>
-                                    <div class="text-[11.5px] text-ink-muted">{{ $famille->nombre_foyer }} pers.</div>
-                                </td>
-                                <td class="px-4 py-2.5 text-ink-muted whitespace-nowrap">{{ $famille->created_at->format('d/m/Y H:i') }}</td>
-                                <td class="px-4 py-2.5 text-ink-muted">{{ $famille->quartier->nom ?? $famille->ville_texte ?? '—' }}</td>
-                                <td class="px-4 py-2.5 text-ink-muted whitespace-nowrap">{{ $famille->telephone_formate }}</td>
-                                <td class="px-4 py-2.5">
-                                    @if($famille->probleme_traitement)
-                                        <span class="inline-flex items-center gap-1 text-[11.5px] font-semibold text-rose-600">
-                                            ⚠️ {{ $famille->probleme_traitement }}
-                                        </span>
-                                    @else
-                                        <span class="text-ink-faint text-[11.5px]">—</span>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="px-4 py-3 border-t border-surface-3">
-                @include('partials.pagination', ['paginator' => $familles])
-            </div>
-        @endif
-    </div>
+    @include('familles.partials.tableau', [
+        'familles' => $familles,
+        'triActuel' => request('tri'),
+        'directionActuelle' => request('direction') === 'desc' ? 'desc' : 'asc',
+        'routeTri' => 'familles.nouvelles',
+        'videIcone' => '📭',
+        'videTitre' => 'Aucune nouvelle demande',
+        'aFiltresActifs' => request()->filled('recherche'),
+        'videMessageBase' => "Tout est à jour — aucune soumission en attente d'ouverture.",
+        'videMessageFiltre' => 'Aucun résultat pour cette recherche.',
+        'videLienReinitialisation' => null,
+    ])
 
     {{-- Même panneau de détail/édition que familles/index.blade.php — voir
          resources/js/components/familles/DetailPanel.vue --}}
-    <div id="vue-famille-detail"
-         data-update-url-template="{{ route('familles.update', ['id' => '__ID__']) }}"
-         data-show-url-template="{{ route('familles.show', ['id' => '__ID__']) }}"
-         data-deverrouiller-url-template="{{ route('familles.deverrouiller', ['id' => '__ID__']) }}"
-         data-forcer-deverrouillage-url-template="{{ route('familles.forcer-deverrouillage', ['id' => '__ID__']) }}"
-         data-upload-url-template="{{ route('familles.documents.store', ['id' => '__ID__']) }}"
-         data-download-url-template="{{ route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
-         data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
-         data-secteurs-activite="{{ $secteursActivite->toJson() }}"
-         data-organismes-aide="{{ $organismesAide->toJson() }}"
-         data-google-places-key="{{ config('services.google.maps.places_api_key') }}"
-         data-google-embed-key="{{ config('services.google.maps.embed_api_key') }}">
-    </div>
+    @include('familles.partials.vue-famille-detail', ['secteursActivite' => $secteursActivite, 'organismesAide' => $organismesAide])
 
 @endsection

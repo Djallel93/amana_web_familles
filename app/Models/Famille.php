@@ -151,6 +151,91 @@ class Famille extends Model
     public const PAGINATION_PAR_PAGE = [10, 25, 50, 100];
     public const PAGINATION_PAR_PAGE_DEFAUT = 25;
 
+    // ── Config tableau familles (partagée index/nouvelles) ──────────────────
+    // Sortie de resources/views/familles/index.blade.php le 10/09/2026
+    // (Section A2 du refactor) : la même config pilote désormais
+    // <x-familles.tableau>, utilisé identiquement par index.blade.php et
+    // nouvelles.blade.php (décision du 10/09/2026 : "same everywhere"),
+    // plutôt que deux tableaux visuellement différents comme avant ce
+    // refactor. 'triable' ici reste purement déclaratif pour l'UI (icône de
+    // tri cliquable) — la validation serveur du paramètre ?tri= reste
+    // FamillesController::COLONNES_TRIABLES, à garder synchronisée avec les
+    // clés 'triable' => true ci-dessous si une colonne triable est ajoutée
+    // ou retirée.
+    public const COLONNES_TABLEAU = [
+        'id' => ['label' => 'ID', 'triable' => true, 'defaut' => true],
+        'nom' => ['label' => 'Nom', 'triable' => true, 'defaut' => true],
+        'statut' => ['label' => 'Statut', 'triable' => true, 'defaut' => true],
+        'email' => ['label' => 'Email', 'triable' => true, 'defaut' => false],
+        'telephone' => ['label' => 'Téléphone', 'triable' => true, 'defaut' => true],
+        'telephone_bis' => ['label' => 'Tél. bis', 'triable' => true, 'defaut' => false],
+        'adresse' => ['label' => 'Adresse', 'triable' => true, 'defaut' => true],
+        'quartier' => ['label' => 'Quartier', 'triable' => false, 'defaut' => true],
+        'ville' => ['label' => 'Ville', 'triable' => false, 'defaut' => true],
+        'organisation' => ['label' => 'Organisation', 'triable' => false, 'defaut' => false],
+        'nombre_adulte' => ['label' => 'Adultes', 'triable' => true, 'defaut' => false],
+        'nombre_enfant' => ['label' => 'Enfants', 'triable' => true, 'defaut' => false],
+        'criticite' => ['label' => 'Criticité', 'triable' => true, 'defaut' => true],
+        'eligibilite' => ['label' => 'Éligibilité', 'triable' => true, 'defaut' => true],
+        'se_deplace' => ['label' => 'Se déplace', 'triable' => true, 'defaut' => false],
+        'est_hotel' => ['label' => 'Hôtel', 'triable' => true, 'defaut' => false],
+        'etudiant' => ['label' => 'Étudiant', 'triable' => true, 'defaut' => false],
+        'langue' => ['label' => 'Langue', 'triable' => true, 'defaut' => false],
+        'type_piece_identite' => ['label' => 'Pièce identité', 'triable' => true, 'defaut' => false],
+        'circonstances' => ['label' => 'Circonstances', 'triable' => false, 'defaut' => false],
+        'ressentit' => ['label' => 'Ressenti', 'triable' => false, 'defaut' => false],
+        'specificites' => ['label' => 'Spécificités', 'triable' => false, 'defaut' => false],
+        'commentaire_dossier' => ['label' => 'Commentaire', 'triable' => false, 'defaut' => false],
+        'created_at' => ['label' => 'Créé le', 'triable' => true, 'defaut' => false],
+    ];
+    public const TYPE_PIECE_IDENTITE_LABELS = [
+        'nationalite' => 'Nationalité',
+        'titre_sejour' => 'Titre de séjour',
+        'demande_asile' => "Demande d'asile",
+        'autre' => 'Autre',
+    ];
+    // Couleur du liseré de gauche de chaque ligne/carte (voir
+    // <x-familles.tableau>). Classes Tailwind écrites en toutes lettres
+    // (pas de concaténation dynamique bg-{{ }}) : le scanner JIT de
+    // Tailwind ne détecte que des tokens littéraux dans le fichier source,
+    // une classe construite à l'exécution serait purgée du CSS généré et
+    // n'aurait donc aucun effet visuel.
+    public const ETAT_COLORS_LISTERE = [
+        'Recu' => 'border-l-stone-400',
+        'En cours' => 'border-l-sky-400',
+        'En attente' => 'border-l-amber-400',
+        'Validé' => 'border-l-emerald-500',
+        'Rejeté' => 'border-l-rose-400',
+        'Archivé' => 'border-l-gray-400',
+    ];
+    // Badges de statut (texte + fond léger) — une seule source de vérité,
+    // partagée avec le filtre Statut (pastilles colorées) qui reprend
+    // exactement ces couleurs plutôt qu'une palette qui aurait pu diverger.
+    public const ETAT_COLORS = [
+        'Recu' => 'bg-stone-100 text-stone-700 border-stone-300',
+        'En cours' => 'bg-sky-50 text-sky-700 border-sky-200',
+        'En attente' => 'bg-amber-50 text-amber-700 border-amber-200',
+        'Validé' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'Rejeté' => 'bg-rose-50 text-rose-700 border-rose-200',
+        'Archivé' => 'bg-gray-100 text-gray-500 border-gray-300',
+    ];
+    // Palette d'avatars (initiales) — couleur choisie par id % taille de la
+    // palette, simple et stable (même famille = même couleur d'une page à
+    // l'autre) sans avoir besoin de stocker quoi que ce soit.
+    public const AVATAR_PALETTE = [
+        ['bg' => 'bg-sky-100', 'text' => 'text-sky-700'],
+        ['bg' => 'bg-amber-100', 'text' => 'text-amber-700'],
+        ['bg' => 'bg-emerald-100', 'text' => 'text-emerald-700'],
+        ['bg' => 'bg-violet-100', 'text' => 'text-violet-700'],
+        ['bg' => 'bg-rose-100', 'text' => 'text-rose-700'],
+        ['bg' => 'bg-cyan-100', 'text' => 'text-cyan-700'],
+    ];
+
+    public static function avatarStyle(int $id): array
+    {
+        return self::AVATAR_PALETTE[$id % count(self::AVATAR_PALETTE)];
+    }
+
     // ── Relations ─────────────────────────────────────────────────────────
 
     public function quartier(): BelongsTo

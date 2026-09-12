@@ -41,22 +41,12 @@
         que resources/views/familles/index.blade.php : "if family needs to
         be edited when contacted, open the Family panel. same rules apply".
         Monté globalement par app.ts dès que #vue-famille-detail est
-        présent sur la page — aucun changement à app.ts nécessaire, cet
-        écran n'avait simplement jamais inclus ce montage jusqu'ici.
+        présent sur la page. Bloc partagé depuis le 10/09/2026 (Section A2
+        du refactor) — voir familles/partials/vue-famille-detail.blade.php,
+        auparavant copié-collé à l'identique ici et sur les deux vues
+        familles/.
     --}}
-    <div id="vue-famille-detail"
-         data-update-url-template="{{ route('familles.update', ['id' => '__ID__']) }}"
-         data-show-url-template="{{ route('familles.show', ['id' => '__ID__']) }}"
-         data-deverrouiller-url-template="{{ route('familles.deverrouiller', ['id' => '__ID__']) }}"
-         data-forcer-deverrouillage-url-template="{{ route('familles.forcer-deverrouillage', ['id' => '__ID__']) }}"
-         data-upload-url-template="{{ route('familles.documents.store', ['id' => '__ID__']) }}"
-         data-download-url-template="{{ route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
-         data-delete-doc-url-template="{{ route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']) }}"
-         data-secteurs-activite="{{ $secteursActivite->toJson() }}"
-         data-organismes-aide="{{ $organismesAide->toJson() }}"
-         data-google-places-key="{{ config('services.google.maps.places_api_key') }}"
-         data-google-embed-key="{{ config('services.google.maps.embed_api_key') }}">
-    </div>
+    @include('familles.partials.vue-famille-detail', ['secteursActivite' => $secteursActivite, 'organismesAide' => $organismesAide])
 
     <script>
         // Le lien de retour pointe vers la campagne précise quand l'écran a

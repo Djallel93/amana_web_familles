@@ -66,7 +66,7 @@ class FamillesController extends Controller
 
     public function index(Request $request): View
     {
-        $query = $this->baseQuery($request)->with(['organisationOrigine:id,nom', 'organisations:id,nom']);
+        $query = $this->baseQuery($request);
 
         $etatDossier = $this->appliquerFiltreStatut($query, $request);
 
@@ -109,19 +109,24 @@ class FamillesController extends Controller
      * "Nouvelles demandes" — file d'attente des dossiers pas encore
      * ouverts par le staff (etat_dossier = 'Recu', réservé aux soumissions
      * du formulaire public — voir Famille::ETATS_MODIFIABLES). Vue dédiée
-     * plutôt qu'un simple lien filtré vers index() : tri par ancienneté
-     * (le plus vieux d'abord, pas par criticité comme la liste générale,
-     * pour qu'aucune demande ne reste oubliée), et met en évidence
+     * plutôt qu'un simple lien filtré vers index() : tri par ancienneté par
+     * défaut (le plus vieux d'abord, pas par criticité comme la liste
+     * générale, pour qu'aucune demande ne reste oubliée) — voir
+     * appliquerTri(colonneDefaut: 'created_at') —, et met en évidence
      * probleme_traitement (échecs de géocodage notamment) — demande du
-     * 09/08/2026.
+     * 09/08/2026. Tableau/colonnes/tri manuel identiques à index() depuis
+     * le 10/09/2026 (Section A2 du refactor) : le staff peut re-trier par
+     * n'importe quelle colonne via les en-têtes cliquables, exactement
+     * comme sur Dossiers Familles — seul le tri PAR DÉFAUT (sans ?tri=)
+     * diffère entre les deux vues.
      */
     public function nouvelles(Request $request): View
     {
         $query = $this->baseQuery($request)->where('etat_dossier', 'Recu');
 
-        $familles = $query->orderBy('created_at')
-            ->paginate($this->resoudrePerPage($request))
-            ->withQueryString();
+        $this->appliquerTri($query, $request, colonneDefaut: 'created_at');
+
+        $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
 
         // Mêmes listes que index() — cette vue monte le même DetailPanel.vue
         // (voir familles/nouvelles.blade.php), qui a besoin des mêmes
@@ -134,11 +139,16 @@ class FamillesController extends Controller
 
     /**
      * Base commune à index() et nouvelles() — seuls le filtre de statut et
-     * le tri diffèrent entre les deux vues.
+     * le tri diffèrent entre les deux vues. organisationOrigine/
+     * organisations eager-loadées ici depuis le 10/09/2026 (Section A2 du
+     * refactor) — remontées depuis index() lors du passage de
+     * nouvelles() sur le même <x-partial> familles.partials.tableau
+     * (colonne "Organisation" désormais disponible, même masquée par
+     * défaut, sur les deux vues — évite un N+1 si affichée).
      */
     private function baseQuery(Request $request)
     {
-        $query = Famille::query()->with('quartier.secteur.ville');
+        $query = Famille::query()->with(['quartier.secteur.ville', 'organisationOrigine:id,nom', 'organisations:id,nom']);
 
         // Visibilité par organisation (ajouté le 28/08/2026) — réservé aux
         // comptes gestionnaire_externe : admin/gestionnaire/benevole/membre
@@ -313,21 +323,27 @@ class FamillesController extends Controller
 
     /**
      * Tri du tableau "Dossiers familles" (?tri=colonne&direction=asc|desc,
-     * en-têtes cliquables — voir familles/index.blade.php). Sans paramètre
-     * ?tri reconnu, tri par ID croissant (demande du 12/08/2026 — remplace
-     * l'ancien défaut criticité décroissante).
+     * en-têtes cliquables — voir familles/index.blade.php et, depuis le
+     * 10/09/2026, familles/nouvelles.blade.php qui partage désormais le
+     * même tableau/en-têtes, voir familles/partials/tableau.blade.php).
+     * Sans paramètre ?tri reconnu, tri par $colonneDefaut/$directionDefaut
+     * — 'id' croissant pour index() (demande du 12/08/2026 — remplace
+     * l'ancien défaut criticité décroissante), 'created_at' croissant pour
+     * nouvelles() (le plus vieux d'abord, voir son docblock) : seul le
+     * défaut SANS ?tri diffère entre les deux vues, le paramétrage manuel
+     * via les en-têtes est identique.
      *
      * 'eligibilite' n'est pas une colonne unique en base (zakat_el_fitr +
      * sadaqa sont deux booléens distincts) — trié comme un score combiné :
      * zakat_el_fitr d'abord, puis sadaqa, dans la même direction.
      */
-    private function appliquerTri($query, Request $request): void
+    private function appliquerTri($query, Request $request, string $colonneDefaut = 'id', string $directionDefaut = 'asc'): void
     {
         $colonne = $request->input('tri');
         $direction = $request->input('direction') === 'desc' ? 'desc' : 'asc';
 
         if (!in_array($colonne, self::COLONNES_TRIABLES, true)) {
-            $query->orderBy('id');
+            $query->orderBy($colonneDefaut, $directionDefaut);
 
             return;
         }
