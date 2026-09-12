@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\FamilleDetailResource;
 use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
@@ -558,7 +559,7 @@ class FamillesController extends Controller
             ? $famille->etat_dossier_avant_verrouillage
             : 'En attente';
 
-        return response()->json($famille);
+        return response()->json(new FamilleDetailResource($famille));
     }
 
     /**
@@ -778,7 +779,7 @@ class FamillesController extends Controller
             \App\Jobs\SynchroniserContactGoogle::dispatch($famille->id);
         }
 
-        return response()->json($famille->fresh(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide']));
+        return response()->json(new FamilleDetailResource($famille->fresh(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide'])));
     }
 
     // ── Documents (consultation/upload — décision 6.4, stockage disque local) ──

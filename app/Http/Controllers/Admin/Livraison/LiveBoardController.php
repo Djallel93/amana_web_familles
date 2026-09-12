@@ -9,6 +9,8 @@ use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Ville;
 use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\RouteIncidentResource;
+use App\Http\Resources\RouteLivraisonResource;
 use App\Models\Campagne;
 use App\Models\EtapeRoute;
 use App\Models\Livraison;
@@ -189,7 +191,7 @@ class LiveBoardController extends Controller
             ->with(['benevole', 'vehiculeType', 'etapes.livraison.famille:id,nom,prenom,adresse'])
             ->get();
 
-        return response()->json($routes);
+        return response()->json(RouteLivraisonResource::collection($routes));
     }
 
     /**
@@ -274,7 +276,7 @@ class LiveBoardController extends Controller
             ->with(['route.benevole', 'livraison.famille:id,nom,prenom'])
             ->get();
 
-        return response()->json($incidents);
+        return response()->json(RouteIncidentResource::collection($incidents));
     }
 
     /**
