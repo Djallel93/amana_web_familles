@@ -28,7 +28,7 @@
                 <thead>
                     <tr class="text-left text-ink-muted border-b border-surface-border">
                         <th class="py-2">Campagne</th>
-                        <th>Ménages</th>
+                        <th>Ménages (donateurs)</th>
                         <th>Poids collecté</th>
                         <th>Taux livraison</th>
                     </tr>

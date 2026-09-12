@@ -80,8 +80,12 @@ class ContactTokenService
     /**
      * Résout un jeton EN CLAIR reçu via l'URL publique — comparaison par
      * hash (voir App\Support\TokenHasher), jamais en clair. Renvoie null
-     * si introuvable, expiré, ou déjà utilisé — le contrôleur distingue
-     * ces cas pour l'affichage (voir ContactConfirmationController).
+     * uniquement si introuvable (aucun contrôle d'expiration/usage ici) —
+     * le token expiré ou déjà utilisé est renvoyé tel quel, ses deux
+     * appelants (voir ContactConfirmationController) ont besoin de le
+     * distinguer eux-mêmes pour afficher "expirée" vs "déjà confirmée" vs
+     * "introuvable", trois messages différents qu'un simple null ne
+     * permettrait plus de séparer.
      */
     public function resoudre(string $tokenEnClair): ?ContactToken
     {

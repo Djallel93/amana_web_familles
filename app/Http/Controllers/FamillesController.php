@@ -252,11 +252,22 @@ class FamillesController extends Controller
      * en devinant son ID. admin/gestionnaire/benevole/membre ne sont jamais
      * bloqués ici (accès complet inchangé depuis avant cette fonctionnalité).
      */
+    /**
+     * Accès aux dossiers rattachés à ses organisations UNIQUEMENT pour un
+     * gestionnaire_externe — tout autre rôle (admin/gestionnaire/membre/
+     * bénévole) passe sans restriction. Un rôle familles est exclusif
+     * (voir RoleService::syncRoleFamilles()), donc `!isGestionnaireExterne()`
+     * suffit à lui seul : `isAdmin()`/`isGestionnaire()` dans l'ancienne
+     * condition (`!isGestionnaireExterne() || isAdmin() || isGestionnaire()`)
+     * ne pouvaient jamais changer le résultat — si l'un des deux est vrai,
+     * `!isGestionnaireExterne()` l'est déjà nécessairement. Simplifié le
+     * 10/09/2026 (Section C du refactor).
+     */
     private function assertAccesFamille(Famille $famille): void
     {
         $utilisateur = auth()->user();
 
-        if (!$utilisateur->isGestionnaireExterne() || $utilisateur->isAdmin() || $utilisateur->isGestionnaire()) {
+        if (!$utilisateur->isGestionnaireExterne()) {
             return;
         }
 

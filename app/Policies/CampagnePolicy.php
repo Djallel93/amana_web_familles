@@ -30,14 +30,12 @@ use App\Policies\Concerns\AutoriseEquipeCampagne;
  *
  * Bypass admin/gestionnaire identique à
  * App\Http\Middleware\EnsureLivraisonRole (même matrice de droits, voir
- * son docblock) — cette policy est destinée à REMPLACER ce middleware sur
- * les routes qui reçoivent directement {campagne} en paramètre de route,
- * pas à s'y ajouter (voir le prompt du 07/09/2026, câblage routes/web.php
- * à faire dans un patch séparé une fois campagne_equipe_membres peuplée
- * par un écran d'admin — sans ça, retirer EnsureLivraisonRole des routes
- * existantes bloquerait immédiatement toute personne ayant le rôle
- * global equipe_* mais pas encore affectée à une campagne via cette
- * nouvelle table).
+ * son docblock) — cette policy REMPLACE ce middleware sur les routes qui
+ * reçoivent directement {campagne} en paramètre de route (câblage fait le
+ * 08/09/2026, voir routes/web.php et son commentaire "Câblage revu le
+ * 08/09/2026" juste avant le groupe équipes latérales) ; le middleware
+ * global equipe_* ne reste que sur choisir(), porte d'entrée sans
+ * {campagne}, rien de plus fin à y vérifier.
  *
  * autoriseEquipe() extrait dans App\Policies\Concerns\AutoriseEquipeCampagne
  * le 08/09/2026 (câblage routes/web.php, prompt du même jour) : les 5
