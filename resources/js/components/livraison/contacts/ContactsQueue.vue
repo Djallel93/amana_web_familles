@@ -27,6 +27,7 @@ import { apiGet, apiPost, buildQuery } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
 import PersonPicker from '../shared/PersonPicker.vue';
 import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
+import { useFormulaireCreneaux } from '../shared/useFormulaireCreneaux';
 import {
     CRENEAUX_MATIN,
     CRENEAUX_APRES_MIDI,
@@ -35,7 +36,6 @@ import {
     STATUTS_CONTACT_POSTABLES,
     type Campagne,
     type CampagneJournee,
-    type Creneau,
     type FamilleFiltres,
     type Livraison,
     type Organisation,
@@ -249,54 +249,41 @@ async function assignerLot(personne: PersonneResume | null) {
  * panneau. Voir ContactTrackingController::contacterManuel(), qui
  * n'exige plus ces champs pour ce chemin.
  */
-interface FormeConfirmation {
-    ouvert: boolean;
-    creneaux: Creneau[];
+/**
+ * Formulaire de CONFIRMATION uniquement désormais (05/09/2026, prompt
+ * §2.2 : "Delete Saisie Telephonique button since there is now Modifier
+ * le dossier" — la correction de champs famille se fait sur ce panneau,
+ * pas ici). injoignable/rejetee/archive n'ont plus besoin d'un
+ * formulaire du tout (voir marquerStatutSimple()) — un seul champ requis
+ * nulle part pour ces 3-là (voir la validation serveur, contacterManuel()).
+ *
+ * Réduit à `creneaux` uniquement (07/09/2026, prompt §2.5) —
+ * adresse/code postal/ville/adultes/enfants retirés : ces informations
+ * vivent déjà dans le dossier famille, éditable juste au-dessus via
+ * "✏️ Modifier le dossier" — les redemander ici dupliquait une saisie
+ * pour rien et risquait de diverger de la même source de vérité que ce
+ * panneau. Voir ContactTrackingController::contacterManuel(), qui
+ * n'exige plus ces champs pour ce chemin.
+ *
+ * Ouverture/créneaux via useFormulaireCreneaux() depuis le 10/09/2026
+ * (Section A4 du refactor) — partagé avec BenevoleDisponibiliteQueue.vue.
+ * L'état de requête (envoiEnCours/erreurs) reste local : forme propre à
+ * cet écran, pas au patron d'expansion lui-même.
+ */
+const { formulaire, basculerOuverture, toggleCreneau, groupeToutCoche, toggleGroupe, toggleTout } = useFormulaireCreneaux();
+
+interface EtatEnvoiConfirmation {
     envoiEnCours: boolean;
     erreurs: Record<string, string[]>;
 }
 
-const formulaires = reactive<Record<number, FormeConfirmation>>({});
+const envoisConfirmation = reactive<Record<number, EtatEnvoiConfirmation>>({});
 
-function formulaire(id: number): FormeConfirmation {
-    if (!formulaires[id]) {
-        formulaires[id] = {
-            ouvert: false,
-            creneaux: [],
-            envoiEnCours: false,
-            erreurs: {},
-        };
+function etatEnvoi(id: number): EtatEnvoiConfirmation {
+    if (!envoisConfirmation[id]) {
+        envoisConfirmation[id] = { envoiEnCours: false, erreurs: {} };
     }
-    return formulaires[id];
-}
-
-function toggleCreneau(id: number, creneau: Creneau) {
-    const f = formulaire(id);
-    const index = f.creneaux.indexOf(creneau);
-    if (index === -1) f.creneaux.push(creneau);
-    else f.creneaux.splice(index, 1);
-}
-
-/**
- * Regroupement matin/après-midi (05/09/2026, prompt §2.8) — case
- * tout/rien PAR groupe, plus une case globale qui coche/décoche les deux
- * groupes en un geste (voir template : "Tout" à côté de "Matin"/
- * "Après-midi").
- */
-function groupeToutCoche(id: number, groupe: Creneau[]): boolean {
-    return groupe.every((c) => formulaire(id).creneaux.includes(c));
-}
-function toggleGroupe(id: number, groupe: Creneau[]) {
-    const f = formulaire(id);
-    if (groupeToutCoche(id, groupe)) {
-        f.creneaux = f.creneaux.filter((c) => !groupe.includes(c));
-    } else {
-        f.creneaux = [...new Set([...f.creneaux, ...groupe])];
-    }
-}
-function toggleTout(id: number) {
-    const toutesCoches = groupeToutCoche(id, CRENEAUX_MATIN) && groupeToutCoche(id, CRENEAUX_APRES_MIDI);
-    formulaire(id).creneaux = toutesCoches ? [] : [...CRENEAUX_MATIN, ...CRENEAUX_APRES_MIDI];
+    return envoisConfirmation[id];
 }
 
 /**
@@ -323,17 +310,18 @@ async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' |
 
 async function enregistrerContact(livraison: Livraison) {
     const f = formulaire(livraison.id);
-    f.envoiEnCours = true;
-    f.erreurs = {};
+    const e = etatEnvoi(livraison.id);
+    e.envoiEnCours = true;
+    e.erreurs = {};
 
     const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), {
         statut_contact: 'confirme',
         creneaux: f.creneaux,
     });
-    f.envoiEnCours = false;
+    e.envoiEnCours = false;
 
     if (!resultat.ok) {
-        f.erreurs = resultat.errors;
+        e.erreurs = resultat.errors;
         if (Object.keys(resultat.errors).length === 0) toast.error(resultat.message);
         return;
     }
@@ -503,7 +491,7 @@ onMounted(() => {
                     vrai bouton visible plutôt qu'un lien discret.
                 -->
                 <div class="flex flex-wrap gap-2">
-                    <button type="button" @click="formulaire(livraison.id).ouvert = !formulaire(livraison.id).ouvert"
+                    <button type="button" @click="basculerOuverture(livraison.id)"
                         class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90">
                         ✅ Confirmer
                     </button>
@@ -574,12 +562,12 @@ onMounted(() => {
                                 </div>
                             </div>
                         </div>
-                        <p v-for="e in formulaire(livraison.id).erreurs.creneaux ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                        <p v-for="e in etatEnvoi(livraison.id).erreurs.creneaux ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
                     </div>
 
-                    <button type="button" :disabled="formulaire(livraison.id).envoiEnCours" @click="enregistrerContact(livraison)"
+                    <button type="button" :disabled="etatEnvoi(livraison.id).envoiEnCours" @click="enregistrerContact(livraison)"
                         class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
-                        {{ formulaire(livraison.id).envoiEnCours ? 'Enregistrement…' : 'Enregistrer la confirmation' }}
+                        {{ etatEnvoi(livraison.id).envoiEnCours ? 'Enregistrement…' : 'Enregistrer la confirmation' }}
                     </button>
                 </div>
             </div>

@@ -12,6 +12,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useToast } from '@amana/shared-ui';
 import { apiGet, apiPost, buildQuery } from '../shared/api';
+import { useFormulaireCreneaux } from '../shared/useFormulaireCreneaux';
 import { CRENEAUX_MATIN, CRENEAUX_APRES_MIDI, CRENEAU_LIBELLES, type Campagne, type CampagneJournee, type Creneau } from '../shared/types';
 
 interface LigneBenevole {
@@ -106,43 +107,18 @@ const statsBenevoles = computed(() => ({
 // BenevoleDisponibiliteService::confirmer(), corrigé dans ce même patch
 // pour ne plus écraser ces deux champs à `false` quand ils ne sont plus
 // envoyés.
-const editionOuverte = reactive<Record<number, boolean>>({});
-const formulaires = reactive<Record<number, { creneaux: Creneau[] }>>({});
+//
+// Ouverture/créneaux via useFormulaireCreneaux() depuis le 10/09/2026
+// (Section A4 du refactor) — partagé avec ContactsQueue.vue.
+const { formulaire, ouvrir: ouvrirFormulaire, fermer: fermerFormulaire, toggleCreneau: toggleCreneauEdition, groupeToutCoche, toggleGroupe: toggleGroupeEdition, toggleTout: toggleToutEdition } = useFormulaireCreneaux();
 const enregistrementEnCours = reactive<Record<number, boolean>>({});
 
 function ouvrirEdition(ligne: LigneBenevole) {
-    formulaires[ligne.id_personne] = {
-        creneaux: [...ligne.creneaux],
-    };
-    editionOuverte[ligne.id_personne] = true;
-}
-
-function groupeToutCoche(idPersonne: number, groupe: Creneau[]): boolean {
-    return groupe.every((c) => formulaires[idPersonne]?.creneaux.includes(c));
-}
-
-function toggleGroupeEdition(idPersonne: number, groupe: Creneau[]) {
-    const f = formulaires[idPersonne];
-    if (groupeToutCoche(idPersonne, groupe)) f.creneaux = f.creneaux.filter((c) => !groupe.includes(c));
-    else f.creneaux = [...new Set([...f.creneaux, ...groupe])];
-}
-
-function toggleCreneauEdition(idPersonne: number, creneau: Creneau) {
-    const f = formulaires[idPersonne];
-    const index = f.creneaux.indexOf(creneau);
-    if (index === -1) f.creneaux.push(creneau);
-    else f.creneaux.splice(index, 1);
-}
-
-// Tout/Rien (09/09/2026, prompt de cette date §5) — même comportement que
-// toggleTout() côté famille dans ContactsQueue.vue.
-function toggleToutEdition(idPersonne: number) {
-    const toutesCoches = groupeToutCoche(idPersonne, CRENEAUX_MATIN) && groupeToutCoche(idPersonne, CRENEAUX_APRES_MIDI);
-    formulaires[idPersonne].creneaux = toutesCoches ? [] : [...CRENEAUX_MATIN, ...CRENEAUX_APRES_MIDI];
+    ouvrirFormulaire(ligne.id_personne, ligne.creneaux);
 }
 
 async function enregistrerConfirme(ligne: LigneBenevole) {
-    const f = formulaires[ligne.id_personne];
+    const f = formulaire(ligne.id_personne);
     enregistrementEnCours[ligne.id_personne] = true;
 
     const resultat = await apiPost<{ success: boolean }>(urlMettreAJour(ligne.id_personne), {
@@ -159,7 +135,7 @@ async function enregistrerConfirme(ligne: LigneBenevole) {
     }
 
     toast.success('Réponse mise à jour.');
-    editionOuverte[ligne.id_personne] = false;
+    fermerFormulaire(ligne.id_personne);
     chargerFile();
 }
 
@@ -292,7 +268,7 @@ onMounted(chargerFile);
                     informations" ouvre la fiche personne (véhicule réel/
                     secteurs couverts, voir personnes/form.blade.php),
                     "Modifier disponibilités" ne touche qu'aux créneaux
-                    (voir formulaires ci-dessus).
+                    (voir useFormulaireCreneaux() ci-dessus).
                 -->
                 <div class="flex flex-wrap gap-2 mt-3">
                     <a :href="urlModifierInformations(ligne.id_personne)"
@@ -315,7 +291,7 @@ onMounted(chargerFile);
                     §5.2 : "use the same layout as with families") — même
                     structure que ContactsQueue.vue.
                 -->
-                <div v-if="editionOuverte[ligne.id_personne]" class="mt-3 bg-stone-50 rounded-lg p-3 space-y-2">
+                <div v-if="formulaire(ligne.id_personne).ouvert" class="mt-3 bg-stone-50 rounded-lg p-3 space-y-2">
                     <!-- Tout/Rien (09/09/2026, prompt de cette date §5) — même
                          emplacement/style que ContactsQueue.vue côté famille. -->
                     <div class="flex items-center justify-between mb-1.5">
@@ -335,7 +311,7 @@ onMounted(chargerFile);
                             <div class="flex flex-wrap gap-1.5">
                                 <label v-for="creneau in CRENEAUX_MATIN" :key="creneau"
                                     class="flex items-center gap-1.5 px-2.5 py-1.5 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none has-[:checked]:border-accent has-[:checked]:text-ink has-[:checked]:font-semibold">
-                                    <input type="checkbox" :checked="formulaires[ligne.id_personne].creneaux.includes(creneau)"
+                                    <input type="checkbox" :checked="formulaire(ligne.id_personne).creneaux.includes(creneau)"
                                         @change="toggleCreneauEdition(ligne.id_personne, creneau)" class="w-3.5 h-3.5 accent-accent">
                                     {{ CRENEAU_LIBELLES[creneau] }}
                                 </label>
@@ -350,7 +326,7 @@ onMounted(chargerFile);
                             <div class="flex flex-wrap gap-1.5">
                                 <label v-for="creneau in CRENEAUX_APRES_MIDI" :key="creneau"
                                     class="flex items-center gap-1.5 px-2.5 py-1.5 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none has-[:checked]:border-accent has-[:checked]:text-ink has-[:checked]:font-semibold">
-                                    <input type="checkbox" :checked="formulaires[ligne.id_personne].creneaux.includes(creneau)"
+                                    <input type="checkbox" :checked="formulaire(ligne.id_personne).creneaux.includes(creneau)"
                                         @change="toggleCreneauEdition(ligne.id_personne, creneau)" class="w-3.5 h-3.5 accent-accent">
                                     {{ CRENEAU_LIBELLES[creneau] }}
                                 </label>
