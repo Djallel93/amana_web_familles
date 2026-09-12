@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Livraison;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
+use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
 use App\Models\Campagne;
 use App\Models\CampagneArrivee;
 use App\Models\Donation;
@@ -51,6 +52,7 @@ use Illuminate\Support\Facades\Validator;
 class PosteReleveController extends Controller
 {
     use FiltreCampagnesEquipe;
+    use UrlRetourEquipe;
 
     /**
      * Point d'entrée sans campagne — voir le prompt §4.1 : equipe_pesee/
@@ -83,10 +85,9 @@ class PosteReleveController extends Controller
             // voir EnsureLivraisonRole) a accès à campagnes.show — y
             // renvoyer directement plutôt qu'à choisir() (05/09/2026,
             // correction : "I expect to go back to /livraison/campagnes/{id}").
-            // Un compte equipe_* PUR n'a lui accès qu'à choisir().
-            'urlRetour' => (auth()->user()->isAdmin() || auth()->user()->isGestionnaire())
-                ? route('livraison.campagnes.show', $campagne)
-                : route("livraison.{$type}.choisir"),
+            // Un compte equipe_* PUR n'a lui accès qu'à choisir() — voir
+            // UrlRetourEquipe (Section B du refactor).
+            'urlRetour' => $this->urlRetourEquipe($campagne, "livraison.{$type}.choisir"),
         ]);
     }
 

@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Livraison;
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
+use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
 use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\RouteIncident;
@@ -37,6 +38,7 @@ use Illuminate\Support\Facades\Validator;
 class ChargementController extends Controller
 {
     use FiltreCampagnesEquipe;
+    use UrlRetourEquipe;
 
     public function __construct(
         private readonly QrCodeService $qrCode,
@@ -131,10 +133,8 @@ class ChargementController extends Controller
             // Retour visible (07/09/2026, prompt §4.2) — même règle que
             // Packaging/Pesee/Réception : équipe_chargement n'a pas accès
             // à livraison.campagnes.show, repli sur le point d'entrée
-            // "choisir".
-            'urlRetour' => (auth()->user()->isAdmin() || auth()->user()->isGestionnaire())
-                ? route('livraison.campagnes.show', $campagne)
-                : route('livraison.chargement.choisir'),
+            // "choisir" — voir UrlRetourEquipe (Section B du refactor).
+            'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.chargement.choisir'),
         ]);
     }
 

@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Livraison;
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
+use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
 use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\LivraisonColis;
@@ -44,6 +45,7 @@ use Illuminate\Support\Facades\Validator;
 class PackagingController extends Controller
 {
     use FiltreCampagnesEquipe;
+    use UrlRetourEquipe;
 
     public function __construct(
         private readonly QrCodeService $qrCode,
@@ -163,9 +165,7 @@ class PackagingController extends Controller
             'filtreConditionnement' => $filtreConditionnement,
             'idCampagneJourneeSelectionnee' => $request->integer('id_campagne_journee') ?: null,
             'autresCampagnes' => Campagne::whereIn('statut', ['preparation', 'en_cours'])->orderByDesc('date_livraison')->get(),
-            'urlRetour' => (auth()->user()->isAdmin() || auth()->user()->isGestionnaire())
-                ? route('livraison.campagnes.show', $campagne)
-                : route('livraison.packaging.choisir'),
+            'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.packaging.choisir'),
         ]);
     }
 
