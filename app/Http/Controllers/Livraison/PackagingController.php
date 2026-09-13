@@ -223,9 +223,12 @@ class PackagingController extends Controller
             $livraison->update(['statut_conditionnement' => $statutDerive]);
         }
 
+        // 'colis' retiré de la réponse le 12/09/2026 (Section E3 du
+        // refactor, suite) : toggleColis() (packaging.blade.php) ne lit
+        // que .statut_conditionnement, appliqué via
+        // appliquerStatutConditionnement() — jamais .colis.
         return response()->json([
             'success' => true,
-            'colis' => $livraison->colis,
             'statut_conditionnement' => $livraison->fresh()->statut_conditionnement,
         ]);
     }
@@ -349,7 +352,12 @@ class PackagingController extends Controller
             Notification::send($destinataires, new PackagingAnnuleNotification($route, $livraison));
         }
 
-        return response()->json(['success' => true, 'colis' => $livraison->fresh()->colis]);
+        // 'colis' retiré de la réponse le 12/09/2026 (Section E3 du
+        // refactor, suite) : toggleFamille() (packaging.blade.php) ne lit
+        // que .success/.message, et applique 'en_attente' directement
+        // sans relire .colis (voir son commentaire : le statut résultant
+        // est déjà connu côté client).
+        return response()->json(['success' => true]);
     }
 
     /**
