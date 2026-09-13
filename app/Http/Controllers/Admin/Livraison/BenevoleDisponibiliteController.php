@@ -144,13 +144,18 @@ class BenevoleDisponibiliteController extends Controller
             return response()->json(['success' => true]);
         }
 
-        $disponibilite = $this->disponibiliteService->confirmer(
+        // 'disponibilite' retiré de la réponse le 12/09/2026 (Section E3 du
+        // refactor, suite) : BenevoleDisponibiliteQueue.vue type cette
+        // réponse en `apiPost<{ success: boolean }>` (sans cast `as any`)
+        // et ne lit jamais ce champ — même raisonnement que les mutations
+        // de LiveBoardController.
+        $this->disponibiliteService->confirmer(
             $idPersonne,
             $journee,
             $validator->safe()->only(['vehicule_confirme', 'coverage_confirmee', 'coverage_notes']),
             $request->input('creneaux', []),
         );
 
-        return response()->json(['success' => true, 'disponibilite' => $disponibilite->load('creneaux')]);
+        return response()->json(['success' => true]);
     }
 }
