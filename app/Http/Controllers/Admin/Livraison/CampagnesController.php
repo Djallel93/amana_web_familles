@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Admin\Livraison;
 use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Ville;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\FamilleEligibleResource;
 use App\Models\Campagne;
 use App\Models\CampagnePoidsMoyenHistorique;
 use App\Models\Livraison;
@@ -387,8 +388,10 @@ class CampagnesController extends Controller
      * 05/09/2026 (prompt §1.6) sur EXACTEMENT ceux de Dossier Familles
      * (App\Support\FamilleFilters), plus les 3 critères historiques
      * (criticite_min/id_quartier/id_organisation) pour ne rien casser côté
-     * appelants existants. quartier.secteur.ville chargé pour l'affichage
-     * ville/secteur en colonne du tableau (CampagneDetail.vue).
+     * appelants existants. quartier chargé pour l'affichage du nom de
+     * quartier en colonne du tableau (CampagneDetail.vue) — secteur/ville
+     * ne sont plus chargés depuis le 12/09/2026 (Section E3 du refactor,
+     * suite) : le template ne les lit pas (voir FamilleEligibleResource).
      */
     /**
      * Colonnes triables de la table éligibilité (05/09/2026, prompt
@@ -417,11 +420,17 @@ class CampagnesController extends Controller
 
     public function eligibles(Request $request, Campagne $campagne): JsonResponse
     {
+        // ->with('quartier') seul (pas 'quartier.secteur.ville') depuis le
+        // 12/09/2026 (Section E3 du refactor, suite) : ni
+        // CampagneDetail.vue ni BuildRouteFlow.vue (qui partage désormais
+        // FamilleEligibleResource, voir LiveBoardController::
+        // nonCouvertesTable()) ne lisent .secteur/.ville sur cette ligne —
+        // voir le docblock de ce resource.
         $query = $this->generationService->eligibles([
             'criticite_min' => $request->integer('criticite_min') ?: null,
             'id_quartier' => $request->integer('id_quartier') ?: null,
             'id_organisation' => $request->integer('id_organisation') ?: null,
-        ], $campagne, $request, appliquerTriParDefaut: false)->with('quartier.secteur.ville');
+        ], $campagne, $request, appliquerTriParDefaut: false)->with('quartier');
 
         $this->appliquerTriEligibles($query, $request);
 
@@ -433,7 +442,16 @@ class CampagnesController extends Controller
             return response()->json(['ids' => $query->pluck('familles.id')]);
         }
 
-        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
+        // FamilleEligibleResource appliqué directement sur la collection du
+        // paginator plutôt que XResource::collection($paginator) (Section
+        // E3 du refactor, 12/09/2026) : préserve la forme JSON plate
+        // actuelle (current_page/data/... à la racine, voir
+        // RawLaravelPaginator côté TS) — changer cette forme est un sujet à
+        // part, volontairement pas traité ici.
+        $paginateur = $query->paginate($request->integer('per_page') ?: 50)->withQueryString();
+        $paginateur->getCollection()->transform(fn ($famille) => new FamilleEligibleResource($famille));
+
+        return response()->json($paginateur);
     }
 
     /**

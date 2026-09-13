@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\LivraisonQueueResource;
 use App\Models\Campagne;
 use App\Models\Famille;
 use App\Models\Livraison;
@@ -101,8 +102,15 @@ class ContactTrackingController extends Controller
      */
     public function queue(Request $request): JsonResponse
     {
+        // famille:...,id_quartier + famille.quartier.secteur.ville +
+        // campagne retirés du eager load le 12/09/2026 (Section E3 du
+        // refactor, suite) : ContactsQueue.vue ne lit ni le quartier ni la
+        // campagne sur cette ligne (voir le docblock de
+        // LivraisonQueueResource/FamilleResumeResource) — seuls
+        // id/nom/prenom/telephone/telephone_bis/email de `famille` restent
+        // nécessaires.
         $query = $this->queteBase($request)
-            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email,id_quartier', 'famille.quartier.secteur.ville', 'personneAssignee', 'campagne'])
+            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email', 'personneAssignee'])
             ->orderByRaw("livraisons.statut_contact = 'confirme'")
             ->orderByRaw('familles.email IS NULL')
             ->select('livraisons.*');
@@ -111,7 +119,16 @@ class ContactTrackingController extends Controller
             return response()->json(['ids' => $query->pluck('livraisons.id')]);
         }
 
-        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
+        // LivraisonQueueResource appliqué directement sur la collection du
+        // paginator plutôt que XResource::collection($paginator) (Section
+        // E3 du refactor, 12/09/2026) : préserve la forme JSON plate
+        // actuelle (current_page/data/... à la racine, voir
+        // RawLaravelPaginator côté TS) — changer cette forme est un sujet à
+        // part, volontairement pas traité ici.
+        $paginateur = $query->paginate($request->integer('per_page') ?: 50)->withQueryString();
+        $paginateur->getCollection()->transform(fn ($livraison) => new LivraisonQueueResource($livraison));
+
+        return response()->json($paginateur);
     }
 
     /**

@@ -9,6 +9,7 @@ use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Ville;
 use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\FamilleEligibleResource;
 use App\Http\Resources\RouteIncidentResource;
 use App\Http\Resources\RouteLivraisonResource;
 use App\Models\Campagne;
@@ -238,7 +239,13 @@ class LiveBoardController extends Controller
             ? $campagne->journees()->findOrFail($request->integer('id_campagne_journee'))
             : null;
 
-        $query = $this->livraisonGenerationService->nonCouvertesEligibles($campagne, $journee)->with('quartier.secteur.ville');
+        // ->with('quartier') seul (pas 'quartier.secteur.ville') depuis le
+        // 12/09/2026 (Section E3 du refactor, suite) : BuildRouteFlow.vue
+        // ne lit pas .secteur/.ville sur cette ligne — voir le docblock de
+        // FamilleEligibleResource, partagé avec
+        // CampagnesController::eligibles() (même forme de ligne, seul
+        // id_livraison distingue les deux).
+        $query = $this->livraisonGenerationService->nonCouvertesEligibles($campagne, $journee)->with('quartier');
         FamilleFilters::appliquer($query, $request);
 
         $colonne = $request->input('tri');
@@ -261,7 +268,16 @@ class LiveBoardController extends Controller
             return response()->json(['ids' => $query->pluck('id_livraison')]);
         }
 
-        return response()->json($query->paginate($request->integer('per_page') ?: 50)->withQueryString());
+        // FamilleEligibleResource appliqué directement sur la collection du
+        // paginator plutôt que XResource::collection($paginator) (Section
+        // E3 du refactor, 12/09/2026) : préserve la forme JSON plate
+        // actuelle (current_page/data/... à la racine, voir
+        // RawLaravelPaginator côté TS) — changer cette forme est un sujet à
+        // part, volontairement pas traité ici.
+        $paginateur = $query->paginate($request->integer('per_page') ?: 50)->withQueryString();
+        $paginateur->getCollection()->transform(fn ($famille) => new FamilleEligibleResource($famille));
+
+        return response()->json($paginateur);
     }
 
     /**
