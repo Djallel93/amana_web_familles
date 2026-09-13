@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Livraison;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
+use App\Http\Resources\ReleveResource;
 use App\Models\Campagne;
 use App\Models\CampagneArrivee;
 use App\Models\Donation;
@@ -110,8 +111,7 @@ class PosteReleveController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        /** @var Model $releve */
-        $releve = $definition->modelClass::create([
+        $definition->modelClass::create([
             'id_campagne' => $campagne->id,
             'id_campagne_journee' => $request->input('id_campagne_journee'),
             $definition->champ => $request->input($definition->champ),
@@ -119,9 +119,14 @@ class PosteReleveController extends Controller
             'logge_par' => auth()->id(),
         ]);
 
+        // $definition->cleItemJson retiré de la réponse le 12/09/2026
+        // (Section E3 du refactor, suite) : poste-releve.blade.php
+        // (formulaire de saisie) ne lit que .success/.total_campagne
+        // après enregistrement — il rafraîchit le journal séparément via
+        // chargerJournal() plutôt que de lire la ligne créée dans cette
+        // réponse.
         return response()->json([
             'success' => true,
-            $definition->cleItemJson => $releve->load('loggePar:id,nom,prenom'),
             'total_campagne' => $campagne->fresh()->{$definition->accesseurTotalCampagne},
         ]);
     }
@@ -143,7 +148,7 @@ class PosteReleveController extends Controller
         $releves = $query->with('loggePar:id,nom,prenom')->orderByDesc('horodatage')->get();
 
         return response()->json([
-            $definition->cleListeJson => $releves,
+            $definition->cleListeJson => $releves->map(fn ($releve) => new ReleveResource($releve, $definition)),
             $definition->cleTotalJournalJson => $definition->estEntier
                 ? (int) $query->sum($definition->champ)
                 : (float) $query->sum($definition->champ),
@@ -188,10 +193,11 @@ class PosteReleveController extends Controller
 
         $releve->update([$definition->champ => $request->input($definition->champ)]);
 
-        return response()->json([
-            'success' => true,
-            $definition->cleItemJson => $releve->fresh()->load('loggePar:id,nom,prenom'),
-        ]);
+        // $definition->cleItemJson retiré de la réponse le 12/09/2026
+        // (Section E3 du refactor, suite) : modifierLigne()
+        // (poste-releve.blade.php) ne lit que .success, puis rafraîchit le
+        // journal séparément via chargerJournal().
+        return response()->json(['success' => true]);
     }
 
     private function supprimerCommun(Model $releve): JsonResponse
