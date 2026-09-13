@@ -8,6 +8,9 @@ namespace App\Http\Controllers\Admin\Livraison;
 use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Ville;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CampagneJourneeResource;
+use App\Http\Resources\CampagnePoidsMoyenHistoriqueResource;
+use App\Http\Resources\CampagneResource;
 use App\Http\Resources\FamilleEligibleResource;
 use App\Models\Campagne;
 use App\Models\CampagnePoidsMoyenHistorique;
@@ -164,7 +167,7 @@ class CampagnesController extends Controller
             $campagne->ajouterJournee($journeeDemandee['date'], $journeeDemandee['label'] ?? null);
         }
 
-        return response()->json(['success' => true, 'campagne' => $campagne->load('journees')], 201);
+        return response()->json(['success' => true, 'campagne' => new CampagneResource($campagne->load('journees'))], 201);
     }
 
     /**
@@ -201,7 +204,7 @@ class CampagnesController extends Controller
 
         $campagne->update([...$validator->validated(), 'hq_confirmee_le' => now()]);
 
-        return response()->json(['success' => true, 'campagne' => $campagne->fresh()]);
+        return response()->json(['success' => true, 'campagne' => new CampagneResource($campagne->fresh())]);
     }
 
     /**
@@ -301,10 +304,13 @@ class CampagnesController extends Controller
 
         $campagne->save();
 
+        // 'campagne' retiré de la réponse le 12/09/2026 (Section E3 du
+        // refactor, suite) : jamais lu par enregistrerPoidsMoyen()
+        // (packaging.blade.php, seul appelant de cet endpoint) — seul
+        // 'historique' y est consommé, voir CampagnePoidsMoyenHistoriqueResource.
         return response()->json([
             'success' => true,
-            'campagne' => $campagne->fresh(),
-            'historique' => $campagne->poidsMoyenHistorique()->with('loggePar:id,nom,prenom')->get(),
+            'historique' => CampagnePoidsMoyenHistoriqueResource::collection($campagne->poidsMoyenHistorique()->with('loggePar:id,nom,prenom')->get()),
         ]);
     }
 
@@ -371,7 +377,7 @@ class CampagnesController extends Controller
 
         $journee = $campagne->ajouterJournee($request->input('date'), $request->input('label'));
 
-        return response()->json(['success' => true, 'journee' => $journee], 201);
+        return response()->json(['success' => true, 'journee' => new CampagneJourneeResource($journee)], 201);
     }
 
     /**
