@@ -7,6 +7,7 @@ declare(strict_types=1);
 use Amana\Shared\Http\Middleware\EnsureAuthenticated;
 use Amana\Shared\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureLivraisonRole;
+use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -18,6 +19,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+
+        // HandleInertiaRequests (Section E4 du refactor, 12/09/2026) — ajouté
+        // au groupe 'web' entier plutôt qu'à chaque route migrée
+        // individuellement : c'est le comportement standard du package
+        // (voir son propre docblock) et sans effet sur les routes qui
+        // renvoient encore une View Blade classique.
+        $middleware->web(append: [
+            HandleInertiaRequests::class,
+        ]);
 
         // ── Middlewares d'authentification (amana/shared) ──────────────────
         //

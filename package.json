@@ -29,6 +29,7 @@
     },
     "dependencies": {
         "@amana/shared-ui": "git+https://github.com/Djallel93/amana_shared_ui.git#v1.3.0",
+        "@inertiajs/vue3": "^3.7.1",
         "chart.js": "^4.5.1"
     }
 }

@@ -19,6 +19,7 @@
         "amana/shared": "^v2.3.2",
         "endroid/qr-code": "^5.0",
         "google/apiclient": "^2.18",
+        "inertiajs/inertia-laravel": "^3.3",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
         "nesbot/carbon": "^3.0"
