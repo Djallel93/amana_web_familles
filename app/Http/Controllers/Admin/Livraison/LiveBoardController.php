@@ -338,6 +338,18 @@ class LiveBoardController extends Controller
     }
 
     // ── Mutabilité des tournées (voir le prompt §3.3) ───────────────────
+    //
+    // Les 6 méthodes ci-dessous ne renvoient plus `route`/`etape`/
+    // `nouvelle_route` dans leur JSON depuis le 12/09/2026 (Section E3 du
+    // refactor, suite) : c'était jusqu'ici un dump brut de fresh() (aucune
+    // relation chargée), et RoutesPanel.vue / BuildRouteFlow.vue —
+    // seuls appelants — typent chaque réponse en `{ success: boolean }`
+    // (voir apiPost<{ success: boolean }>/apiDelete<{ success: boolean }>
+    // à chaque site d'appel, sans cast `as any`) : en cas de succès, ils
+    // affichent un toast puis émettent changed/created, qui déclenche un
+    // rechargement complet côté parent (LiveBoard.vue::chargerTout()) —
+    // le modèle renvoyé n'était lu nulle part. Même forme que
+    // supprimerRoute() ci-dessous, qui n'a jamais renvoyé de modèle.
 
     public function ajouterLivraison(Request $request, RouteLivraison $route): JsonResponse
     {
@@ -349,23 +361,23 @@ class LiveBoardController extends Controller
         $livraison = Livraison::findOrFail($request->input('id_livraison'));
 
         try {
-            $route = $this->mutationService->ajouterLivraison($route, $livraison);
+            $this->mutationService->ajouterLivraison($route, $livraison);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, 'route' => $route]);
+        return response()->json(['success' => true]);
     }
 
     public function retirerLivraison(RouteLivraison $route, EtapeRoute $etape): JsonResponse
     {
         try {
-            $route = $this->mutationService->retirerLivraison($route, $etape);
+            $this->mutationService->retirerLivraison($route, $etape);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, 'route' => $route]);
+        return response()->json(['success' => true]);
     }
 
     /**
@@ -387,12 +399,12 @@ class LiveBoardController extends Controller
         }
 
         try {
-            $etape = $this->mutationService->changerStatutEtape($etape, $request->input('statut'));
+            $this->mutationService->changerStatutEtape($etape, $request->input('statut'));
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, 'etape' => $etape]);
+        return response()->json(['success' => true]);
     }
 
     public function reassignerRoute(Request $request, RouteLivraison $route): JsonResponse
@@ -405,20 +417,20 @@ class LiveBoardController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $route = $this->mutationService->reassigner($route, $request->input('id_benevole'), $request->input('id_vehicule_type'));
+        $this->mutationService->reassigner($route, $request->input('id_benevole'), $request->input('id_vehicule_type'));
 
-        return response()->json(['success' => true, 'route' => $route]);
+        return response()->json(['success' => true]);
     }
 
     public function diviserRoute(RouteLivraison $route): JsonResponse
     {
         try {
-            $nouvelleRoute = $this->mutationService->diviser($route);
+            $this->mutationService->diviser($route);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, 'nouvelle_route' => $nouvelleRoute]);
+        return response()->json(['success' => true]);
     }
 
     /**
@@ -451,7 +463,7 @@ class LiveBoardController extends Controller
         }
 
         try {
-            $route = $this->mutationService->construirePersonnalisee(
+            $this->mutationService->construirePersonnalisee(
                 $campagne,
                 $request->input('id_benevole'),
                 $request->input('id_vehicule_type'),
@@ -462,6 +474,6 @@ class LiveBoardController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, 'route' => $route]);
+        return response()->json(['success' => true]);
     }
 }
