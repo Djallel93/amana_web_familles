@@ -35,7 +35,7 @@ import { ref, nextTick, onMounted } from 'vue';
 
 declare global {
     interface Window {
-        google: any;
+        google?: any;
         __googleMapsLoadPromise?: Promise<void>;
     }
 }

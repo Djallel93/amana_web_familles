@@ -687,9 +687,22 @@ const mapEmbedUrl = computed<string | null>(() => {
 // window.toggleAppTheme dans lib/theme.ts : fonction exposée globalement
 // pour être appelée depuis un attribut onclick d'un Blade (pas de Vue
 // monté sur chaque ligne du tableau, juste ce composant unique).
+//
+// Optionnelle (12/09/2026, Section E4 du refactor) : ContactsQueue.vue
+// déclare aussi `window.openFamilleDetail` (vérifié défensivement avant
+// appel, voir modifierDossier()) mais en `?:` — TypeScript exige des
+// modificateurs identiques sur toutes les déclarations d'un même membre
+// de `declare global`, or ce fichier la déclarait en non-optionnelle.
+// Cette incohérence cassait vue-tsc --noEmit sur tout le dépôt, mais
+// restait invisible : masquée par une erreur de parsing fatale ailleurs
+// (voir RoutesPanel.vue, corrigé dans ce même chunk) qui empêchait
+// vue-tsc d'aller jusqu'à cette vérification. `?:` est de toute façon le
+// type le plus honnête ici aussi : avant que onMounted() ci-dessous ne
+// s'exécute, `window.openFamilleDetail` n'existe pas non plus sur cette
+// page.
 declare global {
     interface Window {
-        openFamilleDetail: (id: number) => void;
+        openFamilleDetail?: (id: number) => void;
     }
 }
 
