@@ -14,9 +14,22 @@
     pendant le scan) → review (résolution famille par famille, avec
     navigation précédent/suivant façon ancien dialogue GAS) → un état final
     récapitulatif après application des décisions.
+    Convertie en composant Inertia recevant des props (Section E4 du
+    refactor, chunk 4, 12/09/2026) — remplace l'ancien montage
+    createApp().mount() + lecture de dataset : monté uniquement sur
+    familles/index.blade.php (vérifié — aucun autre consommateur dans
+    l'app), pas besoin d'un pont double-mode ici.
+
+    fermer() utilisait window.location.reload() pour rafraîchir le
+    tableau sous-jacent après application des décisions — remplacé par
+    router.reload() (Inertia, ne recharge que les props de la page
+    courante) : exactement l'esprit "pas de rechargement complet" de
+    cette section, pas seulement pour la navigation mais aussi pour ce
+    genre de rafraîchissement post-action.
 -->
 <script setup lang="ts">
-import { ref, computed, reactive, onMounted } from 'vue';
+import { ref, computed, reactive } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { Modal } from '@amana/shared-ui';
 import { useToast } from '@amana/shared-ui';
 
@@ -57,7 +70,10 @@ interface Decision {
 }
 const decisions = reactive<Record<string, Decision>>({});
 
-let urls = { scan: '', appliquer: '' };
+const props = defineProps<{
+    scanUrl: string;
+    appliquerUrl: string;
+}>();
 
 function csrfToken(): string {
     return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
@@ -98,7 +114,7 @@ async function demarrerScan(): Promise<void> {
     screen.value = 'loading';
 
     try {
-        const res = await fetch(urls.scan, { headers: { Accept: 'application/json' } });
+        const res = await fetch(props.scanUrl, { headers: { Accept: 'application/json' } });
         const data = await res.json();
 
         if (!res.ok) {
@@ -182,7 +198,7 @@ async function appliquer(): Promise<void> {
     };
 
     try {
-        const res = await fetch(urls.appliquer, {
+        const res = await fetch(props.appliquerUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -221,31 +237,27 @@ function fermer(): void {
     // Le tableau sous-jacent (statut/quartier peuvent avoir changé pour
     // les dossiers mis à jour depuis Google) n'est rafraîchi qu'à la
     // fermeture, pas à chaque décision — même approche "simple v1" que
-    // DetailPanel.vue::enregistrer().
+    // DetailPanel.vue::enregistrer(). router.reload() (Inertia) plutôt
+    // que window.location.reload() depuis le 12/09/2026 (Section E4 du
+    // refactor, chunk 4) — voir le docblock en tête de ce fichier.
     if (screen.value === 'done' && resultatsApplication.value.length > 0) {
-        window.location.reload();
+        router.reload();
     }
 }
 
-// Exposition globale — voir familles/index.blade.php (bouton) et le
-// point de montage #vue-reverse-sync-panel (data-scan-url/data-apply-url).
+// Exposition globale — voir familles/index.blade.php (bouton). Assignée
+// directement ici plutôt que dans un onMounted() : ce composant n'a plus
+// besoin d'attendre le montage pour lire son propre point de montage
+// (dataset) depuis la conversion en props (Section E4 du refactor,
+// chunk 4) — ouvrir référence déjà une fonction stable dès l'exécution
+// de ce <script setup>.
 declare global {
     interface Window {
         openReverseSyncPanel?: () => void;
     }
 }
 
-onMounted(() => {
-    const el = document.getElementById('vue-reverse-sync-panel');
-    if (el) {
-        urls = {
-            scan: el.dataset.scanUrl ?? '',
-            appliquer: el.dataset.applyUrl ?? '',
-        };
-    }
-
-    window.openReverseSyncPanel = ouvrir;
-});
+window.openReverseSyncPanel = ouvrir;
 </script>
 
 <template>

@@ -72,4 +72,19 @@ export default tseslint.config(
             'vue/attribute-hyphenation': 'off',
         },
     },
+
+    {
+        // Pages Inertia (Section E4 du refactor, 12/09/2026) — nommées
+        // d'après l'action du contrôleur (Familles/Index.vue,
+        // Familles/Nouvelles.vue, voir Inertia::render()), jamais
+        // utilisées par nom de balise dans un template (aucun risque de
+        // collision avec un élément HTML natif, seule raison d'être de
+        // cette règle) : désactivée uniquement ici plutôt que
+        // globalement, pour ne pas perdre le garde-fou sur les
+        // composants réutilisables sous resources/js/components/.
+        files: ['resources/js/pages/**/*.vue'],
+        rules: {
+            'vue/multi-word-component-names': 'off',
+        },
+    },
 );

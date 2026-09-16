@@ -105,7 +105,7 @@ interface FamillesPaginees {
 const props = defineProps<{
     familles: FamillesPaginees;
     baseUrl: string;
-    currentQuery: Record<string, string | number | boolean | undefined>;
+    currentQuery: Record<string, string | number | boolean | number[] | undefined>;
     triActuel: string | null;
     directionActuelle: 'asc' | 'desc';
     videIcone: string;

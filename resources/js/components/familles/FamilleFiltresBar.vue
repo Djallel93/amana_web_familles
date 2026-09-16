@@ -7,112 +7,78 @@
     livraison, pour n'avoir plus qu'UNE implémentation du panneau de
     filtres (voir son docblock).
 
-    Volontairement PAS un écran réactif "fetch-driven" comme les pages
-    livraison : "Filtrer"/une suggestion choisie déclenchent une
-    navigation plein-page classique (window.location.href), exactement
-    comme le <form method="GET"> d'origine — Dossier Familles reste une
-    page Blade/pagination-serveur ordinaire. Rendre cet écran réactif
-    sans rechargement est le travail de la migration Inertia.js (Section
-    E du refactor), fait à part plutôt qu'anticipé ici en douce.
+    Convertie en composant Inertia recevant des props (Section E4 du
+    refactor, chunk 4, 12/09/2026) — remplace l'ancien montage
+    createApp().mount() + lecture de dataset : familles/index.blade.php
+    et familles/nouvelles.blade.php sont les DEUX seuls consommateurs de
+    ce composant (vérifié — aucun partage avec le domaine livraison,
+    contrairement à DetailPanel.vue), donc pas besoin d'un pont
+    double-mode ici, conversion complète directe.
 
-    Lit son propre point de montage (#vue-familles-filtres) via
-    data-attributes plutôt que des props — même pattern que
-    DetailPanel.vue/ReverseSyncPanel.vue (voir app.ts, mountIfPresent() ne
-    passe aucune prop au montage) :
-    - data-villes / data-secteurs / data-quartiers / data-organisations : JSON
-    - data-valeurs : JSON de FamilleFiltres, valeurs actuelles (depuis
-      request(), voir familles/index.blade.php et nouvelles.blade.php)
-    - data-avec-statut : "true"/"false"
-    - data-etats-disponibles / data-etat-couleurs : JSON (uniquement si
-      avec-statut, sinon absents/vides)
-    - data-avec-autocompletion : "true"/"false"
-    - data-suggestions-url : uniquement si avec-autocompletion
-    - data-ouvert-par-defaut : "true"/"false"
-    - data-route-index : URL de base vers laquelle naviguer (sans query
-      string) — familles.index ou familles.nouvelles
-    - data-per-page : valeur courante du sélecteur "lignes par page", à
-      préserver au clic Filtrer (même correctif que le 12/08/2026 sur le
-      <form> d'origine)
+    "Filtrer"/une suggestion choisie déclenchent désormais un
+    router.get() (Inertia, preserveState/preserveScroll) plutôt qu'un
+    window.location.href — c'est le "vrai" objectif de cette section
+    (voir l'ancien docblock qui pointait justement vers "la migration
+    Inertia.js (Section E)" pour rendre cet écran réactif sans
+    rechargement).
 -->
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
+import { router } from '@inertiajs/vue3';
 import FamilleFilterPanel from '../livraison/shared/FamilleFilterPanel.vue';
-import { buildQuery } from '../livraison/shared/api';
 import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from '../livraison/shared/types';
 
-const villes = ref<Ville[]>([]);
-const secteurs = ref<Secteur[]>([]);
-const quartiers = ref<Quartier[]>([]);
-const organisations = ref<Organisation[]>([]);
-const filtres = ref<FamilleFiltres>({});
-const avecStatut = ref(false);
-const etatsDisponibles = ref<string[]>([]);
-const etatCouleurs = ref<Record<string, string>>({});
-const avecAutocompletion = ref(false);
-const suggestionsUrl = ref('');
-const ouvertParDefaut = ref(false);
-let routeIndex = '';
-let perPage = '';
+const props = defineProps<{
+    villes: Ville[];
+    secteurs: Secteur[];
+    quartiers: Quartier[];
+    organisations: Organisation[];
+    valeursFiltres: FamilleFiltres;
+    avecStatut: boolean;
+    etatsDisponibles?: string[];
+    etatCouleurs?: Record<string, string>;
+    avecAutocompletion: boolean;
+    suggestionsUrl?: string;
+    ouvertParDefaut: boolean;
+    baseUrl: string;
+    perPage: string | number;
+}>();
 
-function parseJson<T>(brut: string | undefined, defaut: T): T {
-    try {
-        return brut ? JSON.parse(brut) as T : defaut;
-    } catch {
-        return defaut;
-    }
+// Copie locale plutôt qu'un defineModel() vers la page parente
+// (Familles/Index.vue, Familles/Nouvelles.vue) : ces pages n'ont besoin
+// que de la valeur INITIALE des filtres (valeursFiltres, résolue
+// côté serveur depuis la query string) pour peupler ce panneau — pas
+// d'un lien bidirectionnel réactif à chaque frappe, exactement le même
+// besoin que l'ancien montage autonome (qui lisait sa propre valeur
+// initiale depuis dataset une seule fois, voir l'historique de ce
+// fichier).
+const filtres = ref<FamilleFiltres>({ ...props.valeursFiltres });
+
+function visiter(donnees: Record<string, string | number | boolean | number[] | undefined>) {
+    router.get(props.baseUrl, donnees, { preserveState: true, preserveScroll: true, replace: true });
 }
 
-onMounted(() => {
-    const el = document.getElementById('vue-familles-filtres');
-    if (!el) return;
-
-    villes.value = parseJson(el.dataset.villes, []);
-    secteurs.value = parseJson(el.dataset.secteurs, []);
-    quartiers.value = parseJson(el.dataset.quartiers, []);
-    organisations.value = parseJson(el.dataset.organisations, []);
-    filtres.value = parseJson(el.dataset.valeurs, {});
-    avecStatut.value = el.dataset.avecStatut === 'true';
-    etatsDisponibles.value = parseJson(el.dataset.etatsDisponibles, []);
-    etatCouleurs.value = parseJson(el.dataset.etatCouleurs, {});
-    avecAutocompletion.value = el.dataset.avecAutocompletion === 'true';
-    suggestionsUrl.value = el.dataset.suggestionsUrl ?? '';
-    ouvertParDefaut.value = el.dataset.ouvertParDefaut === 'true';
-    routeIndex = el.dataset.routeIndex ?? '';
-    perPage = el.dataset.perPage ?? '';
-});
-
 function naviguer() {
-    // etat_dossier traité à part : buildQuery() omet les chaînes vides,
-    // or une chaîne vide EXPLICITE est ici significative ("Tous" plutôt
-    // que le défaut "Validé" côté serveur, voir
-    // FamillesController::appliquerFiltreStatut()) — voir
-    // reinitialiser() dans FamilleFilterPanel.vue.
+    // etat_dossier traité à part : les valeurs vides sont omises par
+    // Inertia lors de la sérialisation des query params côté GET
+    // (comportement équivalent à l'ancien buildQuery()), or une chaîne
+    // vide EXPLICITE est ici significative ("Tous" plutôt que le défaut
+    // "Validé" côté serveur, voir FamillesController::appliquerFiltreStatut())
+    // — voir reinitialiser() dans FamilleFilterPanel.vue.
     const { etat_dossier, ...reste } = filtres.value;
-    let url = routeIndex + buildQuery({ ...reste, per_page: perPage });
-
-    if (avecStatut.value) {
-        const separateur = url.includes('?') ? '&' : '?';
-        url += `${separateur}etat_dossier=${encodeURIComponent(etat_dossier ?? '')}`;
-    }
-
-    window.location.href = url;
+    visiter({ ...reste, per_page: props.perPage, ...(props.avecStatut ? { etat_dossier: etat_dossier ?? '' } : {}) });
 }
 
 function ouvrirFiche(id: number) {
     // "remplir, filtrer puis ouvrir" (13/08/2026) : navigue directement
-    // avec le filtre nom/téléphone déjà résolu sur l'id exact +
-    // ?ouvrir=<id> pour que le panneau de détail s'ouvre automatiquement
-    // une fois la page rechargée (voir l'IIFE en bas de
-    // familles/index.blade.php qui écoute ce paramètre).
+    // avec le filtre nom/téléphone déjà résolu sur l'id exact + ouvrir=<id>
+    // pour que le panneau de détail s'ouvre automatiquement une fois la
+    // page (re)chargée. Sous Inertia (Section E4 du refactor), ouvrirId
+    // est lu réactivement depuis les props de la page (voir
+    // Familles/Index.vue) plutôt que par l'ancienne IIFE de sondage sur
+    // window.location.search + window.openFamilleDetail.
     const { etat_dossier, ...reste } = filtres.value;
-    let url = routeIndex + buildQuery({ ...reste, per_page: perPage, ouvrir: id });
-
-    if (avecStatut.value) {
-        const separateur = url.includes('?') ? '&' : '?';
-        url += `${separateur}etat_dossier=${encodeURIComponent(etat_dossier ?? '')}`;
-    }
-
-    window.location.href = url;
+    visiter({ ...reste, per_page: props.perPage, ouvrir: id, ...(props.avecStatut ? { etat_dossier: etat_dossier ?? '' } : {}) });
 }
 </script>
 
@@ -124,10 +90,10 @@ function ouvrirFiche(id: number) {
         :quartiers="quartiers"
         :organisations="organisations"
         :avec-statut="avecStatut"
-        :etats-disponibles="etatsDisponibles"
-        :etat-couleurs="etatCouleurs"
+        :etats-disponibles="etatsDisponibles ?? []"
+        :etat-couleurs="etatCouleurs ?? {}"
         :avec-autocompletion="avecAutocompletion"
-        :suggestions-url="suggestionsUrl"
+        :suggestions-url="suggestionsUrl ?? ''"
         :ouvert-par-defaut="ouvertParDefaut"
         @filtrer="naviguer"
         @selection="ouvrirFiche"

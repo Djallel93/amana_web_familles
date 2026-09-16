@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Resources\FamilleDetailResource;
+use App\Http\Resources\FamilleListItemResource;
 use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
@@ -21,7 +22,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -30,11 +32,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * clic sur une ligne (slide-over Vue, voir resources/js/components/familles/
  * DetailPanel.vue), consultation/upload des documents intégrée au panneau.
  *
- * index() reste un rendu Blade classique (filtres server-side, pagination
- * Laravel standard) — seul le panneau de détail est un îlot Vue consommant
- * show()/update() en JSON, pattern différent de celui des pages
- * statistiques (Blade + Vue + Chart.js) mais cohérent avec l'esprit
- * "Blade en coquille, Vue pour l'interactif" du reste de l'app.
+ * index()/nouvelles() renvoient Inertia::render() depuis le 12/09/2026
+ * (Section E4 du refactor, chunk 4 — voir resources/js/pages/Familles/
+ * Index.vue et Nouvelles.vue) : filtres/tri/pagination restent résolus
+ * côté serveur exactement comme avant (pagination Laravel standard),
+ * mais sans rechargement complet de page côté client (router.get()).
+ * show()/update() restent en JSON classique, consommés par DetailPanel.vue
+ * (désormais un enfant Vue normal de ces deux pages, plus un îlot
+ * séparé — voir le pont double-mode qu'il conserve pour
+ * livraison/contacts.blade.php, pas encore migré).
  */
 class FamillesController extends Controller
 {
@@ -65,7 +71,7 @@ class FamillesController extends Controller
             : Famille::PAGINATION_PAR_PAGE_DEFAUT;
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
         $query = $this->baseQuery($request);
 
@@ -74,6 +80,12 @@ class FamillesController extends Controller
         $this->appliquerTri($query, $request);
 
         $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
+        // FamilleListItemResource appliqué directement sur la collection du
+        // paginator plutôt que XResource::collection($paginator) (même
+        // technique que la Section E3 du refactor) : préserve la forme
+        // JSON plate attendue par FamillesTable.vue (current_page/data/...
+        // à la racine).
+        $familles->getCollection()->transform(fn ($famille) => new FamilleListItemResource($famille));
 
         $listesFiltres = $this->listesFiltres();
         $villes = $listesFiltres['villes'];
@@ -89,16 +101,45 @@ class FamillesController extends Controller
         $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
 
         // Valeurs actuelles du panneau de filtres partagé (voir
-        // FamilleFiltresBar.vue / familles/partials/filtres.blade.php,
-        // Section A3 du refactor du 10/09/2026) — avec Statut +
-        // autocomplétion Nom/Téléphone, les deux features propres à
-        // Dossier Familles (voir FamilleFilterPanel.vue).
+        // FamilleFiltresBar.vue, Section A3 du refactor du 10/09/2026,
+        // props Inertia depuis le 12/09/2026 — Section E4, chunk 4) —
+        // avec Statut + autocomplétion Nom/Téléphone, les deux features
+        // propres à Dossier Familles (voir FamilleFilterPanel.vue).
         $valeursFiltres = $this->valeursFiltres($request, $etatDossier, avecStatut: true, avecAutocompletion: true);
 
-        return view('familles.index', compact(
-            'familles', 'villes', 'secteurs', 'quartiers', 'etatDossier',
-            'secteursActivite', 'organismesAide', 'organisations', 'valeursFiltres',
-        ));
+        // filtresActifs/puces : déplacés depuis familles/index.blade.php
+        // (Section E4 du refactor, chunk 4, 12/09/2026) — ce calcul vivait
+        // jusqu'ici dans la vue elle-même (@php en tête de fichier),
+        // devenu impossible une fois la vue Blade remplacée par
+        // Inertia::render(). Comportement identique, code déplacé tel
+        // quel plutôt que réécrit.
+        $filtresActifs = $request->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant', 'criticite', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee']);
+        $puces = $this->construirePucesFiltres($request, $etatDossier, $villes, $quartiers, $organisations, 'familles.index');
+
+        $utilisateur = auth()->user();
+
+        return Inertia::render('Familles/Index', [
+            'familles' => $familles,
+            'villes' => $villes,
+            'secteurs' => $secteurs,
+            'quartiers' => $quartiers,
+            'organisations' => $organisations,
+            'etatDossier' => $etatDossier,
+            'secteursActivite' => $secteursActivite,
+            'organismesAide' => $organismesAide,
+            'valeursFiltres' => $valeursFiltres,
+            'triActuel' => $request->input('tri'),
+            'directionActuelle' => $request->input('direction') === 'desc' ? 'desc' : 'asc',
+            'filtresActifs' => $filtresActifs,
+            'puces' => $puces,
+            'reinitialiserUrl' => route('familles.index', ['etat_dossier' => '']),
+            'peutSyncGoogleContacts' => $utilisateur && ($utilisateur->isAdmin() || $utilisateur->isGestionnaire()),
+            'googleContactsScanUrl' => route('familles.google-contacts.scan'),
+            'googleContactsAppliquerUrl' => route('familles.google-contacts.appliquer'),
+            'exportUrl' => route('familles.export', $request->query()),
+            'ouvrirId' => $request->integer('ouvrir') ?: null,
+            ...$this->detailPanelProps(),
+        ]);
     }
 
     /**
@@ -116,13 +157,14 @@ class FamillesController extends Controller
      * comme sur Dossiers Familles — seul le tri PAR DÉFAUT (sans ?tri=)
      * diffère entre les deux vues.
      */
-    public function nouvelles(Request $request): View
+    public function nouvelles(Request $request): Response
     {
         $query = $this->baseQuery($request)->where('etat_dossier', 'Recu');
 
         $this->appliquerTri($query, $request, colonneDefaut: 'created_at');
 
         $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
+        $familles->getCollection()->transform(fn ($famille) => new FamilleListItemResource($famille));
 
         // Mêmes listes géographiques/organisation que index() depuis le
         // 10/09/2026 (Section A3 du refactor) : cette vue monte désormais
@@ -144,15 +186,35 @@ class FamillesController extends Controller
 
         $valeursFiltres = $this->valeursFiltres($request, etatDossier: '', avecStatut: false, avecAutocompletion: false);
 
-        return view('familles.nouvelles', compact(
-            'familles', 'villes', 'secteurs', 'quartiers',
-            'secteursActivite', 'organismesAide', 'organisations', 'valeursFiltres',
-        ));
+        // aFiltresActifs : déplacé depuis familles/nouvelles.blade.php
+        // (Section E4 du refactor, chunk 4, 12/09/2026) — même liste de
+        // champs qu'à l'origine, aucune puce de détail sur cette vue
+        // (jamais eu cette fonctionnalité, contrairement à index()).
+        $aFiltresActifs = $request->anyFilled([
+            'recherche', 'id_ville', 'id_secteur', 'id_quartier', 'criticite',
+            'se_deplace', 'est_hotel', 'etudiant', 'zakat_el_fitr', 'sadaqa',
+            'id_organisation_origine', 'id_organisation_rattachee',
+        ]);
+
+        return Inertia::render('Familles/Nouvelles', [
+            'familles' => $familles,
+            'villes' => $villes,
+            'secteurs' => $secteurs,
+            'quartiers' => $quartiers,
+            'organisations' => $organisations,
+            'secteursActivite' => $secteursActivite,
+            'organismesAide' => $organismesAide,
+            'valeursFiltres' => $valeursFiltres,
+            'triActuel' => $request->input('tri'),
+            'directionActuelle' => $request->input('direction') === 'desc' ? 'desc' : 'asc',
+            'aFiltresActifs' => $aFiltresActifs,
+            ...$this->detailPanelProps(),
+        ]);
     }
 
     /**
      * Listes complètes pour les groupes Localisation/Organisation du
-     * panneau de filtres (voir familles/partials/filtres.blade.php) —
+     * panneau de filtres (voir FamilleFiltresBar.vue) —
      * indépendantes des résultats courants (villes/secteurs/quartiers
      * peuvent être vides tant que le peuplement des polygones n'est pas
      * fait, cf. décision 6.7). Partagée par index() et nouvelles() depuis
@@ -222,9 +284,104 @@ class FamillesController extends Controller
      * (colonne "Organisation" désormais disponible, même masquée par
      * défaut, sur les deux vues — évite un N+1 si affichée).
      */
+    /**
+     * Puces de filtres actifs — déplacé depuis le @php en tête de
+     * familles/index.blade.php (Section E4 du refactor, chunk 4,
+     * 12/09/2026), devenu impossible à calculer côté vue une fois celle-ci
+     * remplacée par Inertia::render(). Logique et libellés identiques à
+     * l'origine, uniquement utilisé par index() — nouvelles() n'a jamais
+     * eu cette fonctionnalité (seul aFiltresActifs, sans détail par puce).
+     */
+    private function construirePucesFiltres(Request $request, string $etatDossier, $villes, $quartiers, $organisations, string $routeName): array
+    {
+        $parametresBase = collect($request->except('page'));
+        $puces = [];
+
+        if ($etatDossier !== '') {
+            $puces[] = ['label' => 'Statut : ' . $etatDossier, 'href' => route($routeName, $parametresBase->merge(['etat_dossier' => ''])->all())];
+        }
+        if ($request->filled('id_ville')) {
+            $villeNom = optional($villes->firstWhere('id', (int) $request->input('id_ville')))->nom ?? $request->input('id_ville');
+            $puces[] = ['label' => 'Ville : ' . $villeNom, 'href' => route($routeName, $parametresBase->except('id_ville')->all())];
+        }
+        if ($request->filled('id_quartier')) {
+            $quartierNom = optional($quartiers->firstWhere('id', (int) $request->input('id_quartier')))->nom ?? $request->input('id_quartier');
+            $puces[] = ['label' => 'Quartier : ' . $quartierNom, 'href' => route($routeName, $parametresBase->except('id_quartier')->all())];
+        }
+        if ($request->filled('id_selection')) {
+            $puces[] = ['label' => '🔗 Résultat sélectionné', 'href' => route($routeName, $parametresBase->except(['id_selection', 'nom', 'telephone'])->all())];
+        } else {
+            if ($request->filled('nom')) {
+                $puces[] = ['label' => 'Nom : "' . $request->input('nom') . '"', 'href' => route($routeName, $parametresBase->except('nom')->all())];
+            }
+            if ($request->filled('telephone')) {
+                $puces[] = ['label' => 'Téléphone : "' . $request->input('telephone') . '"', 'href' => route($routeName, $parametresBase->except('telephone')->all())];
+            }
+        }
+        if ($request->filled('criticite')) {
+            $criticiteValeurs = collect((array) $request->input('criticite'))->map(fn ($v) => (int) $v)->sort()->values();
+            if ($criticiteValeurs->isNotEmpty()) {
+                $puces[] = ['label' => 'Criticité : ' . $criticiteValeurs->implode(', '), 'href' => route($routeName, $parametresBase->except('criticite')->all())];
+            }
+        }
+        if ($request->boolean('se_deplace')) {
+            $puces[] = ['label' => 'Se déplace', 'href' => route($routeName, $parametresBase->except('se_deplace')->all())];
+        }
+        if ($request->boolean('est_hotel')) {
+            $puces[] = ['label' => '🏨 Hôtel', 'href' => route($routeName, $parametresBase->except('est_hotel')->all())];
+        }
+        if ($request->boolean('etudiant')) {
+            $puces[] = ['label' => '🎓 Étudiant', 'href' => route($routeName, $parametresBase->except('etudiant')->all())];
+        }
+        if ($request->boolean('zakat_el_fitr')) {
+            $puces[] = ['label' => 'Zakat El Fitr', 'href' => route($routeName, $parametresBase->except('zakat_el_fitr')->all())];
+        }
+        if ($request->boolean('sadaqa')) {
+            $puces[] = ['label' => 'Sadaqa', 'href' => route($routeName, $parametresBase->except('sadaqa')->all())];
+        }
+        if ($request->filled('id_organisation_origine')) {
+            $orgOrigineNom = optional($organisations->firstWhere('id', (int) $request->input('id_organisation_origine')))->nom ?? $request->input('id_organisation_origine');
+            $puces[] = ['label' => "Organisation d'origine : " . $orgOrigineNom, 'href' => route($routeName, $parametresBase->except('id_organisation_origine')->all())];
+        }
+        if ($request->filled('id_organisation_rattachee')) {
+            $orgRattacheeNom = optional($organisations->firstWhere('id', (int) $request->input('id_organisation_rattachee')))->nom ?? $request->input('id_organisation_rattachee');
+            $puces[] = ['label' => 'Organisation rattachée : ' . $orgRattacheeNom, 'href' => route($routeName, $parametresBase->except('id_organisation_rattachee')->all())];
+        }
+
+        return $puces;
+    }
+
+    /**
+     * Props DetailPanel.vue partagées par index()/nouvelles() — Section
+     * E4 du refactor (chunk 4, 12/09/2026). Reprend exactement les
+     * data-attributes de l'ancien familles/partials/vue-famille-detail.blade.php
+     * (toujours utilisé tel quel par livraison/contacts.blade.php, non
+     * migré — voir le pont double-mode du chunk 2 de cette section) :
+     * mêmes routes, mêmes clés Google Maps.
+     */
+    private function detailPanelProps(): array
+    {
+        return [
+            'showUrlTemplate' => route('familles.show', ['id' => '__ID__']),
+            'updateUrlTemplate' => route('familles.update', ['id' => '__ID__']),
+            'deverrouillerUrlTemplate' => route('familles.deverrouiller', ['id' => '__ID__']),
+            'forcerDeverrouillageUrlTemplate' => route('familles.forcer-deverrouillage', ['id' => '__ID__']),
+            'uploadUrlTemplate' => route('familles.documents.store', ['id' => '__ID__']),
+            'downloadUrlTemplate' => route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']),
+            'deleteDocUrlTemplate' => route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']),
+            'initialGooglePlacesKey' => config('services.google.maps.places_api_key'),
+            'initialGoogleEmbedKey' => config('services.google.maps.embed_api_key'),
+        ];
+    }
+
     private function baseQuery(Request $request)
     {
-        $query = Famille::query()->with(['quartier.secteur.ville', 'organisationOrigine:id,nom', 'organisations:id,nom']);
+        // ->with('quartier') seul (pas 'quartier.secteur.ville') depuis le
+        // 12/09/2026 (Section E4 du refactor, chunk 4) : ni
+        // FamillesTable.vue ni l'ancien tableau.blade.php qu'il remplace
+        // ne lisent .secteur/.ville sur cette ligne (seul quartier.nom
+        // est affiché) — voir le docblock de FamilleListItemResource.
+        $query = Famille::query()->with(['quartier', 'organisationOrigine:id,nom', 'organisations:id,nom']);
 
         // Visibilité par organisation (ajouté le 28/08/2026) — réservé aux
         // comptes gestionnaire_externe : admin/gestionnaire/benevole/membre
@@ -410,9 +567,9 @@ class FamillesController extends Controller
 
     /**
      * Tri du tableau "Dossiers familles" (?tri=colonne&direction=asc|desc,
-     * en-têtes cliquables — voir familles/index.blade.php et, depuis le
-     * 10/09/2026, familles/nouvelles.blade.php qui partage désormais le
-     * même tableau/en-têtes, voir familles/partials/tableau.blade.php).
+     * en-têtes cliquables — voir FamillesTable.vue, partagé par
+     * Familles/Index.vue et, depuis le 10/09/2026, Familles/Nouvelles.vue
+     * qui partage désormais le même tableau/en-têtes).
      * Sans paramètre ?tri reconnu, tri par $colonneDefaut/$directionDefaut
      * — 'id' croissant pour index() (demande du 12/08/2026 — remplace
      * l'ancien défaut criticité décroissante), 'created_at' croissant pour
