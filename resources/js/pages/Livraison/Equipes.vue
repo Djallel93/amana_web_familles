@@ -11,11 +11,12 @@
     désormais enfant Vue normal de cette page plutôt qu'îlot monté par
     app.ts sur #vue-livraison-equipe-membres.
 
-    Le lien de retour passe par <Link> plutôt qu'un <a> : la page campagne
-    n'est PAS encore migrée (campagne-detail.blade.php, chunk ultérieur),
-    mais Inertia retombe tout seul sur une navigation complète quand la
-    réponse n'est pas une réponse Inertia — comportement correct dans les
-    deux cas, et rien à changer ici quand ce chunk-là arrivera.
+    Le lien de retour passe par <Link> plutôt qu'un <a> : au moment de ce
+    chunk, la page campagne n'était pas encore migrée, mais Inertia
+    retombe tout seul sur une navigation complète quand la réponse n'est
+    pas une réponse Inertia — d'où l'absence de changement nécessaire ici
+    une fois campagne-detail.blade.php converti à son tour (chunk du
+    16/09/2026, cinquième du domaine livraison).
 -->
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';

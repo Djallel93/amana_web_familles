@@ -21,7 +21,6 @@ use App\Models\RouteLivraison;
 use App\Services\BenevoleDisponibiliteService;
 use App\Services\LivraisonGenerationService;
 use App\Support\RouteOptimizationConfig;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -50,10 +49,8 @@ class CampagnesController extends Controller
     /**
      * Section E4 du refactor (16/09/2026, troisième chunk du domaine
      * livraison) — page Inertia, remplace resources/views/livraison/
-     * campagnes.blade.php (supprimée dans ce même chunk). show() reste
-     * une View Blade classique pour l'instant : campagne-detail.blade.php
-     * n'est pas encore migrée (chunk ultérieur), et cette action-ci n'en
-     * dépend pas.
+     * campagnes.blade.php (supprimée dans ce même chunk). show() est
+     * passé à Inertia dans le chunk suivant (campagne-detail.blade.php).
      *
      * La liste passe en prop de page plutôt qu'en XHR au montage — cas B
      * de la décision du 16/09/2026 (comme Livraison/Equipes) : elle
@@ -90,24 +87,61 @@ class CampagnesController extends Controller
         ]);
     }
 
-    public function show(Campagne $campagne): View
+    /**
+     * Section E4 du refactor (16/09/2026, cinquième chunk du domaine
+     * livraison) — page Inertia, remplace resources/views/livraison/
+     * campagne-detail.blade.php (supprimée dans ce même chunk). Seule
+     * cette action change : store()/update()/eligibles()/
+     * genererLivraisons()/genererRoutes()/ajouterJournee()/
+     * mettreAJourPoidsMoyen()/recalculerPoids()/resumeSuppression()/
+     * destroy() restent des endpoints JSON classiques, consommés par
+     * CampagneDetail.vue (désormais enfant Vue normal de cette page,
+     * plus un îlot séparé) exactement comme avant — la sélection de
+     * familles éligibles est paginée/filtrée/triée côté serveur (voir
+     * eligibles() et queryFiltres() dans CampagneDetail.vue), pas un cas
+     * B comme l'a été la liste campagnes (chunk précédent) ou équipes
+     * (premier chunk).
+     *
+     * quartiers/villes/secteurs/organisations : référentiels passés en
+     * props exactement comme avant (l'ancienne Blade les sérialisait de
+     * la même façon via data-*), seule la source change.
+     *
+     * Neuf boutons de navigation (bénévoles/contacts/équipes/réception/
+     * pesée/packaging/chargement/suivi-livraison/statistiques) restent
+     * des <a href> classiques dans CampagneDetail.vue, y compris les
+     * trois qui pointent désormais vers des pages Inertia (bénévoles,
+     * équipes, statistiques, converties dans des chunks précédents) —
+     * décision du 16/09/2026 : uniformité de la rangée le temps que
+     * contacts et suivi-livraison soient eux aussi migrés, plutôt qu'un
+     * mélange <Link>/<a> au sein de la même rangée dès maintenant.
+     */
+    public function show(Campagne $campagne): InertiaResponse
     {
-        // quartiers/organisations passés ici (ajouté le 03/09/2026) pour
-        // les selects du filtre d'éligibilité côté Vue — même requête et
-        // même ordre que FamillesController::index() pour son propre
-        // filtre quartier/organisation, réutilisés tels quels plutôt que
-        // d'ajouter un endpoint JSON dédié pour un référentiel déjà
-        // disponible en lecture partout ailleurs dans l'app.
-        return view('livraison.campagne-detail', [
-            'campagne' => $campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom']),
+        return Inertia::render('Livraison/CampagneDetail', [
+            'campagne' => new CampagneResource($campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom'])),
             'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
-            // villes/secteurs ajoutés le 05/09/2026 (prompt §1.6) : même
-            // référentiel que FamillesController::index(), pour le
-            // sélecteur ville → secteur → quartier en cascade du nouveau
-            // FamilleFilterPanel.vue partagé.
             'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
             'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+            'googlePlacesKey' => config('services.google.maps.places_api_key'),
+            'eligiblesUrl' => route('livraison.campagnes.eligibles', $campagne),
+            'genererLivraisonsUrl' => route('livraison.campagnes.generer-livraisons', $campagne),
+            'genererRoutesUrl' => route('livraison.campagnes.generer-routes', $campagne),
+            'queueUrl' => route('livraison.contacts.queue'),
+            'contactsStatistiquesUrl' => route('livraison.contacts.statistiques'),
+            'benevolesUrl' => route('livraison.campagnes.benevoles.index', $campagne),
+            'equipesUrl' => route('livraison.campagnes.equipes.index', $campagne),
+            'receptionUrl' => route('livraison.reception.show', $campagne),
+            'ajouterJourneeUrl' => route('livraison.campagnes.journees.store', $campagne),
+            'avancementUrl' => route('livraison.campagnes.avancement', $campagne),
+            'updateUrl' => route('livraison.campagnes.update', $campagne),
+            'contactsUrl' => route('livraison.contacts.index', ['id_campagne' => $campagne->id]),
+            'peseeUrl' => route('livraison.pesee.show', $campagne),
+            'packagingUrl' => route('livraison.packaging.index', $campagne),
+            'chargementUrl' => route('livraison.chargement.index', $campagne),
+            'suiviLivraisonUrl' => route('livraison.suivi-livraison.index', $campagne),
+            'statistiquesUrl' => route('livraison.statistiques.index', $campagne),
+            'retourUrl' => route('livraison.campagnes.index'),
         ]);
     }
 

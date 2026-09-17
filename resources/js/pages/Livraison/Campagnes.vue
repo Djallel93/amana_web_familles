@@ -12,8 +12,12 @@
 
     Les liens "Modifier" vers une campagne et la navigation après
     création (CampagnesIndex.vue, creerCampagne()) restent des URLs
-    brutes : campagne-detail.blade.php n'est pas encore migrée (chunk
-    ultérieur), ce ne serait pas cohérent d'y router.get() avant.
+    brutes (<a href>/window.location.href), inchangées par ce chunk même
+    si campagne-detail.blade.php est depuis devenue une page Inertia
+    (chunk du 16/09/2026, cinquième du domaine livraison) — passer ces
+    deux liens en <Link>/router.get() serait cohérent maintenant que la
+    cible l'est aussi, mais reste un choix délibéré à faire plutôt qu'un
+    changement silencieux ici.
 -->
 <script setup lang="ts">
 import { Head } from '@inertiajs/vue3';

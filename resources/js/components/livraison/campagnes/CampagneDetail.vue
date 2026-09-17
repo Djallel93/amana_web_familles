@@ -18,6 +18,24 @@
       - bouton renommé, désactivé tant qu'aucune sélection (§1.7) ;
       - section "Livraisons confirmées jamais couvertes" supprimée (§1.8,
         reste disponible sur le tableau de bord via ShortfallPanel.vue).
+
+    Section E4 du refactor (16/09/2026, cinquième chunk du domaine
+    livraison) : ce composant n'est plus un îlot monté par app.ts sur
+    #vue-livraison-campagne-detail, mais un enfant normal de
+    resources/js/pages/Livraison/CampagneDetail.vue. Les data-* lues
+    jusqu'ici sur le point de montage sont devenues des props ; tout le
+    reste (sélection de familles éligibles paginée/filtrée/triée,
+    génération livraisons/routes, édition HQ/commentaire, ajout de
+    journée) reste des endpoints JSON classiques, inchangés — cet écran
+    n'est PAS un cas B (voir le docblock de CampagnesController::show()).
+    Les neuf boutons de navigation restent des <a href> classiques, y
+    compris vers les trois cibles déjà migrées en Inertia (bénévoles,
+    équipes, statistiques) — décision du 16/09/2026, voir ce même
+    docblock.
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
@@ -50,42 +68,59 @@ import {
 const toast = useToast();
 const confirmDialog = useConfirm();
 
-const el = document.getElementById("vue-livraison-campagne-detail")!;
-const campagne = ref<Campagne>(JSON.parse(el.dataset.campagne ?? "{}"));
-const quartiers = ref<Quartier[]>(JSON.parse(el.dataset.quartiers ?? "[]"));
-const villes = ref<Ville[]>(JSON.parse(el.dataset.villes ?? "[]"));
-const secteurs = ref<Secteur[]>(JSON.parse(el.dataset.secteurs ?? "[]"));
-const organisations = ref<Organisation[]>(
-    JSON.parse(el.dataset.organisations ?? "[]"),
-);
-const googlePlacesKey = el.dataset.googlePlacesKey ?? "";
+const props = defineProps<{
+    campagne: Campagne;
+    quartiers: Quartier[];
+    villes: Ville[];
+    secteurs: Secteur[];
+    organisations: Organisation[];
+    googlePlacesKey: string;
+    eligiblesUrl: string;
+    genererLivraisonsUrl: string;
+    genererRoutesUrl: string;
+    queueUrl: string;
+    contactsStatistiquesUrl: string;
+    benevolesUrl: string;
+    equipesUrl: string;
+    receptionUrl: string;
+    ajouterJourneeUrl: string;
+    avancementUrl: string;
+    updateUrl: string;
+    contactsUrl: string;
+    peseeUrl: string;
+    packagingUrl: string;
+    chargementUrl: string;
+    suiviLivraisonUrl: string;
+    statistiquesUrl: string;
+}>();
+
+// Copie locale mutable : enregistrerEdition() fusionne la réponse par
+// spread après une modification HQ/commentaire (voir plus bas) — même
+// comportement qu'avant ce chunk, seule la source initiale change.
+const campagne = ref<Campagne>({ ...props.campagne });
+const quartiers = ref<Quartier[]>(props.quartiers);
+const villes = ref<Ville[]>(props.villes);
+const secteurs = ref<Secteur[]>(props.secteurs);
+const organisations = ref<Organisation[]>(props.organisations);
+const googlePlacesKey = props.googlePlacesKey;
 const urls = {
-    eligibles: el.dataset.eligiblesUrl ?? "",
-    genererLivraisons: el.dataset.genererLivraisonsUrl ?? "",
-    // Ajoutés le 09/09/2026 (prompt §2.2) : bouton clustering déplacé ici.
-    genererRoutes: el.dataset.genererRoutesUrl ?? "",
-    queue: el.dataset.queueUrl ?? "",
-    // Ajouté le 09/09/2026 (prompt de cette date §1.5, second passage) :
-    // total des livraisons de la journée (indépendamment de
-    // statut_contact) — voir aucuneLivraison ci-dessous, distinct de
-    // resteAContacter qui ne compte que 'a_contacter'.
-    contactsStatistiques: el.dataset.contactsStatistiquesUrl ?? "",
-    benevoles: el.dataset.benevolesUrl ?? "",
-    equipes: el.dataset.equipesUrl ?? "",
-    // Ajouté le 09/09/2026 (prompt de cette date §1.1/§1.2).
-    reception: el.dataset.receptionUrl ?? "",
-    ajouterJournee: el.dataset.ajouterJourneeUrl ?? "",
-    avancement: el.dataset.avancementUrl ?? "",
-    update: el.dataset.updateUrl ?? "",
-    contacts: el.dataset.contactsUrl ?? "",
-    pesee: el.dataset.peseeUrl ?? "",
-    packaging: el.dataset.packagingUrl ?? "",
-    chargement: el.dataset.chargementUrl ?? "",
-    suiviLivraison: el.dataset.suiviLivraisonUrl ?? "",
-    // Ajouté le 09/09/2026 (prompt de cette date §1.3) : campagne
-    // présélectionnée sur l'écran Statistiques, même patron que
-    // suivi-livraison (data-campagne-id).
-    statistiques: el.dataset.statistiquesUrl ?? "",
+    eligibles: props.eligiblesUrl,
+    genererLivraisons: props.genererLivraisonsUrl,
+    genererRoutes: props.genererRoutesUrl,
+    queue: props.queueUrl,
+    contactsStatistiques: props.contactsStatistiquesUrl,
+    benevoles: props.benevolesUrl,
+    equipes: props.equipesUrl,
+    reception: props.receptionUrl,
+    ajouterJournee: props.ajouterJourneeUrl,
+    avancement: props.avancementUrl,
+    update: props.updateUrl,
+    contacts: props.contactsUrl,
+    pesee: props.peseeUrl,
+    packaging: props.packagingUrl,
+    chargement: props.chargementUrl,
+    suiviLivraison: props.suiviLivraisonUrl,
+    statistiques: props.statistiquesUrl,
 };
 
 function formatDateFr(iso: string): string {

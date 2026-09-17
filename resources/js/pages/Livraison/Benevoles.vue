@@ -16,9 +16,12 @@
     reste chargé par XHR via queue() (filtres journée/statut/recherche —
     voir le docblock de BenevoleDisponibiliteController::index()).
 
-    <Link> plutôt qu'un <a> pour le retour : campagne-detail.blade.php
-    n'est pas encore migrée, mais Inertia retombe tout seul sur une
-    navigation complète quand la réponse n'est pas une réponse Inertia.
+    <Link> plutôt qu'un <a> pour le retour : au moment de ce chunk, la
+    page campagne n'était pas encore migrée, mais Inertia retombe tout
+    seul sur une navigation complète quand la réponse n'est pas une
+    réponse Inertia — d'où l'absence de changement nécessaire ici une
+    fois campagne-detail.blade.php converti à son tour (chunk du
+    16/09/2026, cinquième du domaine livraison).
 -->
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
