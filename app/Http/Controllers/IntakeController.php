@@ -19,6 +19,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Formulaire public d'intake multilingue (FR/AR/EN, RTL pour l'arabe) —
@@ -63,7 +65,22 @@ class IntakeController extends Controller
     ) {
     }
 
-    public function showForm(string $langue = 'fr'): View
+    /**
+     * Section E4 du refactor (16/09/2026, dernier chunk public de la
+     * section) — page Inertia, remplace resources/views/intake/
+     * show.blade.php (supprimée dans ce même chunk). Formulaire public :
+     * réutilise app-public.blade.php (racine sans sidebar/auth, créée
+     * dans le chunk bénévole précédent — voir son docblock) via
+     * rootView()/withViewData(), même mécanisme exact que
+     * BenevoleIntakeController::showForm().
+     *
+     * L'état "inscription fermée" (Setting) reste une View Blade
+     * classique (intake.suspendue, partagée avec BenevoleIntakeController)
+     * — même raisonnement que là-bas : page statique sans interactivité,
+     * pas de gain à la convertir. showForm() a donc un type de retour
+     * View|InertiaResponse, comme BenevoleIntakeController::showForm().
+     */
+    public function showForm(string $langue = 'fr'): View|InertiaResponse
     {
         if (!in_array($langue, self::LANGUES_VALIDES, true)) {
             $langue = 'fr';
@@ -78,8 +95,10 @@ class IntakeController extends Controller
             return view('intake.suspendue', ['formulaire' => 'familles']);
         }
 
-        return view('intake.show', [
+        return Inertia::render('Intake/Show', [
             'langue' => $langue,
+            'storeUrl' => route('intake.store'),
+            'refusUrl' => route('intake.refus-consentement'),
             'secteursActivite' => SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
             'organismesAide' => OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
             // Étape "organisation" (ajoutée le 28/08/2026) — liste fermée,
@@ -88,7 +107,14 @@ class IntakeController extends Controller
             // gestionnaire_externe doivent apparaître ici.
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'code', 'nom']),
             'googlePlacesApiKey' => config('services.google.maps.places_api_key'),
-        ]);
+        ])
+            ->rootView('app-public')
+            ->withViewData([
+                'langue' => $langue,
+                'titre' => "AMANA Familles — Demande d'aide",
+                'tagline' => "Formulaire d'inscription",
+                'langueSwitchRoute' => 'intake.show',
+            ]);
     }
 
     /**

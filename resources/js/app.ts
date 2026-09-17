@@ -131,10 +131,6 @@ mountIfPresent(
     lazy(() => import("@/components/familles/ReverseSyncPanel.vue")),
 );
 mountIfPresent(
-    "vue-intake-form",
-    lazy(() => import("@/components/intake/IntakeForm.vue")),
-);
-mountIfPresent(
     "vue-import-manual-grid",
     lazy(() => import("@/components/imports/ImportManualGrid.vue")),
 );

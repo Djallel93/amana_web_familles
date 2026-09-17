@@ -22,10 +22,25 @@
 
     i18n minimal : un seul dictionnaire de libellés par langue (FR/AR/EN),
     pas de librairie i18n. La direction RTL est gérée par le
-    <html dir="rtl"> côté Blade, pas ici.
+    <html dir="rtl"> côté racine Blade, pas ici (resources/views/
+    app-public.blade.php depuis ce chunk, auparavant intake/show.blade.php
+    directement — même mécanisme, $langue en donnée de vue plutôt qu'en
+    variable Blade classique, voir IntakeController::showForm()).
+
+    Section E4 du refactor (16/09/2026, dernier chunk public de la
+    section) : ce composant n'est plus un îlot monté par app.ts sur
+    #vue-intake-form, mais un enfant normal de
+    resources/js/pages/Intake/Show.vue (lui-même rendu par
+    app-public.blade.php, la racine Inertia publique introduite dans le
+    chunk bénévole précédent). Les data-* lues jusqu'ici sur le point de
+    montage sont devenues des props.
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, reactive, computed, watch, nextTick } from 'vue';
 import { useToast, PersonalInfoStep } from '@amana/shared-ui';
 import type { PersonalInfoValue } from '@amana/shared-ui';
 
@@ -289,7 +304,17 @@ type StepId = typeof STEP_IDS[number];
 
 const toast = useToast();
 
-const langue = ref<Langue>('fr');
+const props = defineProps<{
+    langue: Langue;
+    storeUrl: string;
+    refusUrl: string;
+    secteursActivite: ListeOption[];
+    organismesAide: ListeOption[];
+    organisations: { id: number; code: string; nom: string }[];
+    googlePlacesApiKey: string;
+}>();
+
+const langue = ref<Langue>(props.langue);
 const t = computed(() => DICT[langue.value]);
 
 function tr(key: string, vars: Record<string, string | number> = {}): string {
@@ -304,12 +329,12 @@ function libelle(option: ListeOption): string {
     return option.libelle_fr;
 }
 
-const storeUrl = ref('');
-const refusUrl = ref('');
-const secteursActivite = ref<ListeOption[]>([]);
-const organismesAide = ref<ListeOption[]>([]);
-const organisations = ref<{ id: number; code: string; nom: string }[]>([]);
-const googlePlacesKey = ref('');
+const storeUrl = ref(props.storeUrl);
+const refusUrl = ref(props.refusUrl);
+const secteursActivite = ref<ListeOption[]>(props.secteursActivite);
+const organismesAide = ref<ListeOption[]>(props.organismesAide);
+const organisations = ref<{ id: number; code: string; nom: string }[]>(props.organisations);
+const googlePlacesKey = ref(props.googlePlacesApiKey);
 
 const phase = ref<Phase>('consent');
 const currentStep = ref(0);
@@ -721,25 +746,6 @@ async function submit(): Promise<void> {
     }
 }
 
-onMounted(() => {
-    const el = document.getElementById('vue-intake-form');
-    if (el) {
-        const l = el.dataset.langue as Langue;
-        if (l && DICT[l]) langue.value = l;
-        storeUrl.value = el.dataset.storeUrl ?? '';
-        refusUrl.value = el.dataset.refusUrl ?? '';
-        googlePlacesKey.value = el.dataset.googlePlacesKey ?? '';
-        try {
-            secteursActivite.value = JSON.parse(el.dataset.secteursActivite ?? '[]');
-            organismesAide.value = JSON.parse(el.dataset.organismesAide ?? '[]');
-            organisations.value = JSON.parse(el.dataset.organisations ?? '[]');
-        } catch {
-            secteursActivite.value = [];
-            organismesAide.value = [];
-            organisations.value = [];
-        }
-    }
-});
 </script>
 
 <template>
