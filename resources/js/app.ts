@@ -182,10 +182,3 @@ mountIfPresent(
     "vue-livraison-suivi-livraison",
     lazy(() => import("@/components/livraison/tableau-de-bord/LiveBoard.vue")),
 );
-mountIfPresent(
-    "vue-livraison-statistiques",
-    lazy(
-        () =>
-            import("@/components/livraison/statistiques/LivraisonStatistiques.vue"),
-    ),
-);

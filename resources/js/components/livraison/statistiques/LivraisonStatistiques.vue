@@ -17,9 +17,29 @@
     mais l'action elle-même est refusée en 403 côté StatistiquesController
     — data-peut-snapshotter reflète ce même test (isAdmin/isGestionnaire)
     pour ne jamais présenter un bouton qui échouerait systématiquement.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
+    îlot monté par app.ts sur #vue-livraison-statistiques, mais un
+    enfant normal de resources/js/pages/Livraison/Statistiques.vue. Les
+    data-* lues jusqu'ici sur le point de montage sont devenues des
+    props ; le tableau de comparaison historique, lui, ne vit plus dans
+    ce composant mais directement dans la page (il n'a jamais eu
+    d'interactivité propre à ce composant — voir Statistiques.vue).
+    snapshotter() faisait un window.location.reload() complet pour
+    rafraîchir ce tableau (aucune autre façon de l'actualiser tant qu'il
+    restait rendu par Blade) ; il fait maintenant un
+    router.reload({ only: ['historique'] }) — rechargement partiel
+    Inertia, même intention (rafraîchir le tableau après un instantané),
+    sans rechargement complet de page — voir la même substitution faite
+    sur ReverseSyncPanel.vue (Section E4, chunk Dossier Familles).
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { useToast } from '@amana/shared-ui';
 import {
     Chart,
@@ -36,13 +56,15 @@ import type { Campagne, StatistiquesDonnees, StatistiquesParJournee } from '../s
 
 Chart.register(BarController, BarElement, LinearScale, CategoryScale, Tooltip, Legend);
 
-const toast = useToast();
+const props = defineProps<{
+    campagnes: Campagne[];
+    campagneSelectionneeId: number | null;
+    donneesUrlTemplate: string;
+    snapshotUrlTemplate: string;
+    peutSnapshotter: boolean;
+}>();
 
-const el = document.getElementById('vue-livraison-statistiques')!;
-const campagnes = ref<Campagne[]>(JSON.parse(el.dataset.campagnes ?? '[]'));
-const donneesUrlTemplate = el.dataset.donneesUrlTemplate ?? '';
-const snapshotUrlTemplate = el.dataset.snapshotUrlTemplate ?? '';
-const peutSnapshotter = el.dataset.peutSnapshotter === '1';
+const toast = useToast();
 
 const LIBELLES_LIVRAISON: Record<string, string> = {
     non_assignee: 'Non assignée', assignee: 'Assignée', en_cours: 'En cours',
@@ -70,18 +92,19 @@ const ventilationParJournee = computed<Array<StatistiquesParJournee & { id: stri
 });
 
 function urlDonnees(id: string): string {
-    return donneesUrlTemplate.replace('__CAMPAGNE__', id);
+    return props.donneesUrlTemplate.replace('__CAMPAGNE__', id);
 }
 function urlSnapshot(id: string): string {
-    return snapshotUrlTemplate.replace('__CAMPAGNE__', id);
+    return props.snapshotUrlTemplate.replace('__CAMPAGNE__', id);
 }
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 const loadState = ref<LoadState>('idle');
 // Présélectionnée (09/09/2026, prompt de cette date §1.3) quand on arrive
 // depuis le bouton "📊 Statistiques" de CampagneDetail.vue — voir
-// data-campagne-id sur statistiques.blade.php, même patron que LiveBoard.vue.
-const campagneId = ref(el.dataset.campagneId ?? '');
+// campagneSelectionneeId (prop, ex-data-campagne-id), même patron que
+// LiveBoard.vue.
+const campagneId = ref(props.campagneSelectionneeId ? String(props.campagneSelectionneeId) : '');
 const donnees = ref<StatistiquesDonnees | null>(null);
 const snapshotEnCours = ref(false);
 
@@ -118,12 +141,13 @@ async function snapshotter() {
     }
 
     toast.success('Instantané enregistré.');
-    // Le tableau de comparaison historique est rendu côté Blade (données
-    // déjà chargées au moment du rendu serveur, voir statistiques.blade.php)
-    // — un rechargement complet est la seule façon de l'actualiser sans
-    // dupliquer la requête comparaisonHistorique() côté Vue pour un
-    // tableau qui n'a par ailleurs aucune interactivité.
-    window.location.reload();
+    // Le tableau de comparaison historique vit désormais dans
+    // Statistiques.vue comme prop de page (voir StatistiquesController::
+    // index()) — un rechargement partiel Inertia de cette seule prop
+    // suffit à l'actualiser, sans rechargement complet de page (voir le
+    // docblock en tête de fichier pour le contexte de cette
+    // substitution).
+    router.reload({ only: ['historique'] });
 }
 
 // ── Graphiques ────────────────────────────────────────────────────────────
