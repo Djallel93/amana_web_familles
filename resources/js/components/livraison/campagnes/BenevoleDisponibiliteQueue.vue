@@ -7,6 +7,21 @@
     action manuelle), sur BenevoleDisponibilite plutôt que Livraison.
     Le bouton "Notifier bénévole" (CampagneDetail.vue jusqu'ici) vit
     désormais ici.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un îlot
+    monté par app.ts sur #vue-livraison-benevole-disponibilite, mais un
+    enfant normal de resources/js/pages/Livraison/Benevoles.vue. Les
+    data-* lues jusqu'ici sur le point de montage sont devenues des
+    props ; tout le reste est inchangé, en particulier le chargement du
+    tableau, qui continue de passer par apiGet(queueUrl) — cette liste
+    est pilotée par des filtres (journée/statut/recherche), la passer en
+    prop de page comme pour Livraison/Equipes.vue créerait deux sources
+    de vérité pour le même tableau (voir le docblock de
+    BenevoleDisponibiliteController::index()).
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
@@ -28,24 +43,25 @@ interface LigneBenevole {
     creneaux: Creneau[];
 }
 
+const props = defineProps<{
+    campagne: Campagne;
+    queueUrl: string;
+    mettreAJourUrlTemplate: string;
+    notifierBenevolesUrl: string;
+    personneEditUrlTemplate: string;
+}>();
+
 const toast = useToast();
 
-const el = document.getElementById('vue-livraison-benevole-disponibilite')!;
-const campagne = ref<Campagne>(JSON.parse(el.dataset.campagne ?? '{}'));
-const queueUrl = el.dataset.queueUrl ?? '';
-const mettreAJourUrlTemplate = el.dataset.mettreAJourUrlTemplate ?? '';
-const notifierBenevolesUrl = el.dataset.notifierBenevolesUrl ?? '';
-const personneEditUrlTemplate = el.dataset.personneEditUrlTemplate ?? '';
-
 function urlMettreAJour(idPersonne: number): string {
-    return mettreAJourUrlTemplate.replace('__ID__', String(idPersonne));
+    return props.mettreAJourUrlTemplate.replace('__ID__', String(idPersonne));
 }
 
 function urlModifierInformations(idPersonne: number): string {
-    return personneEditUrlTemplate.replace('__ID__', String(idPersonne));
+    return props.personneEditUrlTemplate.replace('__ID__', String(idPersonne));
 }
 
-const journees = computed<CampagneJournee[]>(() => campagne.value.journees ?? []);
+const journees = computed<CampagneJournee[]>(() => props.campagne.journees ?? []);
 const idJourneeSelectionnee = ref<number | ''>(journees.value[0]?.id ?? '');
 
 const filtreStatut = ref<'' | 'confirme' | 'non_confirme'>('');
@@ -60,7 +76,7 @@ async function chargerFile() {
     erreur.value = false;
 
     const resultat = await apiGet<{ data: LigneBenevole[]; total: number; id_campagne_journee: number }>(
-        queueUrl + buildQuery({
+        props.queueUrl + buildQuery({
             id_campagne_journee: idJourneeSelectionnee.value,
             statut: filtreStatut.value || undefined,
             recherche: recherche.value || undefined,
@@ -164,7 +180,7 @@ async function notifierBenevoles() {
     chargementNotif.value = true;
     resultatNotif.value = null;
 
-    const resultat = await apiPost<{ envoyes: number; echecs: number }>(notifierBenevolesUrl);
+    const resultat = await apiPost<{ envoyes: number; echecs: number }>(props.notifierBenevolesUrl);
     chargementNotif.value = false;
 
     if (!resultat.ok) {

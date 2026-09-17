@@ -26,8 +26,9 @@ use Inertia\Response as InertiaResponse;
  * aucun des écrans liés depuis cette page n'est un onglet dans cette
  * app) : page Inertia depuis le 16/09/2026 (Section E4 du refactor —
  * c'était jusque-là une Blade minimale + un îlot Vue chargé en JSON ;
- * BenevoleDisponibiliteController garde encore cette forme d'origine
- * jusqu'à son propre chunk), fusion Personne
+ * BenevoleDisponibiliteController est passé à Inertia dans le chunk
+ * suivant, même forme, à ceci près que sa liste reste chargée en XHR),
+ * fusion Personne
  * (connexion 'commun') / CampagneEquipeMembre (connexion par défaut) en
  * PHP, même raisonnement que partout ailleurs dans ce contrôleur/l'app
  * pour ce genre de jointure (voir BenevoleDisponibiliteController).

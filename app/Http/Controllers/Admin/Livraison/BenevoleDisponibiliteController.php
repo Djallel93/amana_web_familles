@@ -10,11 +10,13 @@ use App\Http\Controllers\Controller;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Services\BenevoleDisponibiliteService;
+use App\Http\Resources\CampagneResource;
 use App\Support\Creneau;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Suivi des réponses de disponibilité bénévole pour une campagne — voir
@@ -40,9 +42,36 @@ class BenevoleDisponibiliteController extends Controller
     ) {
     }
 
-    public function index(Campagne $campagne): View
+    /**
+     * Section E4 du refactor (16/09/2026) — page Inertia, remplace
+     * resources/views/livraison/benevole-disponibilite.blade.php
+     * (supprimée dans ce même chunk). Les data-* que portait le point de
+     * montage de l'îlot Vue sont devenues des props de page, rien de
+     * plus : contrairement à l'écran Équipes (converti juste avant), la
+     * liste n'est PAS passée en prop et queue() reste l'endpoint JSON
+     * qui l'alimente. Raison : cette liste est pilotée par des filtres
+     * (journée / statut / recherche, voir queue()), donc la passer aussi
+     * en prop de page créerait deux sources de vérité pour le même
+     * tableau — l'une servant le premier rendu, l'autre chaque changement
+     * de filtre — pour ne gagner qu'un état "Chargement…" au premier
+     * affichage. Voir la décision du 16/09/2026 sur la profondeur de
+     * migration des écrans livraison.
+     */
+    public function index(Campagne $campagne): InertiaResponse
     {
-        return view('livraison.benevole-disponibilite', ['campagne' => $campagne->load('journees')]);
+        return Inertia::render('Livraison/Benevoles', [
+            'campagne' => new CampagneResource($campagne->load('journees')),
+            'retourUrl' => route('livraison.campagnes.show', $campagne),
+            'queueUrl' => route('livraison.campagnes.benevoles.queue', $campagne),
+            'mettreAJourUrlTemplate' => route('livraison.campagnes.benevoles.mettre-a-jour', [$campagne, '__ID__']),
+            'notifierBenevolesUrl' => route('livraison.campagnes.notifier-benevoles', $campagne),
+            // "Modifier informations" (07/09/2026, prompt §5.1) : lien
+            // direct vers la fiche personne (véhicule/couverture réels
+            // vivent sur BenevoleProfil, édités là-bas — voir
+            // resources/views/personnes/form.blade.php — pas dupliqués
+            // ici). Commentaire déplacé depuis l'ancienne Blade.
+            'personneEditUrlTemplate' => route('admin.personnes.edit', '__ID__'),
+        ]);
     }
 
     /**

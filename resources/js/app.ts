@@ -183,13 +183,6 @@ mountIfPresent(
     lazy(() => import("@/components/livraison/contacts/ContactsQueue.vue")),
 );
 mountIfPresent(
-    "vue-livraison-benevole-disponibilite",
-    lazy(
-        () =>
-            import("@/components/livraison/campagnes/BenevoleDisponibiliteQueue.vue"),
-    ),
-);
-mountIfPresent(
     "vue-livraison-suivi-livraison",
     lazy(() => import("@/components/livraison/tableau-de-bord/LiveBoard.vue")),
 );
