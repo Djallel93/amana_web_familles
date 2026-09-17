@@ -207,9 +207,10 @@ const uploadFile = ref<File | null>(null);
 const uploading = ref(false);
 
 // URL templates (avec placeholders __ID__/__DOC__) + clés/listes reçues
-// en props Inertia (pages migrées, voir resources/js/pages/Familles/) OU
-// lues depuis les data-attributes du point de montage (mode pont, voir
-// props ci-dessous) selon le contexte de montage.
+// en props Inertia (voir defineProps ci-dessous) — assignées dans
+// onMounted() plutôt qu'à la déclaration pour rester au plus près du
+// code d'avant le retrait du pont double-mode (Section E4, chunk
+// contacts du domaine livraison, 16/09/2026).
 let urls = {
     show: '',
     update: '',
@@ -222,28 +223,26 @@ let urls = {
 const googlePlacesKey = ref('');
 const googleEmbedKey = ref('');
 
-// Pont double-mode — Section E4 du refactor (12/09/2026) : ce composant
-// est partagé par familles/index.blade.php, familles/nouvelles.blade.php
-// (les deux migrées vers Inertia dans ce chunk, où il devient un enfant
-// Vue normal recevant ces props) ET livraison/contacts.blade.php (pas
-// encore migré — reste sur l'ancien montage createApp().mount() +
-// lecture de dataset, voir onMounted() plus bas). Toutes optionnelles :
-// aucune n'est fournie dans le mode ancien, ce qui déclenche le repli sur
-// dataset. À SUPPRIMER quand la propre section E4 de livraison convertira
-// contacts.blade.php à son tour — ce pont ne devrait alors plus avoir
-// qu'un seul mode (props uniquement, plus de repli dataset).
+// Ex-pont double-mode — Section E4 du refactor : ce composant était
+// partagé par familles/index.blade.php, familles/nouvelles.blade.php et
+// livraison/contacts.blade.php ; les deux premières sont passées à
+// Inertia le 12/09/2026 (chunk Dossier Familles), la troisième le
+// 16/09/2026 (chunk contacts du domaine livraison) — les trois montages
+// fournissent désormais ces props, plus aucun ne retombe sur l'ancien
+// createApp().mount() + lecture de dataset (voir onMounted() plus bas,
+// qui n'a donc plus qu'un seul mode).
 const props = defineProps<{
-    showUrlTemplate?: string;
-    updateUrlTemplate?: string;
-    deverrouillerUrlTemplate?: string;
-    forcerDeverrouillageUrlTemplate?: string;
-    uploadUrlTemplate?: string;
-    downloadUrlTemplate?: string;
-    deleteDocUrlTemplate?: string;
-    initialGooglePlacesKey?: string;
-    initialGoogleEmbedKey?: string;
-    initialSecteursActiviteDisponibles?: ListeOption[];
-    initialOrganismesAideDisponibles?: ListeOption[];
+    showUrlTemplate: string;
+    updateUrlTemplate: string;
+    deverrouillerUrlTemplate: string;
+    forcerDeverrouillageUrlTemplate: string;
+    uploadUrlTemplate: string;
+    downloadUrlTemplate: string;
+    deleteDocUrlTemplate: string;
+    initialGooglePlacesKey: string;
+    initialGoogleEmbedKey: string;
+    initialSecteursActiviteDisponibles: ListeOption[];
+    initialOrganismesAideDisponibles: ListeOption[];
 }>();
 
 function csrfToken(): string {
@@ -731,49 +730,22 @@ declare global {
 }
 
 onMounted(() => {
-    // Props fournies (page Inertia, voir le pont double-mode ci-dessus) →
-    // prioritaires sur le dataset. showUrlTemplate comme sentinelle : soit
-    // toutes ces props sont fournies ensemble par la même page parente,
-    // soit aucune (ancien montage createApp().mount() sans props, voir
-    // mountIfPresent() dans app.ts qui n'en passe jamais) — un seul champ
-    // suffit à distinguer les deux modes.
-    if (props.showUrlTemplate !== undefined) {
-        urls = {
-            show: props.showUrlTemplate ?? '',
-            update: props.updateUrlTemplate ?? '',
-            deverrouiller: props.deverrouillerUrlTemplate ?? '',
-            forcerDeverrouillage: props.forcerDeverrouillageUrlTemplate ?? '',
-            upload: props.uploadUrlTemplate ?? '',
-            download: props.downloadUrlTemplate ?? '',
-            deleteDoc: props.deleteDocUrlTemplate ?? '',
-        };
-        googlePlacesKey.value = props.initialGooglePlacesKey ?? '';
-        googleEmbedKey.value = props.initialGoogleEmbedKey ?? '';
-        secteursActiviteDisponibles.value = props.initialSecteursActiviteDisponibles ?? [];
-        organismesAideDisponibles.value = props.initialOrganismesAideDisponibles ?? [];
-    } else {
-        const el = document.getElementById('vue-famille-detail');
-        if (el) {
-            urls = {
-                show: el.dataset.showUrlTemplate ?? '',
-                update: el.dataset.updateUrlTemplate ?? '',
-                deverrouiller: el.dataset.deverrouillerUrlTemplate ?? '',
-                forcerDeverrouillage: el.dataset.forcerDeverrouillageUrlTemplate ?? '',
-                upload: el.dataset.uploadUrlTemplate ?? '',
-                download: el.dataset.downloadUrlTemplate ?? '',
-                deleteDoc: el.dataset.deleteDocUrlTemplate ?? '',
-            };
-            googlePlacesKey.value = el.dataset.googlePlacesKey ?? '';
-            googleEmbedKey.value = el.dataset.googleEmbedKey ?? '';
-            try {
-                secteursActiviteDisponibles.value = JSON.parse(el.dataset.secteursActivite ?? '[]');
-                organismesAideDisponibles.value = JSON.parse(el.dataset.organismesAide ?? '[]');
-            } catch {
-                secteursActiviteDisponibles.value = [];
-                organismesAideDisponibles.value = [];
-            }
-        }
-    }
+    // Ex-pont double-mode (voir le docblock de defineProps ci-dessus) :
+    // les trois pages qui montent ce composant fournissent désormais ces
+    // props systématiquement, plus de repli dataset à distinguer ici.
+    urls = {
+        show: props.showUrlTemplate,
+        update: props.updateUrlTemplate,
+        deverrouiller: props.deverrouillerUrlTemplate,
+        forcerDeverrouillage: props.forcerDeverrouillageUrlTemplate,
+        upload: props.uploadUrlTemplate,
+        download: props.downloadUrlTemplate,
+        deleteDoc: props.deleteDocUrlTemplate,
+    };
+    googlePlacesKey.value = props.initialGooglePlacesKey;
+    googleEmbedKey.value = props.initialGoogleEmbedKey;
+    secteursActiviteDisponibles.value = props.initialSecteursActiviteDisponibles;
+    organismesAideDisponibles.value = props.initialOrganismesAideDisponibles;
 
     // Exposée globalement : appelée depuis l'attribut onclick des lignes
     // du tableau Blade (pas de dépendance circulaire Blade→Vue autrement).

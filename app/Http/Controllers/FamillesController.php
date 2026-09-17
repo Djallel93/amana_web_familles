@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasDetailPanelProps;
 use App\Http\Resources\FamilleDetailResource;
 use App\Http\Resources\FamilleListItemResource;
 use App\Jobs\ResoudreAdresseFamille;
@@ -39,11 +40,17 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * mais sans rechargement complet de page côté client (router.get()).
  * show()/update() restent en JSON classique, consommés par DetailPanel.vue
  * (désormais un enfant Vue normal de ces deux pages, plus un îlot
- * séparé — voir le pont double-mode qu'il conserve pour
- * livraison/contacts.blade.php, pas encore migré).
+ * séparé). Ses props (detailPanelProps()) vivent depuis le 16/09/2026
+ * dans le trait HasDetailPanelProps (Section E4 du refactor, chunk
+ * contacts du domaine livraison) : ContactTrackingController en avait
+ * besoin lui aussi une fois livraison/contacts.blade.php converti à son
+ * tour et l'ancien pont double-mode de DetailPanel.vue retiré — les deux
+ * faits dans ce même chunk.
  */
 class FamillesController extends Controller
 {
+    use HasDetailPanelProps;
+
     /**
      * Colonnes triables du tableau "Dossiers familles" (voir
      * resources/views/familles/index.blade.php) — whitelist explicite
@@ -349,29 +356,6 @@ class FamillesController extends Controller
         }
 
         return $puces;
-    }
-
-    /**
-     * Props DetailPanel.vue partagées par index()/nouvelles() — Section
-     * E4 du refactor (chunk 4, 12/09/2026). Reprend exactement les
-     * data-attributes de l'ancien familles/partials/vue-famille-detail.blade.php
-     * (toujours utilisé tel quel par livraison/contacts.blade.php, non
-     * migré — voir le pont double-mode du chunk 2 de cette section) :
-     * mêmes routes, mêmes clés Google Maps.
-     */
-    private function detailPanelProps(): array
-    {
-        return [
-            'showUrlTemplate' => route('familles.show', ['id' => '__ID__']),
-            'updateUrlTemplate' => route('familles.update', ['id' => '__ID__']),
-            'deverrouillerUrlTemplate' => route('familles.deverrouiller', ['id' => '__ID__']),
-            'forcerDeverrouillageUrlTemplate' => route('familles.forcer-deverrouillage', ['id' => '__ID__']),
-            'uploadUrlTemplate' => route('familles.documents.store', ['id' => '__ID__']),
-            'downloadUrlTemplate' => route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']),
-            'deleteDocUrlTemplate' => route('familles.documents.destroy', ['id' => '__ID__', 'documentId' => '__DOC__']),
-            'initialGooglePlacesKey' => config('services.google.maps.places_api_key'),
-            'initialGoogleEmbedKey' => config('services.google.maps.embed_api_key'),
-        ];
     }
 
     private function baseQuery(Request $request)

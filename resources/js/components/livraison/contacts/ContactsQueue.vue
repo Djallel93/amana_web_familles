@@ -19,6 +19,22 @@
         journée choisie" — RE-déplacé sur CampagneDetail.vue le 09/09/2026
         (prompt de cette date §2.2), voir ce fichier pour le bouton/gate
         désormais.
+
+    Section E4 du refactor (16/09/2026, sixième chunk du domaine
+    livraison) : ce composant n'est plus un îlot monté par app.ts sur
+    #vue-livraison-contacts-queue, mais un enfant normal de
+    resources/js/pages/Livraison/Contacts.vue. Les data-* lues jusqu'ici
+    sur le point de montage sont devenues des props ; DetailPanel.vue est
+    monté à côté dans cette même page (plus via
+    familles/partials/vue-famille-detail.blade.php) — window.openFamilleDetail
+    reste la façon dont ce composant l'ouvre (voir plus bas), inchangée :
+    Vue monte les enfants avant le onMounted() du parent, donc cette
+    fonction globale est déjà assignée quel que soit l'ordre des deux
+    composants dans le template de la page.
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
@@ -56,17 +72,29 @@ declare global {
 
 const toast = useToast();
 
-const el = document.getElementById('vue-livraison-contacts-queue')!;
-const campagnes = ref<Campagne[]>(JSON.parse(el.dataset.campagnes ?? '[]'));
-const villes = ref<Ville[]>(JSON.parse(el.dataset.villes ?? '[]'));
-const secteurs = ref<Secteur[]>(JSON.parse(el.dataset.secteurs ?? '[]'));
-const quartiers = ref<Quartier[]>(JSON.parse(el.dataset.quartiers ?? '[]'));
-const organisations = ref<Organisation[]>(JSON.parse(el.dataset.organisations ?? '[]'));
-const queueUrl = el.dataset.queueUrl ?? '';
-const statistiquesUrl = el.dataset.statistiquesUrl ?? '';
-const assignerUrlTemplate = el.dataset.assignerUrlTemplate ?? '';
-const assignerLotUrl = el.dataset.assignerLotUrl ?? '';
-const contacterManuelUrlTemplate = el.dataset.contacterManuelUrlTemplate ?? '';
+const props = defineProps<{
+    campagnes: Campagne[];
+    villes: Ville[];
+    secteurs: Secteur[];
+    quartiers: Quartier[];
+    organisations: Organisation[];
+    queueUrl: string;
+    statistiquesUrl: string;
+    assignerUrlTemplate: string;
+    assignerLotUrl: string;
+    contacterManuelUrlTemplate: string;
+}>();
+
+const campagnes = ref<Campagne[]>(props.campagnes);
+const villes = ref<Ville[]>(props.villes);
+const secteurs = ref<Secteur[]>(props.secteurs);
+const quartiers = ref<Quartier[]>(props.quartiers);
+const organisations = ref<Organisation[]>(props.organisations);
+const queueUrl = props.queueUrl;
+const statistiquesUrl = props.statistiquesUrl;
+const assignerUrlTemplate = props.assignerUrlTemplate;
+const assignerLotUrl = props.assignerLotUrl;
+const contacterManuelUrlTemplate = props.contacterManuelUrlTemplate;
 
 const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
     injoignable: 'Injoignable',

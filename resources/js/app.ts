@@ -123,10 +123,6 @@ mountIfPresent("vue-urgent-alert-bar", UrgentAlertBar);
 mountIfPresent("vue-notification-bell", NotificationBell);
 mountIfPresent("vue-mobile-sidebar", MobileSidebar);
 mountIfPresent(
-    "vue-famille-detail",
-    lazy(() => import("@/components/familles/DetailPanel.vue")),
-);
-mountIfPresent(
     "vue-familles-filtres",
     lazy(() => import("@/components/familles/FamilleFiltresBar.vue")),
 );
@@ -169,10 +165,6 @@ mountIfPresent(
 mountIfPresent(
     "vue-hq-coordinates-autocomplete",
     lazy(() => import("@/components/admin/HqCoordinatesAutocomplete.vue")),
-);
-mountIfPresent(
-    "vue-livraison-contacts-queue",
-    lazy(() => import("@/components/livraison/contacts/ContactsQueue.vue")),
 );
 mountIfPresent(
     "vue-livraison-suivi-livraison",

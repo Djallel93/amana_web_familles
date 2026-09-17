@@ -6,7 +6,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
+use App\Http\Controllers\Concerns\HasDetailPanelProps;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CampagneResource;
 use App\Http\Resources\LivraisonQueueResource;
 use App\Models\Campagne;
 use App\Models\Famille;
@@ -14,10 +16,11 @@ use App\Models\Livraison;
 use App\Services\FamilleConfirmationSyncService;
 use App\Support\Creneau;
 use App\Support\FamilleFilters;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Tableau de suivi des contacts téléphoniques (file d'appels, filtre par
@@ -36,20 +39,39 @@ use Illuminate\Support\Facades\Validator;
  */
 class ContactTrackingController extends Controller
 {
+    use HasDetailPanelProps;
+
     public function __construct(
         private readonly FamilleConfirmationSyncService $syncService,
     ) {
     }
 
     /**
-     * secteursActivite/organismesAide/googlePlacesKey/googleEmbedKey
-     * ajoutés le 05/09/2026 (prompt §2.3) — mêmes référentiels que
-     * FamillesController::index(), nécessaires pour monter DetailPanel.vue
-     * (voir contacts.blade.php) sur cet écran aussi : "if family needs to
-     * be edited when contacted, open the Family panel" — même panneau
-     * partagé qu'utilise Dossier Familles, pas une copie.
+     * Section E4 du refactor (16/09/2026, sixième chunk du domaine
+     * livraison) — page Inertia, remplace resources/views/livraison/
+     * contacts.blade.php (supprimée dans ce même chunk).
+     *
+     * Cette conversion retire aussi l'ancien pont double-mode de
+     * DetailPanel.vue (Section E4, chunk Dossier Familles, 12/09/2026) :
+     * cet écran était le dernier à monter ce composant via
+     * familles/partials/vue-famille-detail.blade.php + dataset plutôt
+     * qu'en enfant Vue avec des props (vérifié par grep avant
+     * conversion — aucun autre écran ne l'inclut). DetailPanel.vue
+     * n'a donc plus qu'un seul mode (props uniquement) — voir son
+     * propre docblock. Ses props (detailPanelProps()) vivaient jusqu'ici
+     * en privé sur FamillesController ; extraites dans le trait
+     * HasDetailPanelProps (voir ce fichier) puisque ce contrôleur en a
+     * désormais besoin aussi — mêmes routes familles.*, aucun changement
+     * de comportement.
+     *
+     * secteursActivite/organismesAide/googlePlacesKey/googleEmbedKey :
+     * mêmes référentiels que FamillesController::index(), nécessaires
+     * pour monter DetailPanel.vue sur cet écran aussi (05/09/2026, prompt
+     * §2.3) : "if family needs to be edited when contacted, open the
+     * Family panel" — même panneau partagé qu'utilise Dossier Familles,
+     * pas une copie.
      */
-    public function index(): View
+    public function index(): InertiaResponse
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->with('journees')->get();
         $secteursActivite = \App\Models\SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
@@ -61,9 +83,22 @@ class ContactTrackingController extends Controller
         $quartiers = \App\Models\Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
         $organisations = \App\Models\Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
 
-        return view('livraison.contacts', compact(
-            'campagnes', 'secteursActivite', 'organismesAide', 'villes', 'secteurs', 'quartiers', 'organisations',
-        ));
+        return Inertia::render('Livraison/Contacts', [
+            'campagnes' => CampagneResource::collection($campagnes),
+            'villes' => $villes,
+            'secteurs' => $secteurs,
+            'quartiers' => $quartiers,
+            'organisations' => $organisations,
+            'queueUrl' => route('livraison.contacts.queue'),
+            'statistiquesUrl' => route('livraison.contacts.statistiques'),
+            'assignerUrlTemplate' => route('livraison.contacts.assigner', '__ID__'),
+            'assignerLotUrl' => route('livraison.contacts.assigner-lot'),
+            'contacterManuelUrlTemplate' => route('livraison.contacts.contacter-manuel', '__ID__'),
+            'retourUrl' => route('livraison.campagnes.index'),
+            ...$this->detailPanelProps(),
+            'secteursActivite' => $secteursActivite,
+            'organismesAide' => $organismesAide,
+        ]);
     }
 
     /**
