@@ -17,6 +17,22 @@
     packaging.blade.php ; quartiers/villes/secteurs/organisations chargés
     ici (même référentiel que CampagneDetail.vue) pour le
     FamilleFilterPanel de BuildRouteFlow.vue (§5.1.3).
+
+    Section E4 du refactor (16/09/2026, septième et dernier chunk du
+    domaine livraison) : ce composant n'est plus un îlot monté par
+    app.ts sur #vue-livraison-suivi-livraison, mais un enfant normal de
+    resources/js/pages/Livraison/SuiviLivraison.vue. Les data-* lues
+    jusqu'ici sur le point de montage sont devenues des props — y
+    compris `urls`, déjà un objet JSON unique côté Blade (data-urls),
+    repris tel quel comme prop plutôt qu'éclaté en une prop par URL (voir
+    le docblock de LiveBoardController::index()). Tout le reste
+    (incidents/routes/non-couvertes/statistiques, RoutesPanel/
+    IncidentsPanel/ShortfallPanel/BuildRouteFlow) reste des endpoints
+    JSON classiques, inchangés — cet écran n'est PAS un cas B.
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
@@ -27,13 +43,22 @@ import RoutesPanel from './RoutesPanel.vue';
 import ShortfallPanel from './ShortfallPanel.vue';
 import BuildRouteFlow from './BuildRouteFlow.vue';
 
-const el = document.getElementById('vue-livraison-suivi-livraison')!;
-const campagnes = ref<Campagne[]>(JSON.parse(el.dataset.campagnes ?? '[]'));
-const quartiers = ref<Quartier[]>(JSON.parse(el.dataset.quartiers ?? '[]'));
-const villes = ref<Ville[]>(JSON.parse(el.dataset.villes ?? '[]'));
-const secteurs = ref<Secteur[]>(JSON.parse(el.dataset.secteurs ?? '[]'));
-const organisations = ref<Organisation[]>(JSON.parse(el.dataset.organisations ?? '[]'));
-const urls = JSON.parse(el.dataset.urls ?? '{}') as Record<string, string>;
+const props = defineProps<{
+    campagnes: Campagne[];
+    campagneSelectionneeId: number | null;
+    quartiers: Quartier[];
+    villes: Ville[];
+    secteurs: Secteur[];
+    organisations: Organisation[];
+    urls: Record<string, string>;
+}>();
+
+const campagnes = ref<Campagne[]>(props.campagnes);
+const quartiers = ref<Quartier[]>(props.quartiers);
+const villes = ref<Ville[]>(props.villes);
+const secteurs = ref<Secteur[]>(props.secteurs);
+const organisations = ref<Organisation[]>(props.organisations);
+const urls = props.urls;
 
 function formatDateFr(iso: string): string {
     const [annee, mois, jour] = iso.split('T')[0].split('-');
@@ -41,8 +66,8 @@ function formatDateFr(iso: string): string {
 }
 
 // Présélectionné quand on arrive depuis CampagneDetail.vue (07/09/2026,
-// prompt §6) — voir data-campagne-id dans suivi-livraison.blade.php.
-const campagneId = ref(el.dataset.campagneId ?? '');
+// prompt §6) — voir campagneSelectionneeId (prop, ex-data-campagne-id).
+const campagneId = ref(props.campagneSelectionneeId ? String(props.campagneSelectionneeId) : '');
 
 // URLs campagne-scopées : __CAMPAGNE__ substitué une fois l'id connu,
 // mémorisées pour être repassées telles quelles aux panneaux enfants

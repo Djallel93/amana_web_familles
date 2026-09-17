@@ -14,11 +14,10 @@
 
     Retour en <Link> (campagnes/index est déjà une page Inertia depuis le
     chunk précédent). Les neuf boutons de navigation de CampagneDetail.vue
-    lui-même restent en <a href> classiques, y compris vers les cibles
-    déjà migrées (bénévoles/équipes/statistiques) — décision du
-    16/09/2026 : uniformité de la rangée tant que contacts et
-    suivi-livraison n'ont pas suivi, plutôt qu'un mélange <Link>/<a> dès
-    maintenant. Voir le docblock de CampagnesController::show().
+    lui-même restent en <a href> classiques — sept de leurs neuf cibles
+    sont désormais Inertia, seuls réception/pesée/packaging/chargement
+    restent en Blade (hors périmètre de ce refactor) — voir le docblock
+    de CampagnesController::show() pour l'historique de cette décision.
 -->
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';

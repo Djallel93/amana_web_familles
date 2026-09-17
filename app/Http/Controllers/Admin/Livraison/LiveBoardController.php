@@ -9,6 +9,7 @@ use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Ville;
 use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CampagneResource;
 use App\Http\Resources\FamilleEligibleResource;
 use App\Http\Resources\RouteIncidentResource;
 use App\Http\Resources\RouteLivraisonResource;
@@ -23,10 +24,11 @@ use App\Services\LivraisonGenerationService;
 use App\Services\RouteGenerationService;
 use App\Services\RouteMutationService;
 use App\Support\FamilleFilters;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Tableau de bord live admin/gestionnaire : toutes les tournées, tous les
@@ -54,13 +56,30 @@ class LiveBoardController extends Controller
     }
 
     /**
+     * Section E4 du refactor (16/09/2026, septième et dernier chunk du
+     * domaine livraison) — page Inertia, remplace resources/views/
+     * livraison/suivi-livraison.blade.php (supprimée dans ce même
+     * chunk). Seule cette action change : genererRoutes()/statistiques()/
+     * routes()/nonCouvertes()/nonCouvertesTable()/incidents()/
+     * resoudreIncident()/etc. restent des endpoints JSON classiques,
+     * consommés par LiveBoard.vue et ses panneaux (désormais enfants Vue
+     * normaux de cette page, plus un îlot séparé) exactement comme
+     * avant.
+     *
      * {campagne} optionnel (07/09/2026, prompt §6, écran renommé
      * 'suivi-livraison') — préremplit le <select> campagne de
      * LiveBoard.vue quand on arrive depuis CampagneDetail.vue
      * (/livraison/suivi-livraison/{campagne}), sans rien changer pour
      * l'accès direct par la sidebar (aucune campagne connue à l'avance).
+     *
+     * urls regroupées en un seul objet plutôt qu'une prop par URL,
+     * contrairement aux autres écrans du domaine convertis dans les
+     * chunks précédents : reprend tel quel l'ancien data-urls (JSON
+     * unique) de la Blade — LiveBoard.vue lit déjà ce même objet plat
+     * (voir son onMounted()), pas de raison d'exploser cette forme en
+     * quinze props distinctes pour cette seule page.
      */
-    public function index(?Campagne $campagne = null): View
+    public function index(?Campagne $campagne = null): InertiaResponse
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->get();
 
@@ -69,13 +88,31 @@ class LiveBoardController extends Controller
         // show(), nécessaires ici pour FamilleFilterPanel.vue dans
         // BuildRouteFlow.vue (table "Livraisons à inclure" désormais
         // filtrable comme les familles éligibles).
-        return view('livraison.suivi-livraison', [
-            'campagnes' => $campagnes,
-            'campagneSelectionnee' => $campagne,
+        return Inertia::render('Livraison/SuiviLivraison', [
+            'campagnes' => CampagneResource::collection($campagnes),
+            'campagneSelectionneeId' => $campagne?->id,
             'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
             'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
             'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+            'retourUrl' => $campagne
+                ? route('livraison.campagnes.show', $campagne)
+                : route('livraison.campagnes.index'),
+            'urls' => [
+                'incidents' => route('livraison.campagnes.incidents', ['campagne' => '__CAMPAGNE__']),
+                'routes' => route('livraison.campagnes.routes', ['campagne' => '__CAMPAGNE__']),
+                'nonCouvertes' => route('livraison.campagnes.non-couvertes', ['campagne' => '__CAMPAGNE__']),
+                'nonCouvertesTableau' => route('livraison.campagnes.non-couvertes-tableau', ['campagne' => '__CAMPAGNE__']),
+                'statistiques' => route('livraison.campagnes.suivi-livraison-statistiques', ['campagne' => '__CAMPAGNE__']),
+                'routeSupprimer' => route('livraison.routes.supprimer', ['route' => '__ID__']),
+                'etapeStatut' => route('livraison.routes.etapes.statut', ['route' => '__ID__', 'etape' => '__ETAPE__']),
+                'routesPersonnalisees' => route('livraison.routes.personnalisee', ['campagne' => '__CAMPAGNE__']),
+                'incidentResoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
+                'routeAjouter' => route('livraison.routes.ajouter-livraison', ['route' => '__ID__']),
+                'routeRetirer' => route('livraison.routes.retirer-livraison', ['route' => '__ID__', 'etape' => '__ETAPE__']),
+                'routeReassigner' => route('livraison.routes.reassigner', ['route' => '__ID__']),
+                'routeDiviser' => route('livraison.routes.diviser', ['route' => '__ID__']),
+            ],
         ]);
     }
 

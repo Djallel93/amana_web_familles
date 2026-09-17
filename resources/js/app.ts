@@ -166,7 +166,3 @@ mountIfPresent(
     "vue-hq-coordinates-autocomplete",
     lazy(() => import("@/components/admin/HqCoordinatesAutocomplete.vue")),
 );
-mountIfPresent(
-    "vue-livraison-suivi-livraison",
-    lazy(() => import("@/components/livraison/tableau-de-bord/LiveBoard.vue")),
-);

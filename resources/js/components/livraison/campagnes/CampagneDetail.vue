@@ -28,10 +28,11 @@
     génération livraisons/routes, édition HQ/commentaire, ajout de
     journée) reste des endpoints JSON classiques, inchangés — cet écran
     n'est PAS un cas B (voir le docblock de CampagnesController::show()).
-    Les neuf boutons de navigation restent des <a href> classiques, y
-    compris vers les trois cibles déjà migrées en Inertia (bénévoles,
-    équipes, statistiques) — décision du 16/09/2026, voir ce même
-    docblock.
+    Les neuf boutons de navigation restent des <a href> classiques —
+    sept de leurs neuf cibles sont désormais Inertia (toutes sauf
+    réception/pesée/packaging/chargement, hors périmètre de ce
+    refactor), voir le docblock de CampagnesController::show() pour
+    l'état au fil des chunks et la décision d'uniformité du 16/09/2026.
 
     Aucun repli dataset conservé : cet écran est le seul consommateur de
     ce composant (vérifié par grep avant conversion), il n'y a pas de

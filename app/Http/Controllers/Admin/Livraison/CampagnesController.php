@@ -108,12 +108,20 @@ class CampagnesController extends Controller
      *
      * Neuf boutons de navigation (bénévoles/contacts/équipes/réception/
      * pesée/packaging/chargement/suivi-livraison/statistiques) restent
-     * des <a href> classiques dans CampagneDetail.vue, y compris les
-     * trois qui pointent désormais vers des pages Inertia (bénévoles,
-     * équipes, statistiques, converties dans des chunks précédents) —
-     * décision du 16/09/2026 : uniformité de la rangée le temps que
-     * contacts et suivi-livraison soient eux aussi migrés, plutôt qu'un
-     * mélange <Link>/<a> au sein de la même rangée dès maintenant.
+     * des <a href> classiques dans CampagneDetail.vue. Au moment de ce
+     * chunk (16/09/2026), trois de leurs neuf cibles étaient déjà des
+     * pages Inertia (bénévoles, équipes, statistiques) et six restaient
+     * en Blade (contacts, suivi-livraison, et les quatre écrans staff
+     * réception/pesée/packaging/chargement, hors périmètre de ce
+     * refactor) — décision du même jour : uniformité de la rangée
+     * plutôt qu'un mélange <Link>/<a>. Depuis la fin de ce même jour
+     * (chunks contacts et suivi-livraison, cinquième et septième du
+     * domaine livraison), sept des neuf cibles sont désormais Inertia ;
+     * seuls réception/pesée/packaging/chargement restent en Blade (et
+     * le resteront, hors périmètre). La rangée elle-même n'a pas été
+     * revue depuis — voir CampagneDetail.vue pour repasser ces liens en
+     * <Link> si souhaité, ce choix n'ayant pas été refait à la lumière
+     * de cet état.
      */
     public function show(Campagne $campagne): InertiaResponse
     {
