@@ -84,10 +84,12 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // create_campagne_equipe_membres_table.php pour le raisonnement
     // complet et App\Policies\CampagnePolicy pour leur consommation en
     // autorisation. Écran dédié comme benevoles ci-dessus, pas un onglet.
+    // 16/09/2026 (Section E4) : l'écran est passé à Inertia, la liste des
+    // affectations arrive en prop de page — l'ancienne route
+    // `campagnes.equipes.liste` (endpoint JSON consommé uniquement par
+    // EquipeMembresQueue.vue) est supprimée avec son action.
     Route::get('/campagnes/{campagne}/equipes', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'index'])
         ->name('campagnes.equipes.index');
-    Route::get('/campagnes/{campagne}/equipes/liste', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'liste'])
-        ->name('campagnes.equipes.liste');
     Route::post('/campagnes/{campagne}/equipes', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'ajouter'])
         ->name('campagnes.equipes.ajouter');
     Route::delete('/campagnes/{campagne}/equipes/{idPersonne}/{role}', [\App\Http\Controllers\Admin\Livraison\EquipeMembresController::class, 'retirer'])

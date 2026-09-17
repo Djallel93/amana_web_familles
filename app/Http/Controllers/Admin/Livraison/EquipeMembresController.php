@@ -7,12 +7,15 @@ namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CampagneResource;
 use App\Models\Campagne;
 use App\Models\CampagneEquipeMembre;
-use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Écran d'admin pour peupler campagne_equipe_membres — voir le prompt du
@@ -21,7 +24,10 @@ use Illuminate\Support\Facades\Validator;
  * BenevoleDisponibiliteController (écran dédié lié depuis
  * CampagneDetail.vue, pas un onglet — voir campagne-detail.blade.php,
  * aucun des écrans liés depuis cette page n'est un onglet dans cette
- * app) : Blade minimal + îlot Vue chargé en JSON, fusion Personne
+ * app) : page Inertia depuis le 16/09/2026 (Section E4 du refactor —
+ * c'était jusque-là une Blade minimale + un îlot Vue chargé en JSON ;
+ * BenevoleDisponibiliteController garde encore cette forme d'origine
+ * jusqu'à son propre chunk), fusion Personne
  * (connexion 'commun') / CampagneEquipeMembre (connexion par défaut) en
  * PHP, même raisonnement que partout ailleurs dans ce contrôleur/l'app
  * pour ce genre de jointure (voir BenevoleDisponibiliteController).
@@ -42,9 +48,35 @@ use Illuminate\Support\Facades\Validator;
  */
 class EquipeMembresController extends Controller
 {
-    public function index(Campagne $campagne): View
+    /**
+     * Section E4 du refactor (16/09/2026) — première page livraison
+     * convertie à Inertia, remplace resources/views/livraison/
+     * equipe-membres.blade.php (supprimée dans ce même chunk).
+     *
+     * La liste est passée en prop de page plutôt que rechargée en XHR au
+     * montage : c'est un tableau non paginé que cette action produit déjà
+     * trivialement (même requête que l'ancien endpoint JSON `liste`, voir
+     * lignesEquipe() ci-dessous), donc le premier rendu n'a plus d'état
+     * "Chargement…". Après ajout/retrait, le composant demande un
+     * router.reload({ only: ['lignes'] }) — rechargement partiel Inertia,
+     * qui ré-exécute cette action et ne resérialise que cette prop. Les
+     * MUTATIONS, elles, restent en JSON (ajouter()/retirer() inchangées) :
+     * voir la décision du 16/09/2026 sur la profondeur de migration des
+     * écrans livraison, tous construits en îlots XHR.
+     *
+     * L'ancien endpoint `livraison.campagnes.equipes.liste` est supprimé
+     * avec sa route : son unique appelant était EquipeMembresQueue.vue
+     * (vérifié par grep avant suppression), qui lit désormais la prop.
+     */
+    public function index(Campagne $campagne): InertiaResponse
     {
-        return view('livraison.equipe-membres', ['campagne' => $campagne]);
+        return Inertia::render('Livraison/Equipes', [
+            'campagne' => new CampagneResource($campagne),
+            'lignes' => $this->lignesEquipe($campagne),
+            'retourUrl' => route('livraison.campagnes.show', $campagne),
+            'ajouterUrl' => route('livraison.campagnes.equipes.ajouter', $campagne),
+            'retirerUrlTemplate' => route('livraison.campagnes.equipes.retirer', [$campagne, '__ID__', '__ROLE__']),
+        ]);
     }
 
     /**
@@ -53,8 +85,12 @@ class EquipeMembresController extends Controller
      * create_campagne_equipe_membres_table.php) plutôt qu'une ligne par
      * (personne, rôle), pour un affichage type "Farid — Pesée, Packaging"
      * en une seule carte côté Vue.
+     *
+     * Corps repris tel quel de l'ancienne action JSON liste() (16/09/2026,
+     * Section E4) — seule l'enveloppe response()->json(['data' => ...]) a
+     * disparu, la prop de page portant directement le tableau.
      */
-    public function liste(Campagne $campagne): JsonResponse
+    private function lignesEquipe(Campagne $campagne): Collection
     {
         $membres = $campagne->equipeMembres()->get();
 
@@ -62,7 +98,7 @@ class EquipeMembresController extends Controller
             ->get(['id', 'nom', 'prenom'])
             ->keyBy('id');
 
-        $lignes = $membres
+        return $membres
             ->groupBy('id_personne')
             ->map(function ($groupe, $idPersonne) use ($personnes) {
                 $personne = $personnes->get($idPersonne);
@@ -79,8 +115,6 @@ class EquipeMembresController extends Controller
                 ];
             })
             ->values();
-
-        return response()->json(['data' => $lignes]);
     }
 
     /**

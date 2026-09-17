@@ -190,13 +190,6 @@ mountIfPresent(
     ),
 );
 mountIfPresent(
-    "vue-livraison-equipe-membres",
-    lazy(
-        () =>
-            import("@/components/livraison/campagnes/EquipeMembresQueue.vue"),
-    ),
-);
-mountIfPresent(
     "vue-livraison-suivi-livraison",
     lazy(() => import("@/components/livraison/tableau-de-bord/LiveBoard.vue")),
 );

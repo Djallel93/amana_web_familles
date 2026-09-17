@@ -14,51 +14,64 @@
       - Retirer un rôle n'affecte jamais les relevés déjà saisis par
         cette personne (campagne_arrivees/donations.logge_par) — aucune
         confirmation "cela supprimera aussi..." n'est nécessaire ici.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un îlot
+    monté par app.ts sur #vue-livraison-equipe-membres, mais un enfant
+    normal de resources/js/pages/Livraison/Equipes.vue. Les data-* lues
+    jusqu'ici sur le point de montage sont devenues des props, et la
+    liste arrive directement en prop de page (voir
+    EquipeMembresController::index()) au lieu d'être rechargée en XHR au
+    montage — d'où la disparition des états "Chargement…"/"Liste
+    indisponible", qui ne peuvent plus se produire au premier rendu.
+    Après ajout/retrait, router.reload({ only: ['lignes'] }) rejoue
+    l'action côté serveur et ne resérialise que cette prop (pas de
+    rechargement complet de page). Les mutations elles-mêmes restent en
+    XHR JSON (apiPost/apiDelete inchangés) : elles renvoient
+    { success: true } sans redirection, et le toast d'erreur champ par
+    champ d'api.ts reste le meilleur retour utilisateur ici.
+
+    Contrairement à DetailPanel.vue, aucun repli dataset n'est conservé :
+    cet écran est le seul consommateur de ce composant (vérifié par grep
+    sur EquipeMembresQueue avant conversion), il n'y a donc pas de page
+    Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
+import { router } from '@inertiajs/vue3';
 import { useToast } from '@amana/shared-ui';
-import { apiGet, apiPost, apiDelete } from '../shared/api';
+import { apiPost, apiDelete } from '../shared/api';
 import PersonPicker from '../shared/PersonPicker.vue';
 import { EQUIPE_ROLES, type Campagne, type EquipeRole, type PersonneResume } from '../shared/types';
 
-interface LigneEquipe {
+export interface LigneEquipe {
     id_personne: number;
     nom: string;
     prenom: string;
     roles: EquipeRole[];
 }
 
+const props = defineProps<{
+    campagne: Campagne;
+    lignes: LigneEquipe[];
+    ajouterUrl: string;
+    retirerUrlTemplate: string;
+}>();
+
 const toast = useToast();
 
-const el = document.getElementById('vue-livraison-equipe-membres')!;
-const campagne = ref<Campagne>(JSON.parse(el.dataset.campagne ?? '{}'));
-const listeUrl = el.dataset.listeUrl ?? '';
-const ajouterUrl = el.dataset.ajouterUrl ?? '';
-const retirerUrlTemplate = el.dataset.retirerUrlTemplate ?? '';
-
 function urlRetirer(idPersonne: number, role: EquipeRole): string {
-    return retirerUrlTemplate.replace('__ID__', String(idPersonne)).replace('__ROLE__', role);
+    return props.retirerUrlTemplate.replace('__ID__', String(idPersonne)).replace('__ROLE__', role);
 }
 
-const lignes = ref<LigneEquipe[]>([]);
-const chargement = ref(true);
-const erreur = ref(false);
-
-async function chargerListe() {
-    chargement.value = true;
-    erreur.value = false;
-    const resultat = await apiGet<LigneEquipe[]>(listeUrl);
-    chargement.value = false;
-
-    if (!resultat.ok) {
-        erreur.value = true;
-        return;
-    }
-    lignes.value = resultat.data;
+/**
+ * Rechargement partiel Inertia plutôt qu'un apiGet() sur un endpoint
+ * dédié : même effet (la liste à jour après mutation), une seule source
+ * de vérité côté serveur (EquipeMembresController::index()), et l'ancien
+ * endpoint `equipes/liste` disparaît avec son unique appelant.
+ */
+function rechargerListe() {
+    router.reload({ only: ['lignes'] });
 }
-
-onMounted(chargerListe);
 
 // ── Formulaire d'ajout ───────────────────────────────────────────────
 const personneChoisie = ref<PersonneResume | null>(null);
@@ -71,7 +84,7 @@ async function ajouter() {
     if (!peutAjouter.value || !personneChoisie.value || !roleChoisi.value) return;
 
     ajoutEnCours.value = true;
-    const resultat = await apiPost<{ success: boolean }>(ajouterUrl, {
+    const resultat = await apiPost<{ success: boolean }>(props.ajouterUrl, {
         id_personne: personneChoisie.value.id,
         role: roleChoisi.value,
     });
@@ -85,7 +98,7 @@ async function ajouter() {
     toast.success('Affectation ajoutée.');
     personneChoisie.value = null;
     roleChoisi.value = '';
-    await chargerListe();
+    rechargerListe();
 }
 
 async function retirer(ligne: LigneEquipe, role: EquipeRole) {
@@ -96,7 +109,7 @@ async function retirer(ligne: LigneEquipe, role: EquipeRole) {
         return;
     }
 
-    await chargerListe();
+    rechargerListe();
 }
 </script>
 
@@ -129,9 +142,7 @@ async function retirer(ligne: LigneEquipe, role: EquipeRole) {
         </div>
 
         <div>
-            <p v-if="chargement" class="text-[13px] text-ink-muted">Chargement…</p>
-            <p v-else-if="erreur" class="text-[13px] text-rose-600">Liste indisponible, réessayez.</p>
-            <p v-else-if="lignes.length === 0" class="text-[13px] text-ink-muted">Personne n'est encore affecté à cette campagne.</p>
+            <p v-if="lignes.length === 0" class="text-[13px] text-ink-muted">Personne n'est encore affecté à cette campagne.</p>
 
             <div v-else class="space-y-2">
                 <div v-for="ligne in lignes" :key="ligne.id_personne"
