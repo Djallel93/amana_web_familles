@@ -135,10 +135,6 @@ mountIfPresent(
     lazy(() => import("@/components/intake/IntakeForm.vue")),
 );
 mountIfPresent(
-    "vue-benevole-form",
-    lazy(() => import("@/components/benevole/BenevoleForm.vue")),
-);
-mountIfPresent(
     "vue-import-manual-grid",
     lazy(() => import("@/components/imports/ImportManualGrid.vue")),
 );

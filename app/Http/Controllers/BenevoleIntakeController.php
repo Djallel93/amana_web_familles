@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Formulaire public de candidature bénévole (fr/ar/en) — reconstruit
@@ -45,7 +47,22 @@ class BenevoleIntakeController extends Controller
     ) {
     }
 
-    public function showForm(string $langue = 'fr'): View
+    /**
+     * Section E4 du refactor (16/09/2026) — page Inertia, remplace
+     * resources/views/benevole/show.blade.php (supprimée dans ce même
+     * chunk). Formulaire public : utilise app-public.blade.php (nouvelle
+     * racine sans sidebar/auth, créée dans ce même chunk — voir son
+     * docblock) via rootView()/withViewData() plutôt que la racine par
+     * défaut 'app', inadaptée à un écran non authentifié.
+     *
+     * L'état "inscription fermée" (Setting) reste une View Blade
+     * classique (intake.suspendue, partagée avec IntakeController) — page
+     * statique sans interactivité, pas de gain à la convertir. showForm()
+     * a donc un type de retour View|InertiaResponse plutôt qu'un seul
+     * type homogène, contrairement aux autres conversions Inertia de ce
+     * refactor.
+     */
+    public function showForm(string $langue = 'fr'): View|InertiaResponse
     {
         if (!in_array($langue, self::LANGUES_VALIDES, true)) {
             $langue = 'fr';
@@ -58,8 +75,10 @@ class BenevoleIntakeController extends Controller
             return view('intake.suspendue', ['formulaire' => 'benevoles']);
         }
 
-        return view('benevole.show', [
+        return Inertia::render('Benevole/Show', [
             'langue' => $langue,
+            'storeUrl' => route('benevole.store'),
+            'refusUrl' => route('benevole.refus-consentement'),
             'secteurs' => Secteur::with('ville')->orderBy('nom')->get(['id', 'nom', 'id_ville'])
                 // Libellé "{Ville} - {Secteur}" : plusieurs secteurs de villes
                 // différentes partagent le même nom (ex. "Centre"), voir
@@ -79,7 +98,14 @@ class BenevoleIntakeController extends Controller
             // famille, pas de dédup multi-organisation ici, voir migration
             // create_benevole_profil_organisation_table).
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'code', 'nom']),
-        ]);
+        ])
+            ->rootView('app-public')
+            ->withViewData([
+                'langue' => $langue,
+                'titre' => "AMANA Familles — Candidature bénévole",
+                'tagline' => 'Candidature bénévole',
+                'langueSwitchRoute' => 'benevole.show',
+            ]);
     }
 
     /**

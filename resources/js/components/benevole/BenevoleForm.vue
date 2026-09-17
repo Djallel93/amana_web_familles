@@ -31,6 +31,20 @@
     Étapes 3 et 4 toutes deux masquées si permis === false (30/08/2026,
     voir visibleSteps) : sans permis, ni véhicule ni zone de livraison
     n'ont de sens.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
+    îlot monté par app.ts sur #vue-benevole-form, mais un enfant normal
+    de resources/js/pages/Benevole/Show.vue (lui-même rendu par
+    resources/views/app-public.blade.php, la racine Inertia publique
+    créée dans ce même chunk — voir son docblock). Les data-* lues
+    jusqu'ici sur le point de montage sont devenues des props ; le
+    fetch('/vehicules') plus bas reste un appel XHR classique, inchangé
+    (référentiel partagé avec les pickers véhicule des écrans livraison,
+    pas une prop de page).
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue';
@@ -192,7 +206,15 @@ type StepId = typeof STEP_IDS[number];
 
 const toast = useToast();
 
-const langue = ref<Langue>('fr');
+const props = defineProps<{
+    langue: Langue;
+    storeUrl: string;
+    refusUrl: string;
+    secteurs: Secteur[];
+    organisations: { id: number; code: string; nom: string }[];
+}>();
+
+const langue = ref<Langue>(props.langue);
 const t = computed(() => DICT[langue.value]);
 
 function tr(key: string, vars: Record<string, string | number> = {}): string {
@@ -201,16 +223,16 @@ function tr(key: string, vars: Record<string, string | number> = {}): string {
     return s;
 }
 
-const storeUrl = ref('');
-const refusUrl = ref('');
-const secteurs = ref<Secteur[]>([]);
+const storeUrl = ref(props.storeUrl);
+const refusUrl = ref(props.refusUrl);
+const secteurs = ref<Secteur[]>(props.secteurs);
 const vehicules = ref<Vehicule[]>([]);
 // Chargées via fetch('/vehicules') depuis le 03/09/2026 (remplace le
 // data-vehicules embarqué côté Blade) — vehiculesChargement distingue
 // "en cours de chargement" de "aucun véhicule configuré" pour ne pas
 // afficher t.vehicule_empty pendant le fetch initial.
 const vehiculesChargement = ref(true);
-const organisations = ref<{ id: number; code: string; nom: string }[]>([]);
+const organisations = ref<{ id: number; code: string; nom: string }[]>(props.organisations);
 
 const phase = ref<Phase>('consent');
 const currentStep = ref(0);
@@ -436,24 +458,6 @@ async function onConsentRefuse(): Promise<void> {
 }
 
 onMounted(() => {
-    const el = document.getElementById('vue-benevole-form');
-    if (el) {
-        const l = el.dataset.langue as Langue;
-        if (l && DICT[l]) langue.value = l;
-        storeUrl.value = el.dataset.storeUrl ?? '';
-        refusUrl.value = el.dataset.refusUrl ?? '';
-        try {
-            secteurs.value = JSON.parse(el.dataset.secteurs ?? '[]');
-        } catch {
-            secteurs.value = [];
-        }
-        try {
-            organisations.value = JSON.parse(el.dataset.organisations ?? '[]');
-        } catch {
-            organisations.value = [];
-        }
-    }
-
     fetch('/vehicules', { headers: { Accept: 'application/json' } })
         .then((res) => {
             if (!res.ok) throw new Error(String(res.status));
