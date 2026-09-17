@@ -25,6 +25,8 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Création/gestion des campagnes + sélection des familles éligibles
@@ -45,18 +47,39 @@ class CampagnesController extends Controller
     ) {
     }
 
-    public function index(): View
+    /**
+     * Section E4 du refactor (16/09/2026, troisième chunk du domaine
+     * livraison) — page Inertia, remplace resources/views/livraison/
+     * campagnes.blade.php (supprimée dans ce même chunk). show() reste
+     * une View Blade classique pour l'instant : campagne-detail.blade.php
+     * n'est pas encore migrée (chunk ultérieur), et cette action-ci n'en
+     * dépend pas.
+     *
+     * La liste passe en prop de page plutôt qu'en XHR au montage — cas B
+     * de la décision du 16/09/2026 (comme Livraison/Equipes) : elle
+     * n'est ni paginée ni filtrée côté serveur (voir CampagnesIndex.vue,
+     * filtre type/date appliqué en Vue sur la liste déjà en main), et
+     * cette action la produisait déjà telle quelle avant ce chunk — la
+     * Blade se contentait déjà de la sérialiser une fois pour toutes
+     * (voir campagnes.blade.php avant suppression, "la Blade ne fait
+     * plus que passer la liste déjà chargée").
+     */
+    public function index(): InertiaResponse
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->get();
 
-        return view('livraison.campagnes', [
-            'campagnes' => $campagnes,
+        return Inertia::render('Livraison/Campagnes', [
+            'campagnes' => CampagneResource::collection($campagnes),
+            'storeUrl' => route('livraison.campagnes.store'),
+            'resumeSuppressionUrlTemplate' => route('livraison.campagnes.resume-suppression', ['campagne' => '__CAMPAGNE__']),
+            'destroyUrlTemplate' => route('livraison.campagnes.destroy', ['campagne' => '__CAMPAGNE__']),
             // Préremplissage visible du formulaire "Nouvelle campagne" (prompt
             // du 08/09/2026 §2.2.3) — même valeur que celle effectivement
             // appliquée à la création si le champ est laissé vide (voir
             // store() ci-dessous), affichée ici pour que l'admin la voie et
             // puisse la modifier AVANT de créer, pas seulement après coup.
             'livraisonsMaxParTourneeDefaut' => RouteOptimizationConfig::maxLivraisonsParRoute(),
+            'googlePlacesKey' => config('services.google.maps.places_api_key'),
             // Ajouté le 09/09/2026 (prompt de cette date §2.1) : le
             // formulaire de création expose désormais le même champ HQ
             // optionnel que la page détail — même principe de

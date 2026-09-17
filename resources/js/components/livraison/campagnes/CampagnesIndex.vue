@@ -44,6 +44,20 @@
     CampagneDetail.vue (adresse + autocomplétion Google Maps + lat/lng
     en lecture seule) ; laissé vide, retombe sur le réglage global comme
     avant.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
+    îlot monté par app.ts sur #vue-livraison-campagnes-index, mais un
+    enfant normal de resources/js/pages/Livraison/Campagnes.vue. Les
+    data-* lues jusqu'ici sur le point de montage sont devenues des
+    props — y compris `campagnes`, déjà passée intégralement chargée
+    avant ce chunk (voir l'ancien commentaire dans campagnes.blade.php,
+    repris dans le docblock de CampagnesController::index()) : aucun
+    changement de fond, seule la source de la prop change (Inertia au
+    lieu d'un data-* JSON.parse'é).
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
@@ -52,17 +66,23 @@ import { apiDelete, apiGet, apiPost } from '../shared/api';
 import { CAMPAGNE_TYPES, type Campagne, type CampagneType } from '../shared/types';
 import HqCoordinatesAutocomplete from '../../admin/HqCoordinatesAutocomplete.vue';
 
-const el = document.getElementById('vue-livraison-campagnes-index');
-const storeUrl = el?.dataset.storeUrl ?? '';
-const resumeSuppressionUrlTemplate = el?.dataset.resumeSuppressionUrlTemplate ?? '';
-const destroyUrlTemplate = el?.dataset.destroyUrlTemplate ?? '';
-const livraisonsMaxParTourneeDefaut = el?.dataset.livraisonsMaxParTourneeDefaut ?? '';
-const googlePlacesKey = el?.dataset.googlePlacesKey ?? '';
-// Ajouté le 09/09/2026 (prompt de cette date §2.1) — affiché à titre
-// indicatif à côté du champ HQ, comme livraisonsMaxParTourneeDefaut
-// ci-dessus (même page, même patron de préremplissage visible).
-const hqGlobalDefaut = JSON.parse(el?.dataset.hqGlobalDefaut ?? 'null') as { lat: number; lng: number } | null;
-const campagnes = ref<Campagne[]>(JSON.parse(el?.dataset.campagnes ?? '[]'));
+const props = defineProps<{
+    campagnes: Campagne[];
+    storeUrl: string;
+    resumeSuppressionUrlTemplate: string;
+    destroyUrlTemplate: string;
+    livraisonsMaxParTourneeDefaut: string;
+    googlePlacesKey: string;
+    // Ajouté le 09/09/2026 (prompt de cette date §2.1) — affiché à titre
+    // indicatif à côté du champ HQ, comme livraisonsMaxParTourneeDefaut
+    // ci-dessus (même page, même patron de préremplissage visible).
+    hqGlobalDefaut: { lat: number; lng: number } | null;
+}>();
+
+// Copie locale mutable : supprimerCampagne() retire une ligne
+// optimistiquement après succès (voir plus bas) — identique au
+// comportement d'avant ce chunk, seule la source initiale change.
+const campagnes = ref<Campagne[]>([...props.campagnes]);
 
 const toast = useToast();
 const confirmDialog = useConfirm();
@@ -122,7 +142,7 @@ const form = ref<FormCampagne>({
     // tournee-defaut, CampagnesController::index()) — éditable avant
     // envoi, laissée vide retombe de toute façon sur le même réglage
     // côté serveur (voir store()).
-    livraisons_max_par_tournee: livraisonsMaxParTourneeDefaut,
+    livraisons_max_par_tournee: props.livraisonsMaxParTourneeDefaut,
     hq_adresse: '',
     hq_latitude: '',
     hq_longitude: '',
@@ -160,7 +180,7 @@ async function creerCampagne() {
     fieldErrors.value = {};
     messageGeneral.value = '';
 
-    const resultat = await apiPost<{ success: boolean; campagne: Campagne }>(storeUrl, {
+    const resultat = await apiPost<{ success: boolean; campagne: Campagne }>(props.storeUrl, {
         type: form.value.type,
         journees: form.value.journees.map((j) => ({ date: j.date, label: j.label || null })),
         poids_moyen_kg: form.value.poids_moyen_kg,
@@ -237,7 +257,7 @@ async function supprimerCampagne(campagne: Campagne) {
     const resume = await apiGet<{
         journees: number; livraisons: number; routes: number;
         donations: number; arrivees: number; equipe_membres: number;
-    }>(resumeSuppressionUrlTemplate.replace('__CAMPAGNE__', String(campagne.id)));
+    }>(props.resumeSuppressionUrlTemplate.replace('__CAMPAGNE__', String(campagne.id)));
 
     if (!resume.ok) {
         toast.error(resume.message);
@@ -261,7 +281,7 @@ async function supprimerCampagne(campagne: Campagne) {
         return;
     }
 
-    const resultat = await apiDelete<{ success: boolean }>(destroyUrlTemplate.replace('__CAMPAGNE__', String(campagne.id)));
+    const resultat = await apiDelete<{ success: boolean }>(props.destroyUrlTemplate.replace('__CAMPAGNE__', String(campagne.id)));
     suppressionEnCours.value = null;
 
     if (!resultat.ok) {

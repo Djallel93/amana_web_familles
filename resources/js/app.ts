@@ -171,10 +171,6 @@ mountIfPresent(
     lazy(() => import("@/components/admin/HqCoordinatesAutocomplete.vue")),
 );
 mountIfPresent(
-    "vue-livraison-campagnes-index",
-    lazy(() => import("@/components/livraison/campagnes/CampagnesIndex.vue")),
-);
-mountIfPresent(
     "vue-livraison-campagne-detail",
     lazy(() => import("@/components/livraison/campagnes/CampagneDetail.vue")),
 );
