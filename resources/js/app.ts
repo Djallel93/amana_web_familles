@@ -134,15 +134,3 @@ mountIfPresent(
     "vue-activite-statistiques",
     lazy(() => import("@/components/admin/ActiviteStatistiques.vue")),
 );
-mountIfPresent(
-    "vue-hotel-address-autocomplete",
-    lazy(() => import("@/components/admin/HotelAddressAutocomplete.vue")),
-);
-mountIfPresent(
-    "vue-settings-tabs",
-    lazy(() => import("@/components/admin/SettingsTabs.vue")),
-);
-mountIfPresent(
-    "vue-hq-coordinates-autocomplete",
-    lazy(() => import("@/components/admin/HqCoordinatesAutocomplete.vue")),
-);

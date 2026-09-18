@@ -24,15 +24,18 @@ use Inertia\Middleware;
  * n'est PAS remplacé : toutes les vues non encore migrées continuent de
  * l'@extends comme aujourd'hui.
  *
- * share() : uniquement 'auth'/'flash' pour l'instant — le strict minimum
- * qu'une page Inertia a besoin de connaître indépendamment de ses props
- * explicites. 'flash' est partagé ici pour cohérence avec le pattern
- * Inertia standard, mais n'a pas encore de consommateur côté Vue dans ce
- * chunk : aucune redirection avec session flash ne cible actuellement
- * familles.index/familles.nouvelles (vérifié par recherche dans app/) —
- * à traiter quand une page migrée en dépendra réellement, plutôt que de
- * construire ici un mécanisme d'affichage flash côté Vue sans
- * consommateur pour le justifier.
+ * share() : 'auth'/'flash' depuis la création de ce middleware (12/09/2026),
+ * plus 'old' depuis le 16/09/2026 (Section E4, chunk settings) — premier
+ * et seul consommateur à ce jour : resources/js/pages/Settings/Index.vue,
+ * dont les sept formulaires classiques (POST natif, pas de router.post())
+ * s'appuient sur le repli automatique withInput() de Laravel après une
+ * ValidationException pour réafficher la saisie précédente en cas
+ * d'échec — mécanisme distinct du partage 'errors' déjà inclus
+ * automatiquement par la classe Middleware parente (...parent::share()),
+ * qui ne couvre PAS old(). 'flash' reste sans consommateur (voir
+ * ci-dessous) — 'old' ne doit pas non plus être considéré comme un
+ * précédent pour ajouter des clés spéculatives : ajouté ici précisément
+ * parce qu'un consommateur réel existe dans ce même chunk.
  */
 class HandleInertiaRequests extends Middleware
 {
@@ -60,6 +63,14 @@ class HandleInertiaRequests extends Middleware
                 'warning' => fn () => $request->session()->get('warning'),
                 'info' => fn () => $request->session()->get('info'),
             ],
+            // Ajouté le 16/09/2026 (Section E4, chunk settings) — voir le
+            // docblock de classe. getOldInput() sans clé retourne
+            // l'intégralité du tableau flashé par withInput() (imbriqué :
+            // ['settings' => [...], 'vehicules' => [...], 'code' => ...,
+            // 'nom' => ..., 'adresse' => ...] selon quel formulaire a
+            // échoué), jamais null — un tableau vide hors contexte
+            // d'échec de validation.
+            'old' => fn () => $request->session()->getOldInput(),
         ];
     }
 }

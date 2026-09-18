@@ -16,10 +16,23 @@
     contrôleur CRUD en JSON, pour un gain nul ici — les onglets n'ont
     besoin d'aucun état partagé entre sections).
 
-    Onglet par défaut : calculé côté Blade (voir data-default-tab) plutôt
-    que toujours "general" — si une soumission échoue la validation
-    (ex. organisation en double), on rouvre l'onglet où l'erreur se trouve
-    au lieu de la cacher derrière un autre onglet.
+    Onglet par défaut : calculé côté client depuis la prop 'errors'
+    (partagée par Inertia, voir SettingsController::index() et
+    HandleInertiaRequests::share()) plutôt que toujours "general" — si une
+    soumission échoue la validation (ex. organisation en double), on
+    rouvre l'onglet où l'erreur se trouve au lieu de la cacher derrière un
+    autre onglet.
+
+    Section E4 du refactor (16/09/2026, chunk settings) : ce composant
+    n'est plus un îlot monté par app.ts sur #vue-settings-tabs, mais un
+    enfant normal de resources/js/pages/Settings/Index.vue, qui calcule
+    désormais lui-même l'onglet par défaut (même logique de préfixes que
+    l'ancien @php de la Blade, portée en TypeScript) et la passe en prop
+    plutôt qu'en data-default-tab. Le pont DOM data-settings-tab lui-même
+    (panneaux()/appliquerVisibilite() ci-dessous) reste inchangé : ces
+    blocs sont désormais rendus par Vue plutôt que par Blade, mais restent
+    de vrais éléments DOM que document.querySelectorAll() trouve de la
+    même façon quelle que soit leur origine.
 -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
@@ -38,7 +51,13 @@ const TABS: TabDef[] = [
     { id: 'hotels', label: 'Adresses hôtel', icon: '🏨' },
 ];
 
-const activeTab = ref<string>(TABS[0].id);
+const props = defineProps<{
+    defaultTab: string;
+}>();
+
+const activeTab = ref<string>(
+    TABS.some((tab) => tab.id === props.defaultTab) ? props.defaultTab : TABS[0].id,
+);
 
 function panneaux(): NodeListOf<HTMLElement> {
     return document.querySelectorAll<HTMLElement>('[data-settings-tab]');
@@ -56,13 +75,6 @@ function selectionner(id: string): void {
 }
 
 onMounted(() => {
-    const conteneur = document.getElementById('vue-settings-tabs');
-    const defaut = conteneur?.dataset.defaultTab;
-
-    if (defaut && TABS.some((tab) => tab.id === defaut)) {
-        activeTab.value = defaut;
-    }
-
     appliquerVisibilite();
 });
 </script>

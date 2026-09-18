@@ -25,13 +25,19 @@
     ne fait que retirer l'attribut readonly, sans dupliquer les champs.
     Généralisé le 05/09/2026 (prompt de cette date §1.1) pour être aussi
     utilisable directement comme composant enfant (voir CampagneDetail.vue,
-    HQ propre à une campagne) — props optionnelles qui, si fournies,
-    priment sur la détection via #vue-hq-coordinates-autocomplete
-    (comportement historique de l'écran Paramètres, inchangé si les props
-    ne sont pas passées).
+    HQ propre à une campagne) — props d'abord optionnelles avec repli sur
+    #vue-hq-coordinates-autocomplete (comportement historique de l'écran
+    Paramètres) tant que ce dernier restait un point de montage Blade.
+
+    Section E4 du refactor (16/09/2026, chunk settings) : ce repli est
+    retiré — resources/views/settings/index.blade.php était le dernier
+    consommateur du montage par data-* (vérifié par grep avant
+    conversion), désormais lui aussi un enfant Vue avec ces props en
+    resources/js/pages/Settings/Index.vue. Props requises depuis ce
+    chunk, plus de branche onMounted() à distinguer.
 -->
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue';
+import { ref, nextTick } from 'vue';
 
 declare global {
     interface Window {
@@ -41,14 +47,14 @@ declare global {
 }
 
 const props = defineProps<{
-    googlePlacesKey?: string;
-    targetLatId?: string;
-    targetLngId?: string;
+    googlePlacesKey: string;
+    targetLatId: string;
+    targetLngId: string;
 }>();
 
-const googlePlacesKey = ref(props.googlePlacesKey ?? '');
-const targetLatId = ref(props.targetLatId ?? '');
-const targetLngId = ref(props.targetLngId ?? '');
+const googlePlacesKey = ref(props.googlePlacesKey);
+const targetLatId = ref(props.targetLatId);
+const targetLngId = ref(props.targetLngId);
 const showSearch = ref(false);
 const containerRef = ref<HTMLDivElement | null>(null);
 let autocompleteElement: any = null;
@@ -132,17 +138,6 @@ function activerSaisieManuelle(): void {
     });
     document.getElementById(targetLatId.value)?.focus();
 }
-
-onMounted(() => {
-    if (props.googlePlacesKey || props.targetLatId || props.targetLngId) return; // fourni par les props, rien à détecter
-
-    const el = document.getElementById('vue-hq-coordinates-autocomplete');
-    if (el) {
-        googlePlacesKey.value = el.dataset.googlePlacesKey ?? '';
-        targetLatId.value = el.dataset.targetLatId ?? '';
-        targetLngId.value = el.dataset.targetLngId ?? '';
-    }
-});
 </script>
 
 <template>

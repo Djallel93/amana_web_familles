@@ -19,9 +19,16 @@
     create_hotel_addresses_table) : formattedAddress seul pour une adresse
     de rue, "Nom de l'établissement, formattedAddress" quand Google
     identifie un lieu nommé (displayName distinct de l'adresse elle-même).
+
+    Section E4 du refactor (16/09/2026, chunk settings) : ce composant
+    n'est plus un îlot monté par app.ts sur #vue-hotel-address-autocomplete,
+    mais un enfant normal de resources/js/pages/Settings/Index.vue. Les
+    deux data-* lues jusqu'ici sur le point de montage sont devenues des
+    props requises — aucun repli conservé, cet écran est le seul
+    consommateur de ce composant (vérifié par grep avant conversion).
 -->
 <script setup lang="ts">
-import { ref, nextTick, onMounted } from 'vue';
+import { ref, nextTick } from 'vue';
 
 declare global {
     interface Window {
@@ -30,8 +37,13 @@ declare global {
     }
 }
 
-const googlePlacesKey = ref('');
-const targetInputId = ref('');
+const props = defineProps<{
+    googlePlacesKey: string;
+    targetInputId: string;
+}>();
+
+const googlePlacesKey = ref(props.googlePlacesKey);
+const targetInputId = ref(props.targetInputId);
 const showSearch = ref(false);
 const containerRef = ref<HTMLDivElement | null>(null);
 let autocompleteElement: any = null;
@@ -108,13 +120,6 @@ async function ouvrirRecherche(): Promise<void> {
     await initAutocomplete();
 }
 
-onMounted(() => {
-    const el = document.getElementById('vue-hotel-address-autocomplete');
-    if (el) {
-        googlePlacesKey.value = el.dataset.googlePlacesKey ?? '';
-        targetInputId.value = el.dataset.targetInputId ?? '';
-    }
-});
 </script>
 
 <template>
