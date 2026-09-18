@@ -83,6 +83,71 @@ class ChargementController extends Controller
      */
     public function index(Request $request, Campagne $campagne): View
     {
+        $filtreChargement = $this->filtreDepuisRequete($request);
+        ['lignes' => $lignes, 'stats' => $stats] = $this->construireListe($campagne, $filtreChargement);
+
+        return view('livraison.chargement', [
+            'campagne' => $campagne,
+            // Lignes déjà rendues (HTML de la carte + signature) plutôt que
+            // les modèles bruts : la page initiale et l'endpoint de polling
+            // liste() partent de la MÊME méthode, voir construireListe().
+            'lignes' => $lignes,
+            'stats' => $stats,
+            'filtreChargement' => $filtreChargement,
+            // Retour visible (07/09/2026, prompt §4.2) — même règle que
+            // Packaging/Pesee/Réception : équipe_chargement n'a pas accès
+            // à livraison.campagnes.show, repli sur le point d'entrée
+            // "choisir" — voir UrlRetourEquipe (Section B du refactor).
+            'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.chargement.choisir'),
+        ]);
+    }
+
+    /**
+     * Endpoint de polling de l'écran chargement (Scénario 1 du chantier
+     * "polling live") — appelé toutes les 20s par le script de
+     * chargement.blade.php. Renvoie exactement ce que index() rend au
+     * chargement de la page (mêmes lignes, même tri, mêmes stats, même
+     * filtre_chargement transmis en query string) sous forme de HTML de
+     * carte par tournée + une signature (md5 du HTML) que le client compare
+     * pour ne remplacer que les cartes réellement modifiées.
+     *
+     * Pas de logique métier nouvelle ici : lecture seule, même autorisation
+     * (can:equipeChargement) que index().
+     */
+    public function liste(Request $request, Campagne $campagne): JsonResponse
+    {
+        $filtreChargement = $this->filtreDepuisRequete($request);
+        ['lignes' => $lignes, 'stats' => $stats] = $this->construireListe($campagne, $filtreChargement);
+
+        return response()->json([
+            'stats' => $stats,
+            'routes' => $lignes,
+        ]);
+    }
+
+    /**
+     * filtre_chargement tel que transmis en query string ('toutes' par
+     * défaut, y compris pour toute valeur non-scalaire ou inconnue — un
+     * ?filtre_chargement[]=x ne doit pas faire lever d'ErrorException).
+     */
+    private function filtreDepuisRequete(Request $request): string
+    {
+        $valeur = $request->input('filtre_chargement', 'toutes');
+
+        return is_string($valeur) ? $valeur : 'toutes';
+    }
+
+    /**
+     * Requête + tri + stats + filtre + rendu des cartes, partagés par
+     * index() et liste() — le corps de l'ancien index() (voir son
+     * docblock ci-dessus pour le raisonnement statuts/tri/filtre, inchangé),
+     * déplacé tel quel ici. Les stats sont calculées sur l'ensemble AVANT
+     * application du filtre, comme avant.
+     *
+     * @return array{lignes: list<array{id: int, statut: string, sig: string, html: string}>, stats: array{chargees: int, restantes: int}}
+     */
+    private function construireListe(Campagne $campagne, string $filtreChargement): array
+    {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)
             ->whereIn('statut', ['chargement', 'charge', 'packaging_annule'])
             ->with(['benevole', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux'])
@@ -118,24 +183,24 @@ class ChargementController extends Controller
             'restantes' => $routes->whereIn('statut', ['chargement', 'packaging_annule'])->count(),
         ];
 
-        $filtreChargement = $request->input('filtre_chargement', 'toutes');
         if ($filtreChargement === 'restantes') {
             $routes = $routes->whereIn('statut', ['chargement', 'packaging_annule'])->values();
         } elseif ($filtreChargement === 'chargees') {
             $routes = $routes->where('statut', 'charge')->values();
         }
 
-        return view('livraison.chargement', [
-            'campagne' => $campagne,
-            'routes' => $routes,
-            'stats' => $stats,
-            'filtreChargement' => $filtreChargement,
-            // Retour visible (07/09/2026, prompt §4.2) — même règle que
-            // Packaging/Pesee/Réception : équipe_chargement n'a pas accès
-            // à livraison.campagnes.show, repli sur le point d'entrée
-            // "choisir" — voir UrlRetourEquipe (Section B du refactor).
-            'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.chargement.choisir'),
-        ]);
+        $lignes = $routes->map(function (RouteLivraison $route) {
+            $html = trim(view('livraison.partials.chargement-route', ['route' => $route])->render());
+
+            return [
+                'id' => $route->id,
+                'statut' => $route->statut,
+                'sig' => md5($html),
+                'html' => $html,
+            ];
+        })->all();
+
+        return ['lignes' => $lignes, 'stats' => $stats];
     }
 
     /**

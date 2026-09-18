@@ -295,6 +295,11 @@ Route::middleware('auth')->prefix('livraison/chargement')->name('livraison.charg
         ->middleware('livraison_role:equipe_chargement')->name('choisir');
     Route::get('/{campagne}', [\App\Http\Controllers\Livraison\ChargementController::class, 'index'])
         ->middleware('can:equipeChargement,campagne')->name('index');
+    // Polling de l'écran chargement (Scénario 1 du chantier "polling live")
+    // — voir ChargementController::liste(). Lecture seule, même
+    // autorisation que index().
+    Route::get('/{campagne}/liste', [\App\Http\Controllers\Livraison\ChargementController::class, 'liste'])
+        ->middleware('can:equipeChargement,campagne')->name('liste');
     Route::post('/routes/{route}/confirmer', [\App\Http\Controllers\Livraison\ChargementController::class, 'confirmer'])
         ->middleware('can:gerer,route')->name('confirmer');
     Route::post('/routes/{route}/benevole-absent', [\App\Http\Controllers\Livraison\ChargementController::class, 'signalerBenevoleAbsent'])
