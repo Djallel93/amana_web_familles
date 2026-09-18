@@ -8,6 +8,19 @@
     (anneau), répartition par quartier (barres horizontales, remplace la
     distribution de criticité le 13/08/2026), répartition par ville
     (barres horizontales), évolution du foyer sur 12 mois (courbes).
+
+    Section E4 du refactor (16/09/2026, chunk imports+FamillesStatistiques)
+    : ce composant n'est plus un îlot monté par app.ts sur
+    #vue-familles-statistiques, mais un enfant normal de
+    resources/js/pages/Familles/Statistiques.vue. window.
+    FamillesStatistiquesConfig (variable globale posée par un <script>
+    inline côté Blade, pattern différent des data-* de point de montage
+    utilisés partout ailleurs dans l'app) est remplacée par une prop
+    Inertia normale (dataUrl) — voir StatistiquesFamillesController::
+    index(). Le champ csrf de l'ancien objet global n'était de toute
+    façon pas lu par ce composant (fetch('/familles/statistiques/data')
+    est un GET, pas de jeton CSRF nécessaire) : disparaît avec la
+    conversion plutôt que reconduit en prop inutile.
 -->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -33,6 +46,10 @@ Chart.register(
     LinearScale, CategoryScale, Tooltip, Legend, Filler,
 );
 
+const props = defineProps<{
+    dataUrl: string;
+}>();
+
 interface Cartes {
     totalFamilles: number;
     totalAdultes: number;
@@ -52,12 +69,6 @@ interface Donnees {
     estHotel: { estHotel: number; nonHotel: number };
     evolutionFoyer: { mois: string; adultes: number; enfants: number; nouveauxDossiers: number }[];
     cartes: Cartes;
-}
-
-declare global {
-    interface Window {
-        FamillesStatistiquesConfig: { csrf: string; routes: { data: string } };
-    }
 }
 
 const donnees = ref<Donnees | null>(null);
@@ -100,8 +111,7 @@ function fmtMoisLabel(iso: string): string {
 async function charger(): Promise<void> {
     loadState.value = 'loading';
     try {
-        const url = window.FamillesStatistiquesConfig?.routes?.data ?? '/familles/statistiques/data';
-        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        const res = await fetch(props.dataUrl, { headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error();
         donnees.value = await res.json();
         loadState.value = 'loaded';

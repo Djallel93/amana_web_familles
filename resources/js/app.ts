@@ -131,18 +131,6 @@ mountIfPresent(
     lazy(() => import("@/components/familles/ReverseSyncPanel.vue")),
 );
 mountIfPresent(
-    "vue-import-manual-grid",
-    lazy(() => import("@/components/imports/ImportManualGrid.vue")),
-);
-mountIfPresent(
-    "vue-import-overlay",
-    lazy(() => import("@/components/imports/ImportOverlay.vue")),
-);
-mountIfPresent(
-    "vue-familles-statistiques",
-    lazy(() => import("@/components/familles/FamillesStatistiques.vue")),
-);
-mountIfPresent(
     "vue-activite-statistiques",
     lazy(() => import("@/components/admin/ActiviteStatistiques.vue")),
 );

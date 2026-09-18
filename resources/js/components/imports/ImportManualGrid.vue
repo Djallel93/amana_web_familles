@@ -3,10 +3,26 @@
     Saisie manuelle de plusieurs dossiers d'un coup (décision 6.9) — envoie
     un tableau de lignes au MÊME pipeline serveur que l'upload CSV
     (FamilleImportService::traiterLigne), via admin.imports.store-manuel.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
+    îlot monté par app.ts sur #vue-import-manual-grid, mais un enfant
+    normal de resources/js/pages/Admin/Imports/Create.vue. La seule
+    donnée lue jusqu'ici sur le point de montage (data-store-url) est
+    devenue une prop — voir ImportsController::create() pour le
+    raisonnement routeName() derrière cette URL (admin vs
+    gestionnaire_externe).
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { useToast } from '@amana/shared-ui';
+
+const props = defineProps<{
+    storeUrl: string;
+}>();
 
 // Déclaration dupliquée volontairement (voir ImportOverlay.vue) — ces deux
 // fonctions sont exposées sur window par le composant ImportOverlay.vue
@@ -43,7 +59,7 @@ function ligneVide(): Ligne {
 }
 
 const toast = useToast();
-const storeUrl = ref('');
+const storeUrl = ref(props.storeUrl);
 const submitting = ref(false);
 const lignes = ref<Ligne[]>([ligneVide(), ligneVide(), ligneVide()]);
 
@@ -96,10 +112,6 @@ async function envoyer(): Promise<void> {
     }
 }
 
-onMounted(() => {
-    const el = document.getElementById('vue-import-manual-grid');
-    if (el) storeUrl.value = el.dataset.storeUrl ?? '';
-});
 </script>
 
 <template>

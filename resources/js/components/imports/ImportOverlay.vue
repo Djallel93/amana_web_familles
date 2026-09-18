@@ -12,12 +12,21 @@
     "header") et l'event @close est intentionnellement ignoré tant que
     l'import est en cours — voir onCloseAttempt().
 
-    Monté une seule fois dans la page (#vue-import-overlay, voir app.ts)
+    Monté une seule fois dans la page (#vue-import-overlay avant ce
+    chunk, voir app.ts pour l'historique — désormais un enfant Vue de
+    resources/js/pages/Admin/Imports/Create.vue, voir plus bas)
     et piloté depuis deux endroits différents : le formulaire CSV
-    (vanilla JS classique) et ImportManualGrid.vue (fetch async) — pas de
-    lien parent/enfant Vue possible entre ces composants montés
-    séparément, donc exposition sur window, même pattern que
-    DetailPanel.vue::openFamilleDetail.
+    (désormais un handler @submit Vue plutôt qu'un <script> vanilla, voir
+    resources/js/pages/Admin/Imports/Create.vue) et ImportManualGrid.vue
+    (fetch async) — pas de lien parent/enfant Vue possible entre ces
+    composants montés séparément, donc exposition sur window, même
+    pattern que DetailPanel.vue::openFamilleDetail.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
+    îlot monté par app.ts sur #vue-import-overlay, mais un enfant normal
+    de resources/js/pages/Admin/Imports/Create.vue — sans props, rien
+    d'autre ne change ici (il n'a jamais rien lu du point de montage lui-
+    même).
 -->
 <script setup lang="ts">
 import { ref } from 'vue';
