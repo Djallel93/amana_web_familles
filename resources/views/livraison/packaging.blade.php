@@ -71,6 +71,20 @@
         </div>
 
         {{--
+            Couverture de la collecte (Scénario 4 du chantier "polling live",
+            19/09/2026) — le poids collecté à la pesée suffit-il pour
+            conditionner ce qui reste, au poids moyen actuel ? AFFICHAGE
+            PASSIF : c'est à l'équipe de décider d'ajuster le poids moyen
+            (bloc ci-dessous) puis de recalculer. Portée = campagne entière
+            (voir CouvertureCollecteService). Rendu et rafraîchissement
+            (toutes les 20s) entièrement côté JS, voir rafraichirCouverture().
+        --}}
+        <div id="couverture-collecte" class="mb-4 rounded-xl border border-surface-border bg-stone-50 px-4 py-3 text-[12.5px] text-ink-muted" aria-live="polite">
+            <p class="text-[13px] font-medium">⚖️ Couverture de la collecte</p>
+            <div id="couverture-contenu" class="mt-1 space-y-1"><p>Chargement…</p></div>
+        </div>
+
+        {{--
             Poids moyen par type de livraison (prompt du 05/09/2026 §5.2) —
             mise à jour + recalcul manuel scopé aux livraisons pas encore
             conditionnées (voir CampagnesController::mettreAJourPoidsMoyen()/
@@ -389,6 +403,7 @@
             const message = document.getElementById('poids-moyen-message');
             if (resultat.success) {
                 message.textContent = 'Enregistré.';
+                rafraichirCouverture(true);
                 if (resultat.historique) {
                     const liste = document.getElementById('historique-poids');
                     liste.innerHTML = resultat.historique.map((h) =>
@@ -411,6 +426,104 @@
             document.getElementById('poids-moyen-message').textContent = resultat.success
                 ? `${resultat.nombre_livraisons_recalculees} livraison(s) recalculée(s).`
                 : "Erreur lors du recalcul.";
+            if (resultat.success) rafraichirCouverture(true);
         }
+
+        // ── Couverture de la collecte (Scénario 4) ─────────────────────────
+        //
+        // Encart en lecture seule alimenté par PackagingController::poids()
+        // (voir CouvertureCollecteService pour les définitions). Relu toutes
+        // les 20s — les pesées et les colis prêts changent lentement — et
+        // immédiatement après "Enregistrer"/"Recalculer" (force = true).
+        // Dernière requête gagnante : la réponse d'une requête dépassée par
+        // une plus récente (ex. le tick parti avant un "Recalculer") est
+        // écartée. Un échec ponctuel garde l'affichage en place ; l'encart
+        // ne passe à "indisponible" que s'il n'a jamais rien affiché.
+        const URL_COUVERTURE = @json(route('livraison.packaging.poids', $campagne));
+        const COUVERTURE_POLL_MS = 20000;
+        const CLASSES_COUVERTURE = {
+            neutre: 'mb-4 rounded-xl border border-surface-border bg-stone-50 px-4 py-3 text-[12.5px] text-ink-muted',
+            suffisante: 'mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-[12.5px] text-emerald-800',
+            insuffisante: 'mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-800',
+        };
+        let jetonCouverture = 0;
+        let couvertureEnCours = false;
+        let couvertureAffichee = false;
+
+        const formaterKg = (n, decimales = 1) => `${Number(n).toLocaleString('fr-FR', { maximumFractionDigits: decimales })} kg`;
+
+        function afficherCouverture(d) {
+            const lignes = [];
+            let etat = 'neutre';
+
+            if (!d.collecte_demarree) {
+                lignes.push('Aucune pesée enregistrée pour le moment — couverture non calculable.');
+            } else if (d.couverture === null) {
+                lignes.push(`Collecté ${formaterKg(d.collecte_kg)} · rien à conditionner pour le moment.`);
+            } else {
+                etat = d.couverture >= 1 ? 'suffisante' : 'insuffisante';
+                lignes.push(`Collecté ${formaterKg(d.collecte_kg)} · déjà conditionné/livré ${formaterKg(d.engage_kg)} · reste à conditionner ${formaterKg(d.reste_kg)} (aux poids moyens actuels)`);
+
+                const pourcentage = Math.round(d.couverture * 100);
+                lignes.push(d.couverture >= 1
+                    ? `Couverture : ${pourcentage} % — collecte suffisante (surplus ${formaterKg(d.disponible_kg - d.reste_kg)}).`
+                    : `Couverture : ${pourcentage} % — collecte insuffisante pour conditionner tout le reste.`);
+
+                if (d.disponible_kg < 0) {
+                    lignes.push(`Le poids déjà conditionné/livré dépasse la collecte pesée de ${formaterKg(-d.disponible_kg)}.`);
+                }
+
+                if (d.poids_moyen_realisable) {
+                    const parties = [];
+                    [['normal', 'normal'], ['hotel', 'hôtel'], ['etudiant', 'étudiant']].forEach(([cle, libelle]) => {
+                        if (d.poids_moyen_realisable[cle] !== null) {
+                            parties.push(`${libelle} ${formaterKg(d.poids_moyen_realisable[cle], 2)} (actuel ${formaterKg(d.poids_moyen_actuel[cle], 2)})`);
+                        }
+                    });
+                    lignes.push(`Poids moyen réalisable ≈ ${parties.join(' · ')}`);
+                }
+            }
+
+            if (d.recalcul_necessaire) {
+                lignes.push('Les poids des livraisons n\'ont pas été recalculés avec les poids moyens actuels (bouton « Recalculer » ci-dessous).');
+            }
+            if (d.livraisons_exclues > 0) {
+                lignes.push(`${d.livraisons_exclues} livraison(s) exclue(s) du calcul (données famille incohérentes).`);
+            }
+
+            const contenu = document.getElementById('couverture-contenu');
+            contenu.replaceChildren(...lignes.map((texte) => {
+                const p = document.createElement('p');
+                p.textContent = texte;
+                return p;
+            }));
+            document.getElementById('couverture-collecte').className = CLASSES_COUVERTURE[etat];
+            couvertureAffichee = true;
+        }
+
+        async function rafraichirCouverture(force = false) {
+            if (!force && (couvertureEnCours || document.hidden)) return;
+            const jeton = ++jetonCouverture;
+            couvertureEnCours = true;
+            try {
+                const reponse = await fetch(URL_COUVERTURE, { headers: { 'Accept': 'application/json' } });
+                if (!reponse.ok) throw new Error(String(reponse.status));
+                const donnees = await reponse.json();
+                if (jeton !== jetonCouverture) return;
+                afficherCouverture(donnees);
+            } catch (e) {
+                if (jeton === jetonCouverture && !couvertureAffichee) {
+                    document.getElementById('couverture-contenu').replaceChildren(
+                        Object.assign(document.createElement('p'), { textContent: 'Couverture indisponible pour le moment.' }),
+                    );
+                }
+            } finally {
+                if (jeton === jetonCouverture) couvertureEnCours = false;
+            }
+        }
+
+        rafraichirCouverture(true);
+        setInterval(() => rafraichirCouverture(), COUVERTURE_POLL_MS);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) rafraichirCouverture(); });
     </script>
 @endsection

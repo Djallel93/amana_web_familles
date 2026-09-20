@@ -288,6 +288,11 @@ Route::middleware('auth')->prefix('livraison/packaging')->name('livraison.packag
         ->middleware('can:gerer,livraison')->name('annuler');
     Route::get('/{campagne}/feuille-preparation', [\App\Http\Controllers\Livraison\PackagingController::class, 'feuillePreparation'])
         ->middleware('can:equipePackaging,campagne')->name('feuille-preparation');
+    // Couverture de la collecte (Scénario 4 du chantier "polling live") —
+    // voir PackagingController::poids(). Lecture seule, même autorisation
+    // que index().
+    Route::get('/{campagne}/poids', [\App\Http\Controllers\Livraison\PackagingController::class, 'poids'])
+        ->middleware('can:equipePackaging,campagne')->name('poids');
 });
 
 Route::middleware('auth')->prefix('livraison/chargement')->name('livraison.chargement.')->group(function () {

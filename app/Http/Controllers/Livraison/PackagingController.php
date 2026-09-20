@@ -15,6 +15,7 @@ use App\Models\LivraisonColis;
 use App\Models\RouteIncident;
 use App\Notifications\PackagingAnnuleNotification;
 use App\Notifications\RoutePretePourChargementNotification;
+use App\Services\CouvertureCollecteService;
 use App\Services\QrCodeService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -248,6 +249,17 @@ class PackagingController extends Controller
     private function calculerUrgencePackaging(Livraison $livraison): bool
     {
         return $livraison->creneaux->count() === 1;
+    }
+
+    /**
+     * Endpoint de polling de l'encart "couverture de la collecte" de
+     * l'écran packaging (Scénario 4 du chantier "polling live") — voir
+     * CouvertureCollecteService pour les définitions et la portée
+     * (campagne entière). Lecture seule, même autorisation que index().
+     */
+    public function poids(CouvertureCollecteService $couverture, Campagne $campagne): JsonResponse
+    {
+        return response()->json($couverture->calculer($campagne));
     }
 
     /**
