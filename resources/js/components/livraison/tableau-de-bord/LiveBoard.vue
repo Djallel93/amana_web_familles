@@ -33,9 +33,30 @@
     Aucun repli dataset conservé : cet écran est le seul consommateur de
     ce composant (vérifié par grep avant conversion), il n'y a pas de
     page Blade non migrée à faire coexister.
+
+    Rafraîchissement automatique (Scénario 2 du chantier "polling live") :
+    incidents/tournées/statistiques sont relus en arrière-plan toutes les
+    20s (POLL_MS) pour qu'un arrêt livré ou ignoré par un chauffeur
+    apparaisse sans action de l'admin. Ces données restent des endpoints
+    JSON (pas des props Inertia, voir plus haut) : router.reload() n'aurait
+    rien à recharger, on réutilise donc les mêmes loaders apiGet, en mode
+    "silencieux" :
+     - jamais de bascule `chargement` (RoutesPanel remplace toute sa liste
+       par "Chargement…" tant qu'il est vrai, ce qui détruirait les
+       panneaux ouverts et les sélections en cours à chaque tick) ;
+     - un échec réseau ponctuel conserve les données affichées au lieu de
+       les remplacer par "Impossible de charger" ;
+     - la valeur n'est réassignée que si le contenu a réellement changé.
+    Un jeton par liste (jetons) garantit que la réponse d'un poll parti
+    AVANT un rechargement déclenché par une action de l'admin (chargerTout)
+    ne l'écrase pas ; un tick est de toute façon ignoré tant qu'un
+    chargement non silencieux est en cours. "Non couvertes" n'est relue que
+    si l'ensemble des incidents ouverts a changé (c'est le "bénévole absent"
+    signalé par l'équipe chargement qui en orpheline des livraisons — un
+    arrêt livré ne change rien à cette liste), pas à chaque tick.
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiGet } from '../shared/api';
 import type { Campagne, Livraison, Organisation, Quartier, RouteIncident, RouteLivraison, Secteur, SuiviLivraisonStatistiques, Ville } from '../shared/types';
 import IncidentsPanel from './IncidentsPanel.vue';
@@ -103,40 +124,82 @@ const erreurNonCouvertes = ref(false);
 // Cartes statistiques (09/09/2026, prompt §5.2.4).
 const stats = ref<SuiviLivraisonStatistiques | null>(null);
 
-async function chargerIncidents() {
-    chargementIncidents.value = true;
-    erreurIncidents.value = false;
+// ── Chargement des listes ───────────────────────────────────────────────
+//
+// `silencieux` = true pour le rafraîchissement automatique (voir le
+// commentaire en tête de fichier). Jeton par liste : incrémenté par chaque
+// chargement NON silencieux ; un chargement (silencieux ou non) dont le
+// jeton n'est plus le courant à son retour est écarté — il a été dépassé
+// par un chargement plus récent (action de l'admin, changement de campagne).
+const POLL_MS = 20000;
+const jetons = { incidents: 0, routes: 0, nonCouvertes: 0, stats: 0 };
+
+function memeContenu(a: unknown, b: unknown): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+async function chargerIncidents(silencieux = false) {
+    const jeton = silencieux ? jetons.incidents : ++jetons.incidents;
+    if (!silencieux) {
+        chargementIncidents.value = true;
+        erreurIncidents.value = false;
+    }
     const resultat = await apiGet<RouteIncident[]>(urlsCampagne.value.incidents);
-    chargementIncidents.value = false;
-    if (!resultat.ok) { erreurIncidents.value = true; return; }
-    incidents.value = resultat.data;
+    if (jeton !== jetons.incidents) return;
+    if (!silencieux) chargementIncidents.value = false;
+    if (!resultat.ok) {
+        if (!silencieux) erreurIncidents.value = true;
+        return;
+    }
+    if (!silencieux || !memeContenu(incidents.value, resultat.data)) incidents.value = resultat.data;
 }
 
-async function chargerRoutes() {
-    chargementRoutes.value = true;
-    erreurRoutes.value = false;
+async function chargerRoutes(silencieux = false) {
+    const jeton = silencieux ? jetons.routes : ++jetons.routes;
+    if (!silencieux) {
+        chargementRoutes.value = true;
+        erreurRoutes.value = false;
+    }
     const resultat = await apiGet<RouteLivraison[]>(urlsCampagne.value.routes);
-    chargementRoutes.value = false;
-    if (!resultat.ok) { erreurRoutes.value = true; return; }
-    routes.value = resultat.data;
+    if (jeton !== jetons.routes) return;
+    if (!silencieux) chargementRoutes.value = false;
+    if (!resultat.ok) {
+        if (!silencieux) erreurRoutes.value = true;
+        return;
+    }
+    if (!silencieux || !memeContenu(routes.value, resultat.data)) routes.value = resultat.data;
 }
 
-async function chargerNonCouvertes() {
-    chargementNonCouvertes.value = true;
-    erreurNonCouvertes.value = false;
+async function chargerNonCouvertes(silencieux = false) {
+    const jeton = silencieux ? jetons.nonCouvertes : ++jetons.nonCouvertes;
+    if (!silencieux) {
+        chargementNonCouvertes.value = true;
+        erreurNonCouvertes.value = false;
+    }
     // nonCouvertes() n'est pas paginé côté contrôleur (response()->json()
     // sur une Collection, pas un paginator) — contrairement à eligibles()/
     // file() — donc apiGet<Livraison[]> directement, pas de
     // normalizePaginated ici.
     const resultat = await apiGet<Livraison[]>(urlsCampagne.value.nonCouvertes);
-    chargementNonCouvertes.value = false;
-    if (!resultat.ok) { erreurNonCouvertes.value = true; return; }
-    nonCouvertes.value = resultat.data;
+    if (jeton !== jetons.nonCouvertes) return;
+    if (!silencieux) chargementNonCouvertes.value = false;
+    if (!resultat.ok) {
+        if (!silencieux) erreurNonCouvertes.value = true;
+        return;
+    }
+    if (!silencieux || !memeContenu(nonCouvertes.value, resultat.data)) nonCouvertes.value = resultat.data;
 }
 
-async function chargerStatistiques() {
+async function chargerStatistiques(silencieux = false) {
+    const jeton = silencieux ? jetons.stats : ++jetons.stats;
     const resultat = await apiGet<SuiviLivraisonStatistiques>(urlsCampagne.value.statistiques);
-    stats.value = resultat.ok ? resultat.data : null;
+    if (jeton !== jetons.stats) return;
+    if (!resultat.ok) {
+        // Silencieux : on garde les dernières statistiques connues.
+        if (!silencieux) stats.value = null;
+        return;
+    }
+    if (!silencieux || !memeContenu(stats.value, resultat.data)) stats.value = resultat.data;
 }
 
 function chargerTout() {
@@ -150,8 +213,47 @@ function onCampagneChange() {
     if (campagneId.value) chargerTout();
 }
 
+// ── Rafraîchissement automatique ────────────────────────────────────────
+let pollEnCours = false;
+let minuterie: ReturnType<typeof setInterval> | undefined;
+
+/** Empreinte de l'ensemble des incidents ouverts (ids triés). */
+function empreinteIncidents(): string {
+    return incidents.value
+        .map((i) => i.id)
+        .sort((a, b) => a - b)
+        .join(',');
+}
+
+async function rafraichirEnArrierePlan() {
+    if (!campagneId.value || document.hidden || pollEnCours) return;
+    // Un chargement non silencieux (action de l'admin, changement de
+    // campagne) est plus récent que ce tick : on laisse passer ce tick.
+    if (chargementIncidents.value || chargementRoutes.value || chargementNonCouvertes.value) return;
+
+    pollEnCours = true;
+    try {
+        const avant = empreinteIncidents();
+        await Promise.all([chargerIncidents(true), chargerRoutes(true), chargerStatistiques(true)]);
+        if (empreinteIncidents() !== avant) await chargerNonCouvertes(true);
+    } finally {
+        pollEnCours = false;
+    }
+}
+
+function auChangementDeVisibilite() {
+    if (!document.hidden) void rafraichirEnArrierePlan();
+}
+
 onMounted(() => {
     if (campagneId.value) chargerTout();
+    minuterie = setInterval(rafraichirEnArrierePlan, POLL_MS);
+    document.addEventListener('visibilitychange', auChangementDeVisibilite);
+});
+
+onUnmounted(() => {
+    if (minuterie) clearInterval(minuterie);
+    document.removeEventListener('visibilitychange', auChangementDeVisibilite);
 });
 </script>
 

@@ -246,6 +246,7 @@
             for (const r of donnees.routes) {
                 const id = String(r.id);
                 let ligne = document.getElementById(`route-${id}`);
+                let redevenuePrete = false;
 
                 if (protegee(id, ligne)) {
                     if (ligne) ordre.push(ligne);
@@ -256,12 +257,18 @@
                     ligne = creerLigne(r.html);
                     liste.appendChild(ligne);
                 } else if (signatures.get(id) !== r.sig) {
+                    // Tournée re-conditionnée après une annulation (statut
+                    // 'packaging_annule' → 'chargement', voir
+                    // PackagingController::finaliserConditionnement()) : à
+                    // signaler comme une nouvelle tournée prête à charger.
+                    redevenuePrete = r.statut === 'chargement' && ligne.dataset.statut !== 'chargement';
                     const remplacement = creerLigne(r.html);
                     ligne.replaceWith(remplacement);
                     ligne = remplacement;
                 }
                 signatures.set(id, r.sig);
                 ordre.push(ligne);
+                if (redevenuePrete) nouvelles.push(ligne);
 
                 if (!routesVues.has(id)) {
                     routesVues.add(id);

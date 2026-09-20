@@ -258,6 +258,10 @@ class PackagingController extends Controller
      * extraite ici pour être appelée depuis marquerColisPret() une fois
      * le dernier colis d'une famille coché, plutôt que sur un bouton
      * "famille entière" cliqué directement par l'utilisateur.
+     *
+     * Bascule aussi 'packaging_annule' → 'chargement' quand une tournée dont
+     * le conditionnement avait été annulé est de nouveau entièrement prête
+     * (et notifie à nouveau l'équipe chargement/chauffeur).
      */
     private function finaliserConditionnement(Livraison $livraison): void
     {
@@ -271,7 +275,17 @@ class PackagingController extends Controller
                 fn ($e) => $e->livraison === null || $e->livraison->statut_conditionnement === 'prete',
             );
 
-            if ($toutesPretes && $route->statut === 'planifiee') {
+            // 'packaging_annule' accepté en plus de 'planifiee' : une tournée
+            // repassée là par annulerConditionnement() ne redevenait jamais
+            // 'chargement' une fois ses colis re-conditionnés (aucun autre
+            // code n'écrit 'chargement' — constaté le 19/09/2026 en
+            // relisant tous les écrivains de statut), et restait
+            // indéfiniment "Packaging annulé" sur
+            // l'écran chargement, boutons masqués. Le RouteIncident
+            // 'packaging_annule' lui-même reste 'ouvert' jusqu'à ce qu'un
+            // admin le résolve (flux inchangé, voir
+            // LiveBoardController::resoudreIncident()).
+            if ($toutesPretes && in_array($route->statut, ['planifiee', 'packaging_annule'], true)) {
                 $route->update(['statut' => 'chargement']);
 
                 // Remplacé le 08/09/2026 : Personne::avecRole('equipe_chargement')

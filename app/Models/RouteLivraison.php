@@ -10,6 +10,7 @@ use Amana\Shared\Models\VehiculeType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * Une tournée de livraison (bénévole + créneau + arrêts ordonnés).
@@ -65,6 +66,8 @@ class RouteLivraison extends Model
      * un conditionnement déjà marqué prêt pour reprendre les colis — voir
      * PackagingController::annulerConditionnement() et le RouteIncident
      * de même nom levé en même temps pour avertir l'équipe chargement.
+     * Retourne à 'chargement' quand tous les colis sont de nouveau prêts
+     * (voir PackagingController::finaliserConditionnement()).
      */
     /**
      * 'charge' ajouté le 09/09/2026 (prompt §4) : voir le docblock de la
@@ -79,6 +82,32 @@ class RouteLivraison extends Model
      * RouteMutationService::supprimer()).
      */
     public const STATUTS = ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule', 'annulee'];
+
+    /**
+     * Prévient admin/gestionnaire quand une tournée passe à
+     * 'livraisons_terminees' (Scénario 2 du chantier "polling live") —
+     * même principe que RouteIncident::booted() : centralisé sur le
+     * modèle pour qu'AUCUN point de bascule (aujourd'hui uniquement
+     * MaRouteController::livraisonTerminee()) n'oublie de notifier.
+     * wasChanged('statut') : un second appel alors que la tournée est déjà
+     * 'livraisons_terminees' ne change rien, donc n'envoie aucun doublon.
+     * Voir App\Notifications\RouteTermineeNotification pour le
+     * raisonnement "une notification par tournée, pas par arrêt".
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (RouteLivraison $route) {
+            if (!$route->wasChanged('statut') || $route->statut !== 'livraisons_terminees') {
+                return;
+            }
+
+            $destinataires = Personne::adminsDe()
+                ->orWhere(fn ($q) => $q->avecRole('gestionnaire'))
+                ->get();
+
+            Notification::send($destinataires, new \App\Notifications\RouteTermineeNotification($route));
+        });
+    }
 
     // ── Relations ─────────────────────────────────────────────────────────
 
