@@ -53,6 +53,7 @@ const props = defineProps<{
     showUrlTemplate: string;
     updateUrlTemplate: string;
     deverrouillerUrlTemplate: string;
+    renouvelerVerrouUrlTemplate: string;
     forcerDeverrouillageUrlTemplate: string;
     uploadUrlTemplate: string;
     downloadUrlTemplate: string;
@@ -119,6 +120,7 @@ const currentQuery = computed(() => ({
         :show-url-template="showUrlTemplate"
         :update-url-template="updateUrlTemplate"
         :deverrouiller-url-template="deverrouillerUrlTemplate"
+        :renouveler-verrou-url-template="renouvelerVerrouUrlTemplate"
         :forcer-deverrouillage-url-template="forcerDeverrouillageUrlTemplate"
         :upload-url-template="uploadUrlTemplate"
         :download-url-template="downloadUrlTemplate"

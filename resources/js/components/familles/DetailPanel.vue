@@ -23,6 +23,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { definirPanneauOuvert } from './useDossierPanel';
+import { useHeartbeatVerrou } from './useHeartbeatVerrou';
+import BandeauVerrouPerdu from './BandeauVerrouPerdu.vue';
 import { Modal } from '@amana/shared-ui';
 import { useToast } from '@amana/shared-ui';
 import { useConfirm } from '@amana/shared-ui';
@@ -185,7 +187,22 @@ const open = ref(false);
 // chargement ; le démontage remet le drapeau à false (le drapeau est un
 // singleton de module, il survivrait sinon à un changement de page).
 watch(open, (ouvert) => definirPanneauOuvert(ouvert));
-onUnmounted(() => definirPanneauOuvert(false));
+// Battement de cœur du verrou (suite du Scénario 5) : renouvelle le verrou
+// tant que ce panneau est ouvert et l'utilisateur actif, et signale via
+// `verrouPerdu` qu'un autre utilisateur a repris le dossier — voir
+// useHeartbeatVerrou.ts pour le raisonnement complet et les garde-fous.
+const heartbeat = useHeartbeatVerrou({
+    urlPour: (id) => (urls.renouvelerVerrou ? urls.renouvelerVerrou.replace('__ID__', String(id)) : ''),
+    csrf: csrfToken,
+});
+const verrouPerdu = heartbeat.verrouPerdu;
+onUnmounted(() => {
+    heartbeat.arreter();
+    definirPanneauOuvert(false);
+    // Le listener était enregistré au montage (voir onMounted) et jamais retiré :
+    // chaque montage de page laissait un écouteur de plus sur `window`.
+    window.removeEventListener('beforeunload', libererVerrouAuDechargement);
+});
 const loading = ref(false);
 const saving = ref(false);
 const famille = ref<Famille | null>(null);
@@ -224,6 +241,7 @@ let urls = {
     show: '',
     update: '',
     deverrouiller: '',
+    renouvelerVerrou: '',
     forcerDeverrouillage: '',
     upload: '',
     download: '',
@@ -244,6 +262,9 @@ const props = defineProps<{
     showUrlTemplate: string;
     updateUrlTemplate: string;
     deverrouillerUrlTemplate: string;
+    // Battement de cœur du verrou (voir useHeartbeatVerrou.ts) — optionnel :
+    // sans lui, le panneau se comporte comme avant (verrou posé à l'ouverture seulement).
+    renouvelerVerrouUrlTemplate?: string;
     forcerDeverrouillageUrlTemplate: string;
     uploadUrlTemplate: string;
     downloadUrlTemplate: string;
@@ -259,6 +280,7 @@ function csrfToken(): string {
 }
 
 async function openFamilleDetail(id: number): Promise<void> {
+    heartbeat.arreter();
     open.value = true;
     loading.value = true;
     errors.value = {};
@@ -333,6 +355,8 @@ async function openFamilleDetail(id: number): Promise<void> {
         adresseInitiale.adresse = famille.value?.adresse ?? '';
         adresseInitiale.code_postal = famille.value?.code_postal ?? '';
         adresseInitiale.ville_texte = famille.value?.ville_texte ?? '';
+        // Le verrou vient d'être pris par show() : les battements démarrent.
+        heartbeat.demarrer(id);
     } catch (e) {
         toast.error('Impossible de charger le dossier.');
         open.value = false;
@@ -360,6 +384,7 @@ function libererVerrou(): void {
 }
 
 function close(): void {
+    heartbeat.arreter();
     libererVerrou();
     open.value = false;
     famille.value = null;
@@ -379,6 +404,7 @@ function close(): void {
 function libererVerrouAuDechargement(): void {
     if (!open.value || !famille.value || !urls.deverrouiller) return;
 
+    heartbeat.pause();
     const corps = new URLSearchParams();
     corps.set('_token', csrfToken());
     navigator.sendBeacon(urls.deverrouiller.replace('__ID__', String(famille.value.id)), corps);
@@ -420,6 +446,10 @@ async function enregistrer(): Promise<void> {
     if (!famille.value) return;
     saving.value = true;
     errors.value = {};
+    // Pas de battement PENDANT/APRÈS l'enregistrement : update() vide le verrou et
+    // un battement tardif le reprendrait (dossier rebasculé sur 'En cours' juste
+    // après la sauvegarde). Repris uniquement si la requête échoue.
+    heartbeat.pause();
 
     try {
         const res = await fetch(urls.update.replace('__ID__', String(famille.value.id)), {
@@ -452,6 +482,7 @@ async function enregistrer(): Promise<void> {
             const premierOngletEnErreur = TABS.find((t) => ongletEnErreur(t.id));
             if (premierOngletEnErreur) activeTab.value = premierOngletEnErreur.id;
             toast.error('Merci de corriger les champs en erreur.');
+            heartbeat.reprendre();
             return;
         }
 
@@ -468,6 +499,7 @@ async function enregistrer(): Promise<void> {
         setTimeout(() => window.location.reload(), 600);
     } catch (e) {
         toast.error('Erreur réseau — le dossier n\'a pas été enregistré.');
+        heartbeat.reprendre();
     } finally {
         saving.value = false;
     }
@@ -746,6 +778,7 @@ onMounted(() => {
         show: props.showUrlTemplate,
         update: props.updateUrlTemplate,
         deverrouiller: props.deverrouillerUrlTemplate,
+        renouvelerVerrou: props.renouvelerVerrouUrlTemplate ?? '',
         forcerDeverrouillage: props.forcerDeverrouillageUrlTemplate,
         upload: props.uploadUrlTemplate,
         download: props.downloadUrlTemplate,
@@ -791,6 +824,11 @@ onMounted(() => {
         <div v-if="loading" class="py-16 text-center text-ink-muted text-[13.5px]">Chargement du dossier…</div>
 
         <form v-else-if="famille" @submit.prevent="enregistrer" class="space-y-4">
+
+            <!-- Un autre utilisateur a repris ce dossier pendant l'édition (battement
+                 de cœur du verrou, voir useHeartbeatVerrou.ts) — informatif, l'enregistrement
+                 reste possible. -->
+            <BandeauVerrouPerdu v-if="verrouPerdu" :par="verrouPerdu.par" />
 
             <!-- Barre d'onglets — flex-wrap + gap-y (04/09/2026) : 5 onglets
                  (voir TABS plus haut) débordaient sur un téléphone étroit

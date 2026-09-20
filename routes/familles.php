@@ -111,6 +111,10 @@ Route::middleware('auth')->group(function () {
     // pris par show() sans enregistrer, voir FamillesController::deverrouiller()
     // et DetailPanel.vue (fermeture du panneau sans sauvegarde).
     Route::post('/familles/{id}/deverrouiller', [\App\Http\Controllers\FamillesController::class, 'deverrouiller'])->whereNumber('id')->name('familles.deverrouiller');
+    // Battement de cœur du verrou (19/09/2026, suite du Scénario 5 du chantier
+    // "polling live") — renouvelle/reprend le verrou tant que le panneau est
+    // ouvert et actif, voir FamillesController::renouvelerVerrou().
+    Route::post('/familles/{id}/renouveler-verrou', [\App\Http\Controllers\FamillesController::class, 'renouvelerVerrou'])->whereNumber('id')->name('familles.renouveler-verrou');
     Route::post('/familles/{id}/documents', [\App\Http\Controllers\FamillesController::class, 'uploadDocument'])->whereNumber('id')->name('familles.documents.store');
     Route::get('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'downloadDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.download');
     Route::delete('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'destroyDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.destroy');

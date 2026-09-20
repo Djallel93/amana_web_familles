@@ -252,6 +252,52 @@ class Famille extends Model
     }
 
     /**
+     * Libère TOUS les verrous d'édition périmés — appelé par la commande
+     * planifiée familles:liberer-verrous-perimes (toutes les 5 minutes).
+     *
+     * Un crash navigateur ou une fermeture réseau brutale laisse le dossier
+     * à etat_dossier = 'En cours' avec un verrou que plus personne ne
+     * renouvelle (le sendBeacon de DetailPanel.vue est best-effort). Sans
+     * ce nettoyage le statut d'origine n'était restauré que si quelqu'un
+     * rouvrait puis refermait ce dossier — et un dossier 'Recu' abandonné
+     * restait invisible dans "Nouvelles demandes", qui ne liste que 'Recu'.
+     *
+     * Restaure etat_dossier_avant_verrouillage (COALESCE : sans valeur
+     * capturée, le statut actuel est conservé) puis vide le verrou, en UN
+     * SEUL UPDATE conditionnel : un battement de cœur ou une réouverture qui
+     * passe entre-temps l'emporte (la condition n'est plus vraie) sans
+     * qu'aucune lecture-puis-écriture ne puisse écraser un verrou tout
+     * juste renouvelé.
+     *
+     * Ne touche QUE les lignes portant un enregistrement de verrou
+     * (locked_by non nul) : 'En cours' est aussi un statut légitime hors
+     * verrou (défaut de FamilleImportService), un 'En cours' sans verrou
+     * n'est jamais modifié. toBase() : ni événements de modèle, ni
+     * updated_at — restaurer un statut n'est pas une modification du
+     * dossier (décision du 19/09/2026).
+     *
+     * @return int nombre de dossiers libérés
+     */
+    public static function libererVerrousPerimes(): int
+    {
+        $limite = now()->subMinutes(self::VERROU_TTL_MINUTES);
+
+        return static::query()
+            ->whereNotNull('locked_by')
+            ->where(function ($q) use ($limite) {
+                $q->where('locked_at', '<', $limite)
+                    ->orWhereNull('locked_at');
+            })
+            ->toBase()
+            ->update([
+                'etat_dossier' => new \Illuminate\Database\Query\Expression('COALESCE(etat_dossier_avant_verrouillage, etat_dossier)'),
+                'etat_dossier_avant_verrouillage' => null,
+                'locked_by' => null,
+                'locked_at' => null,
+            ]);
+    }
+
+    /**
      * Le verrou d'édition est-il ENCORE VALIDE (posé ET plus récent que
      * VERROU_TTL_MINUTES) ? Même règle que celle qu'applique
      * FamillesController::show() pour refuser l'ouverture à un autre

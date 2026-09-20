@@ -618,22 +618,70 @@ class FamillesController extends Controller
         $famille->quartier?->makeHidden('boundary');
         $famille->quartier?->secteur?->ville?->makeHidden('boundary');
 
-        // Verrouillage d'édition (décision du 15/08/2026) — ouvrir le
-        // Dossier Panel, c'est TOUJOURS dans l'intention de l'éditer (seul
-        // point d'entrée de ce endpoint, voir DetailPanel.vue), donc c'est
-        // ici qu'on prend le verrou. Choix assumé de le faire sur ce GET
-        // plutôt que via un endpoint POST dédié : les deux actions (charger
-        // les données, verrouiller) sont indissociables du point de vue du
-        // panneau, un GET+POST séparés n'apporterait qu'une fenêtre de race
-        // condition supplémentaire pour peu de bénéfice — même logique
-        // "simple v1" que le reste du panneau.
+        // Verrouillage d'édition (décision du 15/08/2026) — voir
+        // prendreVerrou() pour le raisonnement complet. Un verrou frais
+        // détenu par un autre utilisateur refuse l'ouverture (423).
+        $refus = $this->prendreVerrou($famille, auth()->user());
+        if ($refus !== null) {
+            return $refus;
+        }
+
+        // Le JSON renvoyé au panneau affiche le VRAI statut d'origine, pas
+        // la bascule interne 'En cours' qui vient d'être persistée en base
+        // (décision du 15/08/2026 — 'En cours' n'est plus un choix possible
+        // du <select> de DetailPanel.vue, voir Famille::ETATS_SELECTIONNABLES ;
+        // le montrer quand même casserait la présélection du menu et
+        // risquerait, si le staff n'y touche pas, de faire retomber le
+        // <select> HTML sur sa première option par défaut — perte de
+        // statut silencieuse). Cette réaffectation ne touche que l'objet
+        // en mémoire, pas la base : 'En cours' y reste bien stocké, c'est
+        // justement ce qui alimente le filtre de la vue principale.
         //
-        // Un verrou détenu par UN AUTRE utilisateur et encore frais (moins
-        // de VERROU_TTL_MINUTES) bloque l'ouverture ; un verrou détenu par
-        // le même utilisateur (ex : rechargement de page) ou périmé (crash
-        // navigateur précédent, cf. commentaire sur VERROU_TTL_MINUTES) est
-        // traversé normalement.
-        $utilisateur = auth()->user();
+        // Cas particulier 'Recu' : ce statut n'est lui non plus PAS dans
+        // ETATS_SELECTIONNABLES (jamais choisi manuellement depuis ce
+        // panneau, voir IntakeController::store) — l'afficher tel quel
+        // provoquerait exactement le même problème de présélection
+        // invalide. On retombe alors sur 'En attente', premier statut de
+        // traitement réel, qui est de toute façon la suite logique
+        // attendue pour un dossier tout juste reçu qu'un membre du staff
+        // vient d'ouvrir. Si le staff ferme sans enregistrer
+        // (deverrouiller()), le dossier retrouve bien 'Recu' — ce
+        // fallback n'affecte que ce qui s'affiche dans le formulaire.
+        $famille->etat_dossier = in_array($famille->etat_dossier_avant_verrouillage, Famille::ETATS_SELECTIONNABLES, true)
+            ? $famille->etat_dossier_avant_verrouillage
+            : 'En attente';
+
+        return response()->json(new FamilleDetailResource($famille));
+    }
+
+    /**
+     * Verrouillage d'édition (décision du 15/08/2026) — ouvrir le
+     * Dossier Panel, c'est TOUJOURS dans l'intention de l'éditer (seul
+     * point d'entrée de ce endpoint, voir DetailPanel.vue), donc c'est
+     * ici qu'on prend le verrou. Choix assumé de le faire sur ce GET
+     * plutôt que via un endpoint POST dédié : les deux actions (charger
+     * les données, verrouiller) sont indissociables du point de vue du
+     * panneau, un GET+POST séparés n'apporterait qu'une fenêtre de race
+     * condition supplémentaire pour peu de bénéfice — même logique
+     * "simple v1" que le reste du panneau.
+     *
+     * Un verrou détenu par UN AUTRE utilisateur et encore frais (moins
+     * de VERROU_TTL_MINUTES) bloque l'ouverture ; un verrou détenu par
+     * le même utilisateur (ex : rechargement de page) ou périmé (crash
+     * navigateur précédent, cf. commentaire sur VERROU_TTL_MINUTES) est
+     * traversé normalement.
+     *
+     * Extrait de show() (Scénario 5, suite : battement de cœur du verrou) pour
+     * que l'ouverture du panneau ET son renouvellement périodique
+     * (renouvelerVerrou()) appliquent EXACTEMENT la même règle : un verrou
+     * frais d'un autre utilisateur bloque ; un verrou à soi ou périmé est
+     * pris/repris en conservant l'état d'origine déjà capturé.
+     *
+     * @return JsonResponse|null la réponse 423 si le dossier est verrouillé par
+     *   un autre utilisateur ; null si le verrou vient d'être pris/renouvelé.
+     */
+    private function prendreVerrou(Famille $famille, Personne $utilisateur): ?JsonResponse
+    {
         $verrouExpireLe = now()->subMinutes(Famille::VERROU_TTL_MINUTES);
         $verrouActifParAutrui = $famille->locked_by
             && (int) $famille->locked_by !== (int) $utilisateur->id
@@ -680,32 +728,49 @@ class FamillesController extends Controller
         // l'enregistrement explicite (update() ci-dessous) doit y figurer.
         $famille->saveQuietly();
 
-        // Le JSON renvoyé au panneau affiche le VRAI statut d'origine, pas
-        // la bascule interne 'En cours' qui vient d'être persistée en base
-        // (décision du 15/08/2026 — 'En cours' n'est plus un choix possible
-        // du <select> de DetailPanel.vue, voir Famille::ETATS_SELECTIONNABLES ;
-        // le montrer quand même casserait la présélection du menu et
-        // risquerait, si le staff n'y touche pas, de faire retomber le
-        // <select> HTML sur sa première option par défaut — perte de
-        // statut silencieuse). Cette réaffectation ne touche que l'objet
-        // en mémoire, pas la base : 'En cours' y reste bien stocké, c'est
-        // justement ce qui alimente le filtre de la vue principale.
-        //
-        // Cas particulier 'Recu' : ce statut n'est lui non plus PAS dans
-        // ETATS_SELECTIONNABLES (jamais choisi manuellement depuis ce
-        // panneau, voir IntakeController::store) — l'afficher tel quel
-        // provoquerait exactement le même problème de présélection
-        // invalide. On retombe alors sur 'En attente', premier statut de
-        // traitement réel, qui est de toute façon la suite logique
-        // attendue pour un dossier tout juste reçu qu'un membre du staff
-        // vient d'ouvrir. Si le staff ferme sans enregistrer
-        // (deverrouiller()), le dossier retrouve bien 'Recu' — ce
-        // fallback n'affecte que ce qui s'affiche dans le formulaire.
-        $famille->etat_dossier = in_array($famille->etat_dossier_avant_verrouillage, Famille::ETATS_SELECTIONNABLES, true)
-            ? $famille->etat_dossier_avant_verrouillage
-            : 'En attente';
+        return null;
+    }
 
-        return response()->json(new FamilleDetailResource($famille));
+    /**
+     * Battement de cœur du verrou d'édition (suite du Scénario 5) — appelé
+     * périodiquement par DetailPanel.vue (voir useHeartbeatVerrou.ts) tant
+     * que le panneau est ouvert ET que l'utilisateur est actif. Sans lui,
+     * locked_at n'était posé qu'à l'ouverture : passé
+     * VERROU_TTL_MINUTES, le verrou d'une édition longue devenait libre,
+     * un autre utilisateur pouvait ouvrir le même dossier, et update()
+     * (qui relâche le verrou "quel que soit qui le détenait") laisse le
+     * dernier enregistrement l'emporter en silence.
+     *
+     *  - verrou déjà à moi (et état d'origine déjà capturé) : simple
+     *    rafraîchissement de locked_at, SANS toucher updated_at (un
+     *    battement de cœur n'est pas une modification du dossier) ;
+     *  - verrou libre, périmé, ou nettoyé entre-temps par
+     *    familles:liberer-verrous-perimes (voir Famille::libererVerrousPerimes()) :
+     *    repris comme à l'ouverture ;
+     *  - verrou frais d'un AUTRE utilisateur : 423, même corps que show() —
+     *    le panneau affiche alors un bandeau d'avertissement (l'enregistrement
+     *    reste possible, décision du 19/09/2026).
+     */
+    public function renouvelerVerrou(int $id): JsonResponse
+    {
+        $famille = Famille::findOrFail($id);
+        $utilisateur = auth()->user();
+
+        if ((int) $famille->locked_by === (int) $utilisateur->id && $famille->etat_dossier_avant_verrouillage !== null) {
+            $famille->locked_at = now();
+            $famille->timestamps = false;
+            $famille->saveQuietly();
+            $famille->timestamps = true;
+
+            return response()->json(['success' => true, 'locked_at' => $famille->locked_at]);
+        }
+
+        $refus = $this->prendreVerrou($famille, $utilisateur);
+        if ($refus !== null) {
+            return $refus;
+        }
+
+        return response()->json(['success' => true, 'locked_at' => $famille->locked_at]);
     }
 
     /**

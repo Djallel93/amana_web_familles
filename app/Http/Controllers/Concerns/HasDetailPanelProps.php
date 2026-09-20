@@ -31,6 +31,7 @@ trait HasDetailPanelProps
             'showUrlTemplate' => route('familles.show', ['id' => '__ID__']),
             'updateUrlTemplate' => route('familles.update', ['id' => '__ID__']),
             'deverrouillerUrlTemplate' => route('familles.deverrouiller', ['id' => '__ID__']),
+            'renouvelerVerrouUrlTemplate' => route('familles.renouveler-verrou', ['id' => '__ID__']),
             'forcerDeverrouillageUrlTemplate' => route('familles.forcer-deverrouillage', ['id' => '__ID__']),
             'uploadUrlTemplate' => route('familles.documents.store', ['id' => '__ID__']),
             'downloadUrlTemplate' => route('familles.documents.download', ['id' => '__ID__', 'documentId' => '__DOC__']),
