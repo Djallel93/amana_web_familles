@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Livraison;
 
 use Amana\Shared\Models\Personne;
+use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
@@ -13,6 +14,7 @@ use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\LivraisonColis;
 use App\Models\RouteIncident;
+use App\Models\RouteLivraison;
 use App\Notifications\PackagingAnnuleNotification;
 use App\Notifications\RoutePretePourChargementNotification;
 use App\Services\CouvertureCollecteService;
@@ -50,6 +52,7 @@ class PackagingController extends Controller
 
     public function __construct(
         private readonly QrCodeService $qrCode,
+        private readonly NotificationCenterService $notificationCenter,
     ) {
     }
 
@@ -263,6 +266,29 @@ class PackagingController extends Controller
     }
 
     /**
+     * Une tournée re-conditionnée après une annulation n'a plus de raison de
+     * garder son incident 'packaging_annule' ouvert — sans cela, la bannière
+     * d'alerte urgente des admins (UrgentAlertBar) continuait de signaler un
+     * problème réglé jusqu'à une résolution manuelle dans le Suivi
+     * livraison. Mêmes deux gestes que la résolution manuelle pour ce type
+     * (voir LiveBoardController::resoudreIncident()) : statut 'resolu' +
+     * retrait de la notification urgente correspondante. Aucun autre champ
+     * n'est renseigné à la résolution manuelle, donc aucune trace d'audit
+     * n'est perdue ici. Sans effet si l'incident a déjà été résolu à la main.
+     */
+    private function resoudreIncidentsPackagingAnnule(RouteLivraison $route): void
+    {
+        RouteIncident::ouverts()
+            ->where('id_route', $route->id)
+            ->where('type', 'packaging_annule')
+            ->get()
+            ->each(function (RouteIncident $incident) {
+                $incident->update(['statut' => 'resolu']);
+                $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
+            });
+    }
+
+    /**
      * Bascule la tournée en 'chargement' + notifie l'équipe chargement/
      * chauffeur quand TOUTES les livraisons de cette tournée sont
      * désormais prêtes — logique inchangée par rapport à l'ancien
@@ -293,12 +319,17 @@ class PackagingController extends Controller
             // code n'écrit 'chargement' — constaté le 19/09/2026 en
             // relisant tous les écrivains de statut), et restait
             // indéfiniment "Packaging annulé" sur
-            // l'écran chargement, boutons masqués. Le RouteIncident
-            // 'packaging_annule' lui-même reste 'ouvert' jusqu'à ce qu'un
-            // admin le résolve (flux inchangé, voir
-            // LiveBoardController::resoudreIncident()).
+            // l'écran chargement, boutons masqués. Le(s) RouteIncident
+            // 'packaging_annule' ouvert(s) de cette tournée sont résolus
+            // dans la foulée — voir resoudreIncidentsPackagingAnnule().
+            $etaitAnnulee = $route->statut === 'packaging_annule';
+
             if ($toutesPretes && in_array($route->statut, ['planifiee', 'packaging_annule'], true)) {
                 $route->update(['statut' => 'chargement']);
+
+                if ($etaitAnnulee) {
+                    $this->resoudreIncidentsPackagingAnnule($route);
+                }
 
                 // Remplacé le 08/09/2026 : Personne::avecRole('equipe_chargement')
                 // notifiait TOUT détenteur du rôle global, toutes campagnes
