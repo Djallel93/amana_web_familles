@@ -34,7 +34,11 @@
     ce composant (vérifié par grep avant conversion), il n'y a pas de
     page Blade non migrée à faire coexister.
 
-    Rafraîchissement automatique (Scénario 2 du chantier "polling live") :
+    Rafraîchissement automatique (Scénario 2 du chantier "polling live" —
+    règle de cohérence pour tout le polling de l'application : voir
+    l'en-tête de components/familles/useLiveDossiers.ts ; ce composant est
+    le cas 2 de cette règle, données JSON dans un composant Vue, où le
+    usePoll() d'Inertia ne convient pas) :
     incidents/tournées/statistiques sont relus en arrière-plan toutes les
     20s (POLL_MS) pour qu'un arrêt livré ou ignoré par un chauffeur
     apparaisse sans action de l'admin. Ces données restent des endpoints

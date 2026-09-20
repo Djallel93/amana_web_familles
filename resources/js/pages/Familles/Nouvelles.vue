@@ -17,6 +17,7 @@ import { computed } from 'vue';
 import FamilleFiltresBar from '../../components/familles/FamilleFiltresBar.vue';
 import FamillesTable, { type FamilleLigne } from '../../components/familles/FamillesTable.vue';
 import DetailPanel from '../../components/familles/DetailPanel.vue';
+import { useLiveDossiers } from '../../components/familles/useLiveDossiers';
 import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from '../../components/livraison/shared/types';
 
 interface ListeOption {
@@ -59,6 +60,10 @@ const props = defineProps<{
     initialGooglePlacesKey: string;
     initialGoogleEmbedKey: string;
 }>();
+
+// Rechargement automatique du tableau (Scénario 5 du chantier "polling live") —
+// voir useLiveDossiers.ts pour le raisonnement et la règle de cohérence.
+useLiveDossiers();
 
 const baseUrl = window.location.pathname;
 

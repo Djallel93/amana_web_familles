@@ -21,7 +21,8 @@
     de recherche Google — un seul scroll aurait été peu praticable.
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { definirPanneauOuvert } from './useDossierPanel';
 import { Modal } from '@amana/shared-ui';
 import { useToast } from '@amana/shared-ui';
 import { useConfirm } from '@amana/shared-ui';
@@ -177,6 +178,14 @@ const toast = useToast();
 const confirmDialog = useConfirm();
 
 const open = ref(false);
+// Partage l'état d'ouverture avec useLiveDossiers (Scénario 5 du chantier
+// "polling live") : le tableau derrière ce panneau ne se rafraîchit pas
+// tant qu'il est ouvert. Un watch() unique couvre les 5 endroits qui
+// modifient `open`, y compris les refus de verrou et les erreurs de
+// chargement ; le démontage remet le drapeau à false (le drapeau est un
+// singleton de module, il survivrait sinon à un changement de page).
+watch(open, (ouvert) => definirPanneauOuvert(ouvert));
+onUnmounted(() => definirPanneauOuvert(false));
 const loading = ref(false);
 const saving = ref(false);
 const famille = ref<Famille | null>(null);

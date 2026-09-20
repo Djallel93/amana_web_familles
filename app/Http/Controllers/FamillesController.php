@@ -80,7 +80,11 @@ class FamillesController extends Controller
 
     public function index(Request $request): Response
     {
-        $query = $this->baseQuery($request);
+        // verrouilleur : marqueur "🔒 <nom>" du tableau (Scénario 5 du chantier
+        // "polling live") — une seule requête groupée (whereIn sur locked_by),
+        // pas de N+1 ; volontairement PAS dans baseQuery(), aussi utilisé par
+        // export() qui n'en a pas l'usage.
+        $query = $this->baseQuery($request)->with('verrouilleur:id,nom,prenom');
 
         $etatDossier = $this->appliquerFiltreStatut($query, $request);
 
@@ -166,7 +170,8 @@ class FamillesController extends Controller
      */
     public function nouvelles(Request $request): Response
     {
-        $query = $this->baseQuery($request)->where('etat_dossier', 'Recu');
+        // Même eager load de verrouilleur que index() — voir son commentaire.
+        $query = $this->baseQuery($request)->with('verrouilleur:id,nom,prenom')->where('etat_dossier', 'Recu');
 
         $this->appliquerTri($query, $request, colonneDefaut: 'created_at');
 

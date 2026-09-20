@@ -60,6 +60,12 @@ interface OrganisationResume {
     nom: string;
 }
 
+export interface FamilleVerrou {
+    par: string | null;
+    par_moi: boolean;
+    depuis: string;
+}
+
 export interface FamilleLigne {
     id: number;
     nom: string;
@@ -67,6 +73,9 @@ export interface FamilleLigne {
     nombre_foyer: number;
     probleme_traitement: string | null;
     etat_dossier: string;
+    // Verrou d'édition EN COURS (Scénario 5, voir FamilleListItemResource) :
+    // null = personne ; absent = relation non chargée côté serveur.
+    verrou?: FamilleVerrou | null;
     email: string | null;
     telephone_formate: string;
     telephone_bis_formate: string | null;
@@ -195,6 +204,20 @@ function initiales(ligne: FamilleLigne): string {
 // toujours réinitialisé aux valeurs 'defaut' de COLONNES_TABLEAU au
 // (re)montage du composant, exactement comme le comportement Blade
 // d'origine au rechargement de page.
+// Marqueur "🔒 <nom>" (Scénario 5 du chantier "polling live") — affiché
+// pour un verrou d'édition encore valide uniquement (le serveur renvoie
+// null dès que le verrou est périmé, voir Famille::verrouFrais()) : c'est ce
+// qui distingue un dossier réellement en cours d'édition d'un dossier resté
+// à 'En cours' après un plantage de navigateur.
+function libelleVerrou(verrou: FamilleVerrou): string {
+    return verrou.par_moi ? 'vous' : (verrou.par ?? 'un collègue');
+}
+
+function titreVerrou(verrou: FamilleVerrou): string {
+    const heure = new Date(verrou.depuis).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return `En cours de modification par ${verrou.par_moi ? 'vous' : (verrou.par ?? 'un collègue')} depuis ${heure}`;
+}
+
 const colonnesVisibles = ref<Record<string, boolean>>(
     Object.fromEntries(Object.entries(COLONNES_TABLEAU).map(([cle, colonne]) => [cle, colonne.defaut])),
 );
@@ -287,6 +310,7 @@ function ouvrir(id: number) {
                                     <div class="min-w-0">
                                         <div class="font-semibold text-ink">{{ ligne.prenom }} {{ ligne.nom }}</div>
                                         <div class="text-[11.5px] text-ink-muted">{{ ligne.nombre_foyer }} pers.</div>
+                                        <span v-if="ligne.verrou" data-verrou class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full text-[10.5px] font-semibold border border-amber-300 bg-amber-50 text-amber-800" :title="titreVerrou(ligne.verrou)">🔒 {{ libelleVerrou(ligne.verrou) }}</span>
                                         <div v-if="ligne.probleme_traitement" class="text-[11px] text-rose-600 font-semibold mt-0.5">⚠️ {{ ligne.probleme_traitement }}</div>
                                     </div>
                                 </div>
@@ -350,6 +374,7 @@ function ouvrir(id: number) {
                             <div class="min-w-0">
                                 <div class="font-semibold text-[13.5px] text-ink truncate">{{ ligne.prenom }} {{ ligne.nom }}</div>
                                 <div class="text-[11.5px] text-ink-muted">#{{ ligne.id }} · {{ ligne.nombre_foyer }} pers.</div>
+                                <span v-if="ligne.verrou" data-verrou class="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-full text-[10.5px] font-semibold border border-amber-300 bg-amber-50 text-amber-800" :title="titreVerrou(ligne.verrou)">🔒 {{ libelleVerrou(ligne.verrou) }}</span>
                             </div>
                         </div>
                         <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold border" :class="ETAT_COLORS[ligne.etat_dossier] ?? ''">

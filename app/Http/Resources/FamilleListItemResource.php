@@ -30,6 +30,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * l'ancien tableau.blade.php ET sur la Vue portée), l'eager load a été
  * réduit à `quartier` seul dans baseQuery() en même temps que ce
  * resource plutôt que d'être sérialisé sans consommateur.
+ *
+ * `verrou` (Scénario 5 du chantier "polling live", 19/09/2026) : seul
+ * ajout hors Famille::COLONNES_TABLEAU — le marqueur "🔒 <nom>" du
+ * tableau, voir le commentaire sur le champ.
  */
 class FamilleListItemResource extends JsonResource
 {
@@ -73,6 +77,22 @@ class FamilleListItemResource extends JsonResource
             'ressentit' => $this->ressentit,
             'specificites' => $this->specificites,
             'commentaire_dossier' => $this->commentaire_dossier,
+            // Verrou d'édition EN COURS (Scénario 5 du chantier "polling
+            // live") : null si personne n'édite ce dossier ou si le verrou
+            // est périmé (voir Famille::verrouFrais()). Absent du payload
+            // si la relation `verrouilleur` n'a pas été chargée (seuls
+            // index()/nouvelles() la chargent). `par_moi` : permet au
+            // tableau d'afficher "vous" plutôt que son propre nom.
+            // when(relationLoaded(...)) plutôt que whenLoaded('verrouilleur',
+            // closure) : ce dernier renvoie null SANS appeler la closure quand
+            // la relation chargée est null — un verrou frais dont le
+            // détenteur n'existe plus (personne supprimée) disparaîtrait du
+            // tableau alors que show() refuse toujours l'ouverture.
+            'verrou' => $this->when($this->resource->relationLoaded('verrouilleur'), fn () => $this->verrouFrais() ? [
+                'par' => $this->verrouilleur?->nom_complet,
+                'par_moi' => (int) $this->locked_by === (int) $request->user()?->id,
+                'depuis' => $this->locked_at->toISOString(),
+            ] : null),
             'created_at' => $this->created_at?->toISOString(),
         ];
     }

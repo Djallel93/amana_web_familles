@@ -238,6 +238,36 @@ class Famille extends Model
 
     // ── Relations ─────────────────────────────────────────────────────────
 
+    /**
+     * Détenteur du verrou d'édition (locked_by → ref_personnes.id, sans FK
+     * physique — voir la migration create_familles_domain_tables). Chargé
+     * uniquement par FamillesController::index()/nouvelles() pour le
+     * marqueur "🔒 <nom>" du tableau (Scénario 5 du chantier "polling
+     * live") — jamais par show(), qui charge déjà le propriétaire à la main
+     * dans son 423.
+     */
+    public function verrouilleur(): BelongsTo
+    {
+        return $this->belongsTo(Personne::class, 'locked_by');
+    }
+
+    /**
+     * Le verrou d'édition est-il ENCORE VALIDE (posé ET plus récent que
+     * VERROU_TTL_MINUTES) ? Même règle que celle qu'applique
+     * FamillesController::show() pour refuser l'ouverture à un autre
+     * utilisateur — un verrou périmé (crash navigateur, voir le commentaire
+     * sur VERROU_TTL_MINUTES) n'est PAS affiché comme un verrou dans le
+     * tableau, même si etat_dossier y reste à 'En cours' (aucun job ne
+     * nettoie ces états, et il n'y a pas de battement de cœur : locked_at
+     * n'est posé qu'à l'ouverture du panneau).
+     */
+    public function verrouFrais(): bool
+    {
+        return $this->locked_by !== null
+            && $this->locked_at !== null
+            && $this->locked_at->greaterThan(now()->subMinutes(self::VERROU_TTL_MINUTES));
+    }
+
     public function quartier(): BelongsTo
     {
         return $this->belongsTo(Quartier::class, 'id_quartier');
