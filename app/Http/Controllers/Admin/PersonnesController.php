@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use Amana\Shared\Services\AccountChangeNotifier;
 use App\Http\Controllers\Controller;
 use App\Models\Organisation;
 use App\Models\Personne;
@@ -36,6 +37,7 @@ class PersonnesController extends Controller
 {
     public function __construct(
         private readonly RoleService $roleService,
+        private readonly AccountChangeNotifier $notifier,
     ) {
     }
 
@@ -250,6 +252,29 @@ class PersonnesController extends Controller
 
         return redirect()->route('admin.personnes.index')
             ->with('success', "Fiche de {$personne->prenom} {$personne->nom} mise à jour.");
+    }
+
+    /**
+     * « Envoyer un lien de réinitialisation » : envoie à la personne l'email
+     * standard de « mot de passe oublié » (broker 'personnes'). L'administrateur
+     * ne saisit ni ne voit jamais de mot de passe ni de jeton. Audité par le
+     * notifier (acteur = admin connecté, cible = la personne, jamais le jeton) ;
+     * limité à 5 envois par minute (routes/admin.php).
+     *
+     * NB : l'écran admin de familles ne modifie pas l'adresse email d'une personne
+     * (nom, prénom, téléphone, rôle seulement) : aucune notice de changement
+     * d'email à envoyer ici.
+     */
+    public function envoyerLienReinitialisation(int $id): RedirectResponse
+    {
+        $personne = Personne::findOrFail($id);
+        $nom = "{$personne->prenom} {$personne->nom}";
+
+        return match ($this->notifier->sendResetLink($personne)) {
+            Password::RESET_LINK_SENT => back()->with('success', "Lien de réinitialisation envoyé à {$personne->email} ({$nom})."),
+            Password::RESET_THROTTLED => back()->with('warning', "Un lien vient déjà d'être envoyé à {$nom} : patientez une minute avant d'en renvoyer un."),
+            default => back()->with('error', "L'envoi du lien de réinitialisation à {$nom} a échoué. Vérifiez la configuration email."),
+        };
     }
 
     /**

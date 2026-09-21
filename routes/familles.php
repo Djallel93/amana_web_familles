@@ -108,6 +108,23 @@ Route::middleware('auth')->group(function () {
         ->name('nav-badges.index')
         ->middleware('throttle:60,1');
 
+    // Mon profil — TOUTES les personnes connectées (bénévole, membre, gestionnaire,
+    // gestionnaire_externe, admin…), aucun middleware de rôle. Contrôleur partagé
+    // (amana/shared) : n'agit que sur l'utilisateur connecté, aucun id en
+    // paramètre. profile.extra.update sert la section « Informations bénévole »
+    // (App\Services\BenevoleProfileExtension). Le nom profile.password.update ne
+    // heurte pas password.update (flux de réinitialisation, routes/web.php).
+    Route::prefix('mon-profil')->name('profile.')->group(function () {
+        $profil = \Amana\Shared\Http\Controllers\ProfileController::class;
+
+        Route::get('/', [$profil, 'edit'])->name('edit');
+        Route::put('/', [$profil, 'update'])->name('update')->middleware('throttle:20,1');
+        Route::post('/email', [$profil, 'requestEmailChange'])->name('email.request')->middleware('throttle:5,1');
+        Route::get('/email/confirmer', [$profil, 'confirmEmailChange'])->name('email.confirm')->middleware(['signed', 'throttle:10,1']);
+        Route::put('/mot-de-passe', [$profil, 'updatePassword'])->name('password.update')->middleware('throttle:5,1');
+        Route::put('/extra', [$profil, 'updateExtra'])->name('extra.update')->middleware('throttle:20,1');
+    });
+
     Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
     Route::get('/nouvelles', [\App\Http\Controllers\FamillesController::class, 'nouvelles'])->name('familles.nouvelles');
     // Placée avant /familles/{id} par convention (whereNumber la protège déjà

@@ -27,6 +27,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/personnes', [PersonnesController::class, 'store'])->name('personnes.store');
     Route::get('/personnes/{id}/modifier', [PersonnesController::class, 'edit'])->name('personnes.edit');
     Route::put('/personnes/{id}', [PersonnesController::class, 'update'])->name('personnes.update');
+    // Un administrateur ne saisit ni ne voit jamais un mot de passe : il envoie à la
+    // personne le lien standard de (ré)initialisation (audité, limité à 5/min).
+    Route::post('/personnes/{id}/lien-reinitialisation', [PersonnesController::class, 'envoyerLienReinitialisation'])
+        ->name('personnes.reset-link')
+        ->middleware('throttle:5,1');
     Route::delete('/personnes/{id}', [PersonnesController::class, 'destroy'])->name('personnes.destroy');
 
     // ── Import/mise à jour en masse (décision 6.9) ───────────────────────

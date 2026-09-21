@@ -181,6 +181,24 @@
                 </div>
             </form>
         </div>
+
+        {{-- Mot de passe : un administrateur n'en saisit ni n'en voit jamais — il envoie un lien. --}}
+        @if($personne)
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-6 mt-6">
+                <h2 class="font-heading text-[14px] font-semibold text-ink mb-1">🔑 Mot de passe</h2>
+                <p class="text-[13px] text-ink-muted mb-4">
+                    Vous ne pouvez pas définir le mot de passe de cette personne : envoyez-lui un lien pour qu'elle le crée
+                    ou le réinitialise elle-même. L'email part à <strong class="text-ink">{{ $personne->email }}</strong>.
+                </p>
+                <form action="{{ route('admin.personnes.reset-link', $personne->id) }}" method="POST">
+                    @csrf
+                    <button type="submit"
+                        class="min-h-[46px] px-5 py-2.5 border-[1.5px] border-accent text-accent hover:bg-accent hover:text-white text-[13.5px] font-bold rounded-lg transition-colors cursor-pointer">
+                        ✉️ Envoyer un lien de réinitialisation
+                    </button>
+                </form>
+            </div>
+        @endif
     </div>
 
 @endsection
