@@ -16,7 +16,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "amana/shared": "^v2.3.2",
+        "amana/shared": "^2.5.0",
         "endroid/qr-code": "^5.0",
         "google/apiclient": "^2.18",
         "inertiajs/inertia-laravel": "^3.3",

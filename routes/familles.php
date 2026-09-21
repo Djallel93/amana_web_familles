@@ -98,6 +98,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/notifications/{id}/lue', [\Amana\Shared\Http\Controllers\NotificationsController::class, 'marquerLue'])
         ->name('notifications.marquer-lue');
 
+    // Badges de la sidebar en direct — même convention que les routes de
+    // notifications ci-dessus (contrôleur partagé, route déclarée par l'app).
+    // Ne renvoie que les compteurs des items que la sidebar montre à
+    // l'utilisateur ; interrogé toutes les 45 s et après chaque navigation
+    // Inertia (la sidebar est hors de la région @inertia). Voir
+    // App\Services\NavBadges et le README d'amana/shared.
+    Route::get('/nav-badges', \Amana\Shared\Http\Controllers\NavBadgesController::class)
+        ->name('nav-badges.index')
+        ->middleware('throttle:60,1');
+
     Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
     Route::get('/nouvelles', [\App\Http\Controllers\FamillesController::class, 'nouvelles'])->name('familles.nouvelles');
     // Placée avant /familles/{id} par convention (whereNumber la protège déjà
