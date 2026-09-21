@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1641c5225c276e0b36e235cb0bb81f6a",
+    "content-hash": "3e4cf2a33319dbb76a271b7c6ff759d9",
     "packages": [
         {
             "name": "amana/shared",
-            "version": "v2.4.0",
+            "version": "v2.5.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Djallel93/amana_shared.git",
-                "reference": "95348075630eaaabcd7c5274fb70d9654f184f95"
+                "reference": "3a35a5470c7f9533390df6dbba63318b81f9bb67"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/95348075630eaaabcd7c5274fb70d9654f184f95",
-                "reference": "95348075630eaaabcd7c5274fb70d9654f184f95",
+                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/3a35a5470c7f9533390df6dbba63318b81f9bb67",
+                "reference": "3a35a5470c7f9533390df6dbba63318b81f9bb67",
                 "shasum": ""
             },
             "require": {
@@ -62,10 +62,10 @@
                 "shared"
             ],
             "support": {
-                "source": "https://github.com/Djallel93/amana_shared/tree/v2.4.0",
+                "source": "https://github.com/Djallel93/amana_shared/tree/v2.5.0",
                 "issues": "https://github.com/Djallel93/amana_shared/issues"
             },
-            "time": "2026-09-16T16:50:20+00:00"
+            "time": "2026-09-21T04:21:22+00:00"
         },
         {
             "name": "bacon/bacon-qr-code",
@@ -472,27 +472,25 @@
         },
         {
             "name": "doctrine/lexer",
-            "version": "3.0.1",
+            "version": "3.0.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/doctrine/lexer.git",
-                "reference": "31ad66abc0fc9e1a1f2d9bc6a42668d2fbbcd6dd"
+                "reference": "e96fe45e92a54233726014a7cc7340abf29bb14c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/doctrine/lexer/zipball/31ad66abc0fc9e1a1f2d9bc6a42668d2fbbcd6dd",
-                "reference": "31ad66abc0fc9e1a1f2d9bc6a42668d2fbbcd6dd",
+                "url": "https://api.github.com/repos/doctrine/lexer/zipball/e96fe45e92a54233726014a7cc7340abf29bb14c",
+                "reference": "e96fe45e92a54233726014a7cc7340abf29bb14c",
                 "shasum": ""
             },
             "require": {
                 "php": "^8.1"
             },
             "require-dev": {
-                "doctrine/coding-standard": "^12",
-                "phpstan/phpstan": "^1.10",
-                "phpunit/phpunit": "^10.5",
-                "psalm/plugin-phpunit": "^0.18.3",
-                "vimeo/psalm": "^5.21"
+                "doctrine/coding-standard": "^14",
+                "phpstan/phpstan": "^2",
+                "phpunit/phpunit": "^10.5.58 || ^12.5.4"
             },
             "type": "library",
             "autoload": {
@@ -529,7 +527,7 @@
             ],
             "support": {
                 "issues": "https://github.com/doctrine/lexer/issues",
-                "source": "https://github.com/doctrine/lexer/tree/3.0.1"
+                "source": "https://github.com/doctrine/lexer/tree/3.0.2"
             },
             "funding": [
                 {
@@ -545,7 +543,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-02-05T11:56:58+00:00"
+            "time": "2026-06-14T20:44:06+00:00"
         },
         {
             "name": "dragonmantank/cron-expression",
@@ -960,16 +958,16 @@
         },
         {
             "name": "google/apiclient-services",
-            "version": "v0.459.0",
+            "version": "v0.460.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/googleapis/google-api-php-client-services.git",
-                "reference": "3b45be50c8420dea56b6f2326ff745175c3cafb8"
+                "reference": "fa457128462bd46d88ed5472d73580643d05e456"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/googleapis/google-api-php-client-services/zipball/3b45be50c8420dea56b6f2326ff745175c3cafb8",
-                "reference": "3b45be50c8420dea56b6f2326ff745175c3cafb8",
+                "url": "https://api.github.com/repos/googleapis/google-api-php-client-services/zipball/fa457128462bd46d88ed5472d73580643d05e456",
+                "reference": "fa457128462bd46d88ed5472d73580643d05e456",
                 "shasum": ""
             },
             "require": {
@@ -998,9 +996,9 @@
             ],
             "support": {
                 "issues": "https://github.com/googleapis/google-api-php-client-services/issues",
-                "source": "https://github.com/googleapis/google-api-php-client-services/tree/v0.459.0"
+                "source": "https://github.com/googleapis/google-api-php-client-services/tree/v0.460.0"
             },
-            "time": "2026-09-14T01:22:23+00:00"
+            "time": "2026-09-21T01:30:28+00:00"
         },
         {
             "name": "google/auth",
@@ -6729,16 +6727,16 @@
         },
         {
             "name": "larastan/larastan",
-            "version": "v3.12.1",
+            "version": "v3.12.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/larastan/larastan.git",
-                "reference": "168fd3b955e723c51dbf81709849b0c3ac4ac5f6"
+                "reference": "c328727e6103c1147d1c64cc96b3aedfda26bc20"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/larastan/larastan/zipball/168fd3b955e723c51dbf81709849b0c3ac4ac5f6",
-                "reference": "168fd3b955e723c51dbf81709849b0c3ac4ac5f6",
+                "url": "https://api.github.com/repos/larastan/larastan/zipball/c328727e6103c1147d1c64cc96b3aedfda26bc20",
+                "reference": "c328727e6103c1147d1c64cc96b3aedfda26bc20",
                 "shasum": ""
             },
             "require": {
@@ -6806,7 +6804,7 @@
             ],
             "support": {
                 "issues": "https://github.com/larastan/larastan/issues",
-                "source": "https://github.com/larastan/larastan/tree/v3.12.1"
+                "source": "https://github.com/larastan/larastan/tree/v3.12.2"
             },
             "funding": [
                 {
@@ -6814,7 +6812,7 @@
                     "type": "github"
                 }
             ],
-            "time": "2026-09-13T15:17:35+00:00"
+            "time": "2026-09-19T10:46:58+00:00"
         },
         {
             "name": "laravel/pint",
