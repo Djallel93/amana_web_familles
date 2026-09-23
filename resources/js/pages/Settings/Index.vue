@@ -335,21 +335,19 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                         <td colspan="2" class="px-4 py-4 text-ink-muted text-center">Aucune adresse enregistrée.</td>
                     </tr>
                     <tr v-for="hotelAddress in hotelAddresses" :key="hotelAddress.id" class="border-b border-surface-3 last:border-0">
-                        <form :action="hotelAddressesUpdateUrlTemplate.replace('__ID__', String(hotelAddress.id))"
-                            method="POST" class="contents">
-                            <input type="hidden" name="_token" :value="csrfToken">
-                            <input type="hidden" name="_method" value="PUT">
-                            <td class="px-4 py-2.5">
+                        <td class="px-4 py-2.5">
+                            <form :action="hotelAddressesUpdateUrlTemplate.replace('__ID__', String(hotelAddress.id))"
+                                method="POST" class="flex items-center gap-2">
+                                <input type="hidden" name="_token" :value="csrfToken">
+                                <input type="hidden" name="_method" value="PUT">
                                 <input type="text" name="adresse" :value="oldAdresse ?? hotelAddress.adresse" required
-                                    class="w-full px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
-                            </td>
-                            <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                    class="flex-1 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
                                 <button type="submit"
-                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer">
+                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap">
                                     Enregistrer
                                 </button>
-                            </td>
-                        </form>
+                            </form>
+                        </td>
                         <td class="px-1 py-2.5 text-right">
                             <form :action="hotelAddressesDestroyUrlTemplate.replace('__ID__', String(hotelAddress.id))"
                                 method="POST" data-confirm="Supprimer cette adresse hôtel ? Les dossiers déjà marqués « hôtel » ne seront pas modifiés."

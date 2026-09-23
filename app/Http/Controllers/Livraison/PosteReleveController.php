@@ -74,7 +74,23 @@ class PosteReleveController extends Controller
         ]);
     }
 
-    public function show(string $type, Campagne $campagne): View
+    /**
+     * $campagne AVANT $type dans la signature (22/09/2026, correction) :
+     * $type arrive via Route::defaults() plutôt qu'un segment d'URL — le
+     * binder de route place les paramètres résolus depuis l'URL avant
+     * ceux ajoutés par defaults() dans le tableau interne des paramètres
+     * de la route, et ResolvesRouteDependencies (Laravel) ne réordonne
+     * jamais un paramètre déjà résolu (route model binding ou default)
+     * pour le faire correspondre à l'ordre de la signature — seuls les
+     * paramètres à résoudre depuis le container (ex. Request, absent
+     * ici) sont insérés à leur position réfléchie. L'appel final se fait
+     * positionnellement (array_values()) : avec $type déclaré en
+     * premier, $campagne (modèle déjà résolu) et $type (chaîne, ajoutée
+     * après par défaut) se retrouvaient inversés, d'où le TypeError
+     * "Argument #2 ($campagne) must be of type Campagne, string given".
+     * Même correction appliquée à enregistrer()/journal() ci-dessous.
+     */
+    public function show(Campagne $campagne, string $type): View
     {
         $definition = RelevePosteDefinition::pour($type);
 
@@ -98,7 +114,8 @@ class PosteReleveController extends Controller
      * campagne mono-journée n'affiche pas le sélecteur côté Vue et
      * n'envoie donc rien.
      */
-    public function enregistrer(Request $request, string $type, Campagne $campagne): JsonResponse
+    /** Ordre des paramètres : voir le docblock de show() ci-dessus. */
+    public function enregistrer(Request $request, Campagne $campagne, string $type): JsonResponse
     {
         $definition = RelevePosteDefinition::pour($type);
 
@@ -136,7 +153,8 @@ class PosteReleveController extends Controller
      * each input". Filtrable par journée comme enregistrer() ; sans
      * filtre, montre tout l'historique de la campagne.
      */
-    public function journal(Request $request, string $type, Campagne $campagne): JsonResponse
+    /** Ordre des paramètres : voir le docblock de show() ci-dessus. */
+    public function journal(Request $request, Campagne $campagne, string $type): JsonResponse
     {
         $definition = RelevePosteDefinition::pour($type);
 

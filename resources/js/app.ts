@@ -134,3 +134,7 @@ mountIfPresent(
     "vue-activite-statistiques",
     lazy(() => import("@/components/admin/ActiviteStatistiques.vue")),
 );
+mountIfPresent(
+    "vue-journal-audit",
+    lazy(() => import("@/components/admin/JournalAudit.vue")),
+);
