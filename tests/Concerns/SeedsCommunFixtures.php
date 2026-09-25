@@ -5,7 +5,7 @@ declare(strict_types=1);
 
 namespace Tests\Concerns;
 
-use Amana\Shared\Models\Personne;
+use App\Models\Personne;
 use Illuminate\Support\Facades\DB;
 
 /**
