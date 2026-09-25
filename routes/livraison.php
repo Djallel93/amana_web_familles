@@ -108,6 +108,12 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('contacts.assigner-lot');
     Route::post('/contacts/{livraison}/contacter-manuel', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'contacterManuel'])
         ->name('contacts.contacter-manuel');
+    // Exception journalière se_deplace (24/09/2026, prompt de cette date
+    // §5) — admin/gestionnaire uniquement, même groupe role:gestionnaire
+    // que tout ce fichier (voir son ouverture) : pas de middleware
+    // supplémentaire nécessaire ici.
+    Route::post('/contacts/{livraison}/se-deplace', [\App\Http\Controllers\Admin\Livraison\ContactTrackingController::class, 'mettreAJourSeDeplace'])
+        ->name('contacts.se-deplace');
 
     // Renommé depuis 'tableau-de-bord' (07/09/2026, prompt §6) — voir
     // config/amana-shared.php. {campagne?} optionnel ajouté au même
@@ -319,6 +325,29 @@ Route::middleware('auth')->prefix('livraison/chargement')->name('livraison.charg
     // famille).
     Route::get('/{campagne}/etiquettes', [\App\Http\Controllers\Livraison\ChargementController::class, 'etiquettesCampagne'])
         ->middleware('can:equipeChargement,campagne')->name('etiquettes');
+});
+
+// ── Retrait QG — familles se_deplace (24/09/2026, prompt de cette date §2) ──
+// Même équipe que ci-dessus (equipe_chargement, PAS un nouveau rôle — voir
+// le docblock de RetraitHqController) : groupe séparé uniquement parce que
+// le préfixe d'URL/les noms de route sont distincts de livraison/chargement,
+// pas parce que l'autorisation diffère.
+Route::middleware('auth')->prefix('livraison/retrait-hq')->name('livraison.retrait-hq.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Livraison\RetraitHqController::class, 'choisir'])
+        ->middleware('livraison_role:equipe_chargement')->name('choisir');
+    Route::get('/{campagne}', [\App\Http\Controllers\Livraison\RetraitHqController::class, 'index'])
+        ->middleware('can:equipeChargement,campagne')->name('index');
+    Route::get('/{campagne}/liste', [\App\Http\Controllers\Livraison\RetraitHqController::class, 'liste'])
+        ->middleware('can:equipeChargement,campagne')->name('liste');
+    Route::post('/livraisons/{livraison}/livre', [\App\Http\Controllers\Livraison\RetraitHqController::class, 'marquerLivre'])
+        ->middleware('can:gererRetraitHq,livraison')->name('livre');
+    Route::post('/livraisons/{livraison}/non-livre', [\App\Http\Controllers\Livraison\RetraitHqController::class, 'marquerNonLivre'])
+        ->middleware('can:gererRetraitHq,livraison')->name('non-livre');
+    // Cible du QR code envoyé par RetraitHqNotification — voir
+    // RetraitHqController::scan(). GET (pas POST) : ouvert directement
+    // par l'appareil qui scanne, pas d'appel fetch() derrière.
+    Route::get('/livraisons/{livraison}/scan', [\App\Http\Controllers\Livraison\RetraitHqController::class, 'scan'])
+        ->middleware('can:gererRetraitHq,livraison')->name('scan');
 });
 
 // ── Formulaire public de confirmation famille (aucune authentification) ──

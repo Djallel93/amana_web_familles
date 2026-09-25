@@ -48,6 +48,13 @@ class CampagneResource extends JsonResource
             'hq_longitude' => $this->hq_longitude,
             'hq_confirmee_le' => $this->hq_confirmee_le,
             'livraisons_max_par_tournee' => $this->livraisons_max_par_tournee,
+            // Ajoutés le 24/09/2026 (prompt de cette date §2/§4) — bruts
+            // ("HH:MM:SS", pas de cast sur le modèle, voir Campagne::
+            // heureDebutArriveeHq()) : <input type="time"> de
+            // CampagneDetail.vue en tronque simplement les secondes à
+            // l'affichage, valeur=null tel quel si pas encore réglé.
+            'heure_debut_arrivee_hq' => $this->heure_debut_arrivee_hq,
+            'heure_fin_arrivee_hq' => $this->heure_fin_arrivee_hq,
             'commentaire' => $this->commentaire,
             'poids_moyen_historique' => $this->whenLoaded('poidsMoyenHistorique', fn () => CampagnePoidsMoyenHistoriqueResource::collection($this->poidsMoyenHistorique)),
             'journees' => $this->whenLoaded('journees', fn () => CampagneJourneeResource::collection($this->journees)),

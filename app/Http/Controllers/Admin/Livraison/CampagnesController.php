@@ -147,6 +147,8 @@ class CampagnesController extends Controller
             'peseeUrl' => route('livraison.pesee.show', $campagne),
             'packagingUrl' => route('livraison.packaging.index', $campagne),
             'chargementUrl' => route('livraison.chargement.index', $campagne),
+            // Ajouté le 24/09/2026 (prompt de cette date §2, dernier point).
+            'retraitHqUrl' => route('livraison.retrait-hq.index', $campagne),
             'suiviLivraisonUrl' => route('livraison.suivi-livraison.index', $campagne),
             'statistiquesUrl' => route('livraison.statistiques.index', $campagne),
             'retourUrl' => route('livraison.campagnes.index'),
@@ -261,13 +263,38 @@ class CampagnesController extends Controller
             'hq_longitude' => 'nullable|numeric|between:-180,180',
             // Éditable au cas par cas comme hq_* (prompt du 08/09/2026 §2.2.3).
             'livraisons_max_par_tournee' => 'nullable|integer|min:1',
+            // Ajoutés le 24/09/2026 (prompt de cette date §2/§4) — bornées
+            // à 08h-19h (même plage que App\Support\Creneau) : "be sure to
+            // base it on current timeslots to avoid generating handouts
+            // at night". before_or_equal plutôt que before : une fenêtre
+            // d'une minute reste valide (étalement dégénéré géré par
+            // RetraitHqSchedulingService, pas une erreur de validation).
+            'heure_debut_arrivee_hq' => 'nullable|date_format:H:i|after_or_equal:08:00',
+            'heure_fin_arrivee_hq' => 'nullable|date_format:H:i|before_or_equal:19:00|after:heure_debut_arrivee_hq',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $campagne->update([...$validator->validated(), 'hq_confirmee_le' => now()]);
+        $donnees = $validator->validated();
+        // Fenêtre HQ modifiée : ré-étale IMMÉDIATEMENT toutes les
+        // journées déjà planifiées de cette campagne (prompt §4 :
+        // "recompute both routes and handouts if flag changes for
+        // current campagne" — même principe appliqué ici à un changement
+        // de fenêtre plutôt que de flag individuel). Pas de recompute des
+        // TOURNÉES ici : la fenêtre HQ ne concerne que les familles
+        // se_deplace, jamais le clustering.
+        $fenetreModifiee = array_key_exists('heure_debut_arrivee_hq', $donnees) || array_key_exists('heure_fin_arrivee_hq', $donnees);
+
+        $campagne->update([...$donnees, 'hq_confirmee_le' => now()]);
+
+        if ($fenetreModifiee) {
+            $campagne = $campagne->fresh();
+            foreach ($campagne->journees as $journee) {
+                app(\App\Services\RetraitHqSchedulingService::class)->planifierPour($campagne, $journee);
+            }
+        }
 
         return response()->json(['success' => true, 'campagne' => new CampagneResource($campagne->fresh())]);
     }

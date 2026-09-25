@@ -43,6 +43,10 @@ class ContactTrackingController extends Controller
 
     public function __construct(
         private readonly FamilleConfirmationSyncService $syncService,
+        // Ajoutés le 24/09/2026 (prompt de cette date §4/§5) — voir
+        // mettreAJourSeDeplace() plus bas.
+        private readonly \App\Services\RouteMutationService $mutationService,
+        private readonly \App\Services\RetraitHqSchedulingService $retraitHqScheduling,
     ) {
     }
 
@@ -388,5 +392,70 @@ class ContactTrackingController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Exception journalière se_deplace — admin/gestionnaire uniquement
+     * (24/09/2026, prompt de cette date §5 : "No only admin/gestionnaire").
+     * Override PAR CAMPAGNE de familles.se_deplace (voir Livraison::
+     * seDeplaceEffectif()) : une famille se_deplace=true par défaut peut
+     * être false une campagne donnée et vice-versa (prompt §2 : "even
+     * this flag is true for family it can be false that specific day and
+     * vise versa").
+     *
+     * Recalcule TOUJOURS le planning retrait QG de la journée après coup
+     * (prompt §4 : "recompute both routes and handouts if flag changes
+     * for current campagne") — que le nouvel effectif change ou non, le
+     * nombre total de familles se_deplace de la journée peut avoir changé.
+     *
+     * Impact tournées, seulement dans un sens :
+     *   - false → true (la famille n'a plus besoin d'être livrée) : si
+     *     elle était déjà dans une tournée, on l'en retire immédiatement
+     *     (RouteMutationService::retirerLivraison(), même méthode que le
+     *     retrait manuel d'un arrêt) ;
+     *   - true → false (la famille redevient à livrer) : AUCUNE action de
+     *     clustering ici — elle repasse simplement dans le pool de
+     *     RouteGenerationService::genererPourCreneau() (statut déjà
+     *     'non_assignee', jamais assignée puisqu'exclue jusqu'ici) et
+     *     sera prise en compte au prochain lancement de génération pour
+     *     cette journée, exactement comme n'importe quelle nouvelle
+     *     confirmation — pas besoin d'un recalcul spécial ici.
+     */
+    public function mettreAJourSeDeplace(Request $request, Livraison $livraison): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            // null explicite = retire l'exception, retombe sur
+            // familles.se_deplace (voir seDeplaceEffectif()).
+            'se_deplace' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        // Request::boolean() ne distingue pas "absent" de "false" — on
+        // relit has()/boolean() pour permettre explicitement les 3 états
+        // (true/false/absent→null), voir le docblock ci-dessus sur le
+        // "null explicite".
+        $livraison->se_deplace_override = $request->has('se_deplace')
+            ? $request->boolean('se_deplace')
+            : null;
+        $livraison->save();
+
+        if ($livraison->seDeplaceEffectif()) {
+            $etape = $livraison->etapesRoute()->with('route')->first();
+            if ($etape?->route) {
+                $this->mutationService->retirerLivraison($etape->route, $etape);
+            }
+        }
+
+        if ($livraison->id_campagne_journee !== null) {
+            $journee = \App\Models\CampagneJournee::find($livraison->id_campagne_journee);
+            if ($journee) {
+                $this->retraitHqScheduling->planifierPour($livraison->campagne, $journee);
+            }
+        }
+
+        return response()->json(['success' => true, 'se_deplace_effectif' => $livraison->fresh()->seDeplaceEffectif()]);
     }
 }

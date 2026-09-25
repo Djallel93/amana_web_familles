@@ -52,6 +52,8 @@ defineProps<{
     peseeUrl: string;
     packagingUrl: string;
     chargementUrl: string;
+    // Ajouté le 24/09/2026 (prompt de cette date §2, dernier point).
+    retraitHqUrl: string;
     suiviLivraisonUrl: string;
     statistiquesUrl: string;
     retourUrl: string;
@@ -74,6 +76,7 @@ defineProps<{
             :equipes-url="equipesUrl" :reception-url="receptionUrl" :ajouter-journee-url="ajouterJourneeUrl"
             :avancement-url="avancementUrl" :update-url="updateUrl" :contacts-url="contactsUrl"
             :pesee-url="peseeUrl" :packaging-url="packagingUrl" :chargement-url="chargementUrl"
+            :retrait-hq-url="retraitHqUrl"
             :suivi-livraison-url="suiviLivraisonUrl" :statistiques-url="statistiquesUrl" />
     </div>
 </template>

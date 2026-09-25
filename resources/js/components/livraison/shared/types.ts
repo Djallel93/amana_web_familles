@@ -76,6 +76,10 @@ export interface Campagne {
     hq_confirmee_le: string | null;
     // Ajouté le 08/09/2026 (prompt §2.2.3) — voir Campagne (modèle PHP).
     livraisons_max_par_tournee: number | null;
+    // Ajoutés le 24/09/2026 (prompt de cette date §2/§4) — "HH:MM:SS",
+    // voir CampagneResource.
+    heure_debut_arrivee_hq: string | null;
+    heure_fin_arrivee_hq: string | null;
     commentaire: string | null;
     poids_moyen_historique?: CampagnePoidsMoyenHistorique[];
     // Chargées via Campagne::journees() (voir CampagnesController::show())

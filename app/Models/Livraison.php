@@ -36,6 +36,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null    $id_campagne_journee
  * @property int|null    $locked_by
  * @property \Illuminate\Support\Carbon|null $locked_at
+ * @property bool|null    $se_deplace_override    Exception PAR CAMPAGNE à familles.se_deplace — voir seDeplaceEffectif()
+ * @property \Illuminate\Support\Carbon|null $heure_arrivee_prevue_hq  Créneau de rendez-vous QG — familles se_deplace uniquement
+ * @property string|null $statut_retrait_hq      delivre|non_delivre — familles se_deplace uniquement
  */
 class Livraison extends Model
 {
@@ -53,6 +56,9 @@ class Livraison extends Model
         'statut_contact', 'id_personne_assignee',
         'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
         'nombre_adulte_confirme', 'nombre_enfant_confirme',
+        // Ajoutés le 24/09/2026 (prompt de cette date §2) — voir
+        // create_livraison_operations_tables.php et seDeplaceEffectif().
+        'se_deplace_override', 'heure_arrivee_prevue_hq', 'statut_retrait_hq',
     ];
 
     protected $casts = [
@@ -61,10 +67,13 @@ class Livraison extends Model
         'nombre_adulte_confirme' => 'integer',
         'nombre_enfant_confirme' => 'integer',
         'locked_at' => 'datetime',
+        'se_deplace_override' => 'boolean',
+        'heure_arrivee_prevue_hq' => 'datetime',
     ];
 
     public const STATUTS = ['non_assignee', 'assignee', 'en_cours', 'livree', 'ignoree'];
     public const STATUTS_CONDITIONNEMENT = ['en_attente', 'prete'];
+    public const STATUTS_RETRAIT_HQ = ['delivre', 'non_delivre'];
 
     /**
      * Statuts de contact et leur effet sur le dossier famille — voir le
@@ -223,6 +232,41 @@ class Livraison extends Model
     {
         return self::STATUTS_CONTACT_EFFETS[$statut]
             ?? throw new \InvalidArgumentException("Statut de contact inconnu : {$statut}");
+    }
+
+    // ── Retrait QG (familles se_deplace, voir le prompt du 24/09/2026 §2) ──
+
+    /**
+     * Valeur EFFECTIVE de se_deplace pour CETTE campagne : l'override
+     * porté par cette ligne si posé (une famille se_deplace=true par
+     * défaut peut être false un jour donné, et vice-versa — voir le
+     * prompt), sinon la valeur par défaut de la famille. Jamais lue
+     * directement depuis $famille->se_deplace ailleurs dans le domaine
+     * livraison (RouteGenerationService, RetraitHqController...) — passer
+     * systématiquement par cette méthode (ou son pendant SQL
+     * scopeSeDeplaceEffectif() ci-dessous) pour ne jamais oublier
+     * l'override.
+     */
+    public function seDeplaceEffectif(): bool
+    {
+        return $this->se_deplace_override ?? (bool) $this->famille->se_deplace;
+    }
+
+    /**
+     * Pendant SQL de seDeplaceEffectif() ci-dessus, pour filtrer en base
+     * plutôt que charger puis filtrer en PHP (pool de clustering,
+     * RetraitHqController::construireListe()) — nécessite familles déjà
+     * joignable via whereHas, voir les deux appelants.
+     */
+    public function scopeSeDeplaceEffectif(\Illuminate\Database\Eloquent\Builder $query, bool $valeur): \Illuminate\Database\Eloquent\Builder
+    {
+        return $query->where(function ($q) use ($valeur) {
+            $q->where('se_deplace_override', $valeur)
+                ->orWhere(function ($q2) use ($valeur) {
+                    $q2->whereNull('se_deplace_override')
+                        ->whereHas('famille', fn ($q3) => $q3->where('se_deplace', $valeur));
+                });
+        });
     }
 
     // ── Calcul du poids (voir Patch 2 — LivraisonGenerationService) ────────

@@ -142,6 +142,9 @@ return [
         ['route' => 'livraison.pesee.choisir', 'label' => 'Pesée', 'icon' => '⚖️', 'role' => 'equipe_pesee', 'route_pattern' => 'livraison.pesee.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
         ['route' => 'livraison.packaging.choisir', 'label' => 'Packaging', 'icon' => '📦', 'role' => 'equipe_packaging', 'route_pattern' => 'livraison.packaging.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
         ['route' => 'livraison.chargement.choisir', 'label' => 'Chargement', 'icon' => '🚛', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.chargement.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        // Ajouté le 24/09/2026 (prompt de cette date §2) — même équipe que
+        // Chargement ci-dessus (equipe_chargement, PAS un nouveau rôle).
+        ['route' => 'livraison.retrait-hq.choisir', 'label' => 'Retrait QG', 'icon' => '🏠', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.retrait-hq.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
 
         ['section' => 'Administration'],
         ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],

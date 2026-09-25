@@ -99,6 +99,14 @@ class ChargementController extends Controller
             // à livraison.campagnes.show, repli sur le point d'entrée
             // "choisir" — voir UrlRetourEquipe (Section B du refactor).
             'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.chargement.choisir'),
+            // Ajouté le 24/09/2026 (prompt de cette date §1.2) : ne
+            // calculé QUE quand $lignes est vide, sinon toujours null —
+            // pas de polling dessus (contrairement à $lignes/$stats),
+            // simplification délibérée : ce message concerne un état
+            // transitoire ("l'admin a oublié de lancer la génération"),
+            // pas une donnée qui a besoin d'être temps réel à la seconde
+            // près comme les tournées elles-mêmes.
+            'etatSansTournee' => $lignes === [] ? $this->etatSansTournee($campagne) : null,
         ]);
     }
 
@@ -201,6 +209,51 @@ class ChargementController extends Controller
         })->all();
 
         return ['lignes' => $lignes, 'stats' => $stats];
+    }
+
+    /**
+     * État affiché à la place de "Aucune tournée prête à charger" quand
+     * la liste est vide — ajouté le 24/09/2026 (prompt de cette date
+     * §1.2) : distingue 2 cas jusque-là indiscernables pour l'équipe
+     * chargement (aucun bouton pour lancer la génération, donc simple
+     * spectatrice de cet écran) :
+     *   - le conditionnement n'est pas terminé → les livraisons
+     *     concernées restent affichées, statut "En préparation" (§1.2 :
+     *     "when packaging is not done yet show the rows as 'en
+     *     preparation'"), plutôt que disparaître totalement de l'écran ;
+     *   - le conditionnement EST terminé mais aucune tournée n'a encore
+     *     été générée pour cette campagne (l'admin a probablement oublié
+     *     de lancer la génération, voir LiveBoardController::genererRoutes())
+     *     → message dédié, avec un lien direct vers l'écran de
+     *     génération pour un admin/gestionnaire (§1.2 : "it will be
+     *     easier for admin").
+     *
+     * Scopée aux livraisons non se_deplace (voir Livraison::
+     * scopeSeDeplaceEffectif()) : une famille se_deplace n'a jamais de
+     * tournée à charger, l'absence de RouteLivraison la concernant n'a
+     * rien d'un oubli — elle vit sur livraison/retrait-hq, pas ici.
+     *
+     * @return array{routesJamaisGenerees: bool, lignesPreparation: list<array{id: int, html: string}>}
+     */
+    private function etatSansTournee(Campagne $campagne): array
+    {
+        $enAttente = Livraison::where('id_campagne', $campagne->id)
+            ->where('statut_contact', 'confirme')
+            ->seDeplaceEffectif(false)
+            ->with('famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant')
+            ->get();
+
+        $nonPretes = $enAttente->where('statut_conditionnement', '!=', 'prete')->values();
+
+        $routesExistent = RouteLivraison::where('id_campagne', $campagne->id)->exists();
+
+        return [
+            'routesJamaisGenerees' => !$routesExistent && $enAttente->isNotEmpty() && $nonPretes->isEmpty(),
+            'lignesPreparation' => $nonPretes->map(fn (Livraison $l) => [
+                'id' => $l->id,
+                'html' => trim(view('livraison.partials.chargement-preparation', ['livraison' => $l])->render()),
+            ])->all(),
+        ];
     }
 
     /**

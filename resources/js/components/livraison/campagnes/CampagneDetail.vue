@@ -91,6 +91,8 @@ const props = defineProps<{
     peseeUrl: string;
     packagingUrl: string;
     chargementUrl: string;
+    // Ajouté le 24/09/2026 (prompt de cette date §2, dernier point).
+    retraitHqUrl: string;
     suiviLivraisonUrl: string;
     statistiquesUrl: string;
 }>();
@@ -120,6 +122,7 @@ const urls = {
     pesee: props.peseeUrl,
     packaging: props.packagingUrl,
     chargement: props.chargementUrl,
+    retraitHq: props.retraitHqUrl,
     suiviLivraison: props.suiviLivraisonUrl,
     statistiques: props.statistiquesUrl,
 };
@@ -188,6 +191,12 @@ const formEdition = reactive({
     // Ajouté le 08/09/2026 (prompt §2.2.3) — même statut que hq_* ci-dessus :
     // préremplie au réglage global à la création, éditable ici au cas par cas.
     livraisons_max_par_tournee: campagne.value.livraisons_max_par_tournee ?? "",
+    // Ajoutés le 24/09/2026 (prompt de cette date §2/§4) — fenêtre
+    // d'accueil QG des familles se_deplace, voir RetraitHqSchedulingService
+    // côté back. <input type="time"> natif → déjà au format "HH:MM"
+    // attendu par CampagnesController::update() (date_format:H:i).
+    heure_debut_arrivee_hq: (campagne.value.heure_debut_arrivee_hq ?? "").slice(0, 5),
+    heure_fin_arrivee_hq: (campagne.value.heure_fin_arrivee_hq ?? "").slice(0, 5),
 });
 const chargementEdition = ref(false);
 const erreurEdition = ref("");
@@ -213,6 +222,8 @@ async function enregistrerEdition() {
                 formEdition.livraisons_max_par_tournee === ""
                     ? null
                     : Number(formEdition.livraisons_max_par_tournee),
+            heure_debut_arrivee_hq: formEdition.heure_debut_arrivee_hq || null,
+            heure_fin_arrivee_hq: formEdition.heure_fin_arrivee_hq || null,
         },
     );
     chargementEdition.value = false;
@@ -616,6 +627,15 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
             >
                 🚛 Chargement
             </a>
+            <!-- Ajouté le 24/09/2026 (prompt de cette date §2, dernier
+                 point) : même équipe/même ligne que Chargement ci-dessus
+                 — voir RetraitHqController. -->
+            <a
+                :href="urls.retraitHq"
+                class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-cyan-600 hover:opacity-90"
+            >
+                🏠 Retrait QG
+            </a>
             <a
                 :href="urls.suiviLivraison"
                 class="text-[12.5px] px-3 py-1.5 rounded-lg text-white bg-teal-600 hover:opacity-90"
@@ -754,6 +774,12 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
                         campagne.livraisons_max_par_tournee ?? "réglage global"
                     }}
                 </p>
+                <p class="text-[13px] text-ink-muted mt-1">
+                    Fenêtre d'accueil QG (familles se déplaçant) :
+                    {{ campagne.heure_debut_arrivee_hq?.slice(0, 5) ?? "08:00" }}
+                    –
+                    {{ campagne.heure_fin_arrivee_hq?.slice(0, 5) ?? "19:00" }}
+                </p>
                 <p class="text-[13px] text-ink mt-2 whitespace-pre-wrap">
                     {{ campagne.commentaire || "Aucun commentaire." }}
                 </p>
@@ -823,6 +849,36 @@ const historiquePoids = ref<CampagnePoidsMoyenHistorique[]>(
                         step="1"
                         class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]"
                     />
+                </div>
+                <!--
+                    Fenêtre d'accueil QG des familles se_deplace — ajouté
+                    le 24/09/2026 (prompt de cette date §2/§4). Bornées à
+                    08h-19h côté serveur (CampagnesController::update()),
+                    pas de min/max ici : un dépassement se traduit par un
+                    message d'erreur clair plutôt qu'un input qui refuse
+                    silencieusement la saisie.
+                -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[12px] text-ink-muted mb-1"
+                            >Retrait QG — début</label
+                        >
+                        <input
+                            v-model="formEdition.heure_debut_arrivee_hq"
+                            type="time"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-[12px] text-ink-muted mb-1"
+                            >Retrait QG — fin</label
+                        >
+                        <input
+                            v-model="formEdition.heure_fin_arrivee_hq"
+                            type="time"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]"
+                        />
+                    </div>
                 </div>
                 <div>
                     <label class="block text-[12px] text-ink-muted mb-1"

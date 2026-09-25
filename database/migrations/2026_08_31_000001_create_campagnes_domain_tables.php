@@ -125,6 +125,23 @@ return new class extends Migration {
             $table->unsignedInteger('livraisons_max_par_tournee')->nullable()
                 ->comment('Cap propre à cette campagne — préremplie depuis route_max_livraisons_par_route à la création, voir RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne()');
 
+            // Fenêtre d'accueil QG pour les familles se_deplace (ajouté le
+            // 24/09/2026, voir le prompt de cette date §2) : les créneaux
+            // de rendez-vous individuels (livraisons.heure_arrivee_prevue_hq,
+            // voir create_livraison_operations_tables.php) sont étalés à
+            // l'intérieur de cette fenêtre — un rendez-vous toutes les
+            // (fenêtre / nombre de familles se_deplace de la journée)
+            // minutes, voir App\Services\RetraitHqSchedulingService.
+            // Nullable : valeurs par défaut (8h/19h — mêmes bornes que
+            // App\Support\Creneau) appliquées par le service si absentes,
+            // pas de préremplissage en base pour rester cohérent avec
+            // hq_adresse/hq_latitude/hq_longitude ci-dessus (NULL = valeur
+            // globale par défaut, jamais recopiée silencieusement).
+            $table->time('heure_debut_arrivee_hq')->nullable()
+                ->comment('Début de la fenêtre d\'accueil QG pour les familles se_deplace de cette campagne — NULL = 08:00 par défaut (bornes Creneau, voir RetraitHqSchedulingService)');
+            $table->time('heure_fin_arrivee_hq')->nullable()
+                ->comment('Fin de la fenêtre d\'accueil QG pour les familles se_deplace de cette campagne — NULL = 19:00 par défaut (bornes Creneau, voir RetraitHqSchedulingService)');
+
             // Commentaire libre — dernière valeur seulement, pas
             // d'historique (décision explicite) : simple colonne texte,
             // éditable à tout moment depuis la page détail de la

@@ -58,7 +58,17 @@ function urlMettreAJour(idPersonne: number): string {
 }
 
 function urlModifierInformations(idPersonne: number): string {
-    return props.personneEditUrlTemplate.replace('__ID__', String(idPersonne));
+    // Ajoute retour=campagne_benevoles&id_campagne=... (24/09/2026, prompt
+    // de cette date §1.1) — revalidé côté serveur par
+    // PersonnesController::infosRetour(), voir son docblock : affiche un
+    // bouton "Retour au suivi des bénévoles" sur l'écran /admin/personnes/
+    // {id}/modifier UNIQUEMENT quand on y arrive depuis cette file, jamais
+    // depuis la sidebar.
+    const base = props.personneEditUrlTemplate.replace('__ID__', String(idPersonne));
+    const url = new URL(base, window.location.origin);
+    url.searchParams.set('retour', 'campagne_benevoles');
+    url.searchParams.set('id_campagne', String(props.campagne.id));
+    return url.pathname + url.search;
 }
 
 const journees = computed<CampagneJournee[]>(() => props.campagne.journees ?? []);

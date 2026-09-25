@@ -25,8 +25,6 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('/personnes', [PersonnesController::class, 'index'])->name('personnes.index');
     Route::get('/personnes/creer', [PersonnesController::class, 'create'])->name('personnes.create');
     Route::post('/personnes', [PersonnesController::class, 'store'])->name('personnes.store');
-    Route::get('/personnes/{id}/modifier', [PersonnesController::class, 'edit'])->name('personnes.edit');
-    Route::put('/personnes/{id}', [PersonnesController::class, 'update'])->name('personnes.update');
     // Un administrateur ne saisit ni ne voit jamais un mot de passe : il envoie à la
     // personne le lien standard de (ré)initialisation (audité, limité à 5/min).
     Route::post('/personnes/{id}/lien-reinitialisation', [PersonnesController::class, 'envoyerLienReinitialisation'])
@@ -81,6 +79,21 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/organisations', [\App\Http\Controllers\Admin\OrganisationsController::class, 'store'])->name('organisations.store');
     Route::put('/organisations/{organisation}', [\App\Http\Controllers\Admin\OrganisationsController::class, 'update'])->name('organisations.update');
     Route::delete('/organisations/{organisation}', [\App\Http\Controllers\Admin\OrganisationsController::class, 'destroy'])->name('organisations.destroy');
+});
+
+// ── Fiche personne — admin + gestionnaire (24/09/2026, prompt de cette
+//    date §1.1) ─────────────────────────────────────────────────────────
+// Sorties du groupe role:admin ci-dessus : la fiche personne doit rester
+// accessible à un gestionnaire depuis Suivi des bénévoles (voir
+// BenevoleDisponibiliteQueue.vue → urlModifierInformations()), alors que
+// le reste de l'admin personnes (index/création/suppression/lien de
+// réinitialisation) reste strictement admin — pas de cascade voulue
+// au-delà de ces deux actions précises. Même préfixe/namespace de nom
+// (admin.personnes.edit/update, /admin/personnes/{id}/modifier) que
+// ci-dessus : un simple changement de groupe, aucune route renommée.
+Route::middleware(['auth', 'role:gestionnaire'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/personnes/{id}/modifier', [PersonnesController::class, 'edit'])->name('personnes.edit');
+    Route::put('/personnes/{id}', [PersonnesController::class, 'update'])->name('personnes.update');
 });
 
 Route::middleware(['auth', 'role:gestionnaire'])->group(function () {

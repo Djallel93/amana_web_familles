@@ -21,6 +21,8 @@ use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Services\LivraisonGenerationService;
+use App\Services\RetraitHqNotificationService;
+use App\Services\RetraitHqSchedulingService;
 use App\Services\RouteGenerationService;
 use App\Services\RouteMutationService;
 use App\Support\FamilleFilters;
@@ -52,6 +54,12 @@ class LiveBoardController extends Controller
         private readonly RouteMutationService $mutationService,
         private readonly NotificationCenterService $notificationCenter,
         private readonly LivraisonGenerationService $livraisonGenerationService,
+        // Ajoutés le 24/09/2026 (prompt de cette date §2/§Additional
+        // points 1) — planification + notification des familles
+        // se_deplace, déclenchées ici juste après le clustering, voir
+        // genererRoutes() ci-dessous.
+        private readonly RetraitHqSchedulingService $retraitHqScheduling,
+        private readonly RetraitHqNotificationService $retraitHqNotification,
     ) {
     }
 
@@ -181,7 +189,26 @@ class LiveBoardController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true, ...$resultat]);
+        // Familles se_deplace de cette journée (24/09/2026, prompt de
+        // cette date §Additional points 1 : "When all families are
+        // confirmed and route generation is triggered send emails to all
+        // families with where and when to come") : exclues du clustering
+        // ci-dessus (voir RouteGenerationService), elles reçoivent ici
+        // leur propre créneau QG puis, immédiatement, l'email
+        // correspondant — même déclencheur que la génération des
+        // tournées plutôt qu'un déclencheur séparé, pour que "toutes les
+        // familles confirmées" (livrées ou se_deplace) soient notifiées
+        // au même instant.
+        $familleSeDeplace = $this->retraitHqScheduling->planifierPour($campagne, $journee);
+        foreach ($familleSeDeplace as $livraisonSeDeplace) {
+            $this->retraitHqNotification->notifierPour($livraisonSeDeplace);
+        }
+
+        return response()->json([
+            'success' => true,
+            ...$resultat,
+            'retrait_hq_planifiees' => $familleSeDeplace->count(),
+        ]);
     }
 
     /**

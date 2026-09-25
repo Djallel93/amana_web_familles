@@ -85,6 +85,38 @@
             la réconciliation par id reste triviale.
         --}}
         <p id="liste-vide" class="text-[14px] text-ink-muted {{ count($lignes) > 0 ? 'hidden' : '' }}">Aucune tournée prête à charger pour le moment.</p>
+
+        {{--
+            Ajouté le 24/09/2026 (prompt de cette date §1.2) — affiché à la
+            place du message générique ci-dessus quand la liste est vide,
+            voir ChargementController::etatSansTournee(). Rendu au
+            chargement de page uniquement (pas de polling ici, voir le
+            docblock de index()) — un rechargement de page suffit si
+            l'état change pendant que cet écran est ouvert.
+        --}}
+        @if($etatSansTournee)
+            @if($etatSansTournee['routesJamaisGenerees'])
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+                    <p class="text-[14px] text-amber-800 font-medium mb-1">Conditionnement terminé, tournées pas encore générées</p>
+                    <p class="text-[13px] text-amber-700">
+                        Toutes les familles confirmées sont conditionnées, mais aucune tournée n'a encore été créée pour cette campagne.
+                        @if(auth()->user()?->isAdmin() || auth()->user()?->isGestionnaire())
+                            Un admin/gestionnaire peut les générer depuis
+                            <a href="{{ route('livraison.suivi-livraison.index', $campagne) }}" class="underline font-medium">Suivi livraison</a>.
+                        @else
+                            Prévenez un admin/gestionnaire pour qu'il les génère depuis l'écran Suivi livraison.
+                        @endif
+                    </p>
+                </div>
+            @elseif(count($etatSansTournee['lignesPreparation']) > 0)
+                <p class="text-[13px] text-ink-muted mb-2">Conditionnement en cours — ces familles ne sont pas encore prêtes à charger :</p>
+                <div class="space-y-3">
+                    @foreach($etatSansTournee['lignesPreparation'] as $ligne)
+                        {!! $ligne['html'] !!}
+                    @endforeach
+                </div>
+            @endif
+        @endif
     </div>
 
     <script>

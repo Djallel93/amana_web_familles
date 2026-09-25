@@ -62,6 +62,10 @@ class Campagne extends Model
         // CampagnesController::update()), même statut que
         // benevoles_notifies_le ci-dessus.
         'hq_confirmee_le',
+        // Ajoutés le 24/09/2026 (prompt de cette date §2) — voir docblock
+        // de la migration campagnes pour le raisonnement (fenêtre
+        // d'accueil QG des familles se_deplace, NULL = 08h/19h par défaut).
+        'heure_debut_arrivee_hq', 'heure_fin_arrivee_hq',
     ];
 
     protected $casts = [
@@ -218,6 +222,24 @@ class Campagne extends Model
     public function getPoidsCollecteKgAttribute(): float
     {
         return (float) $this->donations()->sum('poids_kg');
+    }
+
+    // ── Retrait QG (familles se_deplace, voir le prompt du 24/09/2026 §2) ──
+
+    /**
+     * Bornes par défaut de la fenêtre d'accueil QG quand la campagne n'en
+     * définit pas — mêmes bornes que App\Support\Creneau::TOUS (8h-19h) :
+     * pas de rendez-vous hors de la plage horaire opérationnelle de la
+     * campagne, voir RetraitHqSchedulingService.
+     */
+    public function heureDebutArriveeHq(): string
+    {
+        return $this->heure_debut_arrivee_hq ?? '08:00:00';
+    }
+
+    public function heureFinArriveeHq(): string
+    {
+        return $this->heure_fin_arrivee_hq ?? '19:00:00';
     }
 
     // ── Journées (voir le prompt du 03/09/2026) ─────────────────────────────

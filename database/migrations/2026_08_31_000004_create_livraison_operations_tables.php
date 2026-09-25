@@ -118,6 +118,30 @@ return new class extends Migration {
             $table->unsignedTinyInteger('nombre_adulte_confirme')->nullable();
             $table->unsignedTinyInteger('nombre_enfant_confirme')->nullable();
 
+            // Retrait au QG — familles se_deplace (ajouté le 24/09/2026,
+            // voir le prompt de cette date §2). `se_deplace_override` suit
+            // exactement la convention *_confirme ci-dessus (override PAR
+            // CAMPAGNE d'une valeur par défaut portée par familles) :
+            // familles.se_deplace peut être vrai un jour et faux un autre
+            // pour la même famille — NULL ici = pas d'exception cette
+            // campagne, on retombe sur familles.se_deplace (voir
+            // App\Models\Livraison::seDeplaceEffectif()).
+            $table->boolean('se_deplace_override')->nullable()
+                ->comment('Exception PAR CAMPAGNE à familles.se_deplace — NULL = pas d\'exception, voir Livraison::seDeplaceEffectif()');
+            // Calculé par App\Services\RetraitHqSchedulingService dès que
+            // statut_contact passe à confirme (et recalculé pour toute la
+            // journée si le nombre de familles se_deplace change, voir son
+            // docblock) — jamais saisi manuellement.
+            $table->timestamp('heure_arrivee_prevue_hq')->nullable()
+                ->comment('Créneau de rendez-vous QG individuel, étalé sur la fenêtre campagnes.heure_debut_arrivee_hq/heure_fin_arrivee_hq — familles se_deplace uniquement, voir RetraitHqSchedulingService');
+            // string plutôt qu'enum, même raisonnement que statut_contact
+            // ci-dessus. NULL = pas encore de verdict (colis pas encore
+            // prêt, ou prêt mais famille pas encore passée) — voir
+            // App\Http\Controllers\Livraison\RetraitHqController pour les
+            // 2 seules valeurs actuellement posées (delivre/non_delivre).
+            $table->string('statut_retrait_hq', 20)->nullable()
+                ->comment('delivre|non_delivre — familles se_deplace uniquement, posé par équipe_chargement sur livraison/retrait-hq');
+
             $table->unsignedInteger('locked_by')->nullable()
                 ->comment('ref_personnes.id — même verrouillage que familles.locked_by, pas de FK');
             $table->timestamp('locked_at')->nullable();
@@ -129,6 +153,9 @@ return new class extends Migration {
             $table->index('id_campagne_journee');
             $table->index('id_famille');
             $table->index('locked_by');
+            // Tri de livraison/retrait-hq (RetraitHqController::index()) —
+            // même rôle que l'index sur statut ci-dessus.
+            $table->index('heure_arrivee_prevue_hq');
         });
 
         // Pivot : créneaux de 2h (8h-19h) pour lesquels une famille est
