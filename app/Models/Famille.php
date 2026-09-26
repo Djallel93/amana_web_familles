@@ -29,7 +29,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $code_postal
  * @property string|null $ville_texte
  * @property int|null    $id_quartier
- * @property bool        $se_deplace
  * @property bool        $est_hotel
  * @property bool        $etudiant
  * @property float|null  $latitude
@@ -73,7 +72,7 @@ class Famille extends Model
         'nom', 'prenom', 'email', 'telephone', 'telephone_bis',
         'zakat_el_fitr', 'sadaqa',
         'nombre_adulte', 'nombre_enfant',
-        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'se_deplace', 'est_hotel', 'etudiant',
+        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'est_hotel', 'etudiant',
         'circonstances', 'ressentit', 'specificites', 'criticite', 'langue',
         'etat_dossier', 'commentaire_dossier', 'probleme_traitement',
         'type_hebergement', 'hosted_by',
@@ -90,7 +89,6 @@ class Famille extends Model
     protected $casts = [
         'zakat_el_fitr' => 'boolean',
         'sadaqa' => 'boolean',
-        'se_deplace' => 'boolean',
         'est_hotel' => 'boolean',
         'etudiant' => 'boolean',
         'nombre_adulte' => 'integer',
@@ -177,7 +175,6 @@ class Famille extends Model
         'nombre_enfant' => ['label' => 'Enfants', 'triable' => true, 'defaut' => false],
         'criticite' => ['label' => 'Criticité', 'triable' => true, 'defaut' => true],
         'eligibilite' => ['label' => 'Éligibilité', 'triable' => true, 'defaut' => true],
-        'se_deplace' => ['label' => 'Se déplace', 'triable' => true, 'defaut' => false],
         'est_hotel' => ['label' => 'Hôtel', 'triable' => true, 'defaut' => false],
         'etudiant' => ['label' => 'Étudiant', 'triable' => true, 'defaut' => false],
         'langue' => ['label' => 'Langue', 'triable' => true, 'defaut' => false],

@@ -169,6 +169,18 @@ export interface FamilleEligible {
  * familles/index.blade.php et nouvelles.blade.php elles-mêmes (voir
  * FamilleFiltresBar.vue). Toutes les clés sont optionnelles : un filtre
  * vide n'est simplement pas envoyé (voir buildQuery()).
+ *
+ * se_deplace (25/09/2026, prompt de cette date) : n'est PLUS une clé
+ * App\Support\FamilleFilters (se_deplace a été retiré de Famille) — reste
+ * ici seulement pour les 2 écrans où il désigne désormais un filtre sur
+ * livraisons.se_deplace, PAR CAMPAGNE (voir FamilleFilterPanel.vue, prop
+ * avecSeDeplace) : ContactsQueue.vue (ContactTrackingController::queteBase())
+ * et BuildRouteFlow.vue (LiveBoardController::nonCouvertesTable()). Ces
+ * deux écrans listent des Livraison déjà existantes pour la campagne
+ * choisie — sans objet ailleurs (CampagneDetail.vue "familles éligibles",
+ * FamilleFiltresBar.vue) où aucune Livraison n'existe encore pour la
+ * famille : la case n'y est simplement pas affichée (prop absente,
+ * défaut false).
  */
 export interface FamilleFiltres {
     id_ville?: number | '';
@@ -351,6 +363,13 @@ export interface Livraison {
     nombre_adulte_confirme: number | null;
     nombre_enfant_confirme: number | null;
     creneaux?: { creneau: Creneau }[];
+    // se_deplace (25/09/2026, prompt de cette date) : propriété pure de la
+    // campagne (livraisons.se_deplace, NOT NULL, false par défaut) — plus
+    // de notion d'override/valeur effective à résoudre, on lit/écrit
+    // directement cette valeur. Présent sur toute réponse Livraison
+    // sérialisée (jamais optionnel, contrairement à l'ancien
+    // se_deplace_override qui pouvait être null).
+    se_deplace: boolean;
 }
 
 export interface VehiculeType {

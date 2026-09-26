@@ -83,6 +83,11 @@ const props = defineProps<{
     assignerUrlTemplate: string;
     assignerLotUrl: string;
     contacterManuelUrlTemplate: string;
+    // seDeplaceUrlTemplate (25/09/2026, prompt de cette date) : première UI
+    // pour ContactTrackingController::mettreAJourSeDeplace() — corrige
+    // se_deplace après coup, indépendamment du reste du contact (voir
+    // basculerSeDeplace() plus bas).
+    seDeplaceUrlTemplate: string;
 }>();
 
 const campagnes = ref<Campagne[]>(props.campagnes);
@@ -95,6 +100,7 @@ const statistiquesUrl = props.statistiquesUrl;
 const assignerUrlTemplate = props.assignerUrlTemplate;
 const assignerLotUrl = props.assignerLotUrl;
 const contacterManuelUrlTemplate = props.contacterManuelUrlTemplate;
+const seDeplaceUrlTemplate = props.seDeplaceUrlTemplate;
 
 const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
     injoignable: 'Injoignable',
@@ -108,6 +114,9 @@ function urlAssigner(id: number): string {
 }
 function urlContacterManuel(id: number): string {
     return contacterManuelUrlTemplate.replace('__ID__', String(id));
+}
+function urlSeDeplace(id: number): string {
+    return seDeplaceUrlTemplate.replace('__ID__', String(id));
 }
 
 function formatDateFr(iso: string): string {
@@ -322,6 +331,22 @@ function etatEnvoi(id: number): EtatEnvoiConfirmation {
  */
 const statutSimpleEnCours = reactive<Record<number, boolean>>({});
 
+/**
+ * se_deplace (25/09/2026, prompt de cette date) : seul moment où la
+ * famille peut elle-même indiquer, via l'appel téléphonique staff, si
+ * elle se déplacera au QG pour CETTE campagne — décision produit actée :
+ * pas ajouté au formulaire public de confirmation. false par défaut (même
+ * défaut que la colonne livraisons.se_deplace), local à cet écran comme
+ * `formulaire`/`etatEnvoi` ci-dessus — pas dans useFormulaireCreneaux(),
+ * partagé avec BenevoleDisponibiliteQueue.vue qui n'a rien à voir avec
+ * se_deplace.
+ */
+const seDeplaceFormulaire = reactive<Record<number, boolean>>({});
+
+function seDeplaceValeur(id: number): boolean {
+    return seDeplaceFormulaire[id] ?? false;
+}
+
 async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' | 'rejetee' | 'archive') {
     statutSimpleEnCours[livraison.id] = true;
     const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), { statut_contact: statut });
@@ -336,6 +361,33 @@ async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' |
     chargerFile(meta.value?.current_page ?? 1);
 }
 
+/**
+ * Correction a posteriori de se_deplace — indépendante du reste du
+ * contact (voir ContactTrackingController::mettreAJourSeDeplace(), qui
+ * recalcule aussi le planning retrait QG de la journée après coup).
+ * Distincte de seDeplaceFormulaire (le choix initial fait par
+ * enregistrerContact() à la première confirmation, voir plus bas) — cet
+ * endpoint reste utilisable même après confirmation, sans rouvrir le
+ * formulaire de créneaux.
+ */
+const seDeplaceEnCours = reactive<Record<number, boolean>>({});
+
+async function basculerSeDeplace(livraison: Livraison) {
+    seDeplaceEnCours[livraison.id] = true;
+    const resultat = await apiPost<{ success: boolean; se_deplace: boolean }>(urlSeDeplace(livraison.id), {
+        se_deplace: !livraison.se_deplace,
+    });
+    seDeplaceEnCours[livraison.id] = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    livraison.se_deplace = resultat.data.se_deplace;
+    toast.success('Se déplace mis à jour.');
+}
+
 async function enregistrerContact(livraison: Livraison) {
     const f = formulaire(livraison.id);
     const e = etatEnvoi(livraison.id);
@@ -345,6 +397,7 @@ async function enregistrerContact(livraison: Livraison) {
     const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), {
         statut_contact: 'confirme',
         creneaux: f.creneaux,
+        se_deplace: seDeplaceValeur(livraison.id),
     });
     e.envoiEnCours = false;
 
@@ -433,7 +486,7 @@ onMounted(() => {
         </div>
 
         <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
-            :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" />
+            :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" avec-se-deplace />
 
         <p v-if="chargement" class="text-[14px] text-ink-muted">Chargement…</p>
         <p v-else-if="erreur" class="text-[14px] text-rose-600">Impossible de charger la file de contact.</p>
@@ -490,6 +543,19 @@ onMounted(() => {
                         · assigné à {{ livraison.personne_assignee.prenom }} {{ livraison.personne_assignee.nom }}
                     </span>
                 </div>
+
+                <!-- Toggle se_deplace (25/09/2026, prompt de cette date) —
+                     correction a posteriori (mettreAJourSeDeplace()), à ne
+                     pas confondre avec les radios du formulaire de
+                     confirmation ci-dessous (le choix initial). Affiché
+                     uniquement une fois confirmé : avant, se_deplace vaut
+                     toujours false (défaut colonne), rien à corriger. -->
+                <button v-if="livraison.statut_contact === 'confirme'" type="button" :disabled="seDeplaceEnCours[livraison.id]"
+                    @click="basculerSeDeplace(livraison)"
+                    class="mb-3 inline-flex items-center gap-1.5 text-[12.5px] font-medium px-2.5 py-1 rounded-full disabled:opacity-60"
+                    :class="livraison.se_deplace ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-ink-muted'">
+                    🚶 Se déplace : {{ livraison.se_deplace ? 'Oui' : 'Non' }} · changer
+                </button>
 
                 <!--
                     "Modifier le dossier" (07/09/2026, prompt §2.4) —
@@ -591,6 +657,25 @@ onMounted(() => {
                             </div>
                         </div>
                         <p v-for="e in etatEnvoi(livraison.id).erreurs.creneaux ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                    </div>
+
+                    <!-- se_deplace (25/09/2026, prompt de cette date) :
+                         posée UNIQUEMENT ici (saisie téléphonique staff),
+                         pas sur le formulaire public de confirmation —
+                         décision produit actée avec l'utilisateur. -->
+                    <div>
+                        <label class="block text-[11px] text-ink-muted mb-1.5">La famille se déplacera-t-elle au QG pour récupérer son colis ?</label>
+                        <div class="flex gap-2 max-w-xs">
+                            <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                :class="seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
+                                <input type="radio" :value="true" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Oui
+                            </label>
+                            <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                :class="!seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
+                                <input type="radio" :value="false" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Non
+                            </label>
+                        </div>
+                        <p v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
                     </div>
 
                     <button type="button" :disabled="etatEnvoi(livraison.id).envoiEnCours" @click="enregistrerContact(livraison)"

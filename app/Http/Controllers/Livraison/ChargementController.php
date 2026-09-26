@@ -228,10 +228,10 @@ class ChargementController extends Controller
      *     génération pour un admin/gestionnaire (§1.2 : "it will be
      *     easier for admin").
      *
-     * Scopée aux livraisons non se_deplace (voir Livraison::
-     * scopeSeDeplaceEffectif()) : une famille se_deplace n'a jamais de
-     * tournée à charger, l'absence de RouteLivraison la concernant n'a
-     * rien d'un oubli — elle vit sur livraison/retrait-hq, pas ici.
+     * Scopée aux livraisons non se_deplace (livraisons.se_deplace = false) :
+     * une famille se_deplace n'a jamais de tournée à charger, l'absence de
+     * RouteLivraison la concernant n'a rien d'un oubli — elle vit sur
+     * livraison/retrait-hq, pas ici.
      *
      * @return array{routesJamaisGenerees: bool, lignesPreparation: list<array{id: int, html: string}>}
      */
@@ -239,7 +239,7 @@ class ChargementController extends Controller
     {
         $enAttente = Livraison::where('id_campagne', $campagne->id)
             ->where('statut_contact', 'confirme')
-            ->seDeplaceEffectif(false)
+            ->where('se_deplace', false)
             ->with('famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant')
             ->get();
 

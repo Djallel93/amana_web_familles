@@ -182,7 +182,6 @@ class IntakeController extends Controller
                 'adresse' => ['required', 'string'],
                 'code_postal' => ['required', 'string', 'max:10'],
                 'ville_texte' => ['required', 'string', 'max:150'],
-                'se_deplace' => ['boolean'],
                 'est_hotel' => ['boolean'],
 
                 'circonstances' => ['required', 'string'],

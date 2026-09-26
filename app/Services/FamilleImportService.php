@@ -78,7 +78,6 @@ class FamilleImportService
             'adresse' => ['nullable', 'string'],
             'code_postal' => ['nullable', 'string', 'max:10'],
             'ville_texte' => ['nullable', 'string', 'max:150'],
-            'se_deplace' => ['nullable', 'boolean'],
             'criticite' => ['nullable', 'integer', 'min:0', 'max:5'],
             'langue' => ['nullable', 'string', 'in:fr,ar,en'],
             'etat_dossier' => ['nullable', 'string', 'in:Recu,En cours,En attente,Validé,Rejeté,Archivé'],

@@ -36,7 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null    $id_campagne_journee
  * @property int|null    $locked_by
  * @property \Illuminate\Support\Carbon|null $locked_at
- * @property bool|null    $se_deplace_override    Exception PAR CAMPAGNE à familles.se_deplace — voir seDeplaceEffectif()
+ * @property bool         $se_deplace             La famille se déplace au QG pour cette campagne (propriété pure de la campagne, pas de valeur par défaut)
  * @property \Illuminate\Support\Carbon|null $heure_arrivee_prevue_hq  Créneau de rendez-vous QG — familles se_deplace uniquement
  * @property string|null $statut_retrait_hq      delivre|non_delivre — familles se_deplace uniquement
  */
@@ -56,9 +56,10 @@ class Livraison extends Model
         'statut_contact', 'id_personne_assignee',
         'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
         'nombre_adulte_confirme', 'nombre_enfant_confirme',
-        // Ajoutés le 24/09/2026 (prompt de cette date §2) — voir
-        // create_livraison_operations_tables.php et seDeplaceEffectif().
-        'se_deplace_override', 'heure_arrivee_prevue_hq', 'statut_retrait_hq',
+        // Ajoutés le 24/09/2026 (prompt de cette date §2), se_deplace
+        // recentré comme propriété pure de la campagne le 25/09/2026 (voir
+        // le prompt de cette date) — create_livraison_operations_tables.php.
+        'se_deplace', 'heure_arrivee_prevue_hq', 'statut_retrait_hq',
     ];
 
     protected $casts = [
@@ -67,7 +68,7 @@ class Livraison extends Model
         'nombre_adulte_confirme' => 'integer',
         'nombre_enfant_confirme' => 'integer',
         'locked_at' => 'datetime',
-        'se_deplace_override' => 'boolean',
+        'se_deplace' => 'boolean',
         'heure_arrivee_prevue_hq' => 'datetime',
     ];
 
@@ -234,40 +235,16 @@ class Livraison extends Model
             ?? throw new \InvalidArgumentException("Statut de contact inconnu : {$statut}");
     }
 
-    // ── Retrait QG (familles se_deplace, voir le prompt du 24/09/2026 §2) ──
-
-    /**
-     * Valeur EFFECTIVE de se_deplace pour CETTE campagne : l'override
-     * porté par cette ligne si posé (une famille se_deplace=true par
-     * défaut peut être false un jour donné, et vice-versa — voir le
-     * prompt), sinon la valeur par défaut de la famille. Jamais lue
-     * directement depuis $famille->se_deplace ailleurs dans le domaine
-     * livraison (RouteGenerationService, RetraitHqController...) — passer
-     * systématiquement par cette méthode (ou son pendant SQL
-     * scopeSeDeplaceEffectif() ci-dessous) pour ne jamais oublier
-     * l'override.
-     */
-    public function seDeplaceEffectif(): bool
-    {
-        return $this->se_deplace_override ?? (bool) $this->famille->se_deplace;
-    }
-
-    /**
-     * Pendant SQL de seDeplaceEffectif() ci-dessus, pour filtrer en base
-     * plutôt que charger puis filtrer en PHP (pool de clustering,
-     * RetraitHqController::construireListe()) — nécessite familles déjà
-     * joignable via whereHas, voir les deux appelants.
-     */
-    public function scopeSeDeplaceEffectif(\Illuminate\Database\Eloquent\Builder $query, bool $valeur): \Illuminate\Database\Eloquent\Builder
-    {
-        return $query->where(function ($q) use ($valeur) {
-            $q->where('se_deplace_override', $valeur)
-                ->orWhere(function ($q2) use ($valeur) {
-                    $q2->whereNull('se_deplace_override')
-                        ->whereHas('famille', fn ($q3) => $q3->where('se_deplace', $valeur));
-                });
-        });
-    }
+    // ── Retrait QG (familles se_deplace, voir le prompt du 24/09/2026 §2 ;
+    // recentré comme propriété pure de la campagne le 25/09/2026, voir le
+    // prompt de cette date) ──
+    //
+    // se_deplace n'a plus de valeur par défaut à résoudre : c'est une
+    // colonne NOT NULL directe sur cette table, lue/filtrée sans
+    // intermédiaire (`$livraison->se_deplace`, `->where('se_deplace', …)`)
+    // partout dans le domaine livraison (RouteGenerationService,
+    // RetraitHqSchedulingService, RetraitHqController,
+    // ChargementController, ContactTrackingController).
 
     // ── Calcul du poids (voir Patch 2 — LivraisonGenerationService) ────────
 

@@ -59,7 +59,7 @@ class FamillesController extends Controller
      */
     private const COLONNES_TRIABLES = [
         'id', 'nom', 'statut', 'email', 'telephone', 'telephone_bis', 'adresse',
-        'nombre_adulte', 'nombre_enfant', 'criticite', 'eligibilite', 'se_deplace',
+        'nombre_adulte', 'nombre_enfant', 'criticite', 'eligibilite',
         'est_hotel', 'etudiant', 'langue', 'type_piece_identite', 'created_at',
     ];
 
@@ -124,7 +124,7 @@ class FamillesController extends Controller
         // devenu impossible une fois la vue Blade remplacée par
         // Inertia::render(). Comportement identique, code déplacé tel
         // quel plutôt que réécrit.
-        $filtresActifs = $request->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant', 'criticite', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee']);
+        $filtresActifs = $request->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'est_hotel', 'etudiant', 'criticite', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee']);
         $puces = $this->construirePucesFiltres($request, $etatDossier, $villes, $quartiers, $organisations, 'familles.index');
 
         $utilisateur = auth()->user();
@@ -204,7 +204,7 @@ class FamillesController extends Controller
         // (jamais eu cette fonctionnalité, contrairement à index()).
         $aFiltresActifs = $request->anyFilled([
             'recherche', 'id_ville', 'id_secteur', 'id_quartier', 'criticite',
-            'se_deplace', 'est_hotel', 'etudiant', 'zakat_el_fitr', 'sadaqa',
+            'est_hotel', 'etudiant', 'zakat_el_fitr', 'sadaqa',
             'id_organisation_origine', 'id_organisation_rattachee',
         ]);
 
@@ -263,7 +263,6 @@ class FamillesController extends Controller
             'id_secteur' => $request->input('id_secteur', ''),
             'id_quartier' => $request->input('id_quartier', ''),
             'criticite' => array_map('intval', (array) $request->input('criticite', [])),
-            'se_deplace' => $request->boolean('se_deplace'),
             'est_hotel' => $request->boolean('est_hotel'),
             'etudiant' => $request->boolean('etudiant'),
             'zakat_el_fitr' => $request->boolean('zakat_el_fitr'),
@@ -335,9 +334,6 @@ class FamillesController extends Controller
             if ($criticiteValeurs->isNotEmpty()) {
                 $puces[] = ['label' => 'Criticité : ' . $criticiteValeurs->implode(', '), 'href' => route($routeName, $parametresBase->except('criticite')->all())];
             }
-        }
-        if ($request->boolean('se_deplace')) {
-            $puces[] = ['label' => 'Se déplace', 'href' => route($routeName, $parametresBase->except('se_deplace')->all())];
         }
         if ($request->boolean('est_hotel')) {
             $puces[] = ['label' => '🏨 Hôtel', 'href' => route($routeName, $parametresBase->except('est_hotel')->all())];
@@ -480,7 +476,6 @@ class FamillesController extends Controller
             'etat_dossier' => 'Statut',
             'zakat_el_fitr' => 'Zakat El Fitr',
             'sadaqa' => 'Sadaqa',
-            'se_deplace' => 'Se déplace',
             'est_hotel' => 'Hôtel',
             'etudiant' => 'Étudiant',
             'langue' => 'Langue',
@@ -505,7 +500,7 @@ class FamillesController extends Controller
                             'adresse_complete' => $famille->adresse_complete,
                             'ville' => $famille->ville ?? '',
                             'quartier' => $famille->quartier->nom ?? '',
-                            'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant' => $famille->{$champ} ? 'Oui' : 'Non',
+                            'zakat_el_fitr', 'sadaqa', 'est_hotel', 'etudiant' => $famille->{$champ} ? 'Oui' : 'Non',
                             'created_at' => $famille->created_at?->format('d/m/Y') ?? '',
                             default => (string) ($famille->{$champ} ?? ''),
                         };
@@ -593,7 +588,6 @@ class FamillesController extends Controller
             'nombre_enfant' => $query->orderBy('nombre_enfant', $direction),
             'criticite' => $query->orderBy('criticite', $direction),
             'eligibilite' => $query->orderBy('zakat_el_fitr', $direction)->orderBy('sadaqa', $direction),
-            'se_deplace' => $query->orderBy('se_deplace', $direction),
             'est_hotel' => $query->orderBy('est_hotel', $direction),
             'etudiant' => $query->orderBy('etudiant', $direction),
             'langue' => $query->orderBy('langue', $direction),
@@ -872,12 +866,11 @@ class FamillesController extends Controller
             'code_postal' => ['nullable', 'string', 'max:10'],
             'ville_texte' => ['nullable', 'string', 'max:150'],
             'id_quartier' => ['nullable', 'integer', 'exists:commun.quartiers,id'],
-            'se_deplace' => ['boolean'],
             // 'boolean' accepte l'absence de clé comme false — cohérent
-            // avec zakat_el_fitr/sadaqa/se_deplace ci-dessus, mais
-            // manquait jusqu'ici pour est_hotel malgré sa présence dans
-            // Famille::$fillable (silencieusement rejeté par $request->
-            // validate() faute de règle déclarée) — corrigé le 12/08/2026.
+            // avec zakat_el_fitr/sadaqa ci-dessus, mais manquait jusqu'ici
+            // pour est_hotel malgré sa présence dans Famille::$fillable
+            // (silencieusement rejeté par $request->validate() faute de
+            // règle déclarée) — corrigé le 12/08/2026.
             'est_hotel' => ['boolean'],
             'etudiant' => ['boolean'],
             'circonstances' => ['nullable', 'string'],

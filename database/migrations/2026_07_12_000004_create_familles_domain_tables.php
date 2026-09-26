@@ -126,7 +126,6 @@ return new class extends Migration {
             // n'est pas encore autorisée (cf. GoogleContactsService).
             $table->string('google_resource_name', 100)->nullable()
                 ->comment('resourceName Google People API (ex: people/c1234567890), défini après la 1ère synchronisation');
-            $table->boolean('se_deplace')->default(false);
             $table->boolean('est_hotel')->default(false)
                 ->comment('Adresse actuelle = un hôtel (hébergement d\'urgence) — ajouté suite à la demande du 09/08/2026, absent du Google Form d\'origine');
             $table->boolean('etudiant')->default(false)

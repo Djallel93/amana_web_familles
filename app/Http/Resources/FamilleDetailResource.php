@@ -52,7 +52,6 @@ class FamilleDetailResource extends JsonResource
             'ville_texte' => $this->ville_texte,
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
-            'se_deplace' => $this->se_deplace,
             'est_hotel' => $this->est_hotel,
             'etudiant' => $this->etudiant,
             'criticite' => $this->criticite,

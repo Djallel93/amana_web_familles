@@ -89,7 +89,6 @@ export interface FamilleLigne {
     criticite: number;
     zakat_el_fitr: boolean;
     sadaqa: boolean;
-    se_deplace: boolean;
     est_hotel: boolean;
     etudiant: boolean;
     langue: string;
@@ -144,7 +143,6 @@ const COLONNES_TABLEAU: Record<string, { label: string; triable: boolean; defaut
     nombre_enfant: { label: 'Enfants', triable: true, defaut: false },
     criticite: { label: 'Criticité', triable: true, defaut: true },
     eligibilite: { label: 'Éligibilité', triable: true, defaut: true },
-    se_deplace: { label: 'Se déplace', triable: true, defaut: false },
     est_hotel: { label: 'Hôtel', triable: true, defaut: false },
     etudiant: { label: 'Étudiant', triable: true, defaut: false },
     langue: { label: 'Langue', triable: true, defaut: false },
@@ -347,7 +345,6 @@ function ouvrir(id: number) {
                                     <span v-if="ligne.sadaqa" class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">Sadaqa</span>
                                 </div>
                             </td>
-                            <td v-show="colonnesVisibles.se_deplace" class="px-4 py-2.5 text-ink-muted">{{ ligne.se_deplace ? 'Oui' : 'Non' }}</td>
                             <td v-show="colonnesVisibles.est_hotel" class="px-4 py-2.5 text-ink-muted">{{ ligne.est_hotel ? 'Oui' : 'Non' }}</td>
                             <td v-show="colonnesVisibles.etudiant" class="px-4 py-2.5 text-ink-muted">{{ ligne.etudiant ? 'Oui' : 'Non' }}</td>
                             <td v-show="colonnesVisibles.langue" class="px-4 py-2.5 text-ink-muted">{{ LANGUES[ligne.langue] ?? ligne.langue }}</td>

@@ -46,6 +46,10 @@ class LivraisonQueueResource extends JsonResource
             'ville_confirmee' => $this->ville_confirmee,
             'nombre_adulte_confirme' => $this->nombre_adulte_confirme,
             'nombre_enfant_confirme' => $this->nombre_enfant_confirme,
+            // se_deplace (25/09/2026, prompt de cette date) : nécessaire à
+            // l'affichage/toggle par ligne + au filtre sur cet écran (voir
+            // ContactsQueue.vue), propriété pure de la campagne désormais.
+            'se_deplace' => $this->se_deplace,
             'creneaux' => $this->whenLoaded('creneaux', fn () => $this->creneaux->map(fn ($c) => ['creneau' => $c->creneau])),
         ];
     }

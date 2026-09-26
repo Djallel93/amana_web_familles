@@ -108,13 +108,20 @@ class LivraisonGenerationService
      * une sous-requête scalaire évite un with() + accès imbriqué côté
      * front pour une seule valeur.
      */
-    public function nonCouvertesEligibles(Campagne $campagne, ?CampagneJournee $journee = null): Builder
+    public function nonCouvertesEligibles(Campagne $campagne, ?CampagneJournee $journee = null, ?bool $seDeplace = null): Builder
     {
-        $livraisonMatch = function ($q) use ($campagne, $journee) {
+        $livraisonMatch = function ($q) use ($campagne, $journee, $seDeplace) {
             $q->where('id_campagne', $campagne->id)
                 ->when($journee !== null, fn ($qq) => $qq->where('id_campagne_journee', $journee->id))
                 ->where('statut', 'non_assignee')
-                ->where('statut_contact', 'confirme');
+                ->where('statut_contact', 'confirme')
+                // se_deplace (25/09/2026, prompt de cette date) : propriété
+                // pure de la campagne, filtrable ici exactement comme dans
+                // ContactTrackingController::queteBase() — légitime car une
+                // Livraison existe déjà pour chaque ligne (non couvertes,
+                // déjà confirmées), à la différence de eligibles()
+                // ci-dessous (familles pas encore ajoutées à la campagne).
+                ->when($seDeplace !== null, fn ($qq) => $qq->where('se_deplace', $seDeplace));
 
             return $q;
         };

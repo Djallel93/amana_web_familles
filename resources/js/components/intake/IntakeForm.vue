@@ -99,8 +99,6 @@ const DICT: Record<Langue, Record<string, string>> = {
         adresse_manual_toggle: 'Je ne trouve pas mon adresse — la saisir manuellement',
         adresse_back_to_search: 'Revenir à la recherche automatique',
         est_hotel_question: "S'agit-il d'un hôtel (hébergement d'urgence) ?",
-        se_deplace_question: 'Pouvez-vous vous déplacer pour récupérer votre colis alimentaire si aucun bénévole n\'est disponible pour vous le livrer ?',
-        se_deplace_warning: '⚠️ Attention : en fonction du nombre de membres de votre famille, le colis alimentaire peut être assez lourd. Merci de prendre cela en compte avant de répondre.',
         oui: 'Oui', non: 'Non',
 
         step_situation: 'Situation familiale',
@@ -177,8 +175,6 @@ const DICT: Record<Langue, Record<string, string>> = {
         adresse_manual_toggle: "I can't find my address — enter it manually",
         adresse_back_to_search: 'Back to automatic search',
         est_hotel_question: 'Is this a hotel (emergency accommodation)?',
-        se_deplace_question: 'Are you able to travel to pick up your food package if no volunteer is available to deliver it to you?',
-        se_deplace_warning: '⚠️ Please note: depending on the number of people in your household, the food package may be quite heavy. Please keep this in mind when answering.',
         oui: 'Yes', non: 'No',
 
         step_situation: 'Family Situation',
@@ -255,8 +251,6 @@ const DICT: Record<Langue, Record<string, string>> = {
         adresse_manual_toggle: 'لا أجد عنواني — أدخله يدويًا',
         adresse_back_to_search: 'العودة إلى البحث التلقائي',
         est_hotel_question: 'هل هذا فندق (إقامة طارئة)؟',
-        se_deplace_question: 'هل تستطيعون الانتقال لاستلام الطرد الغذائي إذا لم يتوفر أي متطوّع لإيصاله إليكم؟',
-        se_deplace_warning: '⚠️ تنبيه: حسب عدد أفراد أسرتكم، قد يكون الطرد الغذائي ثقيلاً. يُرجى أخذ ذلك بعين الاعتبار قبل الإجابة.',
         oui: 'نعم', non: 'لا',
 
         step_situation: 'الوضع العائلي',
@@ -348,7 +342,7 @@ const form = reactive({
     nom: '', prenom: '', email: '', telephone: '', telephone_bis: '',
     id_organisation: null as number | null,
     type_hebergement: '' as '' | 'organisation' | 'proche' | 'non', hosted_by: '',
-    adresse: '', code_postal: '', ville_texte: '', se_deplace: false, est_hotel: false,
+    adresse: '', code_postal: '', ville_texte: '', est_hotel: false,
     nombre_adulte: 1, nombre_enfant: 0, etudiant: false, circonstances: '',
     type_piece_identite: '' as '' | 'nationalite' | 'titre_sejour' | 'demande_asile' | 'autre',
     type_activite: '' as '' | 'temps_plein' | 'temps_partiel' | 'non',
@@ -670,7 +664,6 @@ async function submit(): Promise<void> {
     append('adresse', form.adresse);
     append('code_postal', form.code_postal);
     append('ville_texte', form.ville_texte);
-    append('se_deplace', form.se_deplace);
     append('est_hotel', form.est_hotel);
     append('nombre_adulte', form.nombre_adulte);
     append('nombre_enfant', form.nombre_enfant);
@@ -886,20 +879,6 @@ async function submit(): Promise<void> {
                     <input type="checkbox" v-model="form.est_hotel" class="w-4 h-4 accent-accent">
                     {{ t.est_hotel_question }}
                 </label>
-                <div>
-                    <label class="block text-xs font-semibold text-ink mb-1">{{ t.se_deplace_question }} *</label>
-                    <p class="text-[11.5px] text-ink-muted mb-2">{{ t.se_deplace_warning }}</p>
-                    <div class="flex gap-2">
-                        <label class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border rounded-md text-[13.5px] cursor-pointer select-none"
-                            :class="form.se_deplace ? 'border-accent bg-accent/5' : 'border-ink-faint'">
-                            <input type="radio" :value="true" v-model="form.se_deplace" class="w-4 h-4 accent-accent"> {{ t.oui }}
-                        </label>
-                        <label class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border rounded-md text-[13.5px] cursor-pointer select-none"
-                            :class="!form.se_deplace ? 'border-accent bg-accent/5' : 'border-ink-faint'">
-                            <input type="radio" :value="false" v-model="form.se_deplace" class="w-4 h-4 accent-accent"> {{ t.non }}
-                        </label>
-                    </div>
-                </div>
             </div>
         </section>
 

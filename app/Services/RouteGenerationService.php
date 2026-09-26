@@ -252,11 +252,11 @@ class RouteGenerationService
         $livraisonsImposees = Livraison::where('id_campagne', $campagne->id)
             ->where('statut', 'non_assignee')
             ->whereNotNull('id_benevole_impose')
-            // Voir le même exclusion sur genererPourCreneau() ci-dessous —
+            // Voir la même exclusion sur genererPourCreneau() ci-dessous —
             // une famille se_deplace n'a rien à faire dans une tournée,
             // imposée ou non.
-            ->seDeplaceEffectif(false)
-            ->with('famille:id,latitude,longitude,id_quartier,se_deplace')
+            ->where('se_deplace', false)
+            ->with('famille:id,latitude,longitude,id_quartier')
             ->get()
             ->filter(fn (Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
             ->groupBy('id_benevole_impose');
@@ -302,11 +302,11 @@ class RouteGenerationService
             // viennent chercher leur colis au QG, jamais livrées — exclues
             // du pool de clustering, voir RetraitHqSchedulingService pour
             // leur propre planification (créneau QG, PAS un RouteLivraison).
-            // seDeplaceEffectif() : override par campagne, voir son
-            // docblock sur App\Models\Livraison — pas juste
-            // famille.se_deplace brut.
-            ->seDeplaceEffectif(false)
-            ->with(['famille:id,latitude,longitude,id_quartier,se_deplace', 'creneaux'])
+            // se_deplace vit directement sur cette ligne depuis le
+            // 25/09/2026 (propriété pure de la campagne, plus d'override à
+            // résoudre — voir le prompt de cette date).
+            ->where('se_deplace', false)
+            ->with(['famille:id,latitude,longitude,id_quartier', 'creneaux'])
             ->get()
             ->filter(fn (Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
             ->values();

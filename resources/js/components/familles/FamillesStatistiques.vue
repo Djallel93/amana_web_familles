@@ -64,7 +64,6 @@ interface Donnees {
     eligibilite: { zakatElFitr: number; sadaqa: number; aucune: number };
     parQuartier: { valeur: string; total: number }[];
     parVille: { valeur: string; total: number }[];
-    seDeplace: { seDeplace: number; neSeDeplacePas: number };
     etudiant: { etudiant: number; nonEtudiant: number };
     estHotel: { estHotel: number; nonHotel: number };
     evolutionFoyer: { mois: string; adultes: number; enfants: number; nouveauxDossiers: number }[];
@@ -305,23 +304,20 @@ onUnmounted(detruireGraphiques);
              panneau texte à part, + étudiant/hôtel qui n'existaient pas
              encore ici). Seul le décompte "vrai" est affiché — demande
              explicite du 13/08/2026 ("display only number were true") ;
-             nonEtudiant/neSeDeplacePas/nonHotel restent dans la réponse
-             JSON si un usage futur en a besoin (ex. un graphique), juste
-             pas rendus ici. -->
+             nonEtudiant/nonHotel restent dans la réponse JSON si un usage
+             futur en a besoin (ex. un graphique), juste pas rendus ici.
+             Carte "Se déplace" retirée le 25/09/2026 (prompt de cette
+             date) : se_deplace n'est plus une propriété de la famille
+             mais de la campagne (voir FamilleStatistics::computeAll()) —
+             un stat GLOBAL par famille n'a plus de sens ici, le tableau de
+             bord Retrait QG expose déjà l'équivalent scopé à une
+             campagne. -->
         <div>
             <h3 class="text-[11px] font-bold text-ink-muted uppercase tracking-wide mb-2">Caractéristiques</h3>
-            <!-- grid-cols-1 sm:grid-cols-3 (04/09/2026) — c'était le seul
-                 grid-cols-3 de ce fichier sans aucun palier responsive, les
-                 3 cartes se retrouvaient compressées côte à côte sur un
-                 téléphone étroit. -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🚶</div>
-                    <div class="min-w-0">
-                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.seDeplace.seDeplace }}</div>
-                        <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Se déplace</div>
-                    </div>
-                </div>
+            <!-- grid-cols-1 sm:grid-cols-2 (25/09/2026, prompt de cette
+                 date) — repassé de 3 à 2 cartes après le retrait de "Se
+                 déplace" ci-dessus. -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🎓</div>
                     <div class="min-w-0">

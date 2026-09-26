@@ -217,7 +217,7 @@ async function construire() {
             </label>
 
             <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
-                :model-value="filtres" @update:model-value="filtres = $event" @filtrer="chargerLignes(1)" />
+                :model-value="filtres" @update:model-value="filtres = $event" @filtrer="chargerLignes(1)" avec-se-deplace />
 
             <div class="overflow-x-auto mb-2 border border-surface-border rounded-lg">
                 <table class="w-full text-[13px]">

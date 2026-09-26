@@ -13,7 +13,7 @@ namespace App\Support;
  *
  * Colonnes attendues (en-tête, insensible à la casse) : nom, prenom,
  * telephone, email, telephone_bis, adresse, code_postal, ville,
- * nombre_adulte, nombre_enfant, zakat_el_fitr, sadaqa, se_deplace,
+ * nombre_adulte, nombre_enfant, zakat_el_fitr, sadaqa,
  * criticite, langue, etat_dossier, commentaire_dossier.
  * "ville" (pas "ville_texte") côté CSV pour rester lisible côté staff ;
  * mappé vers ville_texte en interne.
@@ -60,7 +60,7 @@ class FamilleCsvParser
             $entetes[$mapVille] = 'ville_texte';
         }
 
-        $champsBooleens = ['zakat_el_fitr', 'sadaqa', 'se_deplace'];
+        $champsBooleens = ['zakat_el_fitr', 'sadaqa'];
         $lignes = [];
 
         while (($valeurs = fgetcsv($handle, 0, $separateur)) !== false) {

@@ -73,7 +73,6 @@ interface Famille {
     ville_texte: string | null;
     id_quartier: number | null;
     quartier: Quartier | null;
-    se_deplace: boolean;
     est_hotel: boolean;
     etudiant: boolean;
     // Cast decimal:7 côté modèle → sérialisé en chaîne (évite la perte de
@@ -989,12 +988,7 @@ onMounted(() => {
                         <span aria-hidden="true">🛏️</span> Hébergement
                     </h3>
                     <div class="space-y-3">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                                :class="famille.se_deplace ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                                <input v-model="famille.se_deplace" type="checkbox" class="w-4 h-4 accent-accent">
-                                Peut se déplacer
-                            </label>
+                        <div class="grid grid-cols-1 gap-3">
                             <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
                                 :class="famille.est_hotel ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
                                 <input v-model="famille.est_hotel" type="checkbox" class="w-4 h-4 accent-accent">

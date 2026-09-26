@@ -60,6 +60,17 @@ const props = withDefaults(defineProps<{
     // livraison) — familles/index.blade.php seule le passe à `true`, pour
     // rester ouvert par défaut comme avant ce refactor.
     ouvertParDefaut?: boolean;
+    // avecSeDeplace (25/09/2026, prompt de cette date) : affiche la case
+    // "Se déplace" du groupe Caractéristiques. Depuis que se_deplace a été
+    // retiré de Famille (recentré comme propriété pure de la campagne, sur
+    // Livraison), ce n'est plus un filtre App\Support\FamilleFilters — donc
+    // masqué par défaut partout — mais reste pertinent scopé PAR CAMPAGNE
+    // sur les 2 écrans qui listent des Livraison déjà existantes :
+    // ContactsQueue.vue et BuildRouteFlow.vue (voir FamilleFiltres dans
+    // types.ts pour le détail). CampagneDetail.vue ("familles éligibles",
+    // aucune Livraison n'existe encore) et FamilleFiltresBar.vue (Dossier
+    // Familles, hors contexte campagne) n'activent PAS cette prop.
+    avecSeDeplace?: boolean;
 }>(), {
     avecStatut: false,
     etatsDisponibles: () => [],
@@ -67,6 +78,7 @@ const props = withDefaults(defineProps<{
     avecAutocompletion: false,
     suggestionsUrl: '',
     ouvertParDefaut: false,
+    avecSeDeplace: false,
 });
 
 const emit = defineEmits<{
@@ -315,7 +327,7 @@ function choisirSuggestion(champ: 'nom' | 'telephone', suggestion: FamilleSugges
         <div class="mb-4">
             <label :class="[CHAMP_LABEL, 'mb-1.5']">Caractéristiques</label>
             <div class="flex flex-wrap gap-2">
-                <label :class="CHIP_LABEL">
+                <label v-if="avecSeDeplace" :class="CHIP_LABEL">
                     <input type="checkbox" v-model="filtres.se_deplace" class="w-3.5 h-3.5 accent-accent"> Se déplace
                 </label>
                 <label :class="CHIP_LABEL">

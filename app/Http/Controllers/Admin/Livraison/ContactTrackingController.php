@@ -98,6 +98,12 @@ class ContactTrackingController extends Controller
             'assignerUrlTemplate' => route('livraison.contacts.assigner', '__ID__'),
             'assignerLotUrl' => route('livraison.contacts.assigner-lot'),
             'contacterManuelUrlTemplate' => route('livraison.contacts.contacter-manuel', '__ID__'),
+            // se-deplace (25/09/2026, prompt de cette date) : première UI
+            // pour cet endpoint (existait côté back sans consommateur
+            // jusqu'ici) — toggle par ligne dans ContactsQueue.vue, pour
+            // corriger se_deplace après le premier contact sans rouvrir
+            // tout le dossier (voir mettreAJourSeDeplace()).
+            'seDeplaceUrlTemplate' => route('livraison.contacts.se-deplace', '__ID__'),
             'retourUrl' => route('livraison.campagnes.index'),
             ...$this->detailPanelProps(),
             'secteursActivite' => $secteursActivite,
@@ -229,6 +235,17 @@ class ContactTrackingController extends Controller
         if ($request->filled('statut_contact')) {
             $query->where('statut_contact', $request->input('statut_contact'));
         }
+        // se_deplace (25/09/2026, prompt de cette date) : propriété pure de
+        // la campagne, vit uniquement sur livraisons.se_deplace — filtre
+        // direct ici plutôt que via FamilleFilters/Famille ci-dessous (qui
+        // ne connaît plus se_deplace du tout). Légitime sur cet écran
+        // précisément parce qu'une Livraison existe déjà pour chaque ligne
+        // affichée (suivi de contact d'une campagne déjà en cours), à la
+        // différence de CampagnesController::eligibles() (familles pas
+        // encore ajoutées, aucune Livraison n'existe encore).
+        if ($request->filled('se_deplace')) {
+            $query->where('livraisons.se_deplace', $request->boolean('se_deplace'));
+        }
 
         if ($this->requeteAUnFiltreFamille($request)) {
             $idsFamilles = tap(Famille::query(), fn ($q) => FamilleFilters::appliquer($q, $request))->pluck('id');
@@ -241,13 +258,16 @@ class ContactTrackingController extends Controller
     /**
      * Clés reconnues par App\Support\FamilleFilters — si aucune n'est
      * présente, on évite l'aller-retour vers Famille (qui retournerait de
-     * toute façon tous les ids sans rien filtrer).
+     * toute façon tous les ids sans rien filtrer). se_deplace n'en fait
+     * plus partie depuis le 25/09/2026 (voir le prompt de cette date) :
+     * ce n'est plus une colonne de Famille, traité à part dans
+     * queteBase() ci-dessus.
      */
     private function requeteAUnFiltreFamille(Request $request): bool
     {
         return $request->hasAny([
             'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa',
-            'se_deplace', 'est_hotel', 'etudiant', 'criticite', 'recherche',
+            'est_hotel', 'etudiant', 'criticite', 'recherche',
             'id_selection', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee',
         ]);
     }
@@ -342,6 +362,13 @@ class ContactTrackingController extends Controller
      * à "Modifier le dossier") continue de les envoyer et garde ce
      * comportement inchangé — une seule et même méthode de
      * synchronisation, quelle que soit l'origine de l'appel.
+     *
+     * se_deplace (25/09/2026, prompt de cette date) : requis à la
+     * confirmation, écrit directement sur $livraison (jamais synchronisé
+     * vers Famille — c'est une propriété pure de CETTE campagne). Volontai-
+     * rement PAS ajouté à ContactConfirmationController::store() (formulaire
+     * public) — décision produit actée avec l'utilisateur : seule la saisie
+     * staff pose cette question à la famille.
      */
     public function contacterManuel(Request $request, Livraison $livraison): JsonResponse
     {
@@ -354,6 +381,14 @@ class ContactTrackingController extends Controller
             'nombre_enfant_confirme' => 'nullable|integer|min:0|max:30',
             'creneaux' => 'required_if:statut_contact,confirme|nullable|array|min:1',
             'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
+            // se_deplace (25/09/2026, prompt de cette date) : seul moment
+            // où la famille peut elle-même indiquer qu'elle se déplacera
+            // au QG pour CETTE campagne (en plus de la correction a
+            // posteriori ContactTrackingController::mettreAJourSeDeplace(),
+            // réservée à l'admin/gestionnaire) — requis uniquement à la
+            // confirmation, livraisons.se_deplace reste à false (défaut)
+            // pour tout autre statut_contact.
+            'se_deplace' => 'required_if:statut_contact,confirme|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -363,6 +398,10 @@ class ContactTrackingController extends Controller
         $statut = $request->input('statut_contact');
         $donnees = ['statut_contact' => $statut];
         $donneesConfirmees = null;
+
+        if ($statut === 'confirme') {
+            $donnees['se_deplace'] = $request->boolean('se_deplace');
+        }
 
         if ($statut === 'confirme' && $request->filled('adresse_confirmee')) {
             $donneesConfirmees = $validator->safe()->only([
@@ -395,18 +434,19 @@ class ContactTrackingController extends Controller
     }
 
     /**
-     * Exception journalière se_deplace — admin/gestionnaire uniquement
+     * Correction a posteriori de se_deplace — admin/gestionnaire uniquement
      * (24/09/2026, prompt de cette date §5 : "No only admin/gestionnaire").
-     * Override PAR CAMPAGNE de familles.se_deplace (voir Livraison::
-     * seDeplaceEffectif()) : une famille se_deplace=true par défaut peut
-     * être false une campagne donnée et vice-versa (prompt §2 : "even
-     * this flag is true for family it can be false that specific day and
-     * vise versa").
+     * se_deplace est une propriété PURE de la campagne (livraisons.se_deplace,
+     * NOT NULL, false par défaut — recentré le 25/09/2026, voir le prompt de
+     * cette date) : cet endpoint permet de la corriger après le premier
+     * contact (voir contacterManuel(), qui la fixe une première fois), sans
+     * rouvrir tout le dossier de contact — typiquement une exception
+     * journalière ("la famille avait dit oui, finalement non le jour J").
      *
      * Recalcule TOUJOURS le planning retrait QG de la journée après coup
      * (prompt §4 : "recompute both routes and handouts if flag changes
-     * for current campagne") — que le nouvel effectif change ou non, le
-     * nombre total de familles se_deplace de la journée peut avoir changé.
+     * for current campagne") — que la valeur change ou non, le nombre
+     * total de familles se_deplace de la journée peut avoir changé.
      *
      * Impact tournées, seulement dans un sens :
      *   - false → true (la famille n'a plus besoin d'être livrée) : si
@@ -424,25 +464,17 @@ class ContactTrackingController extends Controller
     public function mettreAJourSeDeplace(Request $request, Livraison $livraison): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            // null explicite = retire l'exception, retombe sur
-            // familles.se_deplace (voir seDeplaceEffectif()).
-            'se_deplace' => 'nullable|boolean',
+            'se_deplace' => 'required|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        // Request::boolean() ne distingue pas "absent" de "false" — on
-        // relit has()/boolean() pour permettre explicitement les 3 états
-        // (true/false/absent→null), voir le docblock ci-dessus sur le
-        // "null explicite".
-        $livraison->se_deplace_override = $request->has('se_deplace')
-            ? $request->boolean('se_deplace')
-            : null;
+        $livraison->se_deplace = $request->boolean('se_deplace');
         $livraison->save();
 
-        if ($livraison->seDeplaceEffectif()) {
+        if ($livraison->se_deplace) {
             $etape = $livraison->etapesRoute()->with('route')->first();
             if ($etape?->route) {
                 $this->mutationService->retirerLivraison($etape->route, $etape);
@@ -456,6 +488,6 @@ class ContactTrackingController extends Controller
             }
         }
 
-        return response()->json(['success' => true, 'se_deplace_effectif' => $livraison->fresh()->seDeplaceEffectif()]);
+        return response()->json(['success' => true, 'se_deplace' => $livraison->fresh()->se_deplace]);
     }
 }

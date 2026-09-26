@@ -68,7 +68,6 @@ class FamilleListItemResource extends JsonResource
             'criticite' => $this->criticite,
             'zakat_el_fitr' => $this->zakat_el_fitr,
             'sadaqa' => $this->sadaqa,
-            'se_deplace' => $this->se_deplace,
             'est_hotel' => $this->est_hotel,
             'etudiant' => $this->etudiant,
             'langue' => $this->langue,

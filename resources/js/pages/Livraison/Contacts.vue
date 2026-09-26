@@ -48,6 +48,7 @@ const props = defineProps<{
     assignerUrlTemplate: string;
     assignerLotUrl: string;
     contacterManuelUrlTemplate: string;
+    seDeplaceUrlTemplate: string;
     retourUrl: string;
     showUrlTemplate: string;
     updateUrlTemplate: string;
@@ -89,7 +90,7 @@ onMounted(() => {
         <ContactsQueue :campagnes="campagnes" :villes="villes" :secteurs="secteurs" :quartiers="quartiers"
             :organisations="organisations" :queue-url="queueUrl" :statistiques-url="statistiquesUrl"
             :assigner-url-template="assignerUrlTemplate" :assigner-lot-url="assignerLotUrl"
-            :contacter-manuel-url-template="contacterManuelUrlTemplate" />
+            :contacter-manuel-url-template="contacterManuelUrlTemplate" :se-deplace-url-template="seDeplaceUrlTemplate" />
     </div>
 
     <DetailPanel :show-url-template="showUrlTemplate" :update-url-template="updateUrlTemplate"

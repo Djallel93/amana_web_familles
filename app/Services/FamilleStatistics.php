@@ -30,7 +30,6 @@ class FamilleStatistics
             'eligibilite' => $this->eligibilite($familles),
             'parQuartier' => $this->repartitionParQuartier($familles),
             'parVille' => $this->repartitionParVille($familles),
-            'seDeplace' => $this->repartitionSeDeplace($familles),
             'etudiant' => $this->repartitionEtudiant($familles),
             'estHotel' => $this->repartitionEstHotel($familles),
             'evolutionFoyer' => $this->evolutionFoyer($familles),
@@ -101,18 +100,14 @@ class FamilleStatistics
             ->all();
     }
 
-    private function repartitionSeDeplace(Collection $familles): array
-    {
-        return [
-            'seDeplace' => $familles->where('se_deplace', true)->count(),
-            'neSeDeplacePas' => $familles->where('se_deplace', false)->count(),
-        ];
-    }
-
     /**
      * Ajoutés le 13/08/2026 pour les cartes "Caractéristiques" de
-     * FamillesStatistiques.vue (étudiant / hôtel), même forme que
-     * repartitionSeDeplace() ci-dessus.
+     * FamillesStatistiques.vue (étudiant / hôtel). repartitionSeDeplace(),
+     * qui avait la même forme, a été retirée le 25/09/2026 : se_deplace
+     * n'est plus une propriété de la famille mais de la campagne (portée
+     * uniquement par Livraison), un stat GLOBAL par famille n'a donc plus
+     * de sens ici — le tableau de bord Retrait QG expose déjà l'équivalent
+     * SCOPÉ à une campagne.
      */
     private function repartitionEtudiant(Collection $familles): array
     {

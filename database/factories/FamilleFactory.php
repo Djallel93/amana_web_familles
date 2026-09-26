@@ -59,7 +59,6 @@ class FamilleFactory extends Factory
             'code_postal' => fake()->randomElement(['44000', '44100', '44200', '44300', '44600']),
             'ville_texte' => fake()->randomElement(['Nantes', 'Saint-Nazaire', 'Rezé', 'Couëron', 'Saint-Herblain']),
             'id_quartier' => null,
-            'se_deplace' => fake()->boolean(60),
             'est_hotel' => fake()->boolean(10),
             'etudiant' => fake()->boolean(20),
 

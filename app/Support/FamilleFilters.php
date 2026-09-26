@@ -53,9 +53,6 @@ class FamilleFilters
         if ($request->boolean('sadaqa')) {
             $query->where('sadaqa', true);
         }
-        if ($request->boolean('se_deplace')) {
-            $query->where('se_deplace', true);
-        }
         if ($request->boolean('est_hotel')) {
             $query->where('est_hotel', true);
         }

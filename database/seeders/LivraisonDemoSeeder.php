@@ -241,7 +241,6 @@ class LivraisonDemoSeeder extends Seeder
                     'id_quartier' => $donnees['id_quartier'],
                     'latitude' => $donnees['latitude'],
                     'longitude' => $donnees['longitude'],
-                    'se_deplace' => fake()->boolean(50),
                     'est_hotel' => $donnees['est_hotel'] ?? false,
                     'etudiant' => $donnees['etudiant'] ?? false,
                     'criticite' => $donnees['criticite'],

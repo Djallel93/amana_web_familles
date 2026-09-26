@@ -19,12 +19,12 @@ use Illuminate\Support\Carbon;
  *
  * Une famille se_deplace n'entre jamais dans le clustering (voir
  * RouteGenerationService::genererPourCreneau()/resoudreLivraisonsImposees()
- * — exclues via Livraison::scopeSeDeplaceEffectif()) : elle reçoit à la
- * place un rendez-vous individuel (livraisons.heure_arrivee_prevue_hq)
- * étalé sur la fenêtre campagnes.heure_debut_arrivee_hq/heure_fin_arrivee_hq
- * (defaults 8h/19h, voir Campagne::heureDebutArriveeHq()/heureFinArriveeHq()
- * — "be sure to base it on current timeslots to avoid generating handouts
- * at night", mêmes bornes que App\Support\Creneau).
+ * — exclues via ->where('se_deplace', false)) : elle reçoit à la place un
+ * rendez-vous individuel (livraisons.heure_arrivee_prevue_hq) étalé sur la
+ * fenêtre campagnes.heure_debut_arrivee_hq/heure_fin_arrivee_hq (defaults
+ * 8h/19h, voir Campagne::heureDebutArriveeHq()/heureFinArriveeHq() — "be
+ * sure to base it on current timeslots to avoid generating handouts at
+ * night", mêmes bornes que App\Support\Creneau).
  *
  * Un rendez-vous toutes les (fenêtre / nombre de familles se_deplace
  * CONFIRMÉES de la journée) minutes — voir planifierPour(). Recalculée
@@ -62,7 +62,7 @@ class RetraitHqSchedulingService
         $livraisons = Livraison::where('id_campagne', $campagne->id)
             ->where('id_campagne_journee', $journee->id)
             ->where('statut_contact', 'confirme')
-            ->seDeplaceEffectif(true)
+            ->where('se_deplace', true)
             ->with('famille:id,criticite')
             ->get()
             ->sortByDesc(fn (Livraison $l) => $l->famille->criticite ?? 0)

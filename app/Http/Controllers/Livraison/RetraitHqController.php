@@ -25,10 +25,10 @@ use Illuminate\Support\Facades\Auth;
  *
  * Structurellement différent de ChargementController malgré tout : ici on
  * liste des Livraison directement (jamais de RouteLivraison — une famille
- * se_deplace est exclue du clustering, voir Livraison::
- * scopeSeDeplaceEffectif() / RouteGenerationService), triées par
- * heure_arrivee_prevue_hq (l'ordre de passage prévu, voir
- * RetraitHqSchedulingService) plutôt que par urgence de créneau.
+ * se_deplace est exclue du clustering, voir livraisons.se_deplace /
+ * RouteGenerationService), triées par heure_arrivee_prevue_hq (l'ordre de
+ * passage prévu, voir RetraitHqSchedulingService) plutôt que par urgence
+ * de créneau.
  *
  * 4 statuts affichés (prompt §3), dérivés de 2 colonnes existantes plutôt
  * que d'un nouveau statut unique — délibéré, pour réutiliser exactement
@@ -100,7 +100,7 @@ class RetraitHqController extends Controller
     {
         $livraisons = Livraison::where('id_campagne', $campagne->id)
             ->where('statut_contact', 'confirme')
-            ->seDeplaceEffectif(true)
+            ->where('se_deplace', true)
             ->with(['famille:id,nom,prenom,email,etudiant,est_hotel,nombre_enfant'])
             ->orderByRaw('heure_arrivee_prevue_hq IS NULL, heure_arrivee_prevue_hq ASC')
             ->get()

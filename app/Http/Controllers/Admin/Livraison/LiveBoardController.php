@@ -309,7 +309,8 @@ class LiveBoardController extends Controller
         // FamilleEligibleResource, partagé avec
         // CampagnesController::eligibles() (même forme de ligne, seul
         // id_livraison distingue les deux).
-        $query = $this->livraisonGenerationService->nonCouvertesEligibles($campagne, $journee)->with('quartier');
+        $seDeplace = $request->filled('se_deplace') ? $request->boolean('se_deplace') : null;
+        $query = $this->livraisonGenerationService->nonCouvertesEligibles($campagne, $journee, $seDeplace)->with('quartier');
         FamilleFilters::appliquer($query, $request);
 
         $colonne = $request->input('tri');

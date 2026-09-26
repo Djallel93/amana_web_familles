@@ -119,15 +119,12 @@ return new class extends Migration {
             $table->unsignedTinyInteger('nombre_enfant_confirme')->nullable();
 
             // Retrait au QG — familles se_deplace (ajouté le 24/09/2026,
-            // voir le prompt de cette date §2). `se_deplace_override` suit
-            // exactement la convention *_confirme ci-dessus (override PAR
-            // CAMPAGNE d'une valeur par défaut portée par familles) :
-            // familles.se_deplace peut être vrai un jour et faux un autre
-            // pour la même famille — NULL ici = pas d'exception cette
-            // campagne, on retombe sur familles.se_deplace (voir
-            // App\Models\Livraison::seDeplaceEffectif()).
-            $table->boolean('se_deplace_override')->nullable()
-                ->comment('Exception PAR CAMPAGNE à familles.se_deplace — NULL = pas d\'exception, voir Livraison::seDeplaceEffectif()');
+            // voir le prompt de cette date §2 ; recentré comme propriété
+            // pure de la campagne le 25/09/2026, voir le prompt de cette
+            // date — se_deplace ne vit plus que sur Livraison, il n'y a
+            // plus de valeur par défaut portée par familles à surcharger).
+            $table->boolean('se_deplace')->default(false)
+                ->comment('La famille se déplace au QG pour cette campagne (false = livrée normalement)');
             // Calculé par App\Services\RetraitHqSchedulingService dès que
             // statut_contact passe à confirme (et recalculé pour toute la
             // journée si le nombre de familles se_deplace change, voir son
