@@ -49,22 +49,28 @@ class FamilleOrganisationDemandeService
     {
         $demande->famille->organisations()->syncWithoutDetaching([$demande->id_organisation]);
 
-        $demande->update([
+        // statut/traite_par/traite_le are intentionally left off
+        // FamilleOrganisationDemande::$fillable so they can't be set through
+        // generic mass assignment (e.g. an admin form binding, a bulk update
+        // helper). This service is the only place that should transition a
+        // demande's status, so it bypasses the guard explicitly via
+        // forceFill() instead of widening $fillable for everyone.
+        $demande->forceFill([
             'statut' => 'validee',
             'traite_par' => $idPersonneTraitant,
             'traite_le' => now(),
-        ]);
+        ])->save();
 
         audit('update', 'famille_organisation_demandes', $demande->id, ['statut' => 'en_attente'], ['statut' => 'validee']);
     }
 
     public function rejeter(FamilleOrganisationDemande $demande, int $idPersonneTraitant): void
     {
-        $demande->update([
+        $demande->forceFill([
             'statut' => 'rejetee',
             'traite_par' => $idPersonneTraitant,
             'traite_le' => now(),
-        ]);
+        ])->save();
 
         audit('update', 'famille_organisation_demandes', $demande->id, ['statut' => 'en_attente'], ['statut' => 'rejetee']);
     }
