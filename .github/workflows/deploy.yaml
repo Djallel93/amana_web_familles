@@ -22,8 +22,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Run tests
+    uses: ./.github/workflows/tests.yaml
+    secrets: inherit
+
   build:
     name: Build application
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

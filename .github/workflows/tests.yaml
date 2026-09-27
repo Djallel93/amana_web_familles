@@ -1,0 +1,105 @@
+name: Run tests
+
+# Reusable workflow (workflow_call) — called from deploy.yaml and
+# deploy-preprod.yaml's own `test:` job, so the MySQL service/two-database
+# setup lives in exactly one place instead of being copy-pasted into both
+# near-identical deploy workflows (see docs/DEPLOYMENT.md: "Both workflows
+# are near-identical copies of each other").
+#
+# The two-database split here matches PRODUCTION's topology (and local
+# dev's, see docker/mysql/init.sql) — not preprod's merged-single-database
+# workaround for IONOS's shared-hosting DB-quota limit (docs/DEPLOYMENT.md
+# §6). That merge is a deploy-target compromise for a disposable
+# environment, not something worth building into the default test run —
+# if you ever want to specifically verify the merge is still safe (no
+# table-name collision between the app and amana/shared, per §6's own
+# warning), that's a manual/one-off check against a real merged DB, not a
+# reason to change this job's baseline.
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+
+    # Same two logical databases as local dev (docker/mysql/init.sql) and
+    # phpunit.xml's own comment: this app's own `mysql` connection plus the
+    # shared `commun` connection (amana/shared's ref_personnes/ref_roles/
+    # ref_settings/...) — see tests/Concerns/MigratesCommunConnection.php.
+    #
+    # This MySQL service is a throwaway container that exists only for the
+    # lifetime of this CI job, on GitHub's own runner — it has nothing to do
+    # with IONOS and none of IONOS's shared-hosting database-quota limits
+    # apply here. (Those limits are exactly why preprod's REAL deployment
+    # points DB_COMMUN_* at the same physical database as DB_* instead of
+    # provisioning a second one — see docs/DEPLOYMENT.md §6. That's a
+    # decision about the deploy TARGET, unrelated to this job.) A GitHub
+    # Actions service container only creates ONE database via MYSQL_DATABASE
+    # at startup, so the second is created explicitly below — same as two
+    # `CREATE DATABASE` statements on any MySQL server, nothing IONOS-specific.
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+          MYSQL_DATABASE: amana_familles_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, pdo_mysql, mysqli, gd, zip, curl, dom, fileinfo
+          tools: composer:2
+          coverage: none
+
+      # Same private-repo access as the build job in deploy.yaml — amana/shared
+      # is a private repo referenced by HTTPS (see composer.json "repositories").
+      - name: Configure git access for private amana/* repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.AMANA_REPOS_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      # Deliberately NOT --no-dev here, unlike deploy.yaml's build job —
+      # phpunit/larastan/etc are dev dependencies and this is the one place
+      # in the pipeline that needs them.
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction
+
+      - name: Prepare .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Wait for MySQL and create the second (commun) test database
+        run: |
+          for i in $(seq 1 30); do
+            mysqladmin ping -h127.0.0.1 -P3306 -uroot --silent && break
+            sleep 2
+          done
+          mysql -h127.0.0.1 -P3306 -uroot -e \
+            "CREATE DATABASE IF NOT EXISTS amana_commun_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+      - name: Run test suite
+        env:
+          # phpunit.xml only overrides DB_CONNECTION/DB_DATABASE/DB_COMMUN_DATABASE
+          # (see its own comment) — host/port/credentials still come from the
+          # real environment, same as local dev's .env, so they're supplied here.
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USERNAME: root
+          DB_PASSWORD:
+          DB_COMMUN_HOST: 127.0.0.1
+          DB_COMMUN_USERNAME: root
+          DB_COMMUN_PASSWORD:
+        run: php artisan test
