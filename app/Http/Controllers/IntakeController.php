@@ -19,6 +19,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 
 /**
  * Formulaire public d'intake multilingue (FR/AR/EN, RTL pour l'arabe) —
@@ -63,7 +65,22 @@ class IntakeController extends Controller
     ) {
     }
 
-    public function showForm(string $langue = 'fr'): View
+    /**
+     * Section E4 du refactor (16/09/2026, dernier chunk public de la
+     * section) — page Inertia, remplace resources/views/intake/
+     * show.blade.php (supprimée dans ce même chunk). Formulaire public :
+     * réutilise app-public.blade.php (racine sans sidebar/auth, créée
+     * dans le chunk bénévole précédent — voir son docblock) via
+     * rootView()/withViewData(), même mécanisme exact que
+     * BenevoleIntakeController::showForm().
+     *
+     * L'état "inscription fermée" (Setting) reste une View Blade
+     * classique (intake.suspendue, partagée avec BenevoleIntakeController)
+     * — même raisonnement que là-bas : page statique sans interactivité,
+     * pas de gain à la convertir. showForm() a donc un type de retour
+     * View|InertiaResponse, comme BenevoleIntakeController::showForm().
+     */
+    public function showForm(string $langue = 'fr'): View|InertiaResponse
     {
         if (!in_array($langue, self::LANGUES_VALIDES, true)) {
             $langue = 'fr';
@@ -78,17 +95,26 @@ class IntakeController extends Controller
             return view('intake.suspendue', ['formulaire' => 'familles']);
         }
 
-        return view('intake.show', [
+        return Inertia::render('Intake/Show', [
             'langue' => $langue,
+            'storeUrl' => route('intake.store'),
+            'refusUrl' => route('intake.refus-consentement'),
             'secteursActivite' => SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
             'organismesAide' => OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']),
             // Étape "organisation" (ajoutée le 28/08/2026) — liste fermée,
-            // pas de saisie libre (voir migration create_organisations_table)
+            // pas de saisie libre (voir migration create_organisations_domain_tables.php)
             // : seules les organisations avec de vrais comptes
             // gestionnaire_externe doivent apparaître ici.
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'code', 'nom']),
             'googlePlacesApiKey' => config('services.google.maps.places_api_key'),
-        ]);
+        ])
+            ->rootView('app-public')
+            ->withViewData([
+                'langue' => $langue,
+                'titre' => "AMANA Familles — Demande d'aide",
+                'tagline' => "Formulaire d'inscription",
+                'langueSwitchRoute' => 'intake.show',
+            ]);
     }
 
     /**
@@ -156,7 +182,6 @@ class IntakeController extends Controller
                 'adresse' => ['required', 'string'],
                 'code_postal' => ['required', 'string', 'max:10'],
                 'ville_texte' => ['required', 'string', 'max:150'],
-                'se_deplace' => ['boolean'],
                 'est_hotel' => ['boolean'],
 
                 'circonstances' => ['required', 'string'],
@@ -277,7 +302,11 @@ class IntakeController extends Controller
         // voir IntakeAttenteService::creerDemande(), qui gère aussi l'écrasement
         // silencieux d'une éventuelle demande non confirmée déjà en attente
         // pour la même famille (même email, ou même téléphone+nom).
-        $demande = $this->attenteService->creerDemande(
+        //
+        // creerDemande() renvoie désormais ['demande' => ..., 'token' => ...]
+        // (jeton EN CLAIR) depuis le 31/08/2026 — $demande->token ne contient
+        // plus que le hash, voir App\Support\TokenHasher.
+        ['demande' => $demande, 'token' => $tokenEnClair] = $this->attenteService->creerDemande(
             $donnees,
             $secteursActivite,
             $organismesAide,
@@ -297,10 +326,10 @@ class IntakeController extends Controller
         // doit jamais voir une erreur pour cet envoi.
         try {
             Notification::route('mail', $donnees['email'])
-                ->notify(new IntakeConfirmationNotification($demande));
+                ->notify(new IntakeConfirmationNotification($demande, $tokenEnClair));
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('[IntakeController] Échec envoi email de confirmation', [
-                'token' => $demande->token,
+                'id_demande' => $demande->id,
                 'message' => $e->getMessage(),
             ]);
         }

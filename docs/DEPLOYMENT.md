@@ -18,6 +18,17 @@ Both workflows are near-identical copies of each other — same build steps,
 same deploy mechanism (SFTP/SSH to IONOS) — they just differ in which
 branch triggers them and which GitHub Environment they read secrets from.
 
+Both also start with a `test` job (`.github/workflows/tests.yaml`, a
+reusable `workflow_call` workflow shared by the two of them) that runs the
+full PHPUnit suite against a real MySQL service — `build` declares
+`needs: test`, so a failing test blocks that push from ever reaching
+IONOS. That MySQL service is a disposable container on GitHub's own
+runner, unrelated to IONOS and its shared-hosting database-quota limits
+(§6 below) — it's created fresh per run and torn down after, so creating
+a second database there is trivial and has no bearing on how the real
+deploy targets are provisioned. See `docs/TESTING.md` for how the suite
+itself works.
+
 **familles** currently has no `main` branch at all — it's never been
 deployed to production yet, so its `deploy.yaml` is effectively dormant
 until that first release.
@@ -225,7 +236,8 @@ physical schema. Two things to know before doing it:
 .github/
 ├── workflows/
 │   ├── deploy.yaml            # main → production
-│   └── deploy-preprod.yaml    # develop → preprod
+│   ├── deploy-preprod.yaml    # develop → preprod
+│   └── tests.yaml             # reusable — called by both of the above
 └── deploy/
     ├── .env.production.template   # rendered via envsubst at deploy time
     ├── .env.preprod.template

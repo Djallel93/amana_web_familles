@@ -82,6 +82,70 @@ return [
         ['route' => 'admin.benevoles.index', 'label' => 'Candidatures bénévoles', 'icon' => '🤝', 'role' => 'admin', 'route_pattern' => 'admin.benevoles.*'],
         ['route' => 'admin.personnes.index', 'label' => 'Personnes', 'icon' => '👥', 'role' => 'admin', 'route_pattern' => 'admin.personnes.*'],
 
+        // ── Livraison (ajouté le 03/09/2026, migration frontend des
+        //    écrans admin/gestionnaire du domaine livraison) — section à
+        //    part plutôt que rattachée à "Dossiers" ou "Administration" :
+        //    audience différente (gestionnaire pour l'essentiel, lecture
+        //    seule bénévole sur Statistiques) qui ne correspond au
+        //    gabarit de rôle d'aucune des deux sections existantes.
+        //    Entrées ajoutées au fil des patches suivants au fur et à
+        //    mesure que chaque écran est reconstruit en Vue — seule
+        //    Campagnes est livrée à ce stade, Contacts/Tableau de bord/
+        //    Statistiques suivront pour éviter un lien vers un écran pas
+        //    encore reconstruit. ─────────────────────────────────────
+        // Positionnée au-dessus d'"Administration" (07/09/2026, prompt de
+        // cette date §1) — "Administration" doit toujours rester en
+        // dernier, "Livraison" juste au-dessus, plutôt que sa place
+        // d'origine après Administration.
+        ['section' => 'Livraison'],
+        ['route' => 'livraison.campagnes.index', 'label' => 'Campagnes', 'icon' => '🎁', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.campagnes.*'],
+        ['route' => 'livraison.contacts.index', 'label' => 'Suivi des contacts', 'icon' => '📞', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.contacts.*'],
+        // Renommé depuis 'Tableau de bord' / 'livraison.tableau-de-bord.*'
+        // (07/09/2026, prompt §6) : le nom générique ne reflétait pas ce
+        // que fait l'écran (suivi des tournées en cours/terminées +
+        // construction de routes personnalisées) — aligné sur la
+        // convention des autres écrans du domaine (Suivi des contacts,
+        // Suivi des bénévoles).
+        ['route' => 'livraison.suivi-livraison.index', 'label' => 'Suivi livraison', 'icon' => '🗺️', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.suivi-livraison.*'],
+        ['route' => 'livraison.statistiques.index', 'label' => 'Statistiques', 'icon' => '📊', 'role' => null, 'route_pattern' => 'livraison.statistiques.*'],
+        // 'role' => null (comme Statistiques ci-dessus) plutôt que
+        // 'gestionnaire' : Ma tournée s'adresse aux bénévoles chauffeurs,
+        // qui n'ont typiquement pas le rôle gestionnaire. Pas un souci de
+        // sécurité de le rendre visible à tous — l'écran lui-même
+        // (MaRouteController::show()) ne montre que la tournée d'
+        // auth()->id() et reste vide/neutre pour quiconque n'en a pas.
+        // Ajouté le 03/09/2026 : jusque-là accessible seulement en tapant
+        // l'URL /livraison/benevole/ma-route à la main, aucun lien nulle
+        // part n'y menait.
+        ['route' => 'livraison.benevole.ma-route.show', 'label' => 'Ma tournée', 'icon' => '🚚', 'role' => null, 'route_pattern' => 'livraison.benevole.*'],
+        // Ajoutés le 05/09/2026 (prompt §4.1) : equipe_reception/pesee/
+        // packaging/chargement n'avaient jusqu'ici AUCUN lien de sidebar
+        // vers leur propre écran — les routes exigent un {campagne} que
+        // ces rôles n'ont pas de moyen de choisir sans repasser par un
+        // lien direct, d'où l'impression que l'écran "n'existait pas"
+        // (particulièrement pour la réception, voir le prompt).
+        // 'role' ici n'est PAS un code de la hiérarchie interne
+        // (admin/gestionnaire/membre/benevole) : voir le fallback générique
+        // Personne::hasRole() ajouté dans amana_shared::layouts.partials.sidebar
+        // pour ce cas précis, plutôt que d'apprendre ces rôles au paquet
+        // partagé. Chaque lien mène au point d'entrée "choisir une
+        // campagne" (voir *Controller::choisir()), pas directement à un
+        // écran qui exigerait un {campagne} déjà connu.
+        //
+        // 'extra_check' ajouté le 08/09/2026 (câblage campagne_equipe_membres,
+        // voir CampagneEquipeMembre::estAffecteQuelquePart()) : depuis que
+        // l'écran d'admin peut affecter quelqu'un à un rôle equipe_* SANS
+        // qu'il ait jamais eu le rôle global coché, hasRole() seul ne
+        // suffit plus à décider qui voit ce lien de sidebar — voir le
+        // docblock du mécanisme générique dans amana_shared.
+        ['route' => 'livraison.reception.choisir', 'label' => 'Réception', 'icon' => '🧾', 'role' => 'equipe_reception', 'route_pattern' => 'livraison.reception.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        ['route' => 'livraison.pesee.choisir', 'label' => 'Pesée', 'icon' => '⚖️', 'role' => 'equipe_pesee', 'route_pattern' => 'livraison.pesee.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        ['route' => 'livraison.packaging.choisir', 'label' => 'Packaging', 'icon' => '📦', 'role' => 'equipe_packaging', 'route_pattern' => 'livraison.packaging.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        ['route' => 'livraison.chargement.choisir', 'label' => 'Chargement', 'icon' => '🚛', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.chargement.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+        // Ajouté le 24/09/2026 (prompt de cette date §2) — même équipe que
+        // Chargement ci-dessus (equipe_chargement, PAS un nouveau rôle).
+        ['route' => 'livraison.retrait-hq.choisir', 'label' => 'Retrait QG', 'icon' => '🏠', 'role' => 'equipe_chargement', 'route_pattern' => 'livraison.retrait-hq.*', 'extra_check' => [\App\Models\CampagneEquipeMembre::class, 'estAffecteQuelquePart']],
+
         ['section' => 'Administration'],
         ['route' => 'settings.index', 'label' => 'Paramètres', 'icon' => '⚙️', 'role' => 'gestionnaire', 'route_pattern' => 'settings.*'],
         ['route' => 'admin.activite.index', 'label' => "Statistiques d'activité", 'icon' => '📈', 'role' => 'admin', 'route_pattern' => 'admin.activite.*'],

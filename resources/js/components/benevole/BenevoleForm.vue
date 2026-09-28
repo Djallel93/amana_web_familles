@@ -31,6 +31,20 @@
     Étapes 3 et 4 toutes deux masquées si permis === false (30/08/2026,
     voir visibleSteps) : sans permis, ni véhicule ni zone de livraison
     n'ont de sens.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
+    îlot monté par app.ts sur #vue-benevole-form, mais un enfant normal
+    de resources/js/pages/Benevole/Show.vue (lui-même rendu par
+    resources/views/app-public.blade.php, la racine Inertia publique
+    créée dans ce même chunk — voir son docblock). Les data-* lues
+    jusqu'ici sur le point de montage sont devenues des props ; le
+    fetch('/vehicules') plus bas reste un appel XHR classique, inchangé
+    (référentiel partagé avec les pickers véhicule des écrans livraison,
+    pas une prop de page).
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue';
@@ -80,6 +94,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_vehicule: 'Votre véhicule',
         vehicule_question: 'Quel type de véhicule possédez-vous ?',
         vehicule_hint: 'La capacité de charge et le nombre de colis transportables sont définis par notre équipe pour chaque type de véhicule — indiqués ici à titre informatif.',
+        vehicule_loading: 'Chargement des types de véhicule…',
         vehicule_empty: "Aucun type de véhicule n'est disponible pour le moment. Merci de réessayer plus tard ou de nous contacter.",
         capacite_kg: 'Capacité indicative', nombre_part_max: 'colis',
 
@@ -123,6 +138,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_vehicule: 'سيارتكم',
         vehicule_question: 'ما نوع السيارة التي تملكونها؟',
         vehicule_hint: 'يتم تحديد الحمولة القصوى وعدد الطرود القابلة للنقل من قبل فريقنا لكل نوع سيارة — معروضة هنا للعلم فقط.',
+        vehicule_loading: 'جارٍ تحميل أنواع السيارات…',
         vehicule_empty: 'لا يوجد حاليًا أي نوع سيارة متاح. يرجى المحاولة لاحقًا أو التواصل معنا.',
         capacite_kg: 'الحمولة التقريبية', nombre_part_max: 'طرود',
 
@@ -166,6 +182,7 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_vehicule: 'Your vehicle',
         vehicule_question: 'What type of vehicle do you have?',
         vehicule_hint: 'Load capacity and the number of parcels you can carry are defined by our team for each vehicle type — shown here for information only.',
+        vehicule_loading: 'Loading vehicle types…',
         vehicule_empty: 'No vehicle type is available right now. Please try again later or contact us.',
         capacite_kg: 'Approx. capacity', nombre_part_max: 'parcels',
 
@@ -189,7 +206,15 @@ type StepId = typeof STEP_IDS[number];
 
 const toast = useToast();
 
-const langue = ref<Langue>('fr');
+const props = defineProps<{
+    langue: Langue;
+    storeUrl: string;
+    refusUrl: string;
+    secteurs: Secteur[];
+    organisations: { id: number; code: string; nom: string }[];
+}>();
+
+const langue = ref<Langue>(props.langue);
 const t = computed(() => DICT[langue.value]);
 
 function tr(key: string, vars: Record<string, string | number> = {}): string {
@@ -198,11 +223,16 @@ function tr(key: string, vars: Record<string, string | number> = {}): string {
     return s;
 }
 
-const storeUrl = ref('');
-const refusUrl = ref('');
-const secteurs = ref<Secteur[]>([]);
+const storeUrl = ref(props.storeUrl);
+const refusUrl = ref(props.refusUrl);
+const secteurs = ref<Secteur[]>(props.secteurs);
 const vehicules = ref<Vehicule[]>([]);
-const organisations = ref<{ id: number; code: string; nom: string }[]>([]);
+// Chargées via fetch('/vehicules') depuis le 03/09/2026 (remplace le
+// data-vehicules embarqué côté Blade) — vehiculesChargement distingue
+// "en cours de chargement" de "aucun véhicule configuré" pour ne pas
+// afficher t.vehicule_empty pendant le fetch initial.
+const vehiculesChargement = ref(true);
+const organisations = ref<{ id: number; code: string; nom: string }[]>(props.organisations);
 
 const phase = ref<Phase>('consent');
 const currentStep = ref(0);
@@ -428,28 +458,24 @@ async function onConsentRefuse(): Promise<void> {
 }
 
 onMounted(() => {
-    const el = document.getElementById('vue-benevole-form');
-    if (el) {
-        const l = el.dataset.langue as Langue;
-        if (l && DICT[l]) langue.value = l;
-        storeUrl.value = el.dataset.storeUrl ?? '';
-        refusUrl.value = el.dataset.refusUrl ?? '';
-        try {
-            secteurs.value = JSON.parse(el.dataset.secteurs ?? '[]');
-        } catch {
-            secteurs.value = [];
-        }
-        try {
-            vehicules.value = JSON.parse(el.dataset.vehicules ?? '[]');
-        } catch {
+    fetch('/vehicules', { headers: { Accept: 'application/json' } })
+        .then((res) => {
+            if (!res.ok) throw new Error(String(res.status));
+            return res.json();
+        })
+        .then((donnees) => {
+            vehicules.value = donnees;
+        })
+        .catch(() => {
+            // Traité comme "aucun véhicule disponible" côté template
+            // (t.vehicule_empty invite déjà à réessayer/nous contacter,
+            // ce qui reste le bon message que la liste soit vide ou que
+            // le fetch ait échoué) plutôt qu'un état d'erreur distinct.
             vehicules.value = [];
-        }
-        try {
-            organisations.value = JSON.parse(el.dataset.organisations ?? '[]');
-        } catch {
-            organisations.value = [];
-        }
-    }
+        })
+        .finally(() => {
+            vehiculesChargement.value = false;
+        });
 });
 </script>
 
@@ -543,7 +569,10 @@ onMounted(() => {
             <h2 class="text-[15px] font-bold text-ink mb-4">{{ t.step_vehicule }}</h2>
             <p class="text-[13px] text-ink-muted mb-1">{{ t.vehicule_question }} *</p>
             <p class="text-[11.5px] text-ink-faint mb-3">{{ t.vehicule_hint }}</p>
-            <div v-if="selectableVehicules.length === 0" class="text-[12.5px] text-rose-600 bg-rose-50 border border-rose-200 rounded-md px-3 py-2.5">
+            <div v-if="vehiculesChargement" class="text-[12.5px] text-ink-muted px-3 py-2.5">
+                {{ t.vehicule_loading }}
+            </div>
+            <div v-else-if="selectableVehicules.length === 0" class="text-[12.5px] text-rose-600 bg-rose-50 border border-rose-200 rounded-md px-3 py-2.5">
                 {{ t.vehicule_empty }}
             </div>
             <div v-else class="grid grid-cols-2 gap-2">

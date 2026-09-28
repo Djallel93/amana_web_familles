@@ -1,0 +1,157 @@
+<?php
+// app/Models/RouteLivraison.php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Amana\Shared\Models\Personne;
+use Amana\Shared\Models\VehiculeType;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Notification;
+
+/**
+ * Une tournée de livraison (bénévole + créneau + arrêts ordonnés).
+ *
+ * Nommé RouteLivraison et non `Route` — décision du 31/08/2026 — pour ne
+ * jamais entrer en collision avec Illuminate\Support\Facades\Route,
+ * utilisée partout dans routes/web.php ; la table DB reste `routes` (voir
+ * $table ci-dessous et create_livraison_routing_tables.php).
+ *
+ * @property int         $id
+ * @property int         $id_campagne
+ * @property int|null    $id_campagne_journee
+ * @property int         $id_benevole
+ * @property int         $id_vehicule_type
+ * @property string|null $creneau             null pour une tournée composée uniquement de livraisons imposées (voir RouteGenerationService)
+ * @property string      $statut              planifiee|chargement|charge|en_cours|livraisons_terminees|terminee|packaging_annule|annulee
+ * @property float|null  $distance_totale_km
+ * @property float|null  $poids_total_kg
+ * @property string|null $lien_maps
+ * @property int|null    $locked_by
+ * @property \Illuminate\Support\Carbon|null $locked_at
+ */
+class RouteLivraison extends Model
+{
+    protected $table = 'routes';
+
+    public function getConnectionName(): ?string
+    {
+        return config('database.default');
+    }
+
+    protected $fillable = [
+        'id_campagne', 'id_campagne_journee', 'id_benevole', 'id_vehicule_type', 'creneau',
+        'statut', 'distance_totale_km', 'poids_total_kg', 'lien_maps',
+    ];
+
+    protected $casts = [
+        'distance_totale_km' => 'decimal:2',
+        'poids_total_kg' => 'decimal:2',
+        'locked_at' => 'datetime',
+    ];
+
+    /**
+     * 'livraisons_terminees' ajouté le 03/09/2026 — voir
+     * create_livraison_routing_tables.php et App\Http\Controllers\Livraison\
+     * MaRouteController::livraisonTerminee()/retourQg() : état
+     * intermédiaire entre "tous les arrêts sont traités" et "le bénévole
+     * a confirmé son retour au QG et est de nouveau disponible".
+     */
+    /**
+     * 'packaging_annule' ajouté le 05/09/2026 (prompt §5.3) : une tournée
+     * déjà en 'chargement' redescend ici quand l'équipe packaging annule
+     * un conditionnement déjà marqué prêt pour reprendre les colis — voir
+     * PackagingController::annulerConditionnement() et le RouteIncident
+     * de même nom levé en même temps pour avertir l'équipe chargement.
+     * Retourne à 'chargement' quand tous les colis sont de nouveau prêts
+     * (voir PackagingController::finaliserConditionnement()).
+     */
+    /**
+     * 'charge' ajouté le 09/09/2026 (prompt §4) : voir le docblock de la
+     * migration routes pour le raisonnement complet — sépare "chargement
+     * confirmé par l'équipe chargement" de "tournée démarrée par le
+     * bénévole" (en_cours), auparavant confondus.
+     */
+    /**
+     * 'annulee' ajouté le 09/09/2026 (prompt de cette date §5.2.2) — voir
+     * le docblock de la migration routes pour le raisonnement (soft
+     * cancel au lieu du hard delete d'origine de
+     * RouteMutationService::supprimer()).
+     */
+    public const STATUTS = ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule', 'annulee'];
+
+    /**
+     * Prévient admin/gestionnaire quand une tournée passe à
+     * 'livraisons_terminees' (Scénario 2 du chantier "polling live") —
+     * même principe que RouteIncident::booted() : centralisé sur le
+     * modèle pour qu'AUCUN point de bascule (aujourd'hui uniquement
+     * MaRouteController::livraisonTerminee()) n'oublie de notifier.
+     * wasChanged('statut') : un second appel alors que la tournée est déjà
+     * 'livraisons_terminees' ne change rien, donc n'envoie aucun doublon.
+     * Voir App\Notifications\RouteTermineeNotification pour le
+     * raisonnement "une notification par tournée, pas par arrêt".
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (RouteLivraison $route) {
+            if (!$route->wasChanged('statut') || $route->statut !== 'livraisons_terminees') {
+                return;
+            }
+
+            $destinataires = Personne::adminsDe()
+                ->orWhere(fn ($q) => $q->avecRole('gestionnaire'))
+                ->get();
+
+            Notification::send($destinataires, new \App\Notifications\RouteTermineeNotification($route));
+        });
+    }
+
+    // ── Relations ─────────────────────────────────────────────────────────
+
+    public function campagne(): BelongsTo
+    {
+        return $this->belongsTo(Campagne::class, 'id_campagne');
+    }
+
+    public function campagneJournee(): BelongsTo
+    {
+        return $this->belongsTo(CampagneJournee::class, 'id_campagne_journee');
+    }
+
+    /**
+     * true si tous les arrêts (hors "retour QG" éventuel, id_livraison
+     * null) sont livrés ou ignorés — condition d'activation du bouton
+     * "Livraison terminé" côté MaRouteController/ma-route.blade.php (voir
+     * le prompt du 03/09/2026).
+     */
+    public function toutesEtapesTraitees(): bool
+    {
+        return $this->etapes()
+            ->whereNotNull('id_livraison')
+            ->where('statut', 'en_attente')
+            ->doesntExist();
+    }
+
+    public function benevole(): BelongsTo
+    {
+        return $this->belongsTo(Personne::class, 'id_benevole');
+    }
+
+    public function vehiculeType(): BelongsTo
+    {
+        return $this->belongsTo(VehiculeType::class, 'id_vehicule_type');
+    }
+
+    public function etapes(): HasMany
+    {
+        return $this->hasMany(EtapeRoute::class, 'id_route')->orderBy('ordre');
+    }
+
+    public function incidents(): HasMany
+    {
+        return $this->hasMany(RouteIncident::class, 'id_route');
+    }
+}

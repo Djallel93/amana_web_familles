@@ -30,3 +30,10 @@ use Illuminate\Support\Facades\Schedule;
 // NettoyerDemandesAttente / IntakeAttenteService) — activée par défaut
 // puisque le cron IONOS est confirmé actif (11/08/2026, voir README).
 Schedule::command('familles:nettoyer-demandes-attente')->daily();
+
+// Libération des verrous d'édition de dossiers périmés (19/09/2026, suite du
+// Scénario 5 du chantier "polling live") — voir Famille::libererVerrousPerimes().
+// Toutes les 5 minutes suffisent : le TTL du verrou est de 20 minutes et le
+// battement de cœur de DetailPanel.vue le renouvelle toutes les 5 minutes tant
+// que l'édition est active. withoutOverlapping : jamais deux nettoyages à la fois.
+Schedule::command('familles:liberer-verrous-perimes')->everyFiveMinutes()->withoutOverlapping();

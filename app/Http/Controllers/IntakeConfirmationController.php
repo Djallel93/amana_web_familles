@@ -10,6 +10,7 @@ use App\Models\IntakeDemandeAttente;
 use App\Models\Personne;
 use App\Notifications\NouvelleDemandeFamilleNotification;
 use App\Services\IntakeAttenteService;
+use App\Support\TokenHasher;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
 
@@ -39,7 +40,11 @@ class IntakeConfirmationController extends Controller
 
     public function show(string $token): View
     {
-        $demande = IntakeDemandeAttente::where('token', $token)->first();
+        // $token est le jeton EN CLAIR reçu via l'URL — la colonne
+        // token ne contient plus que son hash depuis le 31/08/2026
+        // (voir App\Support\TokenHasher). Comparaison par hash, jamais
+        // en clair.
+        $demande = IntakeDemandeAttente::where('token', TokenHasher::hash($token))->first();
 
         if (!$demande) {
             return view('intake.confirmer', ['etat' => 'introuvable', 'langue' => 'fr']);

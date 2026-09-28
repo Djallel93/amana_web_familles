@@ -1,0 +1,706 @@
+<!-- resources/js/components/livraison/contacts/ContactsQueue.vue -->
+<!--
+    File de suivi des contacts — reconstruit en Vue le 03/09/2026, révisé
+    en profondeur le 05/09/2026 (voir le prompt de cette date §2 et
+    resources/views/livraison/contacts.blade.php) :
+      - filtre étendu au panneau partagé FamilleFilterPanel (§2.6), même
+        filtres qu'eligibles()/Dossier Familles ;
+      - "tout sélectionner" couvre désormais TOUT le filtré (toutes pages,
+        via ids_only), pas seulement la page affichée (§2.6.2) ;
+      - per_page configurable (§2.7) ;
+      - créneaux regroupés matin/après-midi avec case tout/rien par
+        groupe + globale (§2.8) ;
+      - bouton "Modifier le dossier" ouvre DetailPanel.vue (§2.3) — mêmes
+        règles de statut/synchronisation que Dossier Familles, sans rien
+        dupliquer ici ;
+      - téléphone bis affiché, layout contact retravaillé (§2.5) ;
+      - clustering déplacé ici depuis CampagneDetail.vue (§1.5), gated côté
+        serveur ET côté Vue sur "plus aucune famille à a_contacter pour la
+        journée choisie" — RE-déplacé sur CampagneDetail.vue le 09/09/2026
+        (prompt de cette date §2.2), voir ce fichier pour le bouton/gate
+        désormais.
+
+    Section E4 du refactor (16/09/2026, sixième chunk du domaine
+    livraison) : ce composant n'est plus un îlot monté par app.ts sur
+    #vue-livraison-contacts-queue, mais un enfant normal de
+    resources/js/pages/Livraison/Contacts.vue. Les data-* lues jusqu'ici
+    sur le point de montage sont devenues des props ; DetailPanel.vue est
+    monté à côté dans cette même page (plus via
+    familles/partials/vue-famille-detail.blade.php) — window.openFamilleDetail
+    reste la façon dont ce composant l'ouvre (voir plus bas), inchangée :
+    Vue monte les enfants avant le onMounted() du parent, donc cette
+    fonction globale est déjà assignée quel que soit l'ordre des deux
+    composants dans le template de la page.
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
+-->
+<script setup lang="ts">
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useToast } from '@amana/shared-ui';
+import { apiGet, apiPost, buildQuery } from '../shared/api';
+import Paginator from '../shared/Paginator.vue';
+import PersonPicker from '../shared/PersonPicker.vue';
+import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
+import { useFormulaireCreneaux } from '../shared/useFormulaireCreneaux';
+import {
+    CRENEAUX_MATIN,
+    CRENEAUX_APRES_MIDI,
+    CRENEAU_LIBELLES,
+    normalizePaginated,
+    STATUTS_CONTACT_POSTABLES,
+    type Campagne,
+    type CampagneJournee,
+    type FamilleFiltres,
+    type Livraison,
+    type Organisation,
+    type Paginated,
+    type PersonneResume,
+    type Quartier,
+    type RawLaravelPaginator,
+    type Secteur,
+    type StatutContactPostable,
+    type Ville,
+} from '../shared/types';
+
+declare global {
+    interface Window {
+        openFamilleDetail?: (id: number) => void;
+    }
+}
+
+const toast = useToast();
+
+const props = defineProps<{
+    campagnes: Campagne[];
+    villes: Ville[];
+    secteurs: Secteur[];
+    quartiers: Quartier[];
+    organisations: Organisation[];
+    queueUrl: string;
+    statistiquesUrl: string;
+    assignerUrlTemplate: string;
+    assignerLotUrl: string;
+    contacterManuelUrlTemplate: string;
+    // seDeplaceUrlTemplate (25/09/2026, prompt de cette date) : première UI
+    // pour ContactTrackingController::mettreAJourSeDeplace() — corrige
+    // se_deplace après coup, indépendamment du reste du contact (voir
+    // basculerSeDeplace() plus bas).
+    seDeplaceUrlTemplate: string;
+}>();
+
+const campagnes = ref<Campagne[]>(props.campagnes);
+const villes = ref<Ville[]>(props.villes);
+const secteurs = ref<Secteur[]>(props.secteurs);
+const quartiers = ref<Quartier[]>(props.quartiers);
+const organisations = ref<Organisation[]>(props.organisations);
+const queueUrl = props.queueUrl;
+const statistiquesUrl = props.statistiquesUrl;
+const assignerUrlTemplate = props.assignerUrlTemplate;
+const assignerLotUrl = props.assignerLotUrl;
+const contacterManuelUrlTemplate = props.contacterManuelUrlTemplate;
+const seDeplaceUrlTemplate = props.seDeplaceUrlTemplate;
+
+const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
+    injoignable: 'Injoignable',
+    confirme: 'Confirmé',
+    rejetee: 'Rejetée',
+    archive: 'Archivé',
+};
+
+function urlAssigner(id: number): string {
+    return assignerUrlTemplate.replace('__ID__', String(id));
+}
+function urlContacterManuel(id: number): string {
+    return contacterManuelUrlTemplate.replace('__ID__', String(id));
+}
+function urlSeDeplace(id: number): string {
+    return seDeplaceUrlTemplate.replace('__ID__', String(id));
+}
+
+function formatDateFr(iso: string): string {
+    const [annee, mois, jour] = iso.split('T')[0].split('-');
+    return `${jour}/${mois}/${annee}`;
+}
+
+// ── Filtre + file ────────────────────────────────────────────────────────
+const paramsUrl = new URLSearchParams(window.location.search);
+const filtreCampagne = ref(paramsUrl.get('id_campagne') ?? '');
+const filtresFamille = ref<FamilleFiltres>({});
+const parPage = ref(50);
+
+const campagneSelectionnee = computed(() => campagnes.value.find((c) => String(c.id) === String(filtreCampagne.value)) ?? null);
+const journeesCampagne = computed<CampagneJournee[]>(() => campagneSelectionnee.value?.journees ?? []);
+const idJourneeSelectionnee = ref<number | ''>('');
+
+const file = ref<Livraison[]>([]);
+const meta = ref<Paginated<Livraison>['meta'] | null>(null);
+const chargement = ref(true);
+const erreur = ref(false);
+
+function queryFiltres(page: number) {
+    return buildQuery({
+        page,
+        per_page: parPage.value,
+        id_campagne: filtreCampagne.value,
+        id_ville: filtresFamille.value.id_ville,
+        id_secteur: filtresFamille.value.id_secteur,
+        id_quartier: filtresFamille.value.id_quartier,
+        criticite: filtresFamille.value.criticite,
+        se_deplace: filtresFamille.value.se_deplace || undefined,
+        est_hotel: filtresFamille.value.est_hotel || undefined,
+        etudiant: filtresFamille.value.etudiant || undefined,
+        zakat_el_fitr: filtresFamille.value.zakat_el_fitr || undefined,
+        sadaqa: filtresFamille.value.sadaqa || undefined,
+        id_organisation_origine: filtresFamille.value.id_organisation_origine,
+        id_organisation_rattachee: filtresFamille.value.id_organisation_rattachee,
+        recherche: filtresFamille.value.recherche,
+    });
+}
+
+async function chargerFile(page = 1) {
+    chargement.value = true;
+    erreur.value = false;
+    selection.clear();
+
+    const resultat = await apiGet<RawLaravelPaginator<Livraison>>(queueUrl + queryFiltres(page));
+    chargement.value = false;
+
+    if (!resultat.ok) {
+        erreur.value = true;
+        return;
+    }
+
+    const paginé = normalizePaginated(resultat.data);
+    file.value = paginé.data;
+    meta.value = paginé.meta;
+
+    // Rafraîchies avec la même portée (mêmes filtres) à chaque rechargement
+    // de la liste, plutôt que sur ses propres déclencheurs séparés — reste
+    // ainsi toujours cohérente avec ce qui est affiché juste en dessous
+    // sans avoir à traquer chaque appelant de chargerFile() un par un.
+    chargerStatistiques();
+}
+
+// ── Cartes statistiques (08/09/2026, prompt de cette date §3.2) ─────────
+const stats = ref<{ total: number; a_contacter: number; confirme: number; injoignable: number } | null>(null);
+
+async function chargerStatistiques() {
+    const resultat = await apiGet<{ total: number; a_contacter: number; confirme: number; injoignable: number }>(
+        statistiquesUrl + queryFiltres(1),
+    );
+    stats.value = resultat.ok ? resultat.data : null;
+}
+
+// ── Assignation ──────────────────────────────────────────────────────────
+const assignationEnCours = reactive<Record<number, boolean>>({});
+
+async function assigner(livraison: Livraison, personne: PersonneResume | null) {
+    if (!personne) return;
+    assignationEnCours[livraison.id] = true;
+
+    const resultat = await apiPost<{ success: boolean }>(urlAssigner(livraison.id), {
+        id_personne_assignee: personne.id,
+    });
+
+    assignationEnCours[livraison.id] = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    livraison.id_personne_assignee = personne.id;
+    livraison.personne_assignee = personne;
+    toast.success(`Assigné à ${personne.prenom} ${personne.nom}.`);
+}
+
+// ── Sélection + assignation en lot (05/09/2026 : couvre tout le filtré,
+//    pas seulement la page affichée — prompt §2.6.2) ─────────────────────
+const selection = reactive<Set<number>>(new Set());
+const assignationLotEnCours = ref(false);
+const chargementSelectionTout = ref(false);
+
+function toggleSelection(id: number) {
+    if (selection.has(id)) selection.delete(id);
+    else selection.add(id);
+}
+
+async function toutSelectionnerFiltre() {
+    const pageActuelleIds = file.value.map((l) => l.id);
+    const dejaTout = pageActuelleIds.length > 0 && pageActuelleIds.every((id) => selection.has(id));
+
+    if (dejaTout) {
+        pageActuelleIds.forEach((id) => selection.delete(id));
+        return;
+    }
+
+    chargementSelectionTout.value = true;
+    const resultat = await apiGet<{ ids: number[] }>(queueUrl + queryFiltres(1) + '&ids_only=1');
+    chargementSelectionTout.value = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    resultat.data.ids.forEach((id) => selection.add(id));
+}
+
+async function assignerLot(personne: PersonneResume | null) {
+    if (!personne || selection.size === 0) return;
+    assignationLotEnCours.value = true;
+
+    const resultat = await apiPost<{ success: boolean; assignees: number }>(assignerLotUrl, {
+        id_personne_assignee: personne.id,
+        ids_livraison: [...selection],
+    });
+
+    assignationLotEnCours.value = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    toast.success(`${resultat.data.assignees} livraison(s) assignée(s) à ${personne.prenom} ${personne.nom}.`);
+    selection.clear();
+    chargerFile(meta.value?.current_page ?? 1);
+}
+
+// ── Saisie téléphonique manuelle ────────────────────────────────────────
+/**
+ * Formulaire de CONFIRMATION uniquement désormais (05/09/2026, prompt
+ * §2.2 : "Delete Saisie Telephonique button since there is now Modifier
+ * le dossier" — la correction de champs famille se fait sur ce panneau,
+ * pas ici). injoignable/rejetee/archive n'ont plus besoin d'un
+ * formulaire du tout (voir marquerStatutSimple()) — un seul champ requis
+ * nulle part pour ces 3-là (voir la validation serveur, contacterManuel()).
+ *
+ * Réduit à `creneaux` uniquement (07/09/2026, prompt §2.5) —
+ * adresse/code postal/ville/adultes/enfants retirés : ces informations
+ * vivent déjà dans le dossier famille, éditable juste au-dessus via
+ * "✏️ Modifier le dossier" — les redemander ici dupliquait une saisie
+ * pour rien et risquait de diverger de la même source de vérité que ce
+ * panneau. Voir ContactTrackingController::contacterManuel(), qui
+ * n'exige plus ces champs pour ce chemin.
+ */
+/**
+ * Formulaire de CONFIRMATION uniquement désormais (05/09/2026, prompt
+ * §2.2 : "Delete Saisie Telephonique button since there is now Modifier
+ * le dossier" — la correction de champs famille se fait sur ce panneau,
+ * pas ici). injoignable/rejetee/archive n'ont plus besoin d'un
+ * formulaire du tout (voir marquerStatutSimple()) — un seul champ requis
+ * nulle part pour ces 3-là (voir la validation serveur, contacterManuel()).
+ *
+ * Réduit à `creneaux` uniquement (07/09/2026, prompt §2.5) —
+ * adresse/code postal/ville/adultes/enfants retirés : ces informations
+ * vivent déjà dans le dossier famille, éditable juste au-dessus via
+ * "✏️ Modifier le dossier" — les redemander ici dupliquait une saisie
+ * pour rien et risquait de diverger de la même source de vérité que ce
+ * panneau. Voir ContactTrackingController::contacterManuel(), qui
+ * n'exige plus ces champs pour ce chemin.
+ *
+ * Ouverture/créneaux via useFormulaireCreneaux() depuis le 10/09/2026
+ * (Section A4 du refactor) — partagé avec BenevoleDisponibiliteQueue.vue.
+ * L'état de requête (envoiEnCours/erreurs) reste local : forme propre à
+ * cet écran, pas au patron d'expansion lui-même.
+ */
+const { formulaire, basculerOuverture, toggleCreneau, groupeToutCoche, toggleGroupe, toggleTout } = useFormulaireCreneaux();
+
+interface EtatEnvoiConfirmation {
+    envoiEnCours: boolean;
+    erreurs: Record<string, string[]>;
+}
+
+const envoisConfirmation = reactive<Record<number, EtatEnvoiConfirmation>>({});
+
+function etatEnvoi(id: number): EtatEnvoiConfirmation {
+    if (!envoisConfirmation[id]) {
+        envoisConfirmation[id] = { envoiEnCours: false, erreurs: {} };
+    }
+    return envoisConfirmation[id];
+}
+
+/**
+ * injoignable/rejetee/archive — un clic, aucun champ requis côté
+ * validation serveur (voir ContactTrackingController::contacterManuel()),
+ * donc aucune raison de passer par un formulaire pour ces trois-là
+ * (05/09/2026, prompt §2.2/§2.3).
+ */
+const statutSimpleEnCours = reactive<Record<number, boolean>>({});
+
+/**
+ * se_deplace (25/09/2026, prompt de cette date) : seul moment où la
+ * famille peut elle-même indiquer, via l'appel téléphonique staff, si
+ * elle se déplacera au QG pour CETTE campagne — décision produit actée :
+ * pas ajouté au formulaire public de confirmation. false par défaut (même
+ * défaut que la colonne livraisons.se_deplace), local à cet écran comme
+ * `formulaire`/`etatEnvoi` ci-dessus — pas dans useFormulaireCreneaux(),
+ * partagé avec BenevoleDisponibiliteQueue.vue qui n'a rien à voir avec
+ * se_deplace.
+ */
+const seDeplaceFormulaire = reactive<Record<number, boolean>>({});
+
+function seDeplaceValeur(id: number): boolean {
+    return seDeplaceFormulaire[id] ?? false;
+}
+
+async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' | 'rejetee' | 'archive') {
+    statutSimpleEnCours[livraison.id] = true;
+    const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), { statut_contact: statut });
+    statutSimpleEnCours[livraison.id] = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    toast.success('Statut mis à jour.');
+    chargerFile(meta.value?.current_page ?? 1);
+}
+
+/**
+ * Correction a posteriori de se_deplace — indépendante du reste du
+ * contact (voir ContactTrackingController::mettreAJourSeDeplace(), qui
+ * recalcule aussi le planning retrait QG de la journée après coup).
+ * Distincte de seDeplaceFormulaire (le choix initial fait par
+ * enregistrerContact() à la première confirmation, voir plus bas) — cet
+ * endpoint reste utilisable même après confirmation, sans rouvrir le
+ * formulaire de créneaux.
+ */
+const seDeplaceEnCours = reactive<Record<number, boolean>>({});
+
+async function basculerSeDeplace(livraison: Livraison) {
+    seDeplaceEnCours[livraison.id] = true;
+    const resultat = await apiPost<{ success: boolean; se_deplace: boolean }>(urlSeDeplace(livraison.id), {
+        se_deplace: !livraison.se_deplace,
+    });
+    seDeplaceEnCours[livraison.id] = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    livraison.se_deplace = resultat.data.se_deplace;
+    toast.success('Se déplace mis à jour.');
+}
+
+async function enregistrerContact(livraison: Livraison) {
+    const f = formulaire(livraison.id);
+    const e = etatEnvoi(livraison.id);
+    e.envoiEnCours = true;
+    e.erreurs = {};
+
+    const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), {
+        statut_contact: 'confirme',
+        creneaux: f.creneaux,
+        se_deplace: seDeplaceValeur(livraison.id),
+    });
+    e.envoiEnCours = false;
+
+    if (!resultat.ok) {
+        e.erreurs = resultat.errors;
+        if (Object.keys(resultat.errors).length === 0) toast.error(resultat.message);
+        return;
+    }
+
+    toast.success('Contact enregistré.');
+    chargerFile(meta.value?.current_page ?? 1);
+}
+
+// ── Modifier le dossier famille (05/09/2026, prompt §2.3) ────────────────
+// Ouvre DetailPanel.vue (même panneau que Dossier Familles, voir
+// contacts.blade.php pour son montage) — mêmes règles de statut/
+// synchronisation qu'ailleurs dans l'app, rien à dupliquer ici.
+function modifierDossier(livraison: Livraison) {
+    if (!window.openFamilleDetail) {
+        toast.error("Le panneau d'édition n'a pas pu être chargé.");
+        return;
+    }
+    window.openFamilleDetail(livraison.famille.id);
+}
+
+function surChangementCampagne() {
+    idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? '';
+    chargerFile(1);
+}
+function surChangementJournee() {
+    chargerFile(1);
+}
+
+onMounted(() => {
+    if (campagneSelectionnee.value) idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? '';
+    chargerFile(1);
+});
+</script>
+
+<template>
+    <div>
+        <div class="flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
+            <div>
+                <label class="block text-[12px] text-ink-muted mb-1">Campagne</label>
+                <select v-model="filtreCampagne" @change="surChangementCampagne"
+                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
+                    <option value="">Toutes les campagnes</option>
+                    <option v-for="c in campagnes" :key="c.id" :value="c.id">
+                        {{ formatDateFr(c.date_livraison) }} — {{ c.type }}
+                    </option>
+                </select>
+            </div>
+            <div v-if="journeesCampagne.length > 1">
+                <label class="block text-[12px] text-ink-muted mb-1">Journée</label>
+                <select v-model="idJourneeSelectionnee" @change="surChangementJournee"
+                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
+                    <option v-for="j in journeesCampagne" :key="j.id" :value="j.id">{{ j.label ?? formatDateFr(j.date) }}</option>
+                </select>
+            </div>
+        </div>
+
+        <!--
+            Cartes statistiques (08/09/2026, prompt de cette date §3.2) —
+            même portée de filtres que la liste juste en dessous (voir
+            chargerStatistiques()). "contacte" volontairement absent : déjà
+            retiré des statuts utilisables le 05/09/2026, plus affiché nulle
+            part sur cet écran (voir aussi LIBELLES_STATUT_CONTACT).
+        -->
+        <div v-if="stats" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div class="bg-surface border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">Familles</p>
+                <p class="text-[20px] font-semibold text-ink">{{ stats.total }}</p>
+            </div>
+            <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">À contacter</p>
+                <p class="text-[20px] font-semibold text-ink">{{ stats.a_contacter }}</p>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Confirmées</p>
+                <p class="text-[20px] font-semibold text-emerald-700">{{ stats.confirme }}</p>
+            </div>
+            <div class="bg-rose-50 border border-rose-100 rounded-xl p-3">
+                <p class="text-[11px] text-rose-700 uppercase tracking-wide">Injoignables</p>
+                <p class="text-[20px] font-semibold text-rose-700">{{ stats.injoignable }}</p>
+            </div>
+        </div>
+
+        <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
+            :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" avec-se-deplace />
+
+        <p v-if="chargement" class="text-[14px] text-ink-muted">Chargement…</p>
+        <p v-else-if="erreur" class="text-[14px] text-rose-600">Impossible de charger la file de contact.</p>
+        <p v-else-if="file.length === 0" class="text-[14px] text-ink-muted">Aucune livraison en attente de contact.</p>
+
+        <div v-else class="space-y-3">
+            <div class="flex flex-wrap items-center gap-3 bg-stone-50 border border-surface-border rounded-xl px-4 py-2.5">
+                <label class="flex items-center gap-2 text-[12.5px] text-ink-muted min-h-[2rem]">
+                    <input type="checkbox" :disabled="chargementSelectionTout"
+                        :checked="file.length > 0 && file.every((l) => selection.has(l.id))"
+                        @change="toutSelectionnerFiltre" class="w-4 h-4 accent-accent">
+                    Tout sélectionner (le filtre entier — {{ selection.size }})
+                </label>
+                <div v-if="selection.size > 0" class="max-w-xs">
+                    <PersonPicker role="gestionnaire" placeholder="Assigner la sélection à…"
+                        :model-value="null"
+                        @update:model-value="assignerLot" />
+                </div>
+                <!-- Bouton clustering retiré d'ici (09/09/2026, prompt §2.2) —
+                     déplacé sur CampagneDetail.vue (livraison/campagnes/{id}). -->
+            </div>
+
+            <div v-for="livraison in file" :key="livraison.id" class="bg-surface border border-surface-border rounded-xl p-4 shadow-sm">
+                <!--
+                    Statut déplacé en haut à droite + agrandi (09/09/2026,
+                    prompt de cette date §3 : "move the current status of
+                    each family to upper right corner and make it a little
+                    bigger") — remplace la position à côté du nom
+                    (08/09/2026, prompt §3.1).
+                -->
+                <div class="flex items-start justify-between gap-2 mb-2">
+                    <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
+                        <input type="checkbox" :checked="selection.has(livraison.id)" @change="toggleSelection(livraison.id)"
+                            class="w-4 h-4 accent-accent shrink-0">
+                        {{ livraison.famille.prenom }} {{ livraison.famille.nom }}
+                    </span>
+                    <span class="text-[13px] font-medium px-2.5 py-1 rounded-full shrink-0"
+                        :class="{
+                            'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
+                            'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
+                        }">
+                        {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
+                    </span>
+                </div>
+
+                <!-- Coordonnées — mises en avant + téléphone bis affiché
+                     (05/09/2026, prompt §2.5 : "Are you displaying phone
+                     bis?" → non, corrigé ici et côté requête serveur). -->
+                <div class="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink mb-3 bg-stone-50 rounded-lg px-3 py-2">
+                    <span>📞 {{ livraison.famille.telephone || '—' }}</span>
+                    <span v-if="livraison.famille.telephone_bis">📞 {{ livraison.famille.telephone_bis }} <span class="text-ink-muted">(bis)</span></span>
+                    <span>✉️ {{ livraison.famille.email || "pas d'email" }}</span>
+                    <span v-if="livraison.personne_assignee" class="text-ink-muted">
+                        · assigné à {{ livraison.personne_assignee.prenom }} {{ livraison.personne_assignee.nom }}
+                    </span>
+                </div>
+
+                <!-- Toggle se_deplace (25/09/2026, prompt de cette date) —
+                     correction a posteriori (mettreAJourSeDeplace()), à ne
+                     pas confondre avec les radios du formulaire de
+                     confirmation ci-dessous (le choix initial). Affiché
+                     uniquement une fois confirmé : avant, se_deplace vaut
+                     toujours false (défaut colonne), rien à corriger. -->
+                <button v-if="livraison.statut_contact === 'confirme'" type="button" :disabled="seDeplaceEnCours[livraison.id]"
+                    @click="basculerSeDeplace(livraison)"
+                    class="mb-3 inline-flex items-center gap-1.5 text-[12.5px] font-medium px-2.5 py-1 rounded-full disabled:opacity-60"
+                    :class="livraison.se_deplace ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-ink-muted'">
+                    🚶 Se déplace : {{ livraison.se_deplace ? 'Oui' : 'Non' }} · changer
+                </button>
+
+                <!--
+                    "Modifier le dossier" (07/09/2026, prompt §2.4) —
+                    statut retiré de cette rangée le 08/09/2026 (remonté à
+                    côté du nom ci-dessus, voir commentaire plus haut) :
+                    ne reste ici que l'assignation et l'édition.
+                -->
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                    <div class="max-w-xs">
+                        <PersonPicker role="gestionnaire" placeholder="Assigner à…"
+                            :model-value="livraison.personne_assignee"
+                            @update:model-value="(p) => assigner(livraison, p)" />
+                    </div>
+                    <button type="button" @click="modifierDossier(livraison)"
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90">
+                        ✏️ Modifier le dossier
+                    </button>
+                </div>
+
+                <!--
+                    Remplace l'ancien bouton "Saisie téléphonique" +
+                    sélecteur de statut (05/09/2026, prompt §2.2/§2.3) :
+                    injoignable/rejetée/archivée n'ont plus besoin d'aucun
+                    champ (un clic suffit, voir marquerStatutSimple()) —
+                    seule la confirmation garde un formulaire, préremplie
+                    avec les infos famille actuelles, repliée derrière un
+                    vrai bouton visible plutôt qu'un lien discret.
+                -->
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" @click="basculerOuverture(livraison.id)"
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90">
+                        ✅ Confirmer
+                    </button>
+                    <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'injoignable')"
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:opacity-90 disabled:opacity-60">
+                        Injoignable
+                    </button>
+                    <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'rejetee')"
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:opacity-90 disabled:opacity-60">
+                        Rejetée
+                    </button>
+                    <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'archive')"
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-stone-500 text-white hover:opacity-90 disabled:opacity-60">
+                        Archivée
+                    </button>
+                </div>
+
+                <div v-if="formulaire(livraison.id).ouvert" class="mt-3 space-y-3 bg-stone-50 rounded-lg p-3">
+                    <!-- Regroupement matin/après-midi (05/09/2026, prompt §2.8).
+                         Adresse/code postal/ville/adultes/enfants retirés
+                         d'ici (07/09/2026, prompt §2.5) — voir le
+                         commentaire sur FormeConfirmation plus haut :
+                         édition désormais uniquement via "✏️ Modifier le
+                         dossier". -->
+                    <div>
+                        <div class="flex items-center justify-between mb-1.5">
+                            <!--
+                                Déplacé à gauche + rendu plus visible
+                                (08/09/2026, prompt de cette date §3.3) —
+                                était un simple lien texte à droite du
+                                label, difficile à repérer.
+                            -->
+                            <button type="button" @click="toggleTout(livraison.id)"
+                                class="min-h-[1.875rem] text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5">
+                                Tout / Rien
+                            </button>
+                            <label class="text-[11px] text-ink-muted">Créneaux</label>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="border border-ink-faint rounded-lg p-2">
+                                <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
+                                    <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_MATIN)"
+                                        @change="toggleGroupe(livraison.id, CRENEAUX_MATIN)" class="w-3.5 h-3.5 accent-accent">
+                                    Matin
+                                </label>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <label v-for="creneau in CRENEAUX_MATIN" :key="creneau"
+                                        class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
+                                        <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
+                                            @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                        {{ CRENEAU_LIBELLES[creneau] }}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="border border-ink-faint rounded-lg p-2">
+                                <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
+                                    <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_APRES_MIDI)"
+                                        @change="toggleGroupe(livraison.id, CRENEAUX_APRES_MIDI)" class="w-3.5 h-3.5 accent-accent">
+                                    Après-midi
+                                </label>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <label v-for="creneau in CRENEAUX_APRES_MIDI" :key="creneau"
+                                        class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
+                                        <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
+                                            @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                        {{ CRENEAU_LIBELLES[creneau] }}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        <p v-for="e in etatEnvoi(livraison.id).erreurs.creneaux ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                    </div>
+
+                    <!-- se_deplace (25/09/2026, prompt de cette date) :
+                         posée UNIQUEMENT ici (saisie téléphonique staff),
+                         pas sur le formulaire public de confirmation —
+                         décision produit actée avec l'utilisateur. -->
+                    <div>
+                        <label class="block text-[11px] text-ink-muted mb-1.5">La famille se déplacera-t-elle au QG pour récupérer son colis ?</label>
+                        <div class="flex gap-2 max-w-xs">
+                            <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                :class="seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
+                                <input type="radio" :value="true" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Oui
+                            </label>
+                            <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                :class="!seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
+                                <input type="radio" :value="false" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Non
+                            </label>
+                        </div>
+                        <p v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                    </div>
+
+                    <button type="button" :disabled="etatEnvoi(livraison.id).envoiEnCours" @click="enregistrerContact(livraison)"
+                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
+                        {{ etatEnvoi(livraison.id).envoiEnCours ? 'Enregistrement…' : 'Enregistrer la confirmation' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="meta" class="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <Paginator :meta="meta" @change="chargerFile" />
+            <!-- Déplacé en bas (07/09/2026, prompt §2.2) : à côté de la
+                 pagination qu'il gouverne, plutôt qu'au-dessus des
+                 filtres campagne/journée où il n'avait pas vraiment sa
+                 place. -->
+            <div>
+                <label class="block text-[12px] text-ink-muted mb-1">Par page</label>
+                <select v-model.number="parPage" @change="chargerFile(1)"
+                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
+                    <option :value="25">25</option>
+                    <option :value="50">50</option>
+                    <option :value="100">100</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</template>

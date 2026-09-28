@@ -18,6 +18,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
 use RuntimeException;
 
 /**
@@ -68,9 +70,31 @@ class ImportsController extends Controller
         return view('admin.imports.index', compact('imports'));
     }
 
-    public function create(): View
+    /**
+     * Section E4 du refactor (16/09/2026) — page Inertia, remplace
+     * resources/views/admin/imports/create.blade.php (supprimée dans ce
+     * même chunk). index()/show() restent des Views Blade classiques :
+     * aucun îlot Vue dessus (tableaux server-rendus purs), pas de raison
+     * de les convertir pour ce chunk qui ne touche que create().
+     *
+     * Bug trouvé et corrigé au passage : create.blade.php codait en dur
+     * route('admin.imports.*') au lieu d'utiliser routeName() comme le
+     * fait déjà cette classe pour ses propres redirections
+     * (storeCsv()/storeManuel() ci-dessous) — un gestionnaire_externe
+     * arrivant par /mes-imports/creer voyait donc un formulaire dont le
+     * lien de retour ET l'action du <form> CSV pointaient vers des URLs
+     * /admin/imports/... auxquelles son rôle n'a pas accès (403 à la
+     * soumission). Utiliser routeName() ici, comme le reste de la
+     * classe le fait déjà, corrige ce cas sans changer le comportement
+     * pour le staff interne (routeName() renvoie 'admin.' par défaut).
+     */
+    public function create(): InertiaResponse
     {
-        return view('admin.imports.create');
+        return Inertia::render('Admin/Imports/Create', [
+            'retourUrl' => route($this->routeName('imports.index')),
+            'storeCsvUrl' => route($this->routeName('imports.store-csv')),
+            'storeManuelUrl' => route($this->routeName('imports.store-manuel')),
+        ]);
     }
 
     public function show(int $id): View

@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
  * create_benevole_demandes_attente_table.
  *
  * @property int    $id
- * @property string $token
+ * @property string $token  hash sha256 (voir App\Support\TokenHasher) — jamais le jeton en clair
  * @property string $langue
  * @property array  $donnees          nom/prenom/email/telephone/permis/id_vehicule_type/zone_livraison
  * @property array|null $secteurs         IDs de secteurs (hors $donnees)

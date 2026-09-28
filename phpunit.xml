@@ -23,8 +23,26 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
+        <!--
+            SQLite :memory: can't run this app's tests: ResoudreAdresseFamille
+            and related geo-resolution logic use MySQL spatial functions
+            (ST_Contains/ST_GeomFromText, see App\Jobs\ResoudreAdresseFamille),
+            and almost every authenticated request also touches the separate
+            `commun` connection (ref_personnes/ref_roles/ref_applications/
+            ref_settings, from amana_shared) which SQLite :memory: can't
+            represent as a second real connection.
+
+            Host/port/username/password intentionally come from your .env
+            (same as `php artisan migrate` already uses, whether that's the
+            docker-compose `mysql` service or a native install) — only the
+            database NAMES are overridden here, to dedicated *_test databases
+            so RefreshDatabase never touches amana_familles/amana_commun dev
+            data. See docker/mysql/init.sql (or `make test-db-init` for an
+            existing docker volume) to create them.
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_DATABASE" value="amana_familles_test"/>
+        <env name="DB_COMMUN_DATABASE" value="amana_commun_test"/>
         <env name="DB_URL" value=""/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

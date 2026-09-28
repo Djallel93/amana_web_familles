@@ -30,6 +30,12 @@ npm:
 test:
 	docker compose exec app php artisan test
 
+# One-off: docker/mysql/init.sql only runs on first volume creation, so an
+# existing `db_data` volume (created before amana_familles_test/amana_commun_test
+# existed) won't have them. Safe to re-run any time — CREATE DATABASE IF NOT EXISTS.
+test-db-init:
+	docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS amana_familles_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE IF NOT EXISTS amana_commun_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON amana_familles_test.* TO 'root'@'%'; GRANT ALL PRIVILEGES ON amana_commun_test.* TO 'root'@'%'; FLUSH PRIVILEGES;"
+
 fresh:
 	docker compose exec app php artisan migrate:fresh --seed
 

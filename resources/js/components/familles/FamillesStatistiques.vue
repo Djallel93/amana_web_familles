@@ -8,6 +8,19 @@
     (anneau), répartition par quartier (barres horizontales, remplace la
     distribution de criticité le 13/08/2026), répartition par ville
     (barres horizontales), évolution du foyer sur 12 mois (courbes).
+
+    Section E4 du refactor (16/09/2026, chunk imports+FamillesStatistiques)
+    : ce composant n'est plus un îlot monté par app.ts sur
+    #vue-familles-statistiques, mais un enfant normal de
+    resources/js/pages/Familles/Statistiques.vue. window.
+    FamillesStatistiquesConfig (variable globale posée par un <script>
+    inline côté Blade, pattern différent des data-* de point de montage
+    utilisés partout ailleurs dans l'app) est remplacée par une prop
+    Inertia normale (dataUrl) — voir StatistiquesFamillesController::
+    index(). Le champ csrf de l'ancien objet global n'était de toute
+    façon pas lu par ce composant (fetch('/familles/statistiques/data')
+    est un GET, pas de jeton CSRF nécessaire) : disparaît avec la
+    conversion plutôt que reconduit en prop inutile.
 -->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
@@ -33,6 +46,10 @@ Chart.register(
     LinearScale, CategoryScale, Tooltip, Legend, Filler,
 );
 
+const props = defineProps<{
+    dataUrl: string;
+}>();
+
 interface Cartes {
     totalFamilles: number;
     totalAdultes: number;
@@ -47,17 +64,10 @@ interface Donnees {
     eligibilite: { zakatElFitr: number; sadaqa: number; aucune: number };
     parQuartier: { valeur: string; total: number }[];
     parVille: { valeur: string; total: number }[];
-    seDeplace: { seDeplace: number; neSeDeplacePas: number };
     etudiant: { etudiant: number; nonEtudiant: number };
     estHotel: { estHotel: number; nonHotel: number };
     evolutionFoyer: { mois: string; adultes: number; enfants: number; nouveauxDossiers: number }[];
     cartes: Cartes;
-}
-
-declare global {
-    interface Window {
-        FamillesStatistiquesConfig: { csrf: string; routes: { data: string } };
-    }
 }
 
 const donnees = ref<Donnees | null>(null);
@@ -100,8 +110,7 @@ function fmtMoisLabel(iso: string): string {
 async function charger(): Promise<void> {
     loadState.value = 'loading';
     try {
-        const url = window.FamillesStatistiquesConfig?.routes?.data ?? '/familles/statistiques/data';
-        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        const res = await fetch(props.dataUrl, { headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error();
         donnees.value = await res.json();
         loadState.value = 'loaded';
@@ -234,7 +243,13 @@ onUnmounted(detruireGraphiques);
              familles/index.blade.php, alors que ce dernier en avait) : même
              traitement rond + emoji que l'ancien bandeau, pour toutes les
              cartes et pas seulement celle migrée. -->
-        <div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+        <!-- grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 (04/09/2026) — aligné
+             sur amana_web_planning/resources/views/statistics/index.blade.php,
+             qui a déjà cette même rangée de cartes KPI avec ce même palier
+             intermédiaire (voir amana_shared/docs/mobile-patterns.md).
+             L'ancien grid-cols-2 lg:grid-cols-6 sautait directement de 2 à 6
+             colonnes, sans étape sur tablette. -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
                 <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🏠</div>
                 <div class="min-w-0">
@@ -289,19 +304,20 @@ onUnmounted(detruireGraphiques);
              panneau texte à part, + étudiant/hôtel qui n'existaient pas
              encore ici). Seul le décompte "vrai" est affiché — demande
              explicite du 13/08/2026 ("display only number were true") ;
-             nonEtudiant/neSeDeplacePas/nonHotel restent dans la réponse
-             JSON si un usage futur en a besoin (ex. un graphique), juste
-             pas rendus ici. -->
+             nonEtudiant/nonHotel restent dans la réponse JSON si un usage
+             futur en a besoin (ex. un graphique), juste pas rendus ici.
+             Carte "Se déplace" retirée le 25/09/2026 (prompt de cette
+             date) : se_deplace n'est plus une propriété de la famille
+             mais de la campagne (voir FamilleStatistics::computeAll()) —
+             un stat GLOBAL par famille n'a plus de sens ici, le tableau de
+             bord Retrait QG expose déjà l'équivalent scopé à une
+             campagne. -->
         <div>
             <h3 class="text-[11px] font-bold text-ink-muted uppercase tracking-wide mb-2">Caractéristiques</h3>
-            <div class="grid grid-cols-3 gap-3">
-                <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🚶</div>
-                    <div class="min-w-0">
-                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.seDeplace.seDeplace }}</div>
-                        <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Se déplace</div>
-                    </div>
-                </div>
+            <!-- grid-cols-1 sm:grid-cols-2 (25/09/2026, prompt de cette
+                 date) — repassé de 3 à 2 cartes après le retrait de "Se
+                 déplace" ci-dessus. -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
                     <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🎓</div>
                     <div class="min-w-0">

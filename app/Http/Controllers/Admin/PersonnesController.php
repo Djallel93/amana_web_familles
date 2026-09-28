@@ -5,7 +5,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use Amana\Shared\Services\AccountChangeNotifier;
 use App\Http\Controllers\Controller;
+use App\Models\Campagne;
 use App\Models\Organisation;
 use App\Models\Personne;
 use App\Notifications\InvitationFamillesNotification;
@@ -36,6 +38,7 @@ class PersonnesController extends Controller
 {
     public function __construct(
         private readonly RoleService $roleService,
+        private readonly AccountChangeNotifier $notifier,
     ) {
     }
 
@@ -168,7 +171,7 @@ class PersonnesController extends Controller
         return redirect()->route('admin.personnes.index')->with('success', $messageFlash);
     }
 
-    public function edit(int $id): View
+    public function edit(int $id, Request $request): View
     {
         $personne = Personne::findOrFail($id);
         $roles = $this->roleService->famillesRoles();
@@ -197,7 +200,54 @@ class PersonnesController extends Controller
                 ->sortBy('libelle')
                 ->values(),
             'secteursActuels' => $benevoleProfil ? $benevoleProfil->secteurs()->pluck('secteurs.id')->all() : [],
+            // Retour conditionnel (24/09/2026, prompt de cette date §1.1) :
+            // "Add this button only if user comes from campagnes/{id}/
+            // benevoles. If user access from sidebar this button does
+            // not appear" — voir infosRetour() ci-dessous pour la
+            // validation (URL construite ici, jamais transmise brute par
+            // le client, pour exclure tout risque d'open-redirect).
+            // "Future proof" (prompt, réponse à ma Q1) : infosRetour()
+            // n'est volontairement PAS câblée sur un seul cas
+            // ('campagne_benevoles') — toute future origine n'a qu'à
+            // ajouter une entrée à la petite table qu'elle contient.
+            'urlRetour' => $this->infosRetour($request)['url'] ?? null,
         ]);
+    }
+
+    /**
+     * Retour conditionnel vers l'écran d'origine (24/09/2026, prompt de
+     * cette date §1.1) — table VOLONTAIREMENT ouverte à d'autres entrées
+     * futures ("future proof", voir réponse du prompt à ma Q1) : chaque
+     * origine possible n'a qu'à ajouter son cas ici, plutôt qu'un seul
+     * if() câblé sur campagne_benevoles. Construit l'URL CÔTÉ SERVEUR à
+     * partir d'un id validé (jamais transmise brute par le client) — pas
+     * d'open-redirect possible, contrairement à un ?retour=<url libre>.
+     *
+     * @return array{origine: string, url: string}|null
+     */
+    private function infosRetour(Request $request): ?array
+    {
+        $origine = $request->input('retour');
+
+        return match ($origine) {
+            'campagne_benevoles' => $this->retourVersCampagneBenevoles($request),
+            default => null,
+        };
+    }
+
+    private function retourVersCampagneBenevoles(Request $request): ?array
+    {
+        $idCampagne = $request->input('id_campagne');
+        if (!is_numeric($idCampagne)) {
+            return null;
+        }
+
+        $campagne = Campagne::find((int) $idCampagne);
+        if (!$campagne) {
+            return null;
+        }
+
+        return ['origine' => 'campagne_benevoles', 'url' => route('livraison.campagnes.benevoles.index', $campagne)];
     }
 
     public function update(Request $request, int $id): RedirectResponse
@@ -248,8 +298,43 @@ class PersonnesController extends Controller
 
         audit('update', 'familles_personnes', $personne->id, $avant, $personne->toArray());
 
+        // Redirection conditionnelle (24/09/2026, prompt de cette date
+        // §1.1, "after saving, redirect back to campagnes/{id}/benevoles
+        // too") — mêmes hidden inputs retour/id_campagne que le bouton de
+        // retour (voir form.blade.php), revalidés ici via infosRetour()
+        // plutôt que de faire confiance à une URL transmise par le
+        // formulaire.
+        $retour = $this->infosRetour($request);
+        if ($retour) {
+            return redirect($retour['url'])
+                ->with('success', "Fiche de {$personne->prenom} {$personne->nom} mise à jour.");
+        }
+
         return redirect()->route('admin.personnes.index')
             ->with('success', "Fiche de {$personne->prenom} {$personne->nom} mise à jour.");
+    }
+
+    /**
+     * « Envoyer un lien de réinitialisation » : envoie à la personne l'email
+     * standard de « mot de passe oublié » (broker 'personnes'). L'administrateur
+     * ne saisit ni ne voit jamais de mot de passe ni de jeton. Audité par le
+     * notifier (acteur = admin connecté, cible = la personne, jamais le jeton) ;
+     * limité à 5 envois par minute (routes/admin.php).
+     *
+     * NB : l'écran admin de familles ne modifie pas l'adresse email d'une personne
+     * (nom, prénom, téléphone, rôle seulement) : aucune notice de changement
+     * d'email à envoyer ici.
+     */
+    public function envoyerLienReinitialisation(int $id): RedirectResponse
+    {
+        $personne = Personne::findOrFail($id);
+        $nom = "{$personne->prenom} {$personne->nom}";
+
+        return match ($this->notifier->sendResetLink($personne)) {
+            Password::RESET_LINK_SENT => back()->with('success', "Lien de réinitialisation envoyé à {$personne->email} ({$nom})."),
+            Password::RESET_THROTTLED => back()->with('warning', "Un lien vient déjà d'être envoyé à {$nom} : patientez une minute avant d'en renvoyer un."),
+            default => back()->with('error', "L'envoi du lien de réinitialisation à {$nom} a échoué. Vérifiez la configuration email."),
+        };
     }
 
     /**

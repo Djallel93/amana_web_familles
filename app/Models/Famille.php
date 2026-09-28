@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Remplace la feuille "Famille" de l'ancien système Google Apps Script
- * (voir migration 2026_07_12_000004_create_familles_table.php).
+ * (voir migration 2026_07_12_000004_create_familles_domain_tables.php).
  *
  * @property int         $id
  * @property string      $nom
@@ -29,7 +29,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $code_postal
  * @property string|null $ville_texte
  * @property int|null    $id_quartier
- * @property bool        $se_deplace
  * @property bool        $est_hotel
  * @property bool        $etudiant
  * @property float|null  $latitude
@@ -73,7 +72,7 @@ class Famille extends Model
         'nom', 'prenom', 'email', 'telephone', 'telephone_bis',
         'zakat_el_fitr', 'sadaqa',
         'nombre_adulte', 'nombre_enfant',
-        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'se_deplace', 'est_hotel', 'etudiant',
+        'adresse', 'code_postal', 'ville_texte', 'id_quartier', 'est_hotel', 'etudiant',
         'circonstances', 'ressentit', 'specificites', 'criticite', 'langue',
         'etat_dossier', 'commentaire_dossier', 'probleme_traitement',
         'type_hebergement', 'hosted_by',
@@ -82,7 +81,7 @@ class Famille extends Model
         'organisme_aide_autre',
         'google_resource_name',
         // Organisation qui a enregistré le dossier À L'ORIGINE — voir
-        // migration add_id_organisation_to_familles_table. Ne pilote pas la
+        // migration create_organisations_domain_tables.php. Ne pilote pas la
         // visibilité seule, voir organisations()/scopeVisiblePar() plus bas.
         'id_organisation',
     ];
@@ -90,7 +89,6 @@ class Famille extends Model
     protected $casts = [
         'zakat_el_fitr' => 'boolean',
         'sadaqa' => 'boolean',
-        'se_deplace' => 'boolean',
         'est_hotel' => 'boolean',
         'etudiant' => 'boolean',
         'nombre_adulte' => 'integer',
@@ -99,7 +97,7 @@ class Famille extends Model
         'work_days' => 'integer',
         // Verrouillage d'édition (décision du 15/08/2026) — voir
         // FamillesController::show()/update()/deverrouiller() et la
-        // migration 2026_08_15_000000_add_verrouillage_edition_to_familles.
+        // migration 2026_07_12_000004_create_familles_domain_tables.php.
         'locked_at' => 'datetime',
         // 'decimal' plutôt que 'float' : évite la notation scientifique de
         // Google (ex: 4.7e1) en JSON pour de grandes latitudes, et donne un
@@ -151,7 +149,167 @@ class Famille extends Model
     public const PAGINATION_PAR_PAGE = [10, 25, 50, 100];
     public const PAGINATION_PAR_PAGE_DEFAUT = 25;
 
+    // ── Config tableau familles (partagée index/nouvelles) ──────────────────
+    // Sortie de resources/views/familles/index.blade.php le 10/09/2026
+    // (Section A2 du refactor) : la même config pilote désormais
+    // <x-familles.tableau>, utilisé identiquement par index.blade.php et
+    // nouvelles.blade.php (décision du 10/09/2026 : "same everywhere"),
+    // plutôt que deux tableaux visuellement différents comme avant ce
+    // refactor. 'triable' ici reste purement déclaratif pour l'UI (icône de
+    // tri cliquable) — la validation serveur du paramètre ?tri= reste
+    // FamillesController::COLONNES_TRIABLES, à garder synchronisée avec les
+    // clés 'triable' => true ci-dessous si une colonne triable est ajoutée
+    // ou retirée.
+    public const COLONNES_TABLEAU = [
+        'id' => ['label' => 'ID', 'triable' => true, 'defaut' => true],
+        'nom' => ['label' => 'Nom', 'triable' => true, 'defaut' => true],
+        'statut' => ['label' => 'Statut', 'triable' => true, 'defaut' => true],
+        'email' => ['label' => 'Email', 'triable' => true, 'defaut' => false],
+        'telephone' => ['label' => 'Téléphone', 'triable' => true, 'defaut' => true],
+        'telephone_bis' => ['label' => 'Tél. bis', 'triable' => true, 'defaut' => false],
+        'adresse' => ['label' => 'Adresse', 'triable' => true, 'defaut' => true],
+        'quartier' => ['label' => 'Quartier', 'triable' => false, 'defaut' => true],
+        'ville' => ['label' => 'Ville', 'triable' => false, 'defaut' => true],
+        'organisation' => ['label' => 'Organisation', 'triable' => false, 'defaut' => false],
+        'nombre_adulte' => ['label' => 'Adultes', 'triable' => true, 'defaut' => false],
+        'nombre_enfant' => ['label' => 'Enfants', 'triable' => true, 'defaut' => false],
+        'criticite' => ['label' => 'Criticité', 'triable' => true, 'defaut' => true],
+        'eligibilite' => ['label' => 'Éligibilité', 'triable' => true, 'defaut' => true],
+        'est_hotel' => ['label' => 'Hôtel', 'triable' => true, 'defaut' => false],
+        'etudiant' => ['label' => 'Étudiant', 'triable' => true, 'defaut' => false],
+        'langue' => ['label' => 'Langue', 'triable' => true, 'defaut' => false],
+        'type_piece_identite' => ['label' => 'Pièce identité', 'triable' => true, 'defaut' => false],
+        'circonstances' => ['label' => 'Circonstances', 'triable' => false, 'defaut' => false],
+        'ressentit' => ['label' => 'Ressenti', 'triable' => false, 'defaut' => false],
+        'specificites' => ['label' => 'Spécificités', 'triable' => false, 'defaut' => false],
+        'commentaire_dossier' => ['label' => 'Commentaire', 'triable' => false, 'defaut' => false],
+        'created_at' => ['label' => 'Créé le', 'triable' => true, 'defaut' => false],
+    ];
+    public const TYPE_PIECE_IDENTITE_LABELS = [
+        'nationalite' => 'Nationalité',
+        'titre_sejour' => 'Titre de séjour',
+        'demande_asile' => "Demande d'asile",
+        'autre' => 'Autre',
+    ];
+    // Couleur du liseré de gauche de chaque ligne/carte (voir
+    // <x-familles.tableau>). Classes Tailwind écrites en toutes lettres
+    // (pas de concaténation dynamique bg-{{ }}) : le scanner JIT de
+    // Tailwind ne détecte que des tokens littéraux dans le fichier source,
+    // une classe construite à l'exécution serait purgée du CSS généré et
+    // n'aurait donc aucun effet visuel.
+    public const ETAT_COLORS_LISTERE = [
+        'Recu' => 'border-l-stone-400',
+        'En cours' => 'border-l-sky-400',
+        'En attente' => 'border-l-amber-400',
+        'Validé' => 'border-l-emerald-500',
+        'Rejeté' => 'border-l-rose-400',
+        'Archivé' => 'border-l-gray-400',
+    ];
+    // Badges de statut (texte + fond léger) — une seule source de vérité,
+    // partagée avec le filtre Statut (pastilles colorées) qui reprend
+    // exactement ces couleurs plutôt qu'une palette qui aurait pu diverger.
+    public const ETAT_COLORS = [
+        'Recu' => 'bg-stone-100 text-stone-700 border-stone-300',
+        'En cours' => 'bg-sky-50 text-sky-700 border-sky-200',
+        'En attente' => 'bg-amber-50 text-amber-700 border-amber-200',
+        'Validé' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'Rejeté' => 'bg-rose-50 text-rose-700 border-rose-200',
+        'Archivé' => 'bg-gray-100 text-gray-500 border-gray-300',
+    ];
+    // Palette d'avatars (initiales) — couleur choisie par id % taille de la
+    // palette, simple et stable (même famille = même couleur d'une page à
+    // l'autre) sans avoir besoin de stocker quoi que ce soit.
+    public const AVATAR_PALETTE = [
+        ['bg' => 'bg-sky-100', 'text' => 'text-sky-700'],
+        ['bg' => 'bg-amber-100', 'text' => 'text-amber-700'],
+        ['bg' => 'bg-emerald-100', 'text' => 'text-emerald-700'],
+        ['bg' => 'bg-violet-100', 'text' => 'text-violet-700'],
+        ['bg' => 'bg-rose-100', 'text' => 'text-rose-700'],
+        ['bg' => 'bg-cyan-100', 'text' => 'text-cyan-700'],
+    ];
+
+    public static function avatarStyle(int $id): array
+    {
+        return self::AVATAR_PALETTE[$id % count(self::AVATAR_PALETTE)];
+    }
+
     // ── Relations ─────────────────────────────────────────────────────────
+
+    /**
+     * Détenteur du verrou d'édition (locked_by → ref_personnes.id, sans FK
+     * physique — voir la migration create_familles_domain_tables). Chargé
+     * uniquement par FamillesController::index()/nouvelles() pour le
+     * marqueur "🔒 <nom>" du tableau (Scénario 5 du chantier "polling
+     * live") — jamais par show(), qui charge déjà le propriétaire à la main
+     * dans son 423.
+     */
+    public function verrouilleur(): BelongsTo
+    {
+        return $this->belongsTo(Personne::class, 'locked_by');
+    }
+
+    /**
+     * Libère TOUS les verrous d'édition périmés — appelé par la commande
+     * planifiée familles:liberer-verrous-perimes (toutes les 5 minutes).
+     *
+     * Un crash navigateur ou une fermeture réseau brutale laisse le dossier
+     * à etat_dossier = 'En cours' avec un verrou que plus personne ne
+     * renouvelle (le sendBeacon de DetailPanel.vue est best-effort). Sans
+     * ce nettoyage le statut d'origine n'était restauré que si quelqu'un
+     * rouvrait puis refermait ce dossier — et un dossier 'Recu' abandonné
+     * restait invisible dans "Nouvelles demandes", qui ne liste que 'Recu'.
+     *
+     * Restaure etat_dossier_avant_verrouillage (COALESCE : sans valeur
+     * capturée, le statut actuel est conservé) puis vide le verrou, en UN
+     * SEUL UPDATE conditionnel : un battement de cœur ou une réouverture qui
+     * passe entre-temps l'emporte (la condition n'est plus vraie) sans
+     * qu'aucune lecture-puis-écriture ne puisse écraser un verrou tout
+     * juste renouvelé.
+     *
+     * Ne touche QUE les lignes portant un enregistrement de verrou
+     * (locked_by non nul) : 'En cours' est aussi un statut légitime hors
+     * verrou (défaut de FamilleImportService), un 'En cours' sans verrou
+     * n'est jamais modifié. toBase() : ni événements de modèle, ni
+     * updated_at — restaurer un statut n'est pas une modification du
+     * dossier (décision du 19/09/2026).
+     *
+     * @return int nombre de dossiers libérés
+     */
+    public static function libererVerrousPerimes(): int
+    {
+        $limite = now()->subMinutes(self::VERROU_TTL_MINUTES);
+
+        return static::query()
+            ->whereNotNull('locked_by')
+            ->where(function ($q) use ($limite) {
+                $q->where('locked_at', '<', $limite)
+                    ->orWhereNull('locked_at');
+            })
+            ->toBase()
+            ->update([
+                'etat_dossier' => new \Illuminate\Database\Query\Expression('COALESCE(etat_dossier_avant_verrouillage, etat_dossier)'),
+                'etat_dossier_avant_verrouillage' => null,
+                'locked_by' => null,
+                'locked_at' => null,
+            ]);
+    }
+
+    /**
+     * Le verrou d'édition est-il ENCORE VALIDE (posé ET plus récent que
+     * VERROU_TTL_MINUTES) ? Même règle que celle qu'applique
+     * FamillesController::show() pour refuser l'ouverture à un autre
+     * utilisateur — un verrou périmé (crash navigateur, voir le commentaire
+     * sur VERROU_TTL_MINUTES) n'est PAS affiché comme un verrou dans le
+     * tableau, même si etat_dossier y reste à 'En cours' (aucun job ne
+     * nettoie ces états, et il n'y a pas de battement de cœur : locked_at
+     * n'est posé qu'à l'ouverture du panneau).
+     */
+    public function verrouFrais(): bool
+    {
+        return $this->locked_by !== null
+            && $this->locked_at !== null
+            && $this->locked_at->greaterThan(now()->subMinutes(self::VERROU_TTL_MINUTES));
+    }
 
     public function quartier(): BelongsTo
     {
@@ -166,6 +324,16 @@ class Famille extends Model
     public function verifications(): HasMany
     {
         return $this->hasMany(FamilleVerification::class, 'id_famille');
+    }
+
+    /**
+     * Livraisons de cette famille, tous domaines/campagnes confondus —
+     * ajouté au Patch 2 du domaine livraison (voir
+     * LivraisonGenerationService::eligibles()).
+     */
+    public function livraisons(): HasMany
+    {
+        return $this->hasMany(Livraison::class, 'id_famille');
     }
 
     public function secteursActivite(): BelongsToMany
@@ -223,7 +391,7 @@ class Famille extends Model
      * Ville résolue par géocodage — pas de colonne directe sur familles
      * (seul ville_texte, la saisie brute, l'est), la ville "propre" ne
      * s'obtient qu'en remontant quartier → secteur → ville (voir
-     * migration 2026_07_12_000004_create_familles_table.php, commentaire
+     * migration 2026_07_12_000004_create_familles_domain_tables.php, commentaire
      * sur id_quartier). Nécessite quartier.secteur.ville eager-loadé
      * (voir FamillesController::baseQuery) pour éviter le N+1 — retourne
      * null silencieusement sinon plutôt que de déclencher une requête

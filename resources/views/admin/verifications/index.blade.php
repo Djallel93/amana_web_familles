@@ -31,7 +31,8 @@
                 <p class="text-ink-muted text-[13.5px]">Utilisez le bouton ci-dessus pour lancer un envoi vers les dossiers validés.</p>
             </div>
         @else
-            <div class="overflow-x-auto">
+            {{-- Tableau desktop (≥ md) — voir carte mobile juste après --}}
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
                         <tr>
@@ -70,6 +71,37 @@
                     </tbody>
                 </table>
             </div>
+
+            {{-- Cartes mobile (< md) — 04/09/2026 --}}
+            <div class="md:hidden divide-y divide-surface-3">
+                @foreach($verifications as $verification)
+                    <div class="px-4 py-3.5">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <div class="min-w-0">
+                                <div class="font-semibold text-[13.5px] text-ink truncate">
+                                    {{ $verification->famille?->prenom }} {{ $verification->famille?->nom ?? '(dossier supprimé)' }}
+                                </div>
+                                <div class="text-[11.5px] text-ink-muted mt-0.5">Envoyée le {{ $verification->created_at?->format('d/m/Y H:i') }}</div>
+                                <div class="text-[11.5px] text-ink-muted">Expire le {{ $verification->expires_at->format('d/m/Y H:i') }}</div>
+                            </div>
+                            @if($verification->estConfirmee())
+                                <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                    ✅ Confirmée
+                                </span>
+                            @elseif($verification->estExpiree())
+                                <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-gray-100 text-gray-500 border-gray-300">
+                                    ⏰ Expirée
+                                </span>
+                            @else
+                                <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                                    ⏳ En attente
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
             <div class="px-4 py-3 border-t border-surface-3">
                 {{ $verifications->links() }}
             </div>

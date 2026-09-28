@@ -39,7 +39,8 @@
                 <p class="text-ink-muted text-[13.5px]">Aucune candidature ne correspond aux filtres sélectionnés.</p>
             </div>
         @else
-            <div class="overflow-x-auto">
+            {{-- Tableau desktop (≥ md) — voir carte mobile juste après --}}
+            <div class="hidden md:block overflow-x-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
                         <tr>
@@ -115,6 +116,71 @@
                     </tbody>
                 </table>
             </div>
+
+            {{-- Cartes mobile (< md) — 04/09/2026. Le select "Rôle" du
+                 tableau vise sa propre <form id="valider-benevole-{id}">
+                 via l'attribut form="..." (élément hors de l'arbre DOM du
+                 <form>, HTML5 standard) plutôt que d'être imbriqué dedans.
+                 Un <select> masqué en CSS reste néanmoins soumis avec son
+                 formulaire cible : dupliquer tel quel le même
+                 name="role" + form="valider-benevole-{id}" ferait donc
+                 partir DEUX valeurs de rôle à chaque "Valider", quel que
+                 soit l'écran utilisé — c'est pourquoi la carte ci-dessous
+                 pointe vers un id de formulaire distinct
+                 (valider-benevole-mobile-{id}), formulaire à part entière,
+                 pas un doublon du même id. --}}
+            <div class="md:hidden divide-y divide-surface-3">
+                @foreach($candidatures as $candidature)
+                    <div class="px-4 py-3.5">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                            <div class="min-w-0">
+                                <a href="{{ route('admin.benevoles.show', $candidature->id) }}" class="text-accent hover:underline font-semibold text-[13.5px] no-underline">
+                                    {{ $candidature->personne?->prenom }} {{ $candidature->personne?->nom }}
+                                </a>
+                                <div class="text-ink-muted text-[11.5px] truncate">{{ $candidature->personne?->email }}</div>
+                            </div>
+                            <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border
+                                {{ $candidature->statut === 'Validé' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ($candidature->statut === 'Rejeté' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200') }}">
+                                {{ $candidature->statut }}
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-ink-muted mb-2.5">
+                            <div>🚗 {{ $candidature->vehiculeType?->type ?? '—' }}</div>
+                            <div>🪪 Permis {{ $candidature->permis ? '✅' : '—' }}</div>
+                        </div>
+                        @if($candidature->statut === 'Reçu')
+                            <div class="flex flex-col gap-2">
+                                <form id="valider-benevole-mobile-{{ $candidature->id }}"
+                                    action="{{ route('admin.benevoles.valider', $candidature->id) }}" method="POST"
+                                    data-confirm="Valider cette candidature bénévole ?">
+                                    @csrf
+                                </form>
+                                <select name="role" form="valider-benevole-mobile-{{ $candidature->id }}"
+                                    class="btn-touch w-full px-2.5 py-1.5 border-[1.5px] border-ink-faint rounded-lg text-[12.5px] font-body text-ink bg-surface-2 outline-none transition
+                                           focus:border-accent focus:shadow-[0_0_0_3px_rgba(3,105,161,0.2)] cursor-pointer">
+                                    @foreach($roles as $r)
+                                        @php $roleLabels = ['admin' => '🛡️ Administrateur', 'gestionnaire' => '⚙️ Gestionnaire', 'membre' => '👤 Membre', 'benevole' => '🤝 Bénévole']; @endphp
+                                        <option value="{{ $r->code }}" @selected($r->code === 'benevole')>{{ $roleLabels[$r->code] ?? $r->libelle }}</option>
+                                    @endforeach
+                                </select>
+                                <button type="submit" form="valider-benevole-mobile-{{ $candidature->id }}"
+                                    class="btn-touch w-full px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[12.5px] rounded-lg cursor-pointer transition-colors flex items-center justify-center gap-1.5">
+                                    ✅ Valider
+                                </button>
+                                <form action="{{ route('admin.benevoles.rejeter', $candidature->id) }}" method="POST"
+                                    data-confirm="Refuser la candidature de {{ $candidature->personne?->prenom }} {{ $candidature->personne?->nom }} ?" data-confirm-danger>
+                                    @csrf
+                                    <button type="submit"
+                                        class="btn-touch w-full px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[12.5px] rounded-lg cursor-pointer transition-colors flex items-center justify-center gap-1.5">
+                                        ✕ Refuser
+                                    </button>
+                                </form>
+                            </div>
+                        @endif
+                    </div>
+                @endforeach
+            </div>
+
             <div class="px-4 py-3 border-t border-surface-3">
                 {{ $candidatures->links() }}
             </div>

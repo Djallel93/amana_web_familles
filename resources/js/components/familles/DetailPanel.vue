@@ -21,7 +21,10 @@
     de recherche Google — un seul scroll aurait été peu praticable.
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { definirPanneauOuvert } from './useDossierPanel';
+import { useHeartbeatVerrou } from './useHeartbeatVerrou';
+import BandeauVerrouPerdu from './BandeauVerrouPerdu.vue';
 import { Modal } from '@amana/shared-ui';
 import { useToast } from '@amana/shared-ui';
 import { useConfirm } from '@amana/shared-ui';
@@ -70,7 +73,6 @@ interface Famille {
     ville_texte: string | null;
     id_quartier: number | null;
     quartier: Quartier | null;
-    se_deplace: boolean;
     est_hotel: boolean;
     etudiant: boolean;
     // Cast decimal:7 côté modèle → sérialisé en chaîne (évite la perte de
@@ -177,6 +179,29 @@ const toast = useToast();
 const confirmDialog = useConfirm();
 
 const open = ref(false);
+// Partage l'état d'ouverture avec useLiveDossiers (Scénario 5 du chantier
+// "polling live") : le tableau derrière ce panneau ne se rafraîchit pas
+// tant qu'il est ouvert. Un watch() unique couvre les 5 endroits qui
+// modifient `open`, y compris les refus de verrou et les erreurs de
+// chargement ; le démontage remet le drapeau à false (le drapeau est un
+// singleton de module, il survivrait sinon à un changement de page).
+watch(open, (ouvert) => definirPanneauOuvert(ouvert));
+// Battement de cœur du verrou (suite du Scénario 5) : renouvelle le verrou
+// tant que ce panneau est ouvert et l'utilisateur actif, et signale via
+// `verrouPerdu` qu'un autre utilisateur a repris le dossier — voir
+// useHeartbeatVerrou.ts pour le raisonnement complet et les garde-fous.
+const heartbeat = useHeartbeatVerrou({
+    urlPour: (id) => (urls.renouvelerVerrou ? urls.renouvelerVerrou.replace('__ID__', String(id)) : ''),
+    csrf: csrfToken,
+});
+const verrouPerdu = heartbeat.verrouPerdu;
+onUnmounted(() => {
+    heartbeat.arreter();
+    definirPanneauOuvert(false);
+    // Le listener était enregistré au montage (voir onMounted) et jamais retiré :
+    // chaque montage de page laissait un écouteur de plus sur `window`.
+    window.removeEventListener('beforeunload', libererVerrouAuDechargement);
+});
 const loading = ref(false);
 const saving = ref(false);
 const famille = ref<Famille | null>(null);
@@ -206,14 +231,16 @@ const uploadType = ref('identity');
 const uploadFile = ref<File | null>(null);
 const uploading = ref(false);
 
-// URL templates (avec placeholders __ID__/__DOC__) + clés/listes injectées
-// par Blade via les data-attributes du point de montage — voir
-// familles/index.blade.php et familles/nouvelles.blade.php (même panneau
-// monté sur les deux vues).
+// URL templates (avec placeholders __ID__/__DOC__) + clés/listes reçues
+// en props Inertia (voir defineProps ci-dessous) — assignées dans
+// onMounted() plutôt qu'à la déclaration pour rester au plus près du
+// code d'avant le retrait du pont double-mode (Section E4, chunk
+// contacts du domaine livraison, 16/09/2026).
 let urls = {
     show: '',
     update: '',
     deverrouiller: '',
+    renouvelerVerrou: '',
     forcerDeverrouillage: '',
     upload: '',
     download: '',
@@ -222,11 +249,37 @@ let urls = {
 const googlePlacesKey = ref('');
 const googleEmbedKey = ref('');
 
+// Ex-pont double-mode — Section E4 du refactor : ce composant était
+// partagé par familles/index.blade.php, familles/nouvelles.blade.php et
+// livraison/contacts.blade.php ; les deux premières sont passées à
+// Inertia le 12/09/2026 (chunk Dossier Familles), la troisième le
+// 16/09/2026 (chunk contacts du domaine livraison) — les trois montages
+// fournissent désormais ces props, plus aucun ne retombe sur l'ancien
+// createApp().mount() + lecture de dataset (voir onMounted() plus bas,
+// qui n'a donc plus qu'un seul mode).
+const props = defineProps<{
+    showUrlTemplate: string;
+    updateUrlTemplate: string;
+    deverrouillerUrlTemplate: string;
+    // Battement de cœur du verrou (voir useHeartbeatVerrou.ts) — optionnel :
+    // sans lui, le panneau se comporte comme avant (verrou posé à l'ouverture seulement).
+    renouvelerVerrouUrlTemplate?: string;
+    forcerDeverrouillageUrlTemplate: string;
+    uploadUrlTemplate: string;
+    downloadUrlTemplate: string;
+    deleteDocUrlTemplate: string;
+    initialGooglePlacesKey: string;
+    initialGoogleEmbedKey: string;
+    initialSecteursActiviteDisponibles: ListeOption[];
+    initialOrganismesAideDisponibles: ListeOption[];
+}>();
+
 function csrfToken(): string {
     return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
 }
 
 async function openFamilleDetail(id: number): Promise<void> {
+    heartbeat.arreter();
     open.value = true;
     loading.value = true;
     errors.value = {};
@@ -301,6 +354,8 @@ async function openFamilleDetail(id: number): Promise<void> {
         adresseInitiale.adresse = famille.value?.adresse ?? '';
         adresseInitiale.code_postal = famille.value?.code_postal ?? '';
         adresseInitiale.ville_texte = famille.value?.ville_texte ?? '';
+        // Le verrou vient d'être pris par show() : les battements démarrent.
+        heartbeat.demarrer(id);
     } catch (e) {
         toast.error('Impossible de charger le dossier.');
         open.value = false;
@@ -328,6 +383,7 @@ function libererVerrou(): void {
 }
 
 function close(): void {
+    heartbeat.arreter();
     libererVerrou();
     open.value = false;
     famille.value = null;
@@ -347,6 +403,7 @@ function close(): void {
 function libererVerrouAuDechargement(): void {
     if (!open.value || !famille.value || !urls.deverrouiller) return;
 
+    heartbeat.pause();
     const corps = new URLSearchParams();
     corps.set('_token', csrfToken());
     navigator.sendBeacon(urls.deverrouiller.replace('__ID__', String(famille.value.id)), corps);
@@ -388,6 +445,10 @@ async function enregistrer(): Promise<void> {
     if (!famille.value) return;
     saving.value = true;
     errors.value = {};
+    // Pas de battement PENDANT/APRÈS l'enregistrement : update() vide le verrou et
+    // un battement tardif le reprendrait (dossier rebasculé sur 'En cours' juste
+    // après la sauvegarde). Repris uniquement si la requête échoue.
+    heartbeat.pause();
 
     try {
         const res = await fetch(urls.update.replace('__ID__', String(famille.value.id)), {
@@ -420,6 +481,7 @@ async function enregistrer(): Promise<void> {
             const premierOngletEnErreur = TABS.find((t) => ongletEnErreur(t.id));
             if (premierOngletEnErreur) activeTab.value = premierOngletEnErreur.id;
             toast.error('Merci de corriger les champs en erreur.');
+            heartbeat.reprendre();
             return;
         }
 
@@ -436,6 +498,7 @@ async function enregistrer(): Promise<void> {
         setTimeout(() => window.location.reload(), 600);
     } catch (e) {
         toast.error('Erreur réseau — le dossier n\'a pas été enregistré.');
+        heartbeat.reprendre();
     } finally {
         saving.value = false;
     }
@@ -687,34 +750,43 @@ const mapEmbedUrl = computed<string | null>(() => {
 // window.toggleAppTheme dans lib/theme.ts : fonction exposée globalement
 // pour être appelée depuis un attribut onclick d'un Blade (pas de Vue
 // monté sur chaque ligne du tableau, juste ce composant unique).
+//
+// Optionnelle (12/09/2026, Section E4 du refactor) : ContactsQueue.vue
+// déclare aussi `window.openFamilleDetail` (vérifié défensivement avant
+// appel, voir modifierDossier()) mais en `?:` — TypeScript exige des
+// modificateurs identiques sur toutes les déclarations d'un même membre
+// de `declare global`, or ce fichier la déclarait en non-optionnelle.
+// Cette incohérence cassait vue-tsc --noEmit sur tout le dépôt, mais
+// restait invisible : masquée par une erreur de parsing fatale ailleurs
+// (voir RoutesPanel.vue, corrigé dans ce même chunk) qui empêchait
+// vue-tsc d'aller jusqu'à cette vérification. `?:` est de toute façon le
+// type le plus honnête ici aussi : avant que onMounted() ci-dessous ne
+// s'exécute, `window.openFamilleDetail` n'existe pas non plus sur cette
+// page.
 declare global {
     interface Window {
-        openFamilleDetail: (id: number) => void;
+        openFamilleDetail?: (id: number) => void;
     }
 }
 
 onMounted(() => {
-    const el = document.getElementById('vue-famille-detail');
-    if (el) {
-        urls = {
-            show: el.dataset.showUrlTemplate ?? '',
-            update: el.dataset.updateUrlTemplate ?? '',
-            deverrouiller: el.dataset.deverrouillerUrlTemplate ?? '',
-            forcerDeverrouillage: el.dataset.forcerDeverrouillageUrlTemplate ?? '',
-            upload: el.dataset.uploadUrlTemplate ?? '',
-            download: el.dataset.downloadUrlTemplate ?? '',
-            deleteDoc: el.dataset.deleteDocUrlTemplate ?? '',
-        };
-        googlePlacesKey.value = el.dataset.googlePlacesKey ?? '';
-        googleEmbedKey.value = el.dataset.googleEmbedKey ?? '';
-        try {
-            secteursActiviteDisponibles.value = JSON.parse(el.dataset.secteursActivite ?? '[]');
-            organismesAideDisponibles.value = JSON.parse(el.dataset.organismesAide ?? '[]');
-        } catch {
-            secteursActiviteDisponibles.value = [];
-            organismesAideDisponibles.value = [];
-        }
-    }
+    // Ex-pont double-mode (voir le docblock de defineProps ci-dessus) :
+    // les trois pages qui montent ce composant fournissent désormais ces
+    // props systématiquement, plus de repli dataset à distinguer ici.
+    urls = {
+        show: props.showUrlTemplate,
+        update: props.updateUrlTemplate,
+        deverrouiller: props.deverrouillerUrlTemplate,
+        renouvelerVerrou: props.renouvelerVerrouUrlTemplate ?? '',
+        forcerDeverrouillage: props.forcerDeverrouillageUrlTemplate,
+        upload: props.uploadUrlTemplate,
+        download: props.downloadUrlTemplate,
+        deleteDoc: props.deleteDocUrlTemplate,
+    };
+    googlePlacesKey.value = props.initialGooglePlacesKey;
+    googleEmbedKey.value = props.initialGoogleEmbedKey;
+    secteursActiviteDisponibles.value = props.initialSecteursActiviteDisponibles;
+    organismesAideDisponibles.value = props.initialOrganismesAideDisponibles;
 
     // Exposée globalement : appelée depuis l'attribut onclick des lignes
     // du tableau Blade (pas de dépendance circulaire Blade→Vue autrement).
@@ -752,12 +824,21 @@ onMounted(() => {
 
         <form v-else-if="famille" @submit.prevent="enregistrer" class="space-y-4">
 
-            <!-- Barre d'onglets -->
-            <div class="flex gap-1 border-b border-surface-3 -mt-1 mb-1" role="tablist">
+            <!-- Un autre utilisateur a repris ce dossier pendant l'édition (battement
+                 de cœur du verrou, voir useHeartbeatVerrou.ts) — informatif, l'enregistrement
+                 reste possible. -->
+            <BandeauVerrouPerdu v-if="verrouPerdu" :par="verrouPerdu.par" />
+
+            <!-- Barre d'onglets — flex-wrap + gap-y (04/09/2026) : 5 onglets
+                 (voir TABS plus haut) débordaient sur un téléphone étroit
+                 avec le simple "flex gap-1" d'origine, pas de retour à la
+                 ligne. .btn-touch remplace min-h-[40px] (36px de trop pour
+                 la cible tactile de 44px, voir amana_shared/docs/mobile-patterns.md). -->
+            <div class="flex flex-wrap gap-1 border-b border-surface-3 -mt-1 mb-1" role="tablist">
                 <button v-for="tab in TABS" :key="tab.id" type="button" role="tab"
                     :aria-selected="activeTab === tab.id"
                     @click="activeTab = tab.id"
-                    class="relative flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-semibold rounded-t-md transition-colors cursor-pointer min-h-[40px]"
+                    class="btn-touch relative flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-semibold rounded-t-md transition-colors cursor-pointer"
                     :class="activeTab === tab.id
                         ? 'text-accent border-b-2 border-accent -mb-px'
                         : 'text-ink-muted hover:text-ink hover:bg-surface-2'">
@@ -778,7 +859,11 @@ onMounted(() => {
                     <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
                         <span aria-hidden="true">👤</span> Identité &amp; contact
                     </h3>
-                    <div class="grid grid-cols-2 gap-3">
+                    <!-- grid-cols-1 sm:grid-cols-2 (04/09/2026, voir
+                         amana_shared/docs/mobile-patterns.md) — l'ancien
+                         grid-cols-2 fixe squeezait chaque champ à ~140px
+                         sur un téléphone étroit. -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Prénom</label>
                             <input v-model="famille.prenom" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
@@ -810,7 +895,7 @@ onMounted(() => {
                     <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
                         <span aria-hidden="true">👨‍👩‍👧‍👦</span> Composition du foyer
                     </h3>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Adultes</label>
                             <input v-model.number="famille.nombre_adulte" type="number" min="0" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
@@ -819,7 +904,11 @@ onMounted(() => {
                             <label class="block text-xs font-semibold text-ink mb-1">Enfants</label>
                             <input v-model.number="famille.nombre_enfant" type="number" min="0" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
                         </div>
-                        <label class="col-span-2 flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
+                        <!-- sm:col-span-2 (04/09/2026) : col-span-2 seul
+                             débordait de la grille passée à 1 colonne sous
+                             sm (un span de 2 pistes dans une grille qui n'en
+                             a qu'une force une piste implicite en trop). -->
+                        <label class="sm:col-span-2 flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
                             :class="famille.etudiant ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
                             <input v-model="famille.etudiant" type="checkbox" class="w-4 h-4 accent-accent">
                             🎓 Étudiant(e)
@@ -855,7 +944,7 @@ onMounted(() => {
                             </button>
                             <span v-if="errors.adresse" class="text-[11px] text-rose-600">{{ errors.adresse }}</span>
                         </div>
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Code postal</label>
                                 <input v-model="famille.code_postal" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
@@ -899,12 +988,7 @@ onMounted(() => {
                         <span aria-hidden="true">🛏️</span> Hébergement
                     </h3>
                     <div class="space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
-                            <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                                :class="famille.se_deplace ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                                <input v-model="famille.se_deplace" type="checkbox" class="w-4 h-4 accent-accent">
-                                Peut se déplacer
-                            </label>
+                        <div class="grid grid-cols-1 gap-3">
                             <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
                                 :class="famille.est_hotel ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
                                 <input v-model="famille.est_hotel" type="checkbox" class="w-4 h-4 accent-accent">
@@ -1066,7 +1150,7 @@ onMounted(() => {
                         <span aria-hidden="true">🚦</span> Statut &amp; criticité
                     </h3>
                     <div class="space-y-3">
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Criticité (0-5)</label>
                                 <input v-model.number="famille.criticite" type="number" min="0" max="5" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">

@@ -14,13 +14,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string      $source  manual | csv
  * @property int|null    $uploaded_by  ID de ref_personnes — pas de FK (table partagée, voir migration)
  * @property string      $status
+ * @property int|null    $id_organisation
  * @property \Illuminate\Support\Carbon|null $rolled_back_at
  */
 class FamilleImport extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['type', 'source', 'uploaded_by', 'status'];
+    protected $fillable = ['type', 'source', 'uploaded_by', 'status', 'id_organisation'];
 
     protected $casts = [
         'created_at' => 'datetime',

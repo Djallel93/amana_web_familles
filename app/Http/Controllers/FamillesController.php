@@ -5,11 +5,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\HasDetailPanelProps;
+use App\Http\Resources\FamilleDetailResource;
+use App\Http\Resources\FamilleListItemResource;
 use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
 use App\Models\Organisation;
 use App\Models\OrganismeAide;
+use App\Support\FamilleFilters;
 use App\Models\Personne;
 use App\Models\Quartier;
 use App\Models\SecteurActivite;
@@ -19,7 +23,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\View\View;
+use Inertia\Inertia;
+use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -28,14 +33,24 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  * clic sur une ligne (slide-over Vue, voir resources/js/components/familles/
  * DetailPanel.vue), consultation/upload des documents intégrée au panneau.
  *
- * index() reste un rendu Blade classique (filtres server-side, pagination
- * Laravel standard) — seul le panneau de détail est un îlot Vue consommant
- * show()/update() en JSON, pattern différent de celui des pages
- * statistiques (Blade + Vue + Chart.js) mais cohérent avec l'esprit
- * "Blade en coquille, Vue pour l'interactif" du reste de l'app.
+ * index()/nouvelles() renvoient Inertia::render() depuis le 12/09/2026
+ * (Section E4 du refactor, chunk 4 — voir resources/js/pages/Familles/
+ * Index.vue et Nouvelles.vue) : filtres/tri/pagination restent résolus
+ * côté serveur exactement comme avant (pagination Laravel standard),
+ * mais sans rechargement complet de page côté client (router.get()).
+ * show()/update() restent en JSON classique, consommés par DetailPanel.vue
+ * (désormais un enfant Vue normal de ces deux pages, plus un îlot
+ * séparé). Ses props (detailPanelProps()) vivent depuis le 16/09/2026
+ * dans le trait HasDetailPanelProps (Section E4 du refactor, chunk
+ * contacts du domaine livraison) : ContactTrackingController en avait
+ * besoin lui aussi une fois livraison/contacts.blade.php converti à son
+ * tour et l'ancien pont double-mode de DetailPanel.vue retiré — les deux
+ * faits dans ce même chunk.
  */
 class FamillesController extends Controller
 {
+    use HasDetailPanelProps;
+
     /**
      * Colonnes triables du tableau "Dossiers familles" (voir
      * resources/views/familles/index.blade.php) — whitelist explicite
@@ -44,7 +59,7 @@ class FamillesController extends Controller
      */
     private const COLONNES_TRIABLES = [
         'id', 'nom', 'statut', 'email', 'telephone', 'telephone_bis', 'adresse',
-        'nombre_adulte', 'nombre_enfant', 'criticite', 'eligibilite', 'se_deplace',
+        'nombre_adulte', 'nombre_enfant', 'criticite', 'eligibilite',
         'est_hotel', 'etudiant', 'langue', 'type_piece_identite', 'created_at',
     ];
 
@@ -63,28 +78,31 @@ class FamillesController extends Controller
             : Famille::PAGINATION_PAR_PAGE_DEFAUT;
     }
 
-    public function index(Request $request): View
+    public function index(Request $request): Response
     {
-        $query = $this->baseQuery($request)->with(['organisationOrigine:id,nom', 'organisations:id,nom']);
+        // verrouilleur : marqueur "🔒 <nom>" du tableau (Scénario 5 du chantier
+        // "polling live") — une seule requête groupée (whereIn sur locked_by),
+        // pas de N+1 ; volontairement PAS dans baseQuery(), aussi utilisé par
+        // export() qui n'en a pas l'usage.
+        $query = $this->baseQuery($request)->with('verrouilleur:id,nom,prenom');
 
         $etatDossier = $this->appliquerFiltreStatut($query, $request);
 
         $this->appliquerTri($query, $request);
 
         $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
+        // FamilleListItemResource appliqué directement sur la collection du
+        // paginator plutôt que XResource::collection($paginator) (même
+        // technique que la Section E3 du refactor) : préserve la forme
+        // JSON plate attendue par FamillesTable.vue (current_page/data/...
+        // à la racine).
+        $familles->getCollection()->transform(fn ($famille) => new FamilleListItemResource($famille));
 
-
-        // Filtres géographiques — listes complètes indépendamment des
-        // résultats courants (villes/secteurs/quartiers sont créées vides
-        // pour l'instant, cf. décision 6.7 : ces selects seront vides tant
-        // que le peuplement des polygones n'est pas fait).
-        $villes = Ville::orderBy('nom')->get(['id', 'nom']);
-        $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
-        // secteur:id,id_ville eager-loadé pour le filtre Ville → Quartier en
-        // cascade côté front (data-id-ville sur chaque <option>, voir
-        // familles/index.blade.php) — Quartier n'a pas de colonne id_ville
-        // directe, seulement via secteur (cf. Amana\Shared\Models\Quartier).
-        $quartiers = Quartier::with('secteur:id,id_ville')->orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        $listesFiltres = $this->listesFiltres();
+        $villes = $listesFiltres['villes'];
+        $secteurs = $listesFiltres['secteurs'];
+        $quartiers = $listesFiltres['quartiers'];
+        $organisations = $listesFiltres['organisations'];
 
         // Listes fermées "Activité"/"Ressources" (mêmes tables que
         // IntakeController::showForm) — consommées par DetailPanel.vue pour
@@ -93,34 +111,84 @@ class FamillesController extends Controller
         $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
         $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
 
-        // Options des deux filtres "Organisation" (origine / rattachée) —
-        // voir baseQuery(). Une seule liste suffit, les deux selects la
-        // consomment (familles/index.blade.php).
-        $organisations = Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
+        // Valeurs actuelles du panneau de filtres partagé (voir
+        // FamilleFiltresBar.vue, Section A3 du refactor du 10/09/2026,
+        // props Inertia depuis le 12/09/2026 — Section E4, chunk 4) —
+        // avec Statut + autocomplétion Nom/Téléphone, les deux features
+        // propres à Dossier Familles (voir FamilleFilterPanel.vue).
+        $valeursFiltres = $this->valeursFiltres($request, $etatDossier, avecStatut: true, avecAutocompletion: true);
 
-        return view('familles.index', compact(
-            'familles', 'villes', 'secteurs', 'quartiers', 'etatDossier',
-            'secteursActivite', 'organismesAide', 'organisations',
-        ));
+        // filtresActifs/puces : déplacés depuis familles/index.blade.php
+        // (Section E4 du refactor, chunk 4, 12/09/2026) — ce calcul vivait
+        // jusqu'ici dans la vue elle-même (@php en tête de fichier),
+        // devenu impossible une fois la vue Blade remplacée par
+        // Inertia::render(). Comportement identique, code déplacé tel
+        // quel plutôt que réécrit.
+        $filtresActifs = $request->anyFilled(['etat_dossier', 'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa', 'est_hotel', 'etudiant', 'criticite', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee']);
+        $puces = $this->construirePucesFiltres($request, $etatDossier, $villes, $quartiers, $organisations, 'familles.index');
+
+        $utilisateur = auth()->user();
+
+        return Inertia::render('Familles/Index', [
+            'familles' => $familles,
+            'villes' => $villes,
+            'secteurs' => $secteurs,
+            'quartiers' => $quartiers,
+            'organisations' => $organisations,
+            'etatDossier' => $etatDossier,
+            'secteursActivite' => $secteursActivite,
+            'organismesAide' => $organismesAide,
+            'valeursFiltres' => $valeursFiltres,
+            'triActuel' => $request->input('tri'),
+            'directionActuelle' => $request->input('direction') === 'desc' ? 'desc' : 'asc',
+            'filtresActifs' => $filtresActifs,
+            'puces' => $puces,
+            'reinitialiserUrl' => route('familles.index', ['etat_dossier' => '']),
+            'peutSyncGoogleContacts' => $utilisateur && ($utilisateur->isAdmin() || $utilisateur->isGestionnaire()),
+            'googleContactsScanUrl' => route('familles.google-contacts.scan'),
+            'googleContactsAppliquerUrl' => route('familles.google-contacts.appliquer'),
+            'exportUrl' => route('familles.export', $request->query()),
+            'ouvrirId' => $request->integer('ouvrir') ?: null,
+            ...$this->detailPanelProps(),
+        ]);
     }
 
     /**
      * "Nouvelles demandes" — file d'attente des dossiers pas encore
      * ouverts par le staff (etat_dossier = 'Recu', réservé aux soumissions
      * du formulaire public — voir Famille::ETATS_MODIFIABLES). Vue dédiée
-     * plutôt qu'un simple lien filtré vers index() : tri par ancienneté
-     * (le plus vieux d'abord, pas par criticité comme la liste générale,
-     * pour qu'aucune demande ne reste oubliée), et met en évidence
+     * plutôt qu'un simple lien filtré vers index() : tri par ancienneté par
+     * défaut (le plus vieux d'abord, pas par criticité comme la liste
+     * générale, pour qu'aucune demande ne reste oubliée) — voir
+     * appliquerTri(colonneDefaut: 'created_at') —, et met en évidence
      * probleme_traitement (échecs de géocodage notamment) — demande du
-     * 09/08/2026.
+     * 09/08/2026. Tableau/colonnes/tri manuel identiques à index() depuis
+     * le 10/09/2026 (Section A2 du refactor) : le staff peut re-trier par
+     * n'importe quelle colonne via les en-têtes cliquables, exactement
+     * comme sur Dossiers Familles — seul le tri PAR DÉFAUT (sans ?tri=)
+     * diffère entre les deux vues.
      */
-    public function nouvelles(Request $request): View
+    public function nouvelles(Request $request): Response
     {
-        $query = $this->baseQuery($request)->where('etat_dossier', 'Recu');
+        // Même eager load de verrouilleur que index() — voir son commentaire.
+        $query = $this->baseQuery($request)->with('verrouilleur:id,nom,prenom')->where('etat_dossier', 'Recu');
 
-        $familles = $query->orderBy('created_at')
-            ->paginate($this->resoudrePerPage($request))
-            ->withQueryString();
+        $this->appliquerTri($query, $request, colonneDefaut: 'created_at');
+
+        $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
+        $familles->getCollection()->transform(fn ($famille) => new FamilleListItemResource($famille));
+
+        // Mêmes listes géographiques/organisation que index() depuis le
+        // 10/09/2026 (Section A3 du refactor) : cette vue monte désormais
+        // le même panneau de filtres complet (voir FamilleFiltresBar.vue),
+        // pas seulement le champ recherche qu'elle avait avant — statut
+        // hors sujet ici (toujours 'Recu', voir la clause where()
+        // ci-dessus) donc avecStatut: false.
+        $listesFiltres = $this->listesFiltres();
+        $villes = $listesFiltres['villes'];
+        $secteurs = $listesFiltres['secteurs'];
+        $quartiers = $listesFiltres['quartiers'];
+        $organisations = $listesFiltres['organisations'];
 
         // Mêmes listes que index() — cette vue monte le même DetailPanel.vue
         // (voir familles/nouvelles.blade.php), qui a besoin des mêmes
@@ -128,16 +196,177 @@ class FamillesController extends Controller
         $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
         $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
 
-        return view('familles.nouvelles', compact('familles', 'secteursActivite', 'organismesAide'));
+        $valeursFiltres = $this->valeursFiltres($request, etatDossier: '', avecStatut: false, avecAutocompletion: false);
+
+        // aFiltresActifs : déplacé depuis familles/nouvelles.blade.php
+        // (Section E4 du refactor, chunk 4, 12/09/2026) — même liste de
+        // champs qu'à l'origine, aucune puce de détail sur cette vue
+        // (jamais eu cette fonctionnalité, contrairement à index()).
+        $aFiltresActifs = $request->anyFilled([
+            'recherche', 'id_ville', 'id_secteur', 'id_quartier', 'criticite',
+            'est_hotel', 'etudiant', 'zakat_el_fitr', 'sadaqa',
+            'id_organisation_origine', 'id_organisation_rattachee',
+        ]);
+
+        return Inertia::render('Familles/Nouvelles', [
+            'familles' => $familles,
+            'villes' => $villes,
+            'secteurs' => $secteurs,
+            'quartiers' => $quartiers,
+            'organisations' => $organisations,
+            'secteursActivite' => $secteursActivite,
+            'organismesAide' => $organismesAide,
+            'valeursFiltres' => $valeursFiltres,
+            'triActuel' => $request->input('tri'),
+            'directionActuelle' => $request->input('direction') === 'desc' ? 'desc' : 'asc',
+            'aFiltresActifs' => $aFiltresActifs,
+            ...$this->detailPanelProps(),
+        ]);
+    }
+
+    /**
+     * Listes complètes pour les groupes Localisation/Organisation du
+     * panneau de filtres (voir FamilleFiltresBar.vue) —
+     * indépendantes des résultats courants (villes/secteurs/quartiers
+     * peuvent être vides tant que le peuplement des polygones n'est pas
+     * fait, cf. décision 6.7). Partagée par index() et nouvelles() depuis
+     * le 10/09/2026 (Section A3 du refactor : nouvelles() n'avait jusque-là
+     * aucun de ces filtres, seulement un champ recherche).
+     */
+    private function listesFiltres(): array
+    {
+        $villes = Ville::orderBy('nom')->get(['id', 'nom']);
+        $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
+        // secteur:id,id_ville eager-loadé pour le filtre Ville → Quartier en
+        // cascade côté front — Quartier n'a pas de colonne id_ville
+        // directe, seulement via secteur (cf. Amana\Shared\Models\Quartier).
+        $quartiers = Quartier::with('secteur:id,id_ville')->orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        // Options des deux filtres "Organisation" (origine / rattachée) —
+        // voir baseQuery(). Une seule liste suffit, les deux selects la
+        // consomment (FamilleFilterPanel.vue).
+        $organisations = Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
+
+        return compact('villes', 'secteurs', 'quartiers', 'organisations');
+    }
+
+    /**
+     * Valeurs actuelles du panneau de filtres partagé, sérialisées pour
+     * FamilleFiltresBar.vue (data-valeurs) — mêmes clés que
+     * App\Support\FamilleFilters::appliquer() reconnaît, plus etat_dossier/
+     * nom/telephone/id_selection quand $avecStatut/$avecAutocompletion
+     * (voir FamilleFilterPanel.vue).
+     */
+    private function valeursFiltres(Request $request, string $etatDossier, bool $avecStatut, bool $avecAutocompletion): array
+    {
+        $valeurs = [
+            'id_ville' => $request->input('id_ville', ''),
+            'id_secteur' => $request->input('id_secteur', ''),
+            'id_quartier' => $request->input('id_quartier', ''),
+            'criticite' => array_map('intval', (array) $request->input('criticite', [])),
+            'est_hotel' => $request->boolean('est_hotel'),
+            'etudiant' => $request->boolean('etudiant'),
+            'zakat_el_fitr' => $request->boolean('zakat_el_fitr'),
+            'sadaqa' => $request->boolean('sadaqa'),
+            'id_organisation_origine' => $request->input('id_organisation_origine', ''),
+            'id_organisation_rattachee' => $request->input('id_organisation_rattachee', ''),
+        ];
+
+        if ($avecAutocompletion) {
+            $valeurs['nom'] = $request->input('nom', '');
+            $valeurs['telephone'] = $request->input('telephone', '');
+            $valeurs['id_selection'] = $request->input('id_selection', '');
+        } else {
+            $valeurs['recherche'] = $request->input('recherche', '');
+        }
+
+        if ($avecStatut) {
+            $valeurs['etat_dossier'] = $etatDossier;
+        }
+
+        return $valeurs;
     }
 
     /**
      * Base commune à index() et nouvelles() — seuls le filtre de statut et
-     * le tri diffèrent entre les deux vues.
+     * le tri diffèrent entre les deux vues. organisationOrigine/
+     * organisations eager-loadées ici depuis le 10/09/2026 (Section A2 du
+     * refactor) — remontées depuis index() lors du passage de
+     * nouvelles() sur le même <x-partial> familles.partials.tableau
+     * (colonne "Organisation" désormais disponible, même masquée par
+     * défaut, sur les deux vues — évite un N+1 si affichée).
      */
+    /**
+     * Puces de filtres actifs — déplacé depuis le @php en tête de
+     * familles/index.blade.php (Section E4 du refactor, chunk 4,
+     * 12/09/2026), devenu impossible à calculer côté vue une fois celle-ci
+     * remplacée par Inertia::render(). Logique et libellés identiques à
+     * l'origine, uniquement utilisé par index() — nouvelles() n'a jamais
+     * eu cette fonctionnalité (seul aFiltresActifs, sans détail par puce).
+     */
+    private function construirePucesFiltres(Request $request, string $etatDossier, $villes, $quartiers, $organisations, string $routeName): array
+    {
+        $parametresBase = collect($request->except('page'));
+        $puces = [];
+
+        if ($etatDossier !== '') {
+            $puces[] = ['label' => 'Statut : ' . $etatDossier, 'href' => route($routeName, $parametresBase->merge(['etat_dossier' => ''])->all())];
+        }
+        if ($request->filled('id_ville')) {
+            $villeNom = optional($villes->firstWhere('id', (int) $request->input('id_ville')))->nom ?? $request->input('id_ville');
+            $puces[] = ['label' => 'Ville : ' . $villeNom, 'href' => route($routeName, $parametresBase->except('id_ville')->all())];
+        }
+        if ($request->filled('id_quartier')) {
+            $quartierNom = optional($quartiers->firstWhere('id', (int) $request->input('id_quartier')))->nom ?? $request->input('id_quartier');
+            $puces[] = ['label' => 'Quartier : ' . $quartierNom, 'href' => route($routeName, $parametresBase->except('id_quartier')->all())];
+        }
+        if ($request->filled('id_selection')) {
+            $puces[] = ['label' => '🔗 Résultat sélectionné', 'href' => route($routeName, $parametresBase->except(['id_selection', 'nom', 'telephone'])->all())];
+        } else {
+            if ($request->filled('nom')) {
+                $puces[] = ['label' => 'Nom : "' . $request->input('nom') . '"', 'href' => route($routeName, $parametresBase->except('nom')->all())];
+            }
+            if ($request->filled('telephone')) {
+                $puces[] = ['label' => 'Téléphone : "' . $request->input('telephone') . '"', 'href' => route($routeName, $parametresBase->except('telephone')->all())];
+            }
+        }
+        if ($request->filled('criticite')) {
+            $criticiteValeurs = collect((array) $request->input('criticite'))->map(fn ($v) => (int) $v)->sort()->values();
+            if ($criticiteValeurs->isNotEmpty()) {
+                $puces[] = ['label' => 'Criticité : ' . $criticiteValeurs->implode(', '), 'href' => route($routeName, $parametresBase->except('criticite')->all())];
+            }
+        }
+        if ($request->boolean('est_hotel')) {
+            $puces[] = ['label' => '🏨 Hôtel', 'href' => route($routeName, $parametresBase->except('est_hotel')->all())];
+        }
+        if ($request->boolean('etudiant')) {
+            $puces[] = ['label' => '🎓 Étudiant', 'href' => route($routeName, $parametresBase->except('etudiant')->all())];
+        }
+        if ($request->boolean('zakat_el_fitr')) {
+            $puces[] = ['label' => 'Zakat El Fitr', 'href' => route($routeName, $parametresBase->except('zakat_el_fitr')->all())];
+        }
+        if ($request->boolean('sadaqa')) {
+            $puces[] = ['label' => 'Sadaqa', 'href' => route($routeName, $parametresBase->except('sadaqa')->all())];
+        }
+        if ($request->filled('id_organisation_origine')) {
+            $orgOrigineNom = optional($organisations->firstWhere('id', (int) $request->input('id_organisation_origine')))->nom ?? $request->input('id_organisation_origine');
+            $puces[] = ['label' => "Organisation d'origine : " . $orgOrigineNom, 'href' => route($routeName, $parametresBase->except('id_organisation_origine')->all())];
+        }
+        if ($request->filled('id_organisation_rattachee')) {
+            $orgRattacheeNom = optional($organisations->firstWhere('id', (int) $request->input('id_organisation_rattachee')))->nom ?? $request->input('id_organisation_rattachee');
+            $puces[] = ['label' => 'Organisation rattachée : ' . $orgRattacheeNom, 'href' => route($routeName, $parametresBase->except('id_organisation_rattachee')->all())];
+        }
+
+        return $puces;
+    }
+
     private function baseQuery(Request $request)
     {
-        $query = Famille::query()->with('quartier.secteur.ville');
+        // ->with('quartier') seul (pas 'quartier.secteur.ville') depuis le
+        // 12/09/2026 (Section E4 du refactor, chunk 4) : ni
+        // FamillesTable.vue ni l'ancien tableau.blade.php qu'il remplace
+        // ne lisent .secteur/.ville sur cette ligne (seul quartier.nom
+        // est affiché) — voir le docblock de FamilleListItemResource.
+        $query = Famille::query()->with(['quartier', 'organisationOrigine:id,nom', 'organisations:id,nom']);
 
         // Visibilité par organisation (ajouté le 28/08/2026) — réservé aux
         // comptes gestionnaire_externe : admin/gestionnaire/benevole/membre
@@ -148,100 +377,12 @@ class FamillesController extends Controller
             $query->visiblePar(Organisation::idsPourPersonne($utilisateur->id));
         }
 
-        if ($request->filled('id_quartier')) {
-            $query->where('id_quartier', $request->input('id_quartier'));
-        }
-        // id_secteur / id_ville : Quartier/Secteur/Ville vivent sur la
-        // connexion 'commun' (amana_commun), familles sur la connexion par
-        // défaut (amana_familles) — voir Amana\Shared\Models\Quartier/
-        // Secteur/Ville::getConnectionName(). whereHas() génère un
-        // sous-select 'exists' en réutilisant tel quel le nom de table du
-        // modèle lié, SANS qualifier la base : MySQL le résout alors dans
-        // le schéma de la connexion du modèle PARENT (amana_familles) et
-        // échoue avec "Table 'amana_familles.quartiers' doesn't exist"
-        // (signalé le 13/08/2026). On résout donc les id_quartier
-        // correspondants via une requête séparée sur la connexion
-        // 'commun', puis un whereIn() classique sur familles.id_quartier —
-        // deux requêtes mono-connexion plutôt qu'un exists() cross-DB.
-        if ($request->filled('id_secteur')) {
-            $query->whereIn('id_quartier', Quartier::where('id_secteur', $request->input('id_secteur'))->pluck('id'));
-        }
-        if ($request->filled('id_ville')) {
-            $query->whereIn('id_quartier', Quartier::whereHas('secteur', fn($q) => $q->where('id_ville', $request->input('id_ville')))->pluck('id'));
-        }
-        if ($request->boolean('zakat_el_fitr')) {
-            $query->where('zakat_el_fitr', true);
-        }
-        if ($request->boolean('sadaqa')) {
-            $query->where('sadaqa', true);
-        }
-        // se_deplace / est_hotel / etudiant : cases à cocher simples (voir
-        // familles/index.blade.php) — cochée = filtre sur "Oui" uniquement,
-        // décochée = indifférent, même sémantique que zakat_el_fitr/sadaqa
-        // ci-dessus (remplace le <select> Oui/Non/Indifférent à 3 états du
-        // 13/08/2026 : pas de moyen de filtrer explicitement sur "Non" côté
-        // UI désormais, jugé peu utile en pratique).
-        if ($request->boolean('se_deplace')) {
-            $query->where('se_deplace', true);
-        }
-        if ($request->boolean('est_hotel')) {
-            $query->where('est_hotel', true);
-        }
-        if ($request->boolean('etudiant')) {
-            $query->where('etudiant', true);
-        }
-        // Sélection discrète (cases à cocher 0-5, voir familles/index.blade.php)
-        // plutôt qu'un intervalle min/max — remplace criticite_min/criticite_max
-        // le 13/08/2026 (demande : pouvoir cocher ex. 3 ET 5 sans inclure 4).
-        // Filtrage sur les entiers valides uniquement, silencieusement ignoré
-        // sinon (paramètre trafiqué) plutôt que de faire échouer la requête.
-        if ($request->filled('criticite')) {
-            $valeurs = array_values(array_intersect(
-                array_map('intval', (array) $request->input('criticite')),
-                range(0, 5),
-            ));
-            if (!empty($valeurs)) {
-                $query->whereIn('criticite', $valeurs);
-            }
-        }
-        if ($request->filled('recherche')) {
-            $query->recherche($request->input('recherche'));
-        }
-        // Nom / Téléphone (familles/index.blade.php) : deux champs distincts
-        // avec autocomplétion — voir rechercheSuggestions() ci-dessous. Un
-        // clic sur une suggestion pose id_selection (l'id exact de la
-        // famille visée) plutôt que de compter sur le texte affiché dans le
-        // champ pour matcher via LIKE : le champ est rempli avec le
-        // nom/prénom ou le téléphone complet à des fins d'affichage
-        // uniquement, id_selection prime donc sur nom/telephone quand les
-        // deux sont présents. Un JS annule id_selection dès que l'utilisateur
-        // retape dans le champ (voir le script en bas de la vue), pour
-        // retomber sur une recherche LIKE classique.
-        if ($request->filled('id_selection')) {
-            $query->where('id', (int) $request->input('id_selection'));
-        } else {
-            if ($request->filled('nom')) {
-                $query->rechercheNom($request->input('nom'));
-            }
-            if ($request->filled('telephone')) {
-                $query->rechercheTelephone($request->input('telephone'));
-            }
-        }
-
-        // Organisation d'origine (id_organisation, colonne directe sur
-        // familles) — distinct de "rattachée" ci-dessous : un dossier peut
-        // être rattaché à d'autres organisations que celle qui l'a
-        // initialement enregistré (voir organisationOrigine()/organisations()
-        // sur Famille, feature multi-organisation du 28/08/2026).
-        if ($request->filled('id_organisation_origine')) {
-            $query->where('id_organisation', $request->input('id_organisation_origine'));
-        }
-        // Organisation rattachée — filtre sur la table pivot
-        // famille_organisation (organisations()), indépendant de
-        // l'organisation d'origine.
-        if ($request->filled('id_organisation_rattachee')) {
-            $query->whereHas('organisations', fn($q) => $q->where('organisations.id', $request->input('id_organisation_rattachee')));
-        }
+        // Filtres géographiques/critères — extraits le 05/09/2026 dans
+        // App\Support\FamilleFilters, réutilisé tel quel par l'écran
+        // d'éligibilité campagne et Suivi des contacts (voir le prompt
+        // du 05/09/2026 §1.6/§2.6). Comportement inchangé : c'est
+        // littéralement le même code qu'avant l'extraction.
+        FamilleFilters::appliquer($query, $request);
 
         return $query;
     }
@@ -254,11 +395,22 @@ class FamillesController extends Controller
      * en devinant son ID. admin/gestionnaire/benevole/membre ne sont jamais
      * bloqués ici (accès complet inchangé depuis avant cette fonctionnalité).
      */
+    /**
+     * Accès aux dossiers rattachés à ses organisations UNIQUEMENT pour un
+     * gestionnaire_externe — tout autre rôle (admin/gestionnaire/membre/
+     * bénévole) passe sans restriction. Un rôle familles est exclusif
+     * (voir RoleService::syncRoleFamilles()), donc `!isGestionnaireExterne()`
+     * suffit à lui seul : `isAdmin()`/`isGestionnaire()` dans l'ancienne
+     * condition (`!isGestionnaireExterne() || isAdmin() || isGestionnaire()`)
+     * ne pouvaient jamais changer le résultat — si l'un des deux est vrai,
+     * `!isGestionnaireExterne()` l'est déjà nécessairement. Simplifié le
+     * 10/09/2026 (Section C du refactor).
+     */
     private function assertAccesFamille(Famille $famille): void
     {
         $utilisateur = auth()->user();
 
-        if (!$utilisateur->isGestionnaireExterne() || $utilisateur->isAdmin() || $utilisateur->isGestionnaire()) {
+        if (!$utilisateur->isGestionnaireExterne()) {
             return;
         }
 
@@ -324,7 +476,6 @@ class FamillesController extends Controller
             'etat_dossier' => 'Statut',
             'zakat_el_fitr' => 'Zakat El Fitr',
             'sadaqa' => 'Sadaqa',
-            'se_deplace' => 'Se déplace',
             'est_hotel' => 'Hôtel',
             'etudiant' => 'Étudiant',
             'langue' => 'Langue',
@@ -349,7 +500,7 @@ class FamillesController extends Controller
                             'adresse_complete' => $famille->adresse_complete,
                             'ville' => $famille->ville ?? '',
                             'quartier' => $famille->quartier->nom ?? '',
-                            'zakat_el_fitr', 'sadaqa', 'se_deplace', 'est_hotel', 'etudiant' => $famille->{$champ} ? 'Oui' : 'Non',
+                            'zakat_el_fitr', 'sadaqa', 'est_hotel', 'etudiant' => $famille->{$champ} ? 'Oui' : 'Non',
                             'created_at' => $famille->created_at?->format('d/m/Y') ?? '',
                             default => (string) ($famille->{$champ} ?? ''),
                         };
@@ -400,21 +551,27 @@ class FamillesController extends Controller
 
     /**
      * Tri du tableau "Dossiers familles" (?tri=colonne&direction=asc|desc,
-     * en-têtes cliquables — voir familles/index.blade.php). Sans paramètre
-     * ?tri reconnu, tri par ID croissant (demande du 12/08/2026 — remplace
-     * l'ancien défaut criticité décroissante).
+     * en-têtes cliquables — voir FamillesTable.vue, partagé par
+     * Familles/Index.vue et, depuis le 10/09/2026, Familles/Nouvelles.vue
+     * qui partage désormais le même tableau/en-têtes).
+     * Sans paramètre ?tri reconnu, tri par $colonneDefaut/$directionDefaut
+     * — 'id' croissant pour index() (demande du 12/08/2026 — remplace
+     * l'ancien défaut criticité décroissante), 'created_at' croissant pour
+     * nouvelles() (le plus vieux d'abord, voir son docblock) : seul le
+     * défaut SANS ?tri diffère entre les deux vues, le paramétrage manuel
+     * via les en-têtes est identique.
      *
      * 'eligibilite' n'est pas une colonne unique en base (zakat_el_fitr +
      * sadaqa sont deux booléens distincts) — trié comme un score combiné :
      * zakat_el_fitr d'abord, puis sadaqa, dans la même direction.
      */
-    private function appliquerTri($query, Request $request): void
+    private function appliquerTri($query, Request $request, string $colonneDefaut = 'id', string $directionDefaut = 'asc'): void
     {
         $colonne = $request->input('tri');
         $direction = $request->input('direction') === 'desc' ? 'desc' : 'asc';
 
         if (!in_array($colonne, self::COLONNES_TRIABLES, true)) {
-            $query->orderBy('id');
+            $query->orderBy($colonneDefaut, $directionDefaut);
 
             return;
         }
@@ -431,7 +588,6 @@ class FamillesController extends Controller
             'nombre_enfant' => $query->orderBy('nombre_enfant', $direction),
             'criticite' => $query->orderBy('criticite', $direction),
             'eligibilite' => $query->orderBy('zakat_el_fitr', $direction)->orderBy('sadaqa', $direction),
-            'se_deplace' => $query->orderBy('se_deplace', $direction),
             'est_hotel' => $query->orderBy('est_hotel', $direction),
             'etudiant' => $query->orderBy('etudiant', $direction),
             'langue' => $query->orderBy('langue', $direction),
@@ -456,22 +612,70 @@ class FamillesController extends Controller
         $famille->quartier?->makeHidden('boundary');
         $famille->quartier?->secteur?->ville?->makeHidden('boundary');
 
-        // Verrouillage d'édition (décision du 15/08/2026) — ouvrir le
-        // Dossier Panel, c'est TOUJOURS dans l'intention de l'éditer (seul
-        // point d'entrée de ce endpoint, voir DetailPanel.vue), donc c'est
-        // ici qu'on prend le verrou. Choix assumé de le faire sur ce GET
-        // plutôt que via un endpoint POST dédié : les deux actions (charger
-        // les données, verrouiller) sont indissociables du point de vue du
-        // panneau, un GET+POST séparés n'apporterait qu'une fenêtre de race
-        // condition supplémentaire pour peu de bénéfice — même logique
-        // "simple v1" que le reste du panneau.
+        // Verrouillage d'édition (décision du 15/08/2026) — voir
+        // prendreVerrou() pour le raisonnement complet. Un verrou frais
+        // détenu par un autre utilisateur refuse l'ouverture (423).
+        $refus = $this->prendreVerrou($famille, auth()->user());
+        if ($refus !== null) {
+            return $refus;
+        }
+
+        // Le JSON renvoyé au panneau affiche le VRAI statut d'origine, pas
+        // la bascule interne 'En cours' qui vient d'être persistée en base
+        // (décision du 15/08/2026 — 'En cours' n'est plus un choix possible
+        // du <select> de DetailPanel.vue, voir Famille::ETATS_SELECTIONNABLES ;
+        // le montrer quand même casserait la présélection du menu et
+        // risquerait, si le staff n'y touche pas, de faire retomber le
+        // <select> HTML sur sa première option par défaut — perte de
+        // statut silencieuse). Cette réaffectation ne touche que l'objet
+        // en mémoire, pas la base : 'En cours' y reste bien stocké, c'est
+        // justement ce qui alimente le filtre de la vue principale.
         //
-        // Un verrou détenu par UN AUTRE utilisateur et encore frais (moins
-        // de VERROU_TTL_MINUTES) bloque l'ouverture ; un verrou détenu par
-        // le même utilisateur (ex : rechargement de page) ou périmé (crash
-        // navigateur précédent, cf. commentaire sur VERROU_TTL_MINUTES) est
-        // traversé normalement.
-        $utilisateur = auth()->user();
+        // Cas particulier 'Recu' : ce statut n'est lui non plus PAS dans
+        // ETATS_SELECTIONNABLES (jamais choisi manuellement depuis ce
+        // panneau, voir IntakeController::store) — l'afficher tel quel
+        // provoquerait exactement le même problème de présélection
+        // invalide. On retombe alors sur 'En attente', premier statut de
+        // traitement réel, qui est de toute façon la suite logique
+        // attendue pour un dossier tout juste reçu qu'un membre du staff
+        // vient d'ouvrir. Si le staff ferme sans enregistrer
+        // (deverrouiller()), le dossier retrouve bien 'Recu' — ce
+        // fallback n'affecte que ce qui s'affiche dans le formulaire.
+        $famille->etat_dossier = in_array($famille->etat_dossier_avant_verrouillage, Famille::ETATS_SELECTIONNABLES, true)
+            ? $famille->etat_dossier_avant_verrouillage
+            : 'En attente';
+
+        return response()->json(new FamilleDetailResource($famille));
+    }
+
+    /**
+     * Verrouillage d'édition (décision du 15/08/2026) — ouvrir le
+     * Dossier Panel, c'est TOUJOURS dans l'intention de l'éditer (seul
+     * point d'entrée de ce endpoint, voir DetailPanel.vue), donc c'est
+     * ici qu'on prend le verrou. Choix assumé de le faire sur ce GET
+     * plutôt que via un endpoint POST dédié : les deux actions (charger
+     * les données, verrouiller) sont indissociables du point de vue du
+     * panneau, un GET+POST séparés n'apporterait qu'une fenêtre de race
+     * condition supplémentaire pour peu de bénéfice — même logique
+     * "simple v1" que le reste du panneau.
+     *
+     * Un verrou détenu par UN AUTRE utilisateur et encore frais (moins
+     * de VERROU_TTL_MINUTES) bloque l'ouverture ; un verrou détenu par
+     * le même utilisateur (ex : rechargement de page) ou périmé (crash
+     * navigateur précédent, cf. commentaire sur VERROU_TTL_MINUTES) est
+     * traversé normalement.
+     *
+     * Extrait de show() (Scénario 5, suite : battement de cœur du verrou) pour
+     * que l'ouverture du panneau ET son renouvellement périodique
+     * (renouvelerVerrou()) appliquent EXACTEMENT la même règle : un verrou
+     * frais d'un autre utilisateur bloque ; un verrou à soi ou périmé est
+     * pris/repris en conservant l'état d'origine déjà capturé.
+     *
+     * @return JsonResponse|null la réponse 423 si le dossier est verrouillé par
+     *   un autre utilisateur ; null si le verrou vient d'être pris/renouvelé.
+     */
+    private function prendreVerrou(Famille $famille, Personne $utilisateur): ?JsonResponse
+    {
         $verrouExpireLe = now()->subMinutes(Famille::VERROU_TTL_MINUTES);
         $verrouActifParAutrui = $famille->locked_by
             && (int) $famille->locked_by !== (int) $utilisateur->id
@@ -518,32 +722,49 @@ class FamillesController extends Controller
         // l'enregistrement explicite (update() ci-dessous) doit y figurer.
         $famille->saveQuietly();
 
-        // Le JSON renvoyé au panneau affiche le VRAI statut d'origine, pas
-        // la bascule interne 'En cours' qui vient d'être persistée en base
-        // (décision du 15/08/2026 — 'En cours' n'est plus un choix possible
-        // du <select> de DetailPanel.vue, voir Famille::ETATS_SELECTIONNABLES ;
-        // le montrer quand même casserait la présélection du menu et
-        // risquerait, si le staff n'y touche pas, de faire retomber le
-        // <select> HTML sur sa première option par défaut — perte de
-        // statut silencieuse). Cette réaffectation ne touche que l'objet
-        // en mémoire, pas la base : 'En cours' y reste bien stocké, c'est
-        // justement ce qui alimente le filtre de la vue principale.
-        //
-        // Cas particulier 'Recu' : ce statut n'est lui non plus PAS dans
-        // ETATS_SELECTIONNABLES (jamais choisi manuellement depuis ce
-        // panneau, voir IntakeController::store) — l'afficher tel quel
-        // provoquerait exactement le même problème de présélection
-        // invalide. On retombe alors sur 'En attente', premier statut de
-        // traitement réel, qui est de toute façon la suite logique
-        // attendue pour un dossier tout juste reçu qu'un membre du staff
-        // vient d'ouvrir. Si le staff ferme sans enregistrer
-        // (deverrouiller()), le dossier retrouve bien 'Recu' — ce
-        // fallback n'affecte que ce qui s'affiche dans le formulaire.
-        $famille->etat_dossier = in_array($famille->etat_dossier_avant_verrouillage, Famille::ETATS_SELECTIONNABLES, true)
-            ? $famille->etat_dossier_avant_verrouillage
-            : 'En attente';
+        return null;
+    }
 
-        return response()->json($famille);
+    /**
+     * Battement de cœur du verrou d'édition (suite du Scénario 5) — appelé
+     * périodiquement par DetailPanel.vue (voir useHeartbeatVerrou.ts) tant
+     * que le panneau est ouvert ET que l'utilisateur est actif. Sans lui,
+     * locked_at n'était posé qu'à l'ouverture : passé
+     * VERROU_TTL_MINUTES, le verrou d'une édition longue devenait libre,
+     * un autre utilisateur pouvait ouvrir le même dossier, et update()
+     * (qui relâche le verrou "quel que soit qui le détenait") laisse le
+     * dernier enregistrement l'emporter en silence.
+     *
+     *  - verrou déjà à moi (et état d'origine déjà capturé) : simple
+     *    rafraîchissement de locked_at, SANS toucher updated_at (un
+     *    battement de cœur n'est pas une modification du dossier) ;
+     *  - verrou libre, périmé, ou nettoyé entre-temps par
+     *    familles:liberer-verrous-perimes (voir Famille::libererVerrousPerimes()) :
+     *    repris comme à l'ouverture ;
+     *  - verrou frais d'un AUTRE utilisateur : 423, même corps que show() —
+     *    le panneau affiche alors un bandeau d'avertissement (l'enregistrement
+     *    reste possible, décision du 19/09/2026).
+     */
+    public function renouvelerVerrou(int $id): JsonResponse
+    {
+        $famille = Famille::findOrFail($id);
+        $utilisateur = auth()->user();
+
+        if ((int) $famille->locked_by === (int) $utilisateur->id && $famille->etat_dossier_avant_verrouillage !== null) {
+            $famille->locked_at = now();
+            $famille->timestamps = false;
+            $famille->saveQuietly();
+            $famille->timestamps = true;
+
+            return response()->json(['success' => true, 'locked_at' => $famille->locked_at]);
+        }
+
+        $refus = $this->prendreVerrou($famille, $utilisateur);
+        if ($refus !== null) {
+            return $refus;
+        }
+
+        return response()->json(['success' => true, 'locked_at' => $famille->locked_at]);
     }
 
     /**
@@ -645,12 +866,11 @@ class FamillesController extends Controller
             'code_postal' => ['nullable', 'string', 'max:10'],
             'ville_texte' => ['nullable', 'string', 'max:150'],
             'id_quartier' => ['nullable', 'integer', 'exists:commun.quartiers,id'],
-            'se_deplace' => ['boolean'],
             // 'boolean' accepte l'absence de clé comme false — cohérent
-            // avec zakat_el_fitr/sadaqa/se_deplace ci-dessus, mais
-            // manquait jusqu'ici pour est_hotel malgré sa présence dans
-            // Famille::$fillable (silencieusement rejeté par $request->
-            // validate() faute de règle déclarée) — corrigé le 12/08/2026.
+            // avec zakat_el_fitr/sadaqa ci-dessus, mais manquait jusqu'ici
+            // pour est_hotel malgré sa présence dans Famille::$fillable
+            // (silencieusement rejeté par $request->validate() faute de
+            // règle déclarée) — corrigé le 12/08/2026.
             'est_hotel' => ['boolean'],
             'etudiant' => ['boolean'],
             'circonstances' => ['nullable', 'string'],
@@ -763,7 +983,7 @@ class FamillesController extends Controller
             \App\Jobs\SynchroniserContactGoogle::dispatch($famille->id);
         }
 
-        return response()->json($famille->fresh(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide']));
+        return response()->json(new FamilleDetailResource($famille->fresh(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide'])));
     }
 
     // ── Documents (consultation/upload — décision 6.4, stockage disque local) ──

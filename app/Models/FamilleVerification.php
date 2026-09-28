@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /**
  * @property int    $id
  * @property int    $id_famille
- * @property string $token
+ * @property string $token  hash sha256 (voir App\Support\TokenHasher) — jamais le jeton en clair
  * @property \Illuminate\Support\Carbon $expires_at
  * @property \Illuminate\Support\Carbon|null $confirmed_at
  */

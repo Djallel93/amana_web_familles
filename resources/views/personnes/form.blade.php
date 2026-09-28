@@ -12,6 +12,20 @@
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors no-underline">
                 ← Retour à la liste
             </a>
+            {{--
+                Bouton conditionnel (24/09/2026, prompt de cette date
+                §1.1) : affiché UNIQUEMENT si $urlRetour a été validé côté
+                serveur (voir PersonnesController::infosRetour()) — un
+                accès depuis la sidebar (create() ne passe même pas cette
+                variable, edit() sans ?retour= la laisse null) n'affiche
+                jamais ce second bouton.
+            --}}
+            @isset($urlRetour)
+                <a href="{{ $urlRetour }}"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors no-underline ml-2">
+                    ← Retour au suivi des bénévoles
+                </a>
+            @endisset
             <h1 class="font-heading text-2xl font-semibold text-ink tracking-tight mt-2">
                 {{ $personne ? 'Modifier ' . $personne->prenom . ' ' . $personne->nom : 'Ajouter une personne' }}
             </h1>
@@ -30,6 +44,19 @@
                 method="POST">
                 @csrf
                 @if($personne) @method('PUT') @endif
+
+                {{--
+                    Reconduit retour/id_campagne au submit — PersonnesController::
+                    update() les revalide via la même infosRetour() que
+                    edit() (jamais fait confiance à $urlRetour tel quel),
+                    pour rediriger vers campagnes/{id}/benevoles après
+                    enregistrement (prompt §1.1 : "after saving, redirect
+                    back to campagnes/{id}/benevoles too").
+                --}}
+                @if(request('retour'))
+                    <input type="hidden" name="retour" value="{{ request('retour') }}">
+                    <input type="hidden" name="id_campagne" value="{{ request('id_campagne') }}">
+                @endif
 
                 <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
@@ -181,6 +208,24 @@
                 </div>
             </form>
         </div>
+
+        {{-- Mot de passe : un administrateur n'en saisit ni n'en voit jamais — il envoie un lien. --}}
+        @if($personne)
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-6 mt-6">
+                <h2 class="font-heading text-[14px] font-semibold text-ink mb-1">🔑 Mot de passe</h2>
+                <p class="text-[13px] text-ink-muted mb-4">
+                    Vous ne pouvez pas définir le mot de passe de cette personne : envoyez-lui un lien pour qu'elle le crée
+                    ou le réinitialise elle-même. L'email part à <strong class="text-ink">{{ $personne->email }}</strong>.
+                </p>
+                <form action="{{ route('admin.personnes.reset-link', $personne->id) }}" method="POST">
+                    @csrf
+                    <button type="submit"
+                        class="min-h-[46px] px-5 py-2.5 border-[1.5px] border-accent text-accent hover:bg-accent hover:text-white text-[13.5px] font-bold rounded-lg transition-colors cursor-pointer">
+                        ✉️ Envoyer un lien de réinitialisation
+                    </button>
+                </form>
+            </div>
+        @endif
     </div>
 
 @endsection

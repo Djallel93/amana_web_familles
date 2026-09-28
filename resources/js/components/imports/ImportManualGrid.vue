@@ -3,10 +3,26 @@
     Saisie manuelle de plusieurs dossiers d'un coup (décision 6.9) — envoie
     un tableau de lignes au MÊME pipeline serveur que l'upload CSV
     (FamilleImportService::traiterLigne), via admin.imports.store-manuel.
+
+    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
+    îlot monté par app.ts sur #vue-import-manual-grid, mais un enfant
+    normal de resources/js/pages/Admin/Imports/Create.vue. La seule
+    donnée lue jusqu'ici sur le point de montage (data-store-url) est
+    devenue une prop — voir ImportsController::create() pour le
+    raisonnement routeName() derrière cette URL (admin vs
+    gestionnaire_externe).
+
+    Aucun repli dataset conservé : cet écran est le seul consommateur de
+    ce composant (vérifié par grep avant conversion), il n'y a pas de
+    page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
 import { useToast } from '@amana/shared-ui';
+
+const props = defineProps<{
+    storeUrl: string;
+}>();
 
 // Déclaration dupliquée volontairement (voir ImportOverlay.vue) — ces deux
 // fonctions sont exposées sur window par le composant ImportOverlay.vue
@@ -30,7 +46,6 @@ interface Ligne {
     nombre_enfant: string;
     zakat_el_fitr: boolean;
     sadaqa: boolean;
-    se_deplace: boolean;
 }
 
 function ligneVide(): Ligne {
@@ -38,12 +53,12 @@ function ligneVide(): Ligne {
         nom: '', prenom: '', telephone: '', email: '',
         adresse: '', code_postal: '', ville_texte: '',
         nombre_adulte: '1', nombre_enfant: '0',
-        zakat_el_fitr: false, sadaqa: false, se_deplace: false,
+        zakat_el_fitr: false, sadaqa: false,
     };
 }
 
 const toast = useToast();
-const storeUrl = ref('');
+const storeUrl = ref(props.storeUrl);
 const submitting = ref(false);
 const lignes = ref<Ligne[]>([ligneVide(), ligneVide(), ligneVide()]);
 
@@ -96,10 +111,6 @@ async function envoyer(): Promise<void> {
     }
 }
 
-onMounted(() => {
-    const el = document.getElementById('vue-import-manual-grid');
-    if (el) storeUrl.value = el.dataset.storeUrl ?? '';
-});
 </script>
 
 <template>
@@ -119,7 +130,6 @@ onMounted(() => {
                         <th class="text-left px-2 py-2 text-[10px] font-bold text-ink-muted uppercase w-14">Enf.</th>
                         <th class="text-center px-2 py-2 text-[10px] font-bold text-ink-muted uppercase w-10">ZF</th>
                         <th class="text-center px-2 py-2 text-[10px] font-bold text-ink-muted uppercase w-10">SA</th>
-                        <th class="text-center px-2 py-2 text-[10px] font-bold text-ink-muted uppercase w-14">Dépl.</th>
                         <th class="w-8"></th>
                     </tr>
                 </thead>
@@ -136,7 +146,6 @@ onMounted(() => {
                         <td class="p-1"><input v-model="ligne.nombre_enfant" type="number" min="0" class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"></td>
                         <td class="p-1 text-center"><input v-model="ligne.zakat_el_fitr" type="checkbox" class="w-4 h-4 accent-accent"></td>
                         <td class="p-1 text-center"><input v-model="ligne.sadaqa" type="checkbox" class="w-4 h-4 accent-accent"></td>
-                        <td class="p-1 text-center"><input v-model="ligne.se_deplace" type="checkbox" class="w-4 h-4 accent-accent"></td>
                         <td class="p-1 text-center">
                             <button type="button" @click="supprimerLigne(i)"
                                 class="text-rose-400 hover:text-rose-600 bg-transparent border-0 cursor-pointer text-sm min-h-[32px] min-w-[32px]">✕</button>

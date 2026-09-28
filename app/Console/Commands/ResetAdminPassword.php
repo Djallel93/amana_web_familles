@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use Amana\Shared\Services\AccountChangeNotifier;
 use App\Models\Personne;
 use App\Services\RoleService;
 use Illuminate\Console\Command;
@@ -124,6 +125,16 @@ class ResetAdminPassword extends Command
         $admin->save();
 
         $this->components->info('Mot de passe mis à jour avec succès.');
+
+        // Notice « mot de passe modifié/défini » au compte concerné. Ne doit JAMAIS
+        // faire échouer la commande (SMTP absent ou non configuré en CLI) : le
+        // notifier attrape et journalise, on avertit seulement.
+        $notifie = app(AccountChangeNotifier::class)
+            ->passwordChanged($admin, $admin->wasRecentlyCreated ? 'creation' : 'administrateur');
+
+        if (!$notifie) {
+            $this->components->warn("La notification email n'a pas pu être envoyée (mot de passe modifié quand même).");
+        }
 
         // ── 6. S'assurer que le rôle admin (familles) est bien attribué ────
         $famillesApp = $this->roleService->famillesApp();

@@ -1,0 +1,493 @@
+<?php
+// app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Admin\Livraison;
+
+use Amana\Shared\Models\Personne;
+use App\Http\Controllers\Concerns\HasDetailPanelProps;
+use App\Http\Controllers\Controller;
+use App\Http\Resources\CampagneResource;
+use App\Http\Resources\LivraisonQueueResource;
+use App\Models\Campagne;
+use App\Models\Famille;
+use App\Models\Livraison;
+use App\Services\FamilleConfirmationSyncService;
+use App\Support\Creneau;
+use App\Support\FamilleFilters;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Inertia\Inertia;
+use Inertia\Response as InertiaResponse;
+
+/**
+ * Tableau de suivi des contacts téléphoniques (file d'appels, filtre par
+ * gestionnaire assigné, statut_contact, vue "assigné à moi") — voir le
+ * prompt du 30/08/2026 §7. Assignation de contact ("Assigner un contact
+ * famille") réservée gestionnaire/admin, avec validation que la personne
+ * assignée détient bien le rôle gestionnaire (§2 : id_personne_assignee
+ * "Must validate that the assigned person holds the gestionnaire role
+ * (or admin, via existing cascade) — reject assignment otherwise").
+ *
+ * contacterManuel() couvre le second canal de confirmation du prompt §3.1
+ * ("Family has no email → phone contact by staff... Staff enters the
+ * same fields directly on the campaign tracking screen") — mêmes champs
+ * et mêmes règles de validation que ContactConfirmationController::store()
+ * (formulaire public), staff-only ici.
+ */
+class ContactTrackingController extends Controller
+{
+    use HasDetailPanelProps;
+
+    public function __construct(
+        private readonly FamilleConfirmationSyncService $syncService,
+        // Ajoutés le 24/09/2026 (prompt de cette date §4/§5) — voir
+        // mettreAJourSeDeplace() plus bas.
+        private readonly \App\Services\RouteMutationService $mutationService,
+        private readonly \App\Services\RetraitHqSchedulingService $retraitHqScheduling,
+    ) {
+    }
+
+    /**
+     * Section E4 du refactor (16/09/2026, sixième chunk du domaine
+     * livraison) — page Inertia, remplace resources/views/livraison/
+     * contacts.blade.php (supprimée dans ce même chunk).
+     *
+     * Cette conversion retire aussi l'ancien pont double-mode de
+     * DetailPanel.vue (Section E4, chunk Dossier Familles, 12/09/2026) :
+     * cet écran était le dernier à monter ce composant via
+     * familles/partials/vue-famille-detail.blade.php + dataset plutôt
+     * qu'en enfant Vue avec des props (vérifié par grep avant
+     * conversion — aucun autre écran ne l'inclut). DetailPanel.vue
+     * n'a donc plus qu'un seul mode (props uniquement) — voir son
+     * propre docblock. Ses props (detailPanelProps()) vivaient jusqu'ici
+     * en privé sur FamillesController ; extraites dans le trait
+     * HasDetailPanelProps (voir ce fichier) puisque ce contrôleur en a
+     * désormais besoin aussi — mêmes routes familles.*, aucun changement
+     * de comportement.
+     *
+     * secteursActivite/organismesAide/googlePlacesKey/googleEmbedKey :
+     * mêmes référentiels que FamillesController::index(), nécessaires
+     * pour monter DetailPanel.vue sur cet écran aussi (05/09/2026, prompt
+     * §2.3) : "if family needs to be edited when contacted, open the
+     * Family panel" — même panneau partagé qu'utilise Dossier Familles,
+     * pas une copie.
+     */
+    public function index(): InertiaResponse
+    {
+        $campagnes = Campagne::orderByDesc('date_livraison')->with('journees')->get();
+        $secteursActivite = \App\Models\SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        $organismesAide = \App\Models\OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        // Référentiels du filtre partagé (05/09/2026, prompt §2.6) — mêmes
+        // requêtes que CampagnesController::show()/FamillesController::index().
+        $villes = \Amana\Shared\Models\Ville::orderBy('nom')->get(['id', 'nom']);
+        $secteurs = \Amana\Shared\Models\Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
+        $quartiers = \App\Models\Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        $organisations = \App\Models\Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
+
+        return Inertia::render('Livraison/Contacts', [
+            'campagnes' => CampagneResource::collection($campagnes),
+            'villes' => $villes,
+            'secteurs' => $secteurs,
+            'quartiers' => $quartiers,
+            'organisations' => $organisations,
+            'queueUrl' => route('livraison.contacts.queue'),
+            'statistiquesUrl' => route('livraison.contacts.statistiques'),
+            'assignerUrlTemplate' => route('livraison.contacts.assigner', '__ID__'),
+            'assignerLotUrl' => route('livraison.contacts.assigner-lot'),
+            'contacterManuelUrlTemplate' => route('livraison.contacts.contacter-manuel', '__ID__'),
+            // se-deplace (25/09/2026, prompt de cette date) : première UI
+            // pour cet endpoint (existait côté back sans consommateur
+            // jusqu'ici) — toggle par ligne dans ContactsQueue.vue, pour
+            // corriger se_deplace après le premier contact sans rouvrir
+            // tout le dossier (voir mettreAJourSeDeplace()).
+            'seDeplaceUrlTemplate' => route('livraison.contacts.se-deplace', '__ID__'),
+            'retourUrl' => route('livraison.campagnes.index'),
+            ...$this->detailPanelProps(),
+            'secteursActivite' => $secteursActivite,
+            'organismesAide' => $organismesAide,
+        ]);
+    }
+
+    /**
+     * File des livraisons pas encore confirmées, filtrable par
+     * gestionnaire assigné — `mine=1` couvre la vue "assigné à moi" du
+     * prompt §7. Depuis le 03/09/2026 (prompt de cette date §2.3) :
+     * familles joignables par email en tête de file (email non nul
+     * d'abord), pas de tri secondaire au-delà — décision explicite,
+     * volontairement simple.
+     *
+     * Filtres Dossier Familles (05/09/2026, prompt §2.6) : appliqués via
+     * App\Support\FamilleFilters, mais PAS directement sur cette requête
+     * (elle interroge Livraison, pas Famille — les scopes locaux de
+     * FamilleFilters comme recherche()/rechercheNom() n'existent que sur
+     * le Builder de Famille). On résout donc d'abord les id_famille
+     * correspondants via une requête Famille séparée, puis un whereIn()
+     * classique — même pattern que id_secteur/id_ville dans
+     * FamillesController::baseQuery() (éviter un whereHas() entre deux
+     * requêtes qui n'ont ici aucune raison structurelle d'être fusionnées).
+     *
+     * per_page (05/09/2026, prompt §2.7) : configurable, 50 par défaut
+     * (comportement historique inchangé si absent).
+     *
+     * ids_only (05/09/2026, prompt §2.6 : "select/deselect all after
+     * filtering") : renvoie uniquement la liste des ids Livraison
+     * correspondant aux filtres courants (TOUTES pages), pour que
+     * "sélectionner tout le filtré" côté Vue n'ait pas à paginer pour
+     * récupérer les ids un par un avant d'assigner en lot.
+     *
+     * Familles confirmées incluses (07/09/2026, prompt §2.8 : "after
+     * confirming a family it's no longer listed, keep them displayed
+     * preferably at the bottom, keep them selectable/assignable") — le
+     * `where('statut_contact', '!=', 'confirme')` a été retiré, remplacé
+     * par un tri qui les repousse en dernier (voir orderByRaw ci-dessous),
+     * sans changer leur éligibilité à la sélection/assignation en lot.
+     */
+    public function queue(Request $request): JsonResponse
+    {
+        // famille:...,id_quartier + famille.quartier.secteur.ville +
+        // campagne retirés du eager load le 12/09/2026 (Section E3 du
+        // refactor, suite) : ContactsQueue.vue ne lit ni le quartier ni la
+        // campagne sur cette ligne (voir le docblock de
+        // LivraisonQueueResource/FamilleResumeResource) — seuls
+        // id/nom/prenom/telephone/telephone_bis/email de `famille` restent
+        // nécessaires.
+        $query = $this->queteBase($request)
+            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email', 'personneAssignee'])
+            ->orderByRaw("livraisons.statut_contact = 'confirme'")
+            ->orderByRaw('familles.email IS NULL')
+            ->select('livraisons.*');
+
+        if ($request->boolean('ids_only')) {
+            return response()->json(['ids' => $query->pluck('livraisons.id')]);
+        }
+
+        // LivraisonQueueResource appliqué directement sur la collection du
+        // paginator plutôt que XResource::collection($paginator) (Section
+        // E3 du refactor, 12/09/2026) : préserve la forme JSON plate
+        // actuelle (current_page/data/... à la racine, voir
+        // RawLaravelPaginator côté TS) — changer cette forme est un sujet à
+        // part, volontairement pas traité ici.
+        $paginateur = $query->paginate($request->integer('per_page') ?: 50)->withQueryString();
+        $paginateur->getCollection()->transform(fn ($livraison) => new LivraisonQueueResource($livraison));
+
+        return response()->json($paginateur);
+    }
+
+    /**
+     * Cartes statistiques de l'écran (08/09/2026, prompt de cette date
+     * §3.2) : total + un comptage par statut_contact retenu ("contacte"
+     * exclu — déjà retiré de STATUTS_CONTACT_POSTABLES le 05/09/2026, non
+     * utilisé). Reprend EXACTEMENT les mêmes filtres que queue() (voir
+     * queteBase()) pour rester cohérent avec la liste affichée juste en
+     * dessous — comptés en une seule requête groupée plutôt que 4 allers-
+     * retours comme resteAContacter() (ids_only) le fait côté front pour
+     * un seul statut.
+     *
+     * @return JsonResponse{total: int, a_contacter: int, confirme: int, injoignable: int}
+     */
+    public function statistiques(Request $request): JsonResponse
+    {
+        $comptages = $this->queteBase($request)
+            ->select('livraisons.statut_contact')
+            ->selectRaw('count(*) as total')
+            ->groupBy('livraisons.statut_contact')
+            ->pluck('total', 'statut_contact');
+
+        return response()->json([
+            'total' => $comptages->sum(),
+            'a_contacter' => $comptages->get('a_contacter', 0),
+            'confirme' => $comptages->get('confirme', 0),
+            'injoignable' => $comptages->get('injoignable', 0),
+        ]);
+    }
+
+    /**
+     * Filtres partagés par queue() et statistiques() ci-dessus — extrait
+     * le 08/09/2026 pour éviter de dupliquer ces conditions entre les
+     * deux (le prompt de cette date §3.2 ajoute le second appelant).
+     */
+    private function queteBase(Request $request): \Illuminate\Database\Eloquent\Builder
+    {
+        $query = Livraison::query()
+            ->join('familles', 'familles.id', '=', 'livraisons.id_famille');
+
+        if ($request->boolean('mine')) {
+            $query->where('id_personne_assignee', auth()->id());
+        } elseif ($request->filled('id_personne_assignee')) {
+            $query->where('id_personne_assignee', $request->input('id_personne_assignee'));
+        }
+
+        if ($request->filled('id_campagne')) {
+            $query->where('id_campagne', $request->input('id_campagne'));
+        }
+        // id_campagne_journee / statut_contact (05/09/2026, prompt §1.5) :
+        // le bouton de lancement du clustering a été déplacé sur cet écran
+        // (voir le prompt) et doit vérifier, pour LA JOURNÉE choisie, qu'il
+        // ne reste plus aucune famille à statut_contact = 'a_contacter' —
+        // le front interroge ce même endpoint avec ids_only=1 pour ce
+        // calcul plutôt que dupliquer la logique de filtre côté serveur.
+        if ($request->filled('id_campagne_journee')) {
+            $query->where('id_campagne_journee', $request->input('id_campagne_journee'));
+        }
+        if ($request->filled('statut_contact')) {
+            $query->where('statut_contact', $request->input('statut_contact'));
+        }
+        // se_deplace (25/09/2026, prompt de cette date) : propriété pure de
+        // la campagne, vit uniquement sur livraisons.se_deplace — filtre
+        // direct ici plutôt que via FamilleFilters/Famille ci-dessous (qui
+        // ne connaît plus se_deplace du tout). Légitime sur cet écran
+        // précisément parce qu'une Livraison existe déjà pour chaque ligne
+        // affichée (suivi de contact d'une campagne déjà en cours), à la
+        // différence de CampagnesController::eligibles() (familles pas
+        // encore ajoutées, aucune Livraison n'existe encore).
+        if ($request->filled('se_deplace')) {
+            $query->where('livraisons.se_deplace', $request->boolean('se_deplace'));
+        }
+
+        if ($this->requeteAUnFiltreFamille($request)) {
+            $idsFamilles = tap(Famille::query(), fn ($q) => FamilleFilters::appliquer($q, $request))->pluck('id');
+            $query->whereIn('id_famille', $idsFamilles);
+        }
+
+        return $query;
+    }
+
+    /**
+     * Clés reconnues par App\Support\FamilleFilters — si aucune n'est
+     * présente, on évite l'aller-retour vers Famille (qui retournerait de
+     * toute façon tous les ids sans rien filtrer). se_deplace n'en fait
+     * plus partie depuis le 25/09/2026 (voir le prompt de cette date) :
+     * ce n'est plus une colonne de Famille, traité à part dans
+     * queteBase() ci-dessus.
+     */
+    private function requeteAUnFiltreFamille(Request $request): bool
+    {
+        return $request->hasAny([
+            'id_quartier', 'id_secteur', 'id_ville', 'zakat_el_fitr', 'sadaqa',
+            'est_hotel', 'etudiant', 'criticite', 'recherche',
+            'id_selection', 'nom', 'telephone', 'id_organisation_origine', 'id_organisation_rattachee',
+        ]);
+    }
+
+    /**
+     * Assigne (ou réassigne) une livraison à un gestionnaire pour le
+     * contact téléphonique — rejette si la personne visée n'a pas le rôle
+     * gestionnaire (ou admin, cascade existante), voir le prompt §2.
+     */
+    public function assigner(Request $request, Livraison $livraison): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_personne_assignee' => 'required|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $personne = Personne::find($request->input('id_personne_assignee'));
+
+        if (!$personne || (!$personne->isGestionnaire() && !$personne->isAdmin())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette personne ne détient pas le rôle gestionnaire.',
+            ], 422);
+        }
+
+        $livraison->update(['id_personne_assignee' => $personne->id]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Assignation en lot — ajoutée le 03/09/2026 (prompt de cette date
+     * §2.4) : avec 100+ familles à répartir, assigner une par une n'est
+     * pas praticable. Le front filtre/sélectionne (voir ContactsQueue.vue)
+     * puis poste la liste d'IDs retenue ici en un seul appel — même
+     * validation du rôle gestionnaire/admin que assigner() ci-dessus,
+     * appliquée une seule fois plutôt que par livraison.
+     */
+    public function assignerLot(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_personne_assignee' => 'required|integer',
+            'ids_livraison' => 'required|array|min:1',
+            'ids_livraison.*' => 'integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $personne = Personne::find($request->input('id_personne_assignee'));
+
+        if (!$personne || (!$personne->isGestionnaire() && !$personne->isAdmin())) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette personne ne détient pas le rôle gestionnaire.',
+            ], 422);
+        }
+
+        $nombre = Livraison::whereIn('id', $request->input('ids_livraison'))
+            ->update(['id_personne_assignee' => $personne->id]);
+
+        return response()->json(['success' => true, 'assignees' => $nombre]);
+    }
+
+    /**
+     * Saisie téléphonique par le staff — mêmes champs/règles que
+     * ContactConfirmationController::store() (formulaire public), pour
+     * les familles sans email (voir le prompt §3.1). `statut_contact`
+     * passe directement à 'confirme' si les 3 champs sont fournis, ou à
+     * une valeur intermédiaire ('contacte'/'injoignable') si l'appel n'a
+     * pas abouti à une confirmation complète — ou, depuis le 03/09/2026,
+     * à 'rejetee'/'archive' si le staff détermine au contact que la
+     * famille n'a plus besoin d'aide ou doit être écartée (voir
+     * Livraison::STATUTS_CONTACT_EFFETS, appliqué via
+     * FamilleConfirmationSyncService::appliquerEffetStatut()).
+     *
+     * adresse_confirmee/code_postal_confirme/ville_confirmee/
+     * nombre_adulte_confirme/nombre_enfant_confirme ne sont plus requis
+     * pour confirmer depuis CET écran (07/09/2026, prompt §2.5 :
+     * "adress and number of members is useless since they are all in
+     * Modifier le dossier — in addition to single source of truth we
+     * always use the same methode to edit families") — ContactsQueue.vue
+     * ne les envoie plus, seul `creneaux` reste requis. Les champs
+     * restent acceptés ici (nullable) et, s'ils sont fournis,
+     * synchronisés vers Famille exactement comme avant via
+     * FamilleConfirmationSyncService::synchroniser() : le formulaire
+     * public ContactConfirmationController::store() (famille sans accès
+     * à "Modifier le dossier") continue de les envoyer et garde ce
+     * comportement inchangé — une seule et même méthode de
+     * synchronisation, quelle que soit l'origine de l'appel.
+     *
+     * se_deplace (25/09/2026, prompt de cette date) : requis à la
+     * confirmation, écrit directement sur $livraison (jamais synchronisé
+     * vers Famille — c'est une propriété pure de CETTE campagne). Volontai-
+     * rement PAS ajouté à ContactConfirmationController::store() (formulaire
+     * public) — décision produit actée avec l'utilisateur : seule la saisie
+     * staff pose cette question à la famille.
+     */
+    public function contacterManuel(Request $request, Livraison $livraison): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'statut_contact' => 'required|in:' . implode(',', Livraison::STATUTS_CONTACT_POSTABLES),
+            'adresse_confirmee' => 'nullable|string|max:500',
+            'code_postal_confirme' => 'nullable|string|max:10',
+            'ville_confirmee' => 'nullable|string|max:150',
+            'nombre_adulte_confirme' => 'nullable|integer|min:1|max:30',
+            'nombre_enfant_confirme' => 'nullable|integer|min:0|max:30',
+            'creneaux' => 'required_if:statut_contact,confirme|nullable|array|min:1',
+            'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
+            // se_deplace (25/09/2026, prompt de cette date) : seul moment
+            // où la famille peut elle-même indiquer qu'elle se déplacera
+            // au QG pour CETTE campagne (en plus de la correction a
+            // posteriori ContactTrackingController::mettreAJourSeDeplace(),
+            // réservée à l'admin/gestionnaire) — requis uniquement à la
+            // confirmation, livraisons.se_deplace reste à false (défaut)
+            // pour tout autre statut_contact.
+            'se_deplace' => 'required_if:statut_contact,confirme|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $statut = $request->input('statut_contact');
+        $donnees = ['statut_contact' => $statut];
+        $donneesConfirmees = null;
+
+        if ($statut === 'confirme') {
+            $donnees['se_deplace'] = $request->boolean('se_deplace');
+        }
+
+        if ($statut === 'confirme' && $request->filled('adresse_confirmee')) {
+            $donneesConfirmees = $validator->safe()->only([
+                'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
+                'nombre_adulte_confirme', 'nombre_enfant_confirme',
+            ]);
+            $donnees = [...$donnees, ...$donneesConfirmees];
+        }
+
+        $livraison->update($donnees);
+
+        if ($statut === 'confirme') {
+            if ($donneesConfirmees !== null) {
+                $this->syncService->synchroniser($livraison, $donneesConfirmees);
+            }
+
+            $livraison->creneaux()->delete();
+            foreach ($request->input('creneaux') as $creneau) {
+                $livraison->creneaux()->create(['creneau' => $creneau]);
+            }
+        } else {
+            // 'rejetee'/'archive' (et tout futur statut à effet dossier
+            // non-'sync') : voir STATUTS_CONTACT_EFFETS. 'contacte'/
+            // 'injoignable' n'ont aucun effet dossier, appliquerEffetStatut()
+            // est alors un no-op.
+            $this->syncService->appliquerEffetStatut($livraison, $statut);
+        }
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Correction a posteriori de se_deplace — admin/gestionnaire uniquement
+     * (24/09/2026, prompt de cette date §5 : "No only admin/gestionnaire").
+     * se_deplace est une propriété PURE de la campagne (livraisons.se_deplace,
+     * NOT NULL, false par défaut — recentré le 25/09/2026, voir le prompt de
+     * cette date) : cet endpoint permet de la corriger après le premier
+     * contact (voir contacterManuel(), qui la fixe une première fois), sans
+     * rouvrir tout le dossier de contact — typiquement une exception
+     * journalière ("la famille avait dit oui, finalement non le jour J").
+     *
+     * Recalcule TOUJOURS le planning retrait QG de la journée après coup
+     * (prompt §4 : "recompute both routes and handouts if flag changes
+     * for current campagne") — que la valeur change ou non, le nombre
+     * total de familles se_deplace de la journée peut avoir changé.
+     *
+     * Impact tournées, seulement dans un sens :
+     *   - false → true (la famille n'a plus besoin d'être livrée) : si
+     *     elle était déjà dans une tournée, on l'en retire immédiatement
+     *     (RouteMutationService::retirerLivraison(), même méthode que le
+     *     retrait manuel d'un arrêt) ;
+     *   - true → false (la famille redevient à livrer) : AUCUNE action de
+     *     clustering ici — elle repasse simplement dans le pool de
+     *     RouteGenerationService::genererPourCreneau() (statut déjà
+     *     'non_assignee', jamais assignée puisqu'exclue jusqu'ici) et
+     *     sera prise en compte au prochain lancement de génération pour
+     *     cette journée, exactement comme n'importe quelle nouvelle
+     *     confirmation — pas besoin d'un recalcul spécial ici.
+     */
+    public function mettreAJourSeDeplace(Request $request, Livraison $livraison): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'se_deplace' => 'required|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $livraison->se_deplace = $request->boolean('se_deplace');
+        $livraison->save();
+
+        if ($livraison->se_deplace) {
+            $etape = $livraison->etapesRoute()->with('route')->first();
+            if ($etape?->route) {
+                $this->mutationService->retirerLivraison($etape->route, $etape);
+            }
+        }
+
+        if ($livraison->id_campagne_journee !== null) {
+            $journee = \App\Models\CampagneJournee::find($livraison->id_campagne_journee);
+            if ($journee) {
+                $this->retraitHqScheduling->planifierPour($livraison->campagne, $journee);
+            }
+        }
+
+        return response()->json(['success' => true, 'se_deplace' => $livraison->fresh()->se_deplace]);
+    }
+}

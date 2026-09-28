@@ -24,6 +24,15 @@ use Illuminate\Http\Request;
  * Suppression réelle (pas de désactivation comme Organisation::destroy()) :
  * une adresse hôtel n'est référencée par rien d'autre, la retirer de la
  * liste ne casse aucune contrainte FK ni aucun accès existant.
+ *
+ * Doublons (décision du 05/09/2026) : bloqués sur `adresse_normalisee`
+ * (comparaison normalisée, pas la chaîne brute — voir HotelAddress et sa
+ * migration) à la fois ici (message d'erreur convivial) et par une
+ * contrainte unique en base (filet de sécurité en cas d'écriture
+ * concurrente). Ne bloque QUE la resaisie strictement identique une fois
+ * normalisée — deux adresses réellement différentes pour un même
+ * établissement (voir docblock du modèle) restent toutes les deux
+ * acceptées.
  */
 class HotelAddressesController extends Controller
 {
@@ -34,6 +43,10 @@ class HotelAddressesController extends Controller
         ], [
             'adresse.required' => "L'adresse est obligatoire.",
         ]);
+
+        if ($this->dejaExistante($validated['adresse'])) {
+            return back()->withErrors(['adresse' => 'Cette adresse hôtel est déjà enregistrée.'])->withInput();
+        }
 
         $hotelAddress = HotelAddress::create($validated);
 
@@ -50,12 +63,28 @@ class HotelAddressesController extends Controller
             'adresse.required' => "L'adresse est obligatoire.",
         ]);
 
+        if ($this->dejaExistante($validated['adresse'], excepte: $hotelAddress)) {
+            return back()->withErrors(['adresse' => 'Cette adresse hôtel est déjà enregistrée.'])->withInput();
+        }
+
         $avant = $hotelAddress->toArray();
         $hotelAddress->update($validated);
 
         audit('update', 'hotel_addresses', $hotelAddress->id, $avant, $hotelAddress->toArray());
 
         return redirect()->route('settings.index')->with('success', 'Adresse hôtel mise à jour.');
+    }
+
+    /**
+     * true si une autre ligne porte déjà la même adresse une fois
+     * normalisée (voir HotelAddress::normaliser()) — $excepte permet
+     * d'ignorer la ligne elle-même lors d'une mise à jour.
+     */
+    private function dejaExistante(string $adresse, ?HotelAddress $excepte = null): bool
+    {
+        return HotelAddress::where('adresse_normalisee', HotelAddress::normaliser($adresse))
+            ->when($excepte, fn($query, $hotelAddress) => $query->whereKeyNot($hotelAddress->id))
+            ->exists();
     }
 
     public function destroy(HotelAddress $hotelAddress): RedirectResponse
