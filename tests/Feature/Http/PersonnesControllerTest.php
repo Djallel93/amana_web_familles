@@ -76,7 +76,9 @@ class PersonnesControllerTest extends TestCase
         $this->actingAs($admin)->post(route('admin.personnes.store'), $this->champsPersonne(['nom' => 'NouveauNom']))->assertRedirect();
 
         $this->assertSame(1, Personne::where('email', 'karim.benali@example.fr')->count());
-        $this->assertSame('NouveauNom', $existante->fresh()->nom);
+        // Amana\Shared\Models\Personne::setNomAttribute() met toujours le nom
+        // en majuscules (voir amana_shared).
+        $this->assertSame('NOUVEAUNOM', $existante->fresh()->nom);
     }
 
     /**
@@ -177,6 +179,42 @@ class PersonnesControllerTest extends TestCase
         $this->assertSame([], Organisation::idsPourPersonne($personne->id));
     }
 
+    public function test_update_conserve_les_roles_equipe_en_changeant_le_role_de_rang(): void
+    {
+        $admin = $this->creerPersonne(['admin']);
+        // Rôle de rang + rôle equipe_* cumulés (voir migration
+        // register_familles_application : les equipe_* sont cumulables).
+        $personne = $this->creerPersonne(['membre', 'equipe_pesee']);
+
+        $this->actingAs($admin)->put(route('admin.personnes.update', $personne->id), [
+            'nom' => $personne->nom, 'prenom' => $personne->prenom, 'telephone' => null,
+            'role' => 'gestionnaire', 'organisations' => [],
+        ])->assertRedirect();
+
+        $this->assertSame('gestionnaire', app(RoleService::class)->currentRoleCode($personne));
+        $this->assertTrue(
+            $personne->roles()->where('ref_roles.code', 'equipe_pesee')->exists(),
+            'Changer le rôle de rang ne doit pas retirer un rôle equipe_*',
+        );
+        $this->assertFalse($personne->roles()->where('ref_roles.code', 'membre')->exists());
+    }
+
+    public function test_current_role_code_ignore_les_roles_equipe(): void
+    {
+        // Le rôle equipe_* est attribué EN PREMIER : sans filtre sur les rôles
+        // de rang, ->first() pourrait le renvoyer à la place de 'membre'.
+        $personne = $this->creerPersonne(['equipe_pesee', 'membre']);
+
+        $this->assertSame('membre', app(RoleService::class)->currentRoleCode($personne));
+    }
+
+    public function test_current_role_code_est_null_pour_une_personne_qui_na_que_des_roles_equipe(): void
+    {
+        $personne = $this->creerPersonne(['equipe_pesee']);
+
+        $this->assertNull(app(RoleService::class)->currentRoleCode($personne));
+    }
+
     // ── destroy() ────────────────────────────────────────────────────────
 
     public function test_destroy_revoque_le_role_familles_sans_supprimer_le_compte_partage(): void
@@ -189,6 +227,18 @@ class PersonnesControllerTest extends TestCase
         $this->assertNotNull(Personne::find($personne->id), 'The shared ref_personnes account must survive — only the role is revoked');
         $roleService = app(RoleService::class);
         $this->assertNull($roleService->currentRoleCode($personne));
+    }
+
+    public function test_destroy_revoque_aussi_les_roles_equipe(): void
+    {
+        $admin = $this->creerPersonne(['admin']);
+        $personne = $this->creerPersonne(['membre', 'equipe_pesee']);
+
+        $this->actingAs($admin)->delete(route('admin.personnes.destroy', $personne->id))->assertRedirect();
+
+        // Contrairement à un simple changement de rôle, retirer l'accès à
+        // l'application retire TOUS ses rôles familles, equipe_* compris.
+        $this->assertSame(0, $personne->roles()->whereHas('application', fn ($q) => $q->where('code', 'familles'))->count());
     }
 
     // ── accès ────────────────────────────────────────────────────────────

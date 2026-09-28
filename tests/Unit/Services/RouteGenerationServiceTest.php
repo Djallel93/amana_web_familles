@@ -14,7 +14,7 @@ use App\Services\GeoCalculationService;
 use App\Services\RouteGenerationService;
 use App\Services\TspOptimizationService;
 use App\Services\VehicleAssignmentService;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Collection;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
@@ -69,6 +69,18 @@ class RouteGenerationServiceTest extends TestCase
     }
 
     /**
+     * Identity check on purpose, NOT Collection::contains($model): the
+     * Eloquent Collection compares models through Model::is(), which needs
+     * a primary key (these in-memory livraisons have none, so every one
+     * would match every other) and getConnectionName() (which calls
+     * config(), unavailable in this framework-less unit test).
+     */
+    private function contient(Collection $collection, Livraison $livraison): bool
+    {
+        return $collection->contains(fn (Livraison $candidate) => $candidate === $livraison);
+    }
+
+    /**
      * @return Collection<int, Livraison>
      */
     private function invoke(Collection $pool, array $vehicules): Collection
@@ -103,8 +115,8 @@ class RouteGenerationServiceTest extends TestCase
 
         $resultat = $this->invoke($pool, [['capacite_kg' => 50.0]]);
 
-        $this->assertTrue($resultat->contains($inflexibleA));
-        $this->assertTrue($resultat->contains($inflexibleB));
+        $this->assertTrue($this->contient($resultat, $inflexibleA));
+        $this->assertTrue($this->contient($resultat, $inflexibleB));
     }
 
     /**
@@ -129,9 +141,9 @@ class RouteGenerationServiceTest extends TestCase
         $resultat = $this->invoke($pool, [['capacite_kg' => 10.0]]);
 
         $this->assertCount(1, $resultat);
-        $this->assertTrue($resultat->contains($tresCritique), 'The most critical flexible family must be the one retained');
-        $this->assertFalse($resultat->contains($peuCritique));
-        $this->assertFalse($resultat->contains($moyenCritique));
+        $this->assertTrue($this->contient($resultat, $tresCritique), 'The most critical flexible family must be the one retained');
+        $this->assertFalse($this->contient($resultat, $peuCritique));
+        $this->assertFalse($this->contient($resultat, $moyenCritique));
     }
 
     public function test_mix_of_inflexibles_and_flexibles_keeps_all_inflexibles_and_the_most_critical_flexibles(): void
@@ -145,8 +157,8 @@ class RouteGenerationServiceTest extends TestCase
         // Capacity for the inflexible (15kg) + exactly one flexible (10kg) = 25kg.
         $resultat = $this->invoke($pool, [['capacite_kg' => 25.0]]);
 
-        $this->assertTrue($resultat->contains($inflexible));
-        $this->assertTrue($resultat->contains($flexibleTresCritique));
-        $this->assertFalse($resultat->contains($flexiblePeuCritique));
+        $this->assertTrue($this->contient($resultat, $inflexible));
+        $this->assertTrue($this->contient($resultat, $flexibleTresCritique));
+        $this->assertFalse($this->contient($resultat, $flexiblePeuCritique));
     }
 }

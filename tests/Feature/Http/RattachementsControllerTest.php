@@ -29,7 +29,13 @@ class RattachementsControllerTest extends TestCase
 
     private function creerDemande(): FamilleOrganisationDemande
     {
-        $organisation = Organisation::create(['code' => 'PARTENAIRE', 'nom' => 'Partenaire', 'actif' => true]);
+        // firstOrCreate : le code est unique, et un même test peut appeler
+        // cette méthode plusieurs fois (ex : une demande en attente + une
+        // déjà traitée pour la même organisation).
+        $organisation = Organisation::firstOrCreate(
+            ['code' => 'PARTENAIRE'],
+            ['nom' => 'Partenaire', 'actif' => true],
+        );
         $famille = Famille::factory()->create();
 
         return FamilleOrganisationDemande::create([

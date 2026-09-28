@@ -93,8 +93,9 @@ function onSubmitCsv() {
                 <p class="mt-2 leading-relaxed">
                     En-tête avec (au minimum) : <code class="bg-surface-2 px-1 rounded">nom</code>,
                     <code class="bg-surface-2 px-1 rounded">prenom</code>,
-                    <code class="bg-surface-2 px-1 rounded">telephone</code>. Colonnes optionnelles :
-                    email, telephone_bis, adresse, code_postal, ville, nombre_adulte, nombre_enfant,
+                    <code class="bg-surface-2 px-1 rounded">telephone</code>,
+                    <code class="bg-surface-2 px-1 rounded">adresse</code>. Colonnes optionnelles :
+                    email, telephone_bis, code_postal, ville, nombre_adulte, nombre_enfant,
                     zakat_el_fitr, sadaqa, criticite, langue, etat_dossier, commentaire_dossier.
                     Séparateur <code class="bg-surface-2 px-1 rounded">;</code> ou
                     <code class="bg-surface-2 px-1 rounded">,</code> détecté automatiquement.

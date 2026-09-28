@@ -19,20 +19,6 @@ use Tests\TestCase;
  * of the remaining admin controllers — shared pipeline between staff
  * (/admin/imports) and gestionnaire_externe (/mes-imports), per its own
  * docblock (28/08/2026 organisations partenaires revision).
- *
- * SECOND FINDING while writing this file, same shape as the
- * FamilleOrganisationDemande one already reported: App\Models\FamilleImport's
- * $fillable is `['type', 'source', 'uploaded_by', 'status']` — missing
- * 'id_organisation', which ImportsController::traiterImport() passes to
- * FamilleImport::create(). As far as I can trace, this means
- * famille_imports.id_organisation is ALWAYS persisted as null, regardless
- * of what resoudreIdOrganisation() resolves — which breaks index()'s
- * gestionnaire_externe scope (whereIn('id_organisation', ...) can never
- * match null) and assertAccesImport() (abort_unless($import->id_organisation
- * && in_array(...)) is always false for null), i.e. a gestionnaire_externe
- * would see NONE of their own imports and get 403 accessing them directly.
- * The tests below marked with "FINDING" assert the INTENDED behavior and
- * are expected to fail until 'id_organisation' is added to $fillable.
  */
 class ImportsControllerTest extends TestCase
 {
@@ -65,6 +51,7 @@ class ImportsControllerTest extends TestCase
             'nom' => 'Dupont',
             'prenom' => 'Fatima',
             'telephone' => '0600000000',
+            'adresse' => '1 rue de la Paix',
         ], $overrides);
     }
 
@@ -101,6 +88,24 @@ class ImportsControllerTest extends TestCase
         $this->assertSame('skipped', $import->rows[1]->status);
     }
 
+    public function test_storeManuel_refuse_une_ligne_sans_adresse_avec_un_message_clair(): void
+    {
+        $admin = $this->creerPersonne(['admin']);
+        $avant = Famille::count();
+
+        // familles.adresse est NOT NULL : la ligne doit être refusée par la
+        // validation (message explicite), pas par une erreur SQL.
+        $reponse = $this->actingAs($admin)->postJson(route('admin.imports.store-manuel'), [
+            'lignes' => [['nom' => 'Dupont', 'prenom' => 'Fatima', 'telephone' => '0600000000']],
+        ]);
+
+        $import = FamilleImport::with('rows')->findOrFail($reponse->json('importId'));
+        $this->assertSame('error', $import->rows->first()->status);
+        $this->assertStringContainsString('adresse', (string) $import->rows->first()->error_message);
+        $this->assertStringNotContainsString('SQLSTATE', (string) $import->rows->first()->error_message);
+        $this->assertSame($avant, Famille::count());
+    }
+
     public function test_storeManuel_marque_une_ligne_invalide_en_erreur_sans_creer_de_famille(): void
     {
         $admin = $this->creerPersonne(['admin']);
@@ -108,7 +113,7 @@ class ImportsControllerTest extends TestCase
 
         $reponse = $this->actingAs($admin)->postJson(route('admin.imports.store-manuel'), [
             // telephone manquant — required par FamilleImportService::traiterLigne()
-            'lignes' => [['nom' => 'Dupont', 'prenom' => 'Fatima']],
+            'lignes' => [['nom' => 'Dupont', 'prenom' => 'Fatima', 'adresse' => '1 rue de la Paix']],
         ]);
 
         $import = FamilleImport::with('rows')->findOrFail($reponse->json('importId'));
@@ -154,13 +159,6 @@ class ImportsControllerTest extends TestCase
         $this->assertSame($organisation->id, $famille->id_organisation);
     }
 
-    /**
-     * FINDING (see class docblock): expected to fail — id_organisation is
-     * never actually persisted on famille_imports itself due to the
-     * missing $fillable entry, even though the FAMILLE it creates does
-     * correctly get the forced organisation (a separate code path via
-     * FamilleUpsertService, unaffected by this bug).
-     */
     public function test_gestionnaire_externe_a_son_organisation_forcee_sur_limport_lui_meme(): void
     {
         $externe = $this->creerPersonne(['gestionnaire_externe']);
@@ -190,10 +188,6 @@ class ImportsControllerTest extends TestCase
         $this->assertSame($organisation->id, $famille->id_organisation);
     }
 
-    /**
-     * FINDING (see class docblock): expected to fail for the same reason
-     * as test_gestionnaire_externe_a_son_organisation_forcee_sur_limport_lui_meme.
-     */
     public function test_gestionnaire_externe_ne_voit_que_les_imports_de_sa_propre_organisation(): void
     {
         $organisationA = $this->organisation('ORG_A');

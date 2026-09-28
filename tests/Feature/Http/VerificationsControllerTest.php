@@ -39,7 +39,12 @@ class VerificationsControllerTest extends TestCase
         $this->actingAs($admin)->post(route('admin.verifications.envoyer'))->assertRedirect();
 
         $this->assertSame(1, FamilleVerification::where('id_famille', $famille->id)->count());
-        Notification::assertSentTo($famille, FamilleVerificationNotification::class);
+        // Envoi à la demande (Notification::route), pas à la Famille elle-même
+        // — Famille n'est pas Notifiable, voir FamilleVerificationNotification.
+        Notification::assertSentOnDemand(
+            FamilleVerificationNotification::class,
+            fn ($notification, $channels, $notifiable) => $notifiable->routes['mail'] === 'famille@example.fr',
+        );
     }
 
     public function test_envoyer_ignore_une_famille_sans_email(): void
@@ -76,7 +81,7 @@ class VerificationsControllerTest extends TestCase
 
         // Still just the one (pre-existing) row — no new send.
         $this->assertSame(1, FamilleVerification::where('id_famille', $famille->id)->count());
-        Notification::assertNotSentTo($famille, FamilleVerificationNotification::class);
+        Notification::assertNothingSent();
     }
 
     public function test_envoyer_renvoie_a_une_famille_dont_la_verification_precedente_a_expire(): void

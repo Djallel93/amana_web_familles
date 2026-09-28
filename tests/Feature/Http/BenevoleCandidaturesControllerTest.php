@@ -73,10 +73,14 @@ class BenevoleCandidaturesControllerTest extends TestCase
         $admin = $this->creerPersonne(['admin']);
         $candidature = $this->creerCandidature();
 
-        $this->actingAs($admin)->post(route('admin.benevoles.valider', $candidature->id), ['role' => 'equipe_pesee']);
+        // 'membre' (pas 'benevole', la valeur par défaut) pour prouver que le
+        // rôle choisi est bien celui appliqué. Les rôles equipe_* ne sont
+        // volontairement pas proposés ici (voir RoleService::famillesRoles()) :
+        // ils s'attribuent par campagne, via campagne_equipe_membres.
+        $this->actingAs($admin)->post(route('admin.benevoles.valider', $candidature->id), ['role' => 'membre']);
 
         $personne = Personne::find($candidature->id_personne);
-        $this->assertSame('equipe_pesee', app(RoleService::class)->currentRoleCode($personne));
+        $this->assertSame('membre', app(RoleService::class)->currentRoleCode($personne));
     }
 
     public function test_valider_rejette_un_role_qui_nexiste_pas(): void

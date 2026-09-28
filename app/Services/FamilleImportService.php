@@ -75,7 +75,11 @@ class FamilleImportService
             'sadaqa' => ['nullable', 'boolean'],
             'nombre_adulte' => ['nullable', 'integer', 'min:0', 'max:255'],
             'nombre_enfant' => ['nullable', 'integer', 'min:0', 'max:255'],
-            'adresse' => ['nullable', 'string'],
+            // Obligatoire (comme dans IntakeController et FamillesController::
+            // update()) : familles.adresse est NOT NULL, une ligne sans adresse
+            // échouait de toute façon à l'insertion — autant la refuser ici
+            // avec un message clair plutôt qu'avec une erreur SQL.
+            'adresse' => ['required', 'string'],
             'code_postal' => ['nullable', 'string', 'max:10'],
             'ville_texte' => ['nullable', 'string', 'max:150'],
             'criticite' => ['nullable', 'integer', 'min:0', 'max:5'],
@@ -116,11 +120,9 @@ class FamilleImportService
                 ];
             }
 
-            // Résolution géographique uniquement si une adresse a été fournie
-            // (import "léger" possible sans adresse — ex : juste nom/téléphone).
-            if (!empty($donnees['adresse'])) {
-                ResoudreAdresseFamille::dispatch($resultat['famille']->id);
-            }
+            // L'adresse étant obligatoire (voir règles ci-dessus), toute ligne
+            // réussie a une adresse à résoudre.
+            ResoudreAdresseFamille::dispatch($resultat['famille']->id);
 
             return [
                 'status' => 'success',

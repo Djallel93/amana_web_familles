@@ -9,6 +9,7 @@ use App\Models\Famille;
 use App\Models\FamilleVerification;
 use App\Notifications\FamilleVerificationNotification;
 use App\Support\TokenHasher;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
 /**
@@ -82,7 +83,8 @@ class FamilleVerificationService
         ]);
 
         try {
-            $famille->notify(new FamilleVerificationNotification($verification, $tokenEnClair));
+            Notification::route('mail', $famille->email)
+                ->notify(new FamilleVerificationNotification($verification, $famille, $tokenEnClair));
             audit('create', 'familles_verification', $verification->id, null, ['id_famille' => $famille->id]);
             return true;
         } catch (\Throwable $e) {

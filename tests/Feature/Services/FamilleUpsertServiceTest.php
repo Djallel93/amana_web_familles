@@ -252,8 +252,17 @@ class FamilleUpsertServiceTest extends TestCase
 
     public function test_secteurs_et_organismes_sont_synchronises_quand_fournis(): void
     {
-        $secteur = SecteurActivite::create(['code' => 'restauration', 'libelle_fr' => 'Restauration', 'actif' => true, 'ordre' => 1]);
-        $organisme = OrganismeAide::create(['code' => 'resto_coeur', 'libelle_fr' => 'Restos du Coeur', 'actif' => true, 'ordre' => 1]);
+        $secteur = SecteurActivite::create([
+            'code' => 'restauration',
+            // libelle_ar/libelle_en sont NOT NULL sans défaut (formulaire public trilingue).
+            'libelle_fr' => 'Restauration', 'libelle_ar' => 'مطاعم', 'libelle_en' => 'Catering',
+            'actif' => true, 'ordre' => 1,
+        ]);
+        $organisme = OrganismeAide::create([
+            'code' => 'resto_coeur',
+            'libelle_fr' => 'Restos du Coeur', 'libelle_ar' => 'مطاعم القلب', 'libelle_en' => 'Restos du Coeur',
+            'actif' => true, 'ordre' => 1,
+        ]);
 
         $resultat = $this->upsert->upsert(
             $this->donnees(['email' => 'nouvelle3@example.fr']),
@@ -273,7 +282,12 @@ class FamilleUpsertServiceTest extends TestCase
         // SecteurActivite row exists in this test.
         $organisation = Organisation::create(['code' => 'AUTRE', 'nom' => 'Autre', 'actif' => true]);
         $existante = Famille::create($this->donnees(['email' => 'fatima@example.fr']));
-        $secteur = SecteurActivite::create(['code' => 'restauration', 'libelle_fr' => 'Restauration', 'actif' => true, 'ordre' => 1]);
+        $secteur = SecteurActivite::create([
+            'code' => 'restauration',
+            // libelle_ar/libelle_en sont NOT NULL sans défaut (formulaire public trilingue).
+            'libelle_fr' => 'Restauration', 'libelle_ar' => 'مطاعم', 'libelle_en' => 'Catering',
+            'actif' => true, 'ordre' => 1,
+        ]);
 
         $this->upsert->upsert(
             $this->donnees(['email' => 'fatima@example.fr', 'id_organisation' => $organisation->id]),

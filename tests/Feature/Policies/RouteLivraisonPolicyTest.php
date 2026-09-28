@@ -7,6 +7,7 @@ namespace Tests\Feature\Policies;
 
 use App\Models\RouteLivraison;
 use App\Policies\RouteLivraisonPolicy;
+use App\Support\Creneau;
 use Tests\Concerns\BuildsCampagneEquipeFixtures;
 use Tests\Concerns\SeedsCommunFixtures;
 use Tests\TestCase;
@@ -31,7 +32,7 @@ class RouteLivraisonPolicyTest extends TestCase
             'id_campagne' => $idCampagne,
             'id_benevole' => $idBenevole,
             'id_vehicule_type' => 1, // ref_vehicules.id, cross-DB, no FK — see migration comment
-            'creneau' => 'matin1',
+            'creneau' => Creneau::MATIN_1,
             'statut' => 'planifiee',
         ]);
     }
