@@ -150,6 +150,10 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // change these in case driver does not").
     Route::post('/routes/{route}/etapes/{etape}/statut', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'changerStatutEtape'])
         ->name('routes.etapes.statut');
+    // Vue admin d'une tournée = écran du chauffeur (29/09/2026, prompt §6.2) —
+    // voir MaRouteController::voirCommeChauffeur().
+    Route::get('/routes/{route}/vue-chauffeur', [\App\Http\Controllers\Livraison\MaRouteController::class, 'voirCommeChauffeur'])
+        ->name('routes.vue-chauffeur');
     Route::post('/routes/{route}/reassigner', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'reassignerRoute'])
         ->name('routes.reassigner');
     Route::post('/routes/{route}/diviser', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'diviserRoute'])

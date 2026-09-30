@@ -41,8 +41,8 @@
 import { reactive } from 'vue';
 import { useToast, useConfirm } from '@amana/shared-ui';
 import { apiPost, apiDelete } from '../shared/api';
-import PersonPicker from '../shared/PersonPicker.vue';
-import { LIBELLES_STATUT_ETAPE, LIBELLES_STATUT_ROUTE, STATUTS_ETAPE, type Etape, type Livraison, type PersonneResume, type RouteLivraison, type StatutEtape, type StatutRoute } from '../shared/types';
+import PersonSelect from '../shared/PersonSelect.vue';
+import { LIBELLES_STATUT_ETAPE, LIBELLES_STATUT_ROUTE, STATUTS_ETAPE, STYLES_STATUT_ETAPE, STYLES_STATUT_ROUTE, type Etape, type Livraison, type PersonneResume, type RouteLivraison, type StatutEtape, type StatutRoute } from '../shared/types';
 
 const props = defineProps<{
     routes: RouteLivraison[];
@@ -55,6 +55,8 @@ const props = defineProps<{
     urlDiviser: string;
     urlSupprimer: string;
     urlEtapeStatut: string;
+    /** Gabarit __ID__ vers l'écran chauffeur d'une tournée (MaRouteController::voirCommeChauffeur()). */
+    urlVueChauffeur: string;
 }>();
 
 const emit = defineEmits<{ changed: [] }>();
@@ -62,26 +64,10 @@ const emit = defineEmits<{ changed: [] }>();
 const toast = useToast();
 const confirmDialog = useConfirm();
 
-// Pastilles de statut tournée (09/09/2026, prompt §5.2.1bis) — même palette
-// que les autres écrans (émeraude = terminé/positif, ambre = en cours,
-// stone = neutre/à venir, rose = annulé).
-const STYLES_STATUT_ROUTE: Record<StatutRoute, string> = {
-    planifiee: 'bg-stone-100 text-ink-muted',
-    chargement: 'bg-amber-100 text-amber-700',
-    charge: 'bg-amber-100 text-amber-700',
-    en_cours: 'bg-sky-100 text-sky-700',
-    livraisons_terminees: 'bg-emerald-100 text-emerald-700',
-    terminee: 'bg-emerald-100 text-emerald-700',
-    packaging_annule: 'bg-rose-100 text-rose-700',
-    annulee: 'bg-rose-100 text-rose-700',
-};
-
-const STYLES_STATUT_ETAPE: Record<StatutEtape, string> = {
-    en_attente: 'bg-stone-100 text-ink-muted',
-    en_cours: 'bg-sky-100 text-sky-700',
-    livree: 'bg-emerald-100 text-emerald-700',
-    ignoree: 'bg-rose-100 text-rose-700',
-};
+// Pastilles de statut tournée/arrêt : palettes partagées dans shared/types.ts
+// (STYLES_STATUT_ROUTE / STYLES_STATUT_ETAPE, une couleur par statut —
+// 29/09/2026, prompt §6.1/§6.3). Avant : définies ici, avec chargement/charge,
+// livraisons_terminees/terminee et packaging_annule/annulee en doublon.
 
 interface EtatRoute {
     idLivraisonAAjouter: string;
@@ -295,8 +281,16 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
                             ({{ route.creneau ?? 'imposée' }}) — {{ avancement(route) }}
                         </span>
                     </span>
-                    <span class="text-[13px] font-medium px-2.5 py-1 rounded-full shrink-0" :class="STYLES_STATUT_ROUTE[route.statut]">
-                        {{ LIBELLES_STATUT_ROUTE[route.statut] }}
+                    <span class="flex items-center gap-2 shrink-0">
+                        <!-- Accès admin à l'écran du chauffeur (29/09/2026, prompt §6.2) :
+                             .stop pour ne pas replier/déplier le <details> au clic. -->
+                        <a :href="urlVueChauffeur.replace('__ID__', String(route.id))" @click.stop
+                            class="text-[12px] text-accent underline min-h-[1.75rem] inline-flex items-center px-1">
+                            Vue chauffeur
+                        </a>
+                        <span class="text-[13px] font-medium px-2.5 py-1 rounded-full" :class="STYLES_STATUT_ROUTE[route.statut]">
+                            {{ LIBELLES_STATUT_ROUTE[route.statut] }}
+                        </span>
                     </span>
                 </summary>
 
@@ -340,10 +334,21 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
                                     seule source d'erreur de type-check dans
                                     tout le dépôt) et faisait échouer
                                     `npm run lint` (vue/no-parsing-error).
+
+                                    Corrigé le 29/09/2026 (prompt §6.3 : « la flèche
+                                    du dropdown chevauche le libellé ») : la
+                                    supposition ci-dessus était fausse —
+                                    appearance-none retire la flèche NATIVE mais
+                                    @tailwindcss/forms dessine son propre chevron en
+                                    background-image sur tout <select>, et pr-2
+                                    écrasait le padding-right: 2.5rem prévu pour lui.
+                                    Le chevron est donc bien là : pr-7 lui laisse la
+                                    place, et la règle .statut-select (bas du
+                                    fichier) le réduit/repositionne pour la pastille.
                                 -->
                                 <select v-if="e.livraison" :value="e.statut" :disabled="etat(route.id).statutEnCours[e.id]"
                                     @change="changerStatutEtape(route, e, ($event.target as HTMLSelectElement).value as StatutEtape)"
-                                    class="text-[11.5px] font-medium rounded-full pl-2 pr-2 py-0.5 border-0 appearance-none disabled:opacity-60" :class="STYLES_STATUT_ETAPE[e.statut]">
+                                    class="statut-select text-[11.5px] font-medium rounded-full pl-2.5 pr-7 py-0.5 border-0 appearance-none disabled:opacity-60 cursor-pointer" :class="STYLES_STATUT_ETAPE[e.statut]">
                                     <option v-for="s in STATUTS_ETAPE" :key="s" :value="s">{{ LIBELLES_STATUT_ETAPE[s] }}</option>
                                 </select>
                                 <span v-else class="text-[11.5px] text-ink-muted">—</span>
@@ -377,7 +382,7 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-start">
                         <div class="sm:col-span-2">
-                            <PersonPicker role="benevole" avec-vehicule placeholder="Nouveau bénévole…" v-model="etat(route.id).benevoleReassigne" />
+                            <PersonSelect role="benevole" avec-vehicule placeholder="Nouveau bénévole…" v-model="etat(route.id).benevoleReassigne" />
                         </div>
                         <button type="button" :disabled="etat(route.id).reassignationEnCours" @click="reassigner(route)"
                             class="min-h-[2.25rem] text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60">
@@ -396,3 +401,13 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
         </div>
     </div>
 </template>
+
+<style scoped>
+/* Chevron @tailwindcss/forms adapté à une pastille (voir le commentaire du
+   <select> de statut ci-dessus) : plus petit et plus près du bord que le
+   1.5em / .5rem par défaut, pour ne jamais empiéter sur le libellé. */
+.statut-select {
+    background-size: 1.1em 1.1em;
+    background-position: right 0.4rem center;
+}
+</style>

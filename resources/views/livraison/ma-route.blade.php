@@ -1,11 +1,28 @@
 {{-- resources/views/livraison/ma-route.blade.php --}}
 @extends('layouts.app')
 
-@section('title', 'Ma tournée — AMANA Familles')
+@section('title', ($modeAdmin ?? false) ? 'Vue chauffeur — AMANA Familles' : 'Ma tournée — AMANA Familles')
 
 @section('content')
+    {{--
+        $modeAdmin (29/09/2026, prompt §6.2) : même écran que celui du
+        chauffeur, ouvert par un admin/gestionnaire depuis le suivi
+        livraison (MaRouteController::voirCommeChauffeur()). Seuls le titre
+        et le lien de retour changent ; les actions sont les mêmes.
+    --}}
     <div class="max-w-xl mx-auto py-8">
-        <h1 class="font-heading text-xl font-semibold text-ink mb-6">Ma tournée</h1>
+        @if($modeAdmin ?? false)
+            @php $routeAdmin = $routes->first(); @endphp
+            <a href="{{ route('livraison.suivi-livraison.index', $routeAdmin->id_campagne) }}"
+                class="inline-block mb-3 text-[13px] text-accent underline">← Retour au suivi livraison</a>
+            <h1 class="font-heading text-xl font-semibold text-ink mb-1">Tournée #{{ $routeAdmin->id }} — vue chauffeur</h1>
+            <p class="text-[13px] text-ink-muted mb-6">
+                Chauffeur : {{ $routeAdmin->benevole ? $routeAdmin->benevole->prenom . ' ' . $routeAdmin->benevole->nom : 'non assigné' }}
+                — vous agissez à sa place.
+            </p>
+        @else
+            <h1 class="font-heading text-xl font-semibold text-ink mb-6">Ma tournée</h1>
+        @endif
         <form id="csrf-holder">@csrf</form>
 
         @forelse($routes as $route)
@@ -85,38 +102,52 @@
     <script>
         const csrf = document.querySelector('#csrf-holder input[name="_token"]').value;
 
-        async function confirmerEtape(id) {
-            await fetch(`/livraison/benevole/etapes/${id}/confirmer`, {
+        // Appel POST commun : recharge la page en cas de succès, affiche
+        // le message d'erreur du serveur (toast) sinon — avant, une erreur
+        // 422 (ex. tournée pas la vôtre) rechargeait la page sans rien dire.
+        async function poster(url, body = null) {
+            const reponse = await fetch(url, {
                 method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                headers: {
+                    'X-CSRF-TOKEN': csrf,
+                    'Accept': 'application/json',
+                    ...(body ? { 'Content-Type': 'application/json' } : {}),
+                },
+                body: body ? JSON.stringify(body) : undefined,
             });
+
+            if (!reponse.ok) {
+                const donnees = await reponse.json().catch(() => ({}));
+                const premiere = donnees.errors ? Object.values(donnees.errors).flat()[0] : null;
+                window.amanaToast(premiere ?? donnees.message ?? "L'action a échoué.", 'error');
+                return;
+            }
+
             window.location.reload();
+        }
+
+        function confirmerEtape(id) {
+            return poster(`/livraison/benevole/etapes/${id}/confirmer`);
         }
 
         async function signalerIgnoree(id) {
-            const notes = prompt('Raison (optionnel) :') || '';
-            await fetch(`/livraison/benevole/etapes/${id}/ignoree`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrf, 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ notes }),
+            // null = annulé (Annuler, Escape, clic à côté) : ne rien faire.
+            const notes = await window.amanaPrompt({
+                title: 'Ignorer cette livraison',
+                label: 'Raison (optionnel)',
+                confirmLabel: 'Ignorer la livraison',
             });
-            window.location.reload();
+            if (notes === null) return;
+
+            await poster(`/livraison/benevole/etapes/${id}/ignoree`, { notes });
         }
 
-        async function livraisonTerminee(routeId) {
-            await fetch(`/livraison/benevole/routes/${routeId}/livraison-terminee`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-            });
-            window.location.reload();
+        function livraisonTerminee(routeId) {
+            return poster(`/livraison/benevole/routes/${routeId}/livraison-terminee`);
         }
 
-        async function retourQg(routeId) {
-            await fetch(`/livraison/benevole/routes/${routeId}/retour-qg`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-            });
-            window.location.reload();
+        function retourQg(routeId) {
+            return poster(`/livraison/benevole/routes/${routeId}/retour-qg`);
         }
     </script>
 @endsection

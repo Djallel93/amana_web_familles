@@ -78,7 +78,20 @@ class PickersController extends Controller
         // des rôles littéraux, pour rester correct si la cascade évolue.
         // limit(50) borne le coût de ce filtrage en mémoire avant de
         // retomber sous la limite réelle de 20 résultats ci-dessous.
-        $personnes = $query->orderBy('nom')->with('benevoleProfil.vehiculeType')->limit(50)->get(['id', 'nom', 'prenom']);
+        // tous=1 (29/09/2026, prompt de cette date §2.2/§3) : liste COMPLÈTE,
+        // sans les plafonds 50/20 ci-dessous — pour PersonSelect.vue, le
+        // dropdown avec recherche « par le début du prénom/nom », qui charge
+        // la liste une fois et filtre côté client (le staff Familles reste
+        // de l'ordre de quelques dizaines de personnes, contrairement à un
+        // export). Sans ce paramètre : comportement historique inchangé
+        // (PersonPicker.vue, recherche serveur bornée à 20 résultats).
+        $toutes = $request->boolean('tous');
+
+        $requete = $query->orderBy('nom')->orderBy('prenom')->with('benevoleProfil.vehiculeType');
+        if (!$toutes) {
+            $requete->limit(50);
+        }
+        $personnes = $requete->get(['id', 'nom', 'prenom']);
 
         if ($request->filled('role')) {
             $roleMin = $request->input('role');
@@ -91,7 +104,7 @@ class PickersController extends Controller
         // profil du bénévole sélectionné — exposé ici directement plutôt
         // qu'un aller-retour supplémentaire.
         return response()->json(
-            $personnes->take(20)->map(fn(Personne $p) => [
+            ($toutes ? $personnes : $personnes->take(20))->map(fn(Personne $p) => [
                 'id' => $p->id,
                 'nom' => $p->nom,
                 'prenom' => $p->prenom,

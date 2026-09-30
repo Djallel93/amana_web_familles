@@ -41,7 +41,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useToast } from '@amana/shared-ui';
 import { apiGet, apiPost, buildQuery } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
-import PersonPicker from '../shared/PersonPicker.vue';
+import PersonSelect from '../shared/PersonSelect.vue';
 import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
 import { useFormulaireCreneaux } from '../shared/useFormulaireCreneaux';
 import {
@@ -501,7 +501,7 @@ onMounted(() => {
                     Tout sélectionner (le filtre entier — {{ selection.size }})
                 </label>
                 <div v-if="selection.size > 0" class="max-w-xs">
-                    <PersonPicker role="gestionnaire" placeholder="Assigner la sélection à…"
+                    <PersonSelect role="gestionnaire" placeholder="Assigner la sélection à…"
                         :model-value="null"
                         @update:model-value="assignerLot" />
                 </div>
@@ -565,7 +565,7 @@ onMounted(() => {
                 -->
                 <div class="flex flex-wrap items-center gap-2 mb-3">
                     <div class="max-w-xs">
-                        <PersonPicker role="gestionnaire" placeholder="Assigner à…"
+                        <PersonSelect role="gestionnaire" placeholder="Assigner à…"
                             :model-value="livraison.personne_assignee"
                             @update:model-value="(p) => assigner(livraison, p)" />
                     </div>

@@ -158,28 +158,54 @@
                 ligne.dataset.statut = 'charge';
                 ligne.classList.add('opacity-60');
                 ligne.querySelector('.statut-route').textContent = 'Chargée';
-                ligne.querySelector('.statut-route').className = 'statut-route text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
+                ligne.querySelector('.statut-route').className = 'statut-route text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700';
                 ligne.querySelector('.flex.gap-2').style.display = 'none';
                 ligne.parentElement.appendChild(ligne);
             });
         }
 
+        // Popups natives remplacées le 29/09/2026 (prompt de cette date §5) :
+        // prompt()/alert() → window.amanaPrompt()/amanaToast() (amana_shared_ui,
+        // voir lib/dialogs.ts). amanaPrompt() résout à null quand l'utilisateur
+        // annule ou clique à côté : on ne fait alors RIEN — avant, `prompt(...)
+        // || ''` traitait l'annulation comme une saisie vide et créait quand
+        // même l'incident (donc notification + email admin) sans action réelle.
         async function signalerAbsent(id) {
+            const notes = await window.amanaPrompt({
+                title: 'Bénévole absent',
+                message: 'Les livraisons non chargées de cette tournée repasseront en attente.',
+                label: 'Détails (optionnel)',
+                confirmLabel: 'Signaler',
+            });
+            if (notes === null) return;
+
             await occuper(id, async () => {
-                const notes = prompt('Détails (optionnel) :') || '';
                 const r = await poster(`/livraison/chargement/routes/${id}/benevole-absent`, { notes });
                 if (r.success) {
-                    alert('Incident signalé — les livraisons non chargées repassent en attente.');
+                    window.amanaToast('Incident signalé — les livraisons non chargées repassent en attente.', 'success');
                     document.getElementById(`route-${id}`).remove();
+                } else {
+                    window.amanaToast("Impossible de signaler l'incident.", 'error');
                 }
             });
         }
 
         async function signalerCapacite(id) {
+            const notes = await window.amanaPrompt({
+                title: 'Problème de capacité',
+                message: "Les administrateurs seront prévenus que le véhicule ne peut pas tout contenir.",
+                label: 'Détails (optionnel)',
+                confirmLabel: 'Signaler',
+            });
+            if (notes === null) return;
+
             await occuper(id, async () => {
-                const notes = prompt('Détails :') || '';
                 const r = await poster(`/livraison/chargement/routes/${id}/capacite`, { notes });
-                if (r.success) alert('Incident signalé à l\'admin.');
+                if (r.success) {
+                    window.amanaToast("Incident signalé à l'admin.", 'success');
+                } else {
+                    window.amanaToast("Impossible de signaler l'incident.", 'error');
+                }
             });
         }
 

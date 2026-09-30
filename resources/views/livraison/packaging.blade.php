@@ -79,9 +79,17 @@
             (voir CouvertureCollecteService). Rendu et rafraîchissement
             (toutes les 20s) entièrement côté JS, voir rafraichirCouverture().
         --}}
-        <div id="couverture-collecte" class="mb-4 rounded-xl border border-surface-border bg-stone-50 px-4 py-3 text-[12.5px] text-ink-muted" aria-live="polite">
-            <p class="text-[13px] font-medium">⚖️ Couverture de la collecte</p>
-            <div id="couverture-contenu" class="mt-1 space-y-1"><p>Chargement…</p></div>
+        {{--
+            29/09/2026 (prompt de cette date §4) : l'ancien encart texte
+            « ⚖️ Couverture de la collecte » est remplacé par de petites
+            cartes, une statistique chacune, pour décider d'ajuster (ou non)
+            les poids moyens d'un coup d'œil. Mêmes données
+            (PackagingController::poids()), même rafraîchissement 20 s —
+            seul le rendu change, voir afficherCouverture().
+        --}}
+        <div id="couverture-collecte" class="mb-4" aria-live="polite">
+            <p class="text-[13px] font-medium text-ink-muted mb-2">⚖️ Couverture de la collecte</p>
+            <div id="couverture-contenu" class="space-y-2"><p class="text-[12.5px] text-ink-muted">Chargement…</p></div>
         </div>
 
         {{--
@@ -273,7 +281,7 @@
                 // plutôt que de laisser la case dans un état qui ne
                 // correspond plus à ce qui est réellement enregistré.
                 if (checkbox) checkbox.checked = !coche;
-                alert(resultat.message ?? "Erreur lors de l'enregistrement de ce colis.");
+                window.amanaToast(resultat.message ?? "Erreur lors de l'enregistrement de ce colis.", 'error');
                 return;
             }
 
@@ -353,7 +361,12 @@
                 return;
             }
 
-            if (!confirm("Reprendre les colis de cette famille pour correction ? L'équipe chargement sera avertie si la tournée était déjà prête à charger.")) {
+            // confirm() natif remplacé le 29/09/2026 par amanaConfirm() (amana_shared_ui).
+            if (!(await window.amanaConfirm({
+                title: 'Reprendre les colis',
+                message: "Reprendre les colis de cette famille pour correction ? L'équipe chargement sera avertie si la tournée était déjà prête à charger.",
+                confirmLabel: 'Reprendre',
+            }))) {
                 if (caseFamille) caseFamille.checked = true;
                 return;
             }
@@ -365,7 +378,7 @@
             });
             const resultat = await reponse.json();
             if (!resultat.success) {
-                alert(resultat.message ?? "Erreur lors de l'annulation.");
+                window.amanaToast(resultat.message ?? "Erreur lors de l'annulation.", 'error');
                 if (caseFamille) caseFamille.checked = true;
                 return;
             }
@@ -416,7 +429,11 @@
         }
 
         async function recalculerPoids() {
-            if (!confirm('Recalculer le poids des livraisons pas encore conditionnées avec les valeurs actuelles ?')) return;
+            if (!(await window.amanaConfirm({
+                title: 'Recalculer les poids',
+                message: 'Recalculer le poids des livraisons pas encore conditionnées avec les valeurs actuelles ?',
+                confirmLabel: 'Recalculer',
+            }))) return;
 
             const reponse = await fetch(`{{ route('livraison.campagnes.recalculer-poids', $campagne) }}`, {
                 method: 'POST',
@@ -441,10 +458,12 @@
         // ne passe à "indisponible" que s'il n'a jamais rien affiché.
         const URL_COUVERTURE = @json(route('livraison.packaging.poids', $campagne));
         const COUVERTURE_POLL_MS = 20000;
-        const CLASSES_COUVERTURE = {
-            neutre: 'mb-4 rounded-xl border border-surface-border bg-stone-50 px-4 py-3 text-[12.5px] text-ink-muted',
-            suffisante: 'mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-[12.5px] text-emerald-800',
-            insuffisante: 'mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12.5px] text-amber-800',
+        // Tons des cartes (un ton par carte, pas par encart entier comme avant).
+        const CLASSES_CARTE = {
+            neutre: 'border-surface-border bg-stone-50 text-ink',
+            ok: 'border-emerald-100 bg-emerald-50 text-emerald-800',
+            alerte: 'border-amber-200 bg-amber-50 text-amber-800',
+            danger: 'border-rose-200 bg-rose-50 text-rose-800',
         };
         let jetonCouverture = 0;
         let couvertureEnCours = false;
@@ -452,52 +471,106 @@
 
         const formaterKg = (n, decimales = 1) => `${Number(n).toLocaleString('fr-FR', { maximumFractionDigits: decimales })} kg`;
 
+        function creerCarte(libelle, valeur, detail, ton = 'neutre') {
+            const carte = document.createElement('div');
+            carte.className = `rounded-xl border px-3 py-2.5 ${CLASSES_CARTE[ton]}`;
+
+            const l = document.createElement('p');
+            l.className = 'text-[11px] uppercase tracking-wide opacity-70';
+            l.textContent = libelle;
+
+            const v = document.createElement('p');
+            v.className = 'text-[20px] font-semibold leading-tight mt-0.5';
+            v.textContent = valeur;
+
+            carte.append(l, v);
+
+            if (detail) {
+                const dt = document.createElement('p');
+                dt.className = 'text-[11.5px] opacity-80 mt-0.5';
+                dt.textContent = detail;
+                carte.append(dt);
+            }
+
+            return carte;
+        }
+
+        function creerNote(texte, ton) {
+            const p = document.createElement('p');
+            p.className = `rounded-lg border px-3 py-2 text-[12px] ${CLASSES_CARTE[ton]}`;
+            p.textContent = texte;
+            return p;
+        }
+
         function afficherCouverture(d) {
-            const lignes = [];
-            let etat = 'neutre';
+            const elements = [];
 
             if (!d.collecte_demarree) {
-                lignes.push('Aucune pesée enregistrée pour le moment — couverture non calculable.');
+                elements.push(creerNote('Aucune pesée enregistrée pour le moment — couverture non calculable.', 'neutre'));
             } else if (d.couverture === null) {
-                lignes.push(`Collecté ${formaterKg(d.collecte_kg)} · rien à conditionner pour le moment.`);
+                const grille = document.createElement('div');
+                grille.className = 'grid grid-cols-2 sm:grid-cols-4 gap-2';
+                grille.append(
+                    creerCarte('Collecté', formaterKg(d.collecte_kg)),
+                    creerCarte('Déjà conditionné / livré', formaterKg(d.engage_kg)),
+                    creerCarte('Reste à conditionner', formaterKg(d.reste_kg), 'rien à conditionner pour le moment'),
+                );
+                elements.push(grille);
             } else {
-                etat = d.couverture >= 1 ? 'suffisante' : 'insuffisante';
-                lignes.push(`Collecté ${formaterKg(d.collecte_kg)} · déjà conditionné/livré ${formaterKg(d.engage_kg)} · reste à conditionner ${formaterKg(d.reste_kg)} (aux poids moyens actuels)`);
-
+                const suffisante = d.couverture >= 1;
+                const ecart = d.disponible_kg - d.reste_kg; // > 0 : surplus, < 0 : manque
                 const pourcentage = Math.round(d.couverture * 100);
-                lignes.push(d.couverture >= 1
-                    ? `Couverture : ${pourcentage} % — collecte suffisante (surplus ${formaterKg(d.disponible_kg - d.reste_kg)}).`
-                    : `Couverture : ${pourcentage} % — collecte insuffisante pour conditionner tout le reste.`);
 
-                if (d.disponible_kg < 0) {
-                    lignes.push(`Le poids déjà conditionné/livré dépasse la collecte pesée de ${formaterKg(-d.disponible_kg)}.`);
+                // Ligne 1 — les quantités : de quoi décider si la collecte suffit.
+                const quantites = document.createElement('div');
+                quantites.className = 'grid grid-cols-2 sm:grid-cols-5 gap-2';
+                quantites.append(
+                    creerCarte('Collecté', formaterKg(d.collecte_kg)),
+                    creerCarte('Déjà conditionné / livré', formaterKg(d.engage_kg)),
+                    creerCarte('Reste à conditionner', formaterKg(d.reste_kg), 'aux poids moyens actuels'),
+                    creerCarte('Couverture', `${pourcentage} %`, suffisante ? 'collecte suffisante' : 'collecte insuffisante', suffisante ? 'ok' : 'alerte'),
+                    creerCarte(
+                        suffisante ? 'Surplus' : 'Manque',
+                        formaterKg(Math.abs(ecart)),
+                        suffisante ? 'disponible après tout conditionner' : 'à trouver ou à répartir',
+                        suffisante ? 'ok' : 'alerte',
+                    ),
+                );
+                elements.push(quantites);
+
+                // Ligne 2 — poids moyen réalisable vs actuel, par type : la
+                // stat qui dit quel poids moyen ajuster (rouge = l'actuel
+                // n'est pas tenable avec la collecte disponible).
+                if (d.poids_moyen_realisable) {
+                    const poids = document.createElement('div');
+                    poids.className = 'grid grid-cols-1 sm:grid-cols-3 gap-2';
+                    [['normal', 'Normal'], ['hotel', 'Hôtel'], ['etudiant', 'Étudiant']].forEach(([cle, libelle]) => {
+                        const realisable = d.poids_moyen_realisable[cle];
+                        if (realisable === null || realisable === undefined) return;
+                        const actuel = d.poids_moyen_actuel[cle];
+                        poids.append(creerCarte(
+                            `Poids moyen ${libelle.toLowerCase()} réalisable`,
+                            `≈ ${formaterKg(realisable, 2)}`,
+                            actuel === null || actuel === undefined ? null : `actuel ${formaterKg(actuel, 2)}`,
+                            actuel === null || actuel === undefined || realisable >= actuel ? 'ok' : 'alerte',
+                        ));
+                    });
+                    if (poids.childElementCount > 0) elements.push(poids);
                 }
 
-                if (d.poids_moyen_realisable) {
-                    const parties = [];
-                    [['normal', 'normal'], ['hotel', 'hôtel'], ['etudiant', 'étudiant']].forEach(([cle, libelle]) => {
-                        if (d.poids_moyen_realisable[cle] !== null) {
-                            parties.push(`${libelle} ${formaterKg(d.poids_moyen_realisable[cle], 2)} (actuel ${formaterKg(d.poids_moyen_actuel[cle], 2)})`);
-                        }
-                    });
-                    lignes.push(`Poids moyen réalisable ≈ ${parties.join(' · ')}`);
+                if (d.disponible_kg < 0) {
+                    elements.push(creerNote(`Le poids déjà conditionné/livré dépasse la collecte pesée de ${formaterKg(-d.disponible_kg)}.`, 'danger'));
                 }
             }
 
             if (d.recalcul_necessaire) {
-                lignes.push('Les poids des livraisons n\'ont pas été recalculés avec les poids moyens actuels (bouton « Recalculer » ci-dessous).');
+                elements.push(creerNote("Les poids des livraisons n'ont pas été recalculés avec les poids moyens actuels (bouton « Recalculer » ci-dessous).", 'alerte'));
             }
             if (d.livraisons_exclues > 0) {
-                lignes.push(`${d.livraisons_exclues} livraison(s) exclue(s) du calcul (données famille incohérentes).`);
+                elements.push(creerNote(`${d.livraisons_exclues} livraison(s) exclue(s) du calcul (données famille incohérentes).`, 'neutre'));
             }
 
-            const contenu = document.getElementById('couverture-contenu');
-            contenu.replaceChildren(...lignes.map((texte) => {
-                const p = document.createElement('p');
-                p.textContent = texte;
-                return p;
-            }));
-            document.getElementById('couverture-collecte').className = CLASSES_COUVERTURE[etat];
+            document.getElementById('couverture-contenu').replaceChildren(...elements);
             couvertureAffichee = true;
         }
 

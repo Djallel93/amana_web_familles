@@ -156,7 +156,13 @@ class ContactTrackingController extends Controller
         // nécessaires.
         $query = $this->queteBase($request)
             ->with(['famille:id,nom,prenom,telephone,telephone_bis,email', 'personneAssignee'])
-            ->orderByRaw("livraisons.statut_contact = 'confirme'")
+            // Ordre demandé le 29/09/2026 : a_contacter en tête, puis
+            // injoignable, confirmé, archivé, rejetée en bas (voir
+            // Livraison::ORDRE_AFFICHAGE_CONTACT). Remplace le simple
+            // "confirmé en dernier" du 07/09/2026 ; la règle "email
+            // renseigné d'abord" du 03/09/2026 reste le critère secondaire
+            // à l'intérieur de chaque statut.
+            ->orderByRaw(Livraison::ordreContactSql())
             ->orderByRaw('familles.email IS NULL')
             ->select('livraisons.*');
 

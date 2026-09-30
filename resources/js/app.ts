@@ -35,6 +35,7 @@ import {
     MobileSidebar,
     registerThemeToggle,
     registerConfirmForms,
+    registerDialogs,
     configureNotifications,
 } from "@amana/shared-ui";
 
@@ -43,6 +44,11 @@ registerThemeToggle();
 // rendu en Blade classique (admin/verifications, admin/imports, personnes) —
 // voir amana_shared_ui/src/lib/confirmForms.ts pour l'usage complet.
 registerConfirmForms();
+// PromptDialog + window.amanaPrompt()/amanaToast() (29/09/2026) : remplace
+// prompt()/alert() natifs dans le JS inline des pages Blade (chargement,
+// ma-route, poste-releve, packaging...) — window.amanaConfirm() vient de
+// registerConfirmForms() ci-dessus. Voir amana_shared_ui/src/lib/dialogs.ts.
+registerDialogs();
 
 // Centre de notifications partagé (voir le prompt du 03/09/2026) — routes
 // exposées par amana-shared::NotificationsController, enregistrées côté

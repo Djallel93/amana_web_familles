@@ -43,11 +43,19 @@ class RouteIncidentNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
+        // Gabarit stylé amana_shared (29/09/2026, prompt de cette date §5.3) —
+        // remplace le MailMessage Laravel par défaut (->line()->action()),
+        // même convention que RouteChargeeNotification.
         return $this->embedLogo(new MailMessage)
             ->subject('AMANA Livraison — Incident : ' . $this->libelleType())
-            ->line("Un incident « {$this->libelleType()} » a été signalé sur la tournée #{$this->incident->id_route}.")
-            ->when($this->incident->notes, fn ($m) => $m->line("Notes : {$this->incident->notes}"))
-            ->action('Voir le suivi livraison', route('livraison.suivi-livraison.index'));
+            ->view('emails.route-incident', [
+                'prenom' => $notifiable->prenom ?? '',
+                'libelle' => $this->libelleType(),
+                'numeroTournee' => $this->incident->id_route,
+                'notes' => $this->incident->notes,
+                'suiviUrl' => route('livraison.suivi-livraison.index'),
+                'logoCid' => $this->logoCid(),
+            ]);
     }
 
     public function toDatabase(object $notifiable): array

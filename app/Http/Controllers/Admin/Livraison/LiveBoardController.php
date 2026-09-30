@@ -118,6 +118,9 @@ class LiveBoardController extends Controller
                 'incidentResoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
                 'routeAjouter' => route('livraison.routes.ajouter-livraison', ['route' => '__ID__']),
                 'routeRetirer' => route('livraison.routes.retirer-livraison', ['route' => '__ID__', 'etape' => '__ETAPE__']),
+                // Accès admin à l'écran chauffeur de chaque tournée (29/09/2026,
+                // prompt §6.2) — voir MaRouteController::voirCommeChauffeur().
+                'routeVueChauffeur' => route('livraison.routes.vue-chauffeur', ['route' => '__ID__']),
                 'routeReassigner' => route('livraison.routes.reassigner', ['route' => '__ID__']),
                 'routeDiviser' => route('livraison.routes.diviser', ['route' => '__ID__']),
             ],

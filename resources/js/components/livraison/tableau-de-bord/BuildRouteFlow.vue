@@ -18,12 +18,12 @@
         ids_only, backée par LiveBoardController::nonCouvertesTable().
 -->
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { useToast } from '@amana/shared-ui';
 import { apiGet, apiPost, buildQuery } from '../shared/api';
 import Paginator from '../shared/Paginator.vue';
 import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
-import PersonPicker from '../shared/PersonPicker.vue';
+import PersonSelect from '../shared/PersonSelect.vue';
 import {
     CRENEAUX,
     CRENEAU_LIBELLES,
@@ -47,6 +47,13 @@ const props = defineProps<{
     organisations: Organisation[];
     urlNonCouvertesTableau: string;
     url: string;
+    /**
+     * Incrémenté par LiveBoard.vue après chaque modification de tournée
+     * (retirer/ajouter/scinder/réassigner/supprimer/statut) : la table
+     * ci-dessous garde sa propre pagination, elle doit donc être rechargée
+     * explicitement (29/09/2026, prompt §6.4).
+     */
+    versionRafraichissement?: number;
 }>();
 
 const emit = defineEmits<{ created: [] }>();
@@ -156,6 +163,12 @@ async function toutSelectionnerFiltre() {
 
 if (props.urlNonCouvertesTableau) chargerLignes(1);
 
+// Rechargement à la demande du parent — même page, mêmes filtres : une
+// famille retirée d'une tournée y réapparaît sans rafraîchir la page.
+watch(() => props.versionRafraichissement, () => {
+    chargerLignes(metaLignes.value?.current_page ?? 1);
+});
+
 async function construire() {
     erreurs.value = {};
 
@@ -200,7 +213,7 @@ async function construire() {
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 mt-2">
             <div>
                 <label class="block text-[12px] text-ink-muted mb-1">Bénévole (avec véhicule déclaré)</label>
-                <PersonPicker role="benevole" avec-vehicule placeholder="Rechercher un bénévole…" v-model="benevole" />
+                <PersonSelect role="benevole" avec-vehicule placeholder="Rechercher un bénévole…" v-model="benevole" />
             </div>
             <div>
                 <label class="block text-[12px] text-ink-muted mb-1">Créneau (optionnel)</label>

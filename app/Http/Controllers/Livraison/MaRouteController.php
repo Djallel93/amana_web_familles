@@ -44,7 +44,27 @@ class MaRouteController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        return view('livraison.ma-route', ['routes' => $routes]);
+        return view('livraison.ma-route', ['routes' => $routes, 'modeAdmin' => false]);
+    }
+
+    /**
+     * Vue admin/gestionnaire d'UNE tournée, strictement identique à l'écran
+     * du chauffeur (29/09/2026, prompt de cette date §6.2 : "same view as
+     * the driver's ma-route") — même vue Blade, mêmes actions (Livré,
+     * Ignorer, Livraison terminé, Retour QG). Accessible quel que soit le
+     * statut de la tournée (y compris annulée/terminée, contrairement à
+     * show() qui ne liste que les tournées actives du chauffeur).
+     *
+     * Les actions POST de ce contrôleur restent celles du chauffeur
+     * (livraison.benevole.*) : elles acceptent désormais aussi un
+     * gestionnaire/admin (voir peutAgirSur()), ce qui évite de dupliquer
+     * quatre endpoints et garde ma-route.blade.php inchangé côté JS.
+     */
+    public function voirCommeChauffeur(RouteLivraison $route): View
+    {
+        $route->load(['etapes.livraison.famille:id,nom,prenom,adresse,telephone', 'benevole:id,nom,prenom']);
+
+        return view('livraison.ma-route', ['routes' => collect([$route]), 'modeAdmin' => true]);
     }
 
     /**
@@ -133,7 +153,7 @@ class MaRouteController extends Controller
      */
     public function livraisonTerminee(RouteLivraison $route): JsonResponse
     {
-        if ($route->id_benevole !== auth()->id()) {
+        if (!$this->peutAgirSur($route)) {
             throw ValidationException::withMessages(['route' => "Cette tournée n'est pas la vôtre."]);
         }
 
@@ -158,7 +178,7 @@ class MaRouteController extends Controller
      */
     public function retourQg(RouteLivraison $route): JsonResponse
     {
-        if ($route->id_benevole !== auth()->id()) {
+        if (!$this->peutAgirSur($route)) {
             throw ValidationException::withMessages(['route' => "Cette tournée n'est pas la vôtre."]);
         }
 
@@ -170,7 +190,10 @@ class MaRouteController extends Controller
 
         BenevoleRetourQg::create([
             'id_campagne' => $route->id_campagne,
-            'id_personne' => auth()->id(),
+            // Le chauffeur de la tournée, pas auth()->id() : un admin qui
+            // clôt la tournée à sa place (voirCommeChauffeur()) ne devient
+            // pas "disponible pour le prochain lot".
+            'id_personne' => $route->id_benevole,
             'id_route_origine' => $route->id,
             'disponible_depuis' => now(),
         ]);
@@ -184,9 +207,20 @@ class MaRouteController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Propriétaire de la tournée OU admin/gestionnaire (29/09/2026, prompt
+     * de cette date §6.2 : l'admin doit pouvoir tout faire comme le
+     * chauffeur). Un chauffeur ne peut toujours agir que sur SA tournée.
+     */
+    private function peutAgirSur(RouteLivraison $route): bool
+    {
+        return $route->id_benevole === auth()->id()
+            || (bool) auth()->user()?->hasAtLeastRole('gestionnaire');
+    }
+
     private function assertProprietaire(EtapeRoute $etape): void
     {
-        if ($etape->route->id_benevole !== auth()->id()) {
+        if (!$this->peutAgirSur($etape->route)) {
             throw ValidationException::withMessages(['etape' => "Cet arrêt n'appartient pas à votre tournée."]);
         }
     }

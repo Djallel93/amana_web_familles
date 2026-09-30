@@ -137,8 +137,17 @@
         async function modifierLigne(id) {
             const ligne = document.getElementById(`releve-${id}`);
             const valeurActuelle = ligne.querySelector('.valeur').textContent;
-            const nouvelleValeur = prompt(promptModification, valeurActuelle);
-            if (nouvelleValeur === null || nouvelleValeur === '') return;
+            // Popup native remplacée le 29/09/2026 : amanaPrompt() (amana_shared_ui)
+            // résout à null si annulé, ''/valeur sinon (required → jamais vide).
+            const nouvelleValeur = await window.amanaPrompt({
+                title: 'Modifier la valeur',
+                label: promptModification,
+                initialValue: valeurActuelle,
+                multiline: false,
+                required: true,
+                confirmLabel: 'Enregistrer',
+            });
+            if (nouvelleValeur === null) return;
 
             const reponse = await fetch(`/livraison/${type}/${segmentRessource}/${id}`, {
                 method: 'PATCH',
@@ -150,7 +159,7 @@
         }
 
         async function supprimerLigne(id) {
-            if (!confirm(confirmationSuppression)) return;
+            if (!(await window.amanaConfirm({ message: confirmationSuppression, danger: true }))) return;
             const reponse = await fetch(`/livraison/${type}/${segmentRessource}/${id}`, {
                 method: 'DELETE',
                 headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },

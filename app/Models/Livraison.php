@@ -113,6 +113,32 @@ class Livraison extends Model
     ];
 
     public const STATUTS_CONTACT = ['a_contacter', 'contacte', 'injoignable', 'confirme', 'rejetee', 'archive'];
+
+    /**
+     * Ordre d'affichage de la file de contact (livraison/contacts) : à
+     * contacter en tête, puis injoignable, confirmé, archivé, et rejetée
+     * tout en bas. 'contacte' (statut historique, plus posté depuis le
+     * 05/09/2026 — voir STATUTS_CONTACT_POSTABLES) reste avec a_contacter
+     * pour ne pas disparaître au milieu de la liste s'il en subsiste.
+     * Source unique du tri SQL : voir ordreContactSql().
+     */
+    public const ORDRE_AFFICHAGE_CONTACT = ['a_contacter', 'contacte', 'injoignable', 'confirme', 'archive', 'rejetee'];
+
+    /**
+     * Fragment SQL `CASE` renvoyant le rang de ORDRE_AFFICHAGE_CONTACT pour
+     * livraisons.statut_contact (statut inconnu → en dernier). Construit à
+     * partir de constantes du code uniquement, jamais d'une entrée
+     * utilisateur — donc sûr à interpoler dans un orderByRaw().
+     */
+    public static function ordreContactSql(): string
+    {
+        $cas = '';
+        foreach (self::ORDRE_AFFICHAGE_CONTACT as $rang => $statut) {
+            $cas .= " WHEN '{$statut}' THEN {$rang}";
+        }
+
+        return 'CASE livraisons.statut_contact' . $cas . ' ELSE ' . count(self::ORDRE_AFFICHAGE_CONTACT) . ' END';
+    }
     /**
      * Sous-ensemble réellement postable — 'a_contacter' est l'état
      * initial, jamais choisi manuellement. 'contacte' retiré le

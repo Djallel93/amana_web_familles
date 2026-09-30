@@ -206,6 +206,20 @@ async function chargerStatistiques(silencieux = false) {
     if (!silencieux || !memeContenu(stats.value, resultat.data)) stats.value = resultat.data;
 }
 
+// Incrémenté après une modification de tournée (retirer/ajouter/scinder/
+// réassigner/supprimer/statut) pour que « Construire une tournée
+// personnalisée » (BuildRouteFlow.vue, qui garde sa propre table paginée)
+// se recharge aussi — 29/09/2026, prompt §6.4 : une famille retirée d'une
+// tournée apparaissait dans « Livraisons confirmées jamais couvertes »
+// (nonCouvertes, rechargée par chargerTout) mais pas dans cette table
+// avant un rafraîchissement de la page.
+const versionTableauNonCouvertes = ref(0);
+
+function apresChangementTournee() {
+    chargerTout();
+    versionTableauNonCouvertes.value++;
+}
+
 function chargerTout() {
     chargerIncidents();
     chargerRoutes();
@@ -318,6 +332,7 @@ onUnmounted(() => {
             <BuildRouteFlow :campagne-id="campagneId"
                 :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
                 :url="urlsCampagne.routesPersonnalisees" :url-non-couvertes-tableau="urlsCampagne.nonCouvertesTableau"
+                :version-rafraichissement="versionTableauNonCouvertes"
                 @created="chargerTout" />
 
             <h2 class="text-[14px] font-medium text-ink mb-3">Tournées</h2>
@@ -326,7 +341,8 @@ onUnmounted(() => {
                 :url-ajouter="urls.routeAjouter ?? ''" :url-retirer="urls.routeRetirer ?? ''"
                 :url-reassigner="urls.routeReassigner ?? ''" :url-diviser="urls.routeDiviser ?? ''"
                 :url-supprimer="urls.routeSupprimer ?? ''" :url-etape-statut="urls.etapeStatut ?? ''"
-                @changed="chargerTout" />
+                :url-vue-chauffeur="urls.routeVueChauffeur ?? ''"
+                @changed="apresChangementTournee" />
 
             <ShortfallPanel :livraisons="nonCouvertes" :chargement="chargementNonCouvertes" :erreur="erreurNonCouvertes" />
         </div>

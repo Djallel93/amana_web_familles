@@ -398,6 +398,19 @@ export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
     ignoree: 'Ignorée',
 };
 
+/**
+ * Pastilles de statut d'arrêt — une couleur franche par statut (29/09/2026,
+ * prompt §6.3) : restante = ambre (en attente), en cours = ciel, livrée =
+ * émeraude, ignorée = rose. L'ancienne pastille « Restante » en stone
+ * paraissait « sans couleur » à côté des autres.
+ */
+export const STYLES_STATUT_ETAPE: Record<StatutEtape, string> = {
+    en_attente: 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200',
+    en_cours: 'bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200',
+    livree: 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200',
+    ignoree: 'bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200',
+};
+
 export interface Etape {
     id: number;
     ordre: number;
@@ -422,6 +435,28 @@ export const LIBELLES_STATUT_ROUTE: Record<StatutRoute, string> = {
     terminee: 'Terminée',
     packaging_annule: 'Packaging annulé',
     annulee: 'Annulée',
+};
+
+/**
+ * Pastilles de statut tournée — UNE couleur par statut (29/09/2026, prompt
+ * de cette date §6.1 : « Chargement et Chargée ont la même couleur »).
+ * Avant : chargement/charge en ambre, livraisons_terminees/terminee en
+ * émeraude, packaging_annule/annulee en rose. Progression : stone (à venir)
+ * → ambre (chargement) → indigo (chargée, prête à partir) → ciel (en route)
+ * → sarcelle (livraisons faites) → émeraude (clôturée) ; orange = packaging
+ * annulé (à reprendre), rose = annulée. Source unique : les vues Blade du
+ * chargement (chargement-route.blade.php, chargement.blade.php) reprennent
+ * les mêmes classes pour « Chargée » / « Packaging annulé ».
+ */
+export const STYLES_STATUT_ROUTE: Record<StatutRoute, string> = {
+    planifiee: 'bg-stone-100 text-stone-700 ring-1 ring-inset ring-stone-200',
+    chargement: 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200',
+    charge: 'bg-indigo-100 text-indigo-700 ring-1 ring-inset ring-indigo-200',
+    en_cours: 'bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200',
+    livraisons_terminees: 'bg-teal-100 text-teal-700 ring-1 ring-inset ring-teal-200',
+    terminee: 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200',
+    packaging_annule: 'bg-orange-100 text-orange-700 ring-1 ring-inset ring-orange-200',
+    annulee: 'bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200',
 };
 
 export interface RouteLivraison {

@@ -59,7 +59,7 @@
                                             </button>
                                         </form>
                                         <form action="{{ route('rattachements.rejeter', $demande->id) }}" method="POST"
-                                            onsubmit="return confirm('Rejeter cette demande de rattachement ?');">
+                                            data-confirm="Rejeter cette demande de rattachement ?" data-confirm-danger data-confirm-label="Rejeter">
                                             @csrf
                                             <button type="submit"
                                                 class="px-3 py-1.5 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12px] font-semibold rounded-md transition-colors cursor-pointer">

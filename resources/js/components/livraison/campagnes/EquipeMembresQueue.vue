@@ -7,8 +7,16 @@
     par ligne) mais sans file/statut à suivre : ici on affecte
     simplement des personnes à des rôles, il n'y a rien à "traiter".
 
+    29/09/2026 (prompt de cette date §3) : une SECTION par rôle (Réception,
+    Pesée, Packaging, Chargement), chacune avec ses membres et son propre
+    sélecteur d'ajout — plus de formulaire global avec choix du rôle (le rôle
+    est celui de la section). Le sélecteur est PersonSelect (dropdown avec
+    recherche par début de prénom/nom), le même composant que l'assignation
+    de contacts. Les données ne changent pas : `lignes` reste « une ligne par
+    personne, rôles groupés », les sections la filtrent côté client.
+
     Décisions du 08/09/2026 (prompt de cette date) :
-      - PersonPicker sans prop `role` : n'importe quelle Personne staff
+      - PersonSelect sans prop `role` : n'importe quelle Personne staff
         Familles peut être affectée, pas seulement celles ayant déjà le
         rôle global equipe_* correspondant (voir docblock du contrôleur).
       - Retirer un rôle n'affecte jamais les relevés déjà saisis par
@@ -36,11 +44,11 @@
     Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { reactive, computed } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { useToast } from '@amana/shared-ui';
 import { apiPost, apiDelete } from '../shared/api';
-import PersonPicker from '../shared/PersonPicker.vue';
+import PersonSelect from '../shared/PersonSelect.vue';
 import { EQUIPE_ROLES, type Campagne, type EquipeRole, type PersonneResume } from '../shared/types';
 
 export interface LigneEquipe {
@@ -74,30 +82,51 @@ function rechargerListe() {
 }
 
 // ── Formulaire d'ajout ───────────────────────────────────────────────
-const personneChoisie = ref<PersonneResume | null>(null);
-const roleChoisi = ref<EquipeRole | ''>('');
-const ajoutEnCours = ref(false);
+const roles = Object.keys(EQUIPE_ROLES) as EquipeRole[];
 
-const peutAjouter = computed(() => personneChoisie.value !== null && roleChoisi.value !== '');
+// Un sélecteur et un état « ajout en cours » par rôle (section indépendante).
+const personneChoisie = reactive<Record<EquipeRole, PersonneResume | null>>({
+    equipe_reception: null,
+    equipe_pesee: null,
+    equipe_packaging: null,
+    equipe_chargement: null,
+});
+const ajoutEnCours = reactive<Record<EquipeRole, boolean>>({
+    equipe_reception: false,
+    equipe_pesee: false,
+    equipe_packaging: false,
+    equipe_chargement: false,
+});
 
-async function ajouter() {
-    if (!peutAjouter.value || !personneChoisie.value || !roleChoisi.value) return;
+/** Membres d'une section : les lignes qui portent ce rôle, triées nom/prénom. */
+const membresParRole = computed(() => {
+    const parRole = {} as Record<EquipeRole, LigneEquipe[]>;
+    for (const role of roles) {
+        parRole[role] = props.lignes
+            .filter((ligne) => ligne.roles.includes(role))
+            .sort((a, b) => a.nom.localeCompare(b.nom, 'fr') || a.prenom.localeCompare(b.prenom, 'fr'));
+    }
+    return parRole;
+});
 
-    ajoutEnCours.value = true;
+async function ajouter(role: EquipeRole) {
+    const personne = personneChoisie[role];
+    if (!personne) return;
+
+    ajoutEnCours[role] = true;
     const resultat = await apiPost<{ success: boolean }>(props.ajouterUrl, {
-        id_personne: personneChoisie.value.id,
-        role: roleChoisi.value,
+        id_personne: personne.id,
+        role,
     });
-    ajoutEnCours.value = false;
+    ajoutEnCours[role] = false;
 
     if (!resultat.ok) {
         toast.error(resultat.message);
         return;
     }
 
-    toast.success('Affectation ajoutée.');
-    personneChoisie.value = null;
-    roleChoisi.value = '';
+    toast.success(`${personne.prenom} ${personne.nom} ajouté(e) — ${EQUIPE_ROLES[role]}.`);
+    personneChoisie[role] = null;
     rechargerListe();
 }
 
@@ -123,43 +152,34 @@ async function retirer(ligne: LigneEquipe, role: EquipeRole) {
             </p>
         </div>
 
-        <div class="bg-surface border border-surface-border rounded-xl p-4 space-y-3">
-            <h2 class="text-[13.5px] font-semibold text-ink">Ajouter une affectation</h2>
+        <section v-for="role in roles" :key="role" class="bg-surface border border-surface-border rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+                <h2 class="text-[14px] font-semibold text-ink">{{ EQUIPE_ROLES[role] }}</h2>
+                <span class="text-[12px] text-ink-muted">{{ membresParRole[role].length }} membre(s)</span>
+            </div>
+
             <div class="flex flex-col sm:flex-row gap-2">
                 <div class="flex-1">
-                    <PersonPicker placeholder="Rechercher une personne…" v-model="personneChoisie" />
+                    <PersonSelect placeholder="Ajouter une personne…" v-model="personneChoisie[role]" />
                 </div>
-                <select v-model="roleChoisi"
-                    class="rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem] sm:w-56">
-                    <option value="" disabled>Rôle…</option>
-                    <option v-for="(libelle, code) in EQUIPE_ROLES" :key="code" :value="code">{{ libelle }}</option>
-                </select>
-                <button type="button" :disabled="!peutAjouter || ajoutEnCours" @click="ajouter"
+                <button type="button" :disabled="!personneChoisie[role] || ajoutEnCours[role]" @click="ajouter(role)"
                     class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
-                    {{ ajoutEnCours ? 'Ajout…' : 'Ajouter' }}
+                    {{ ajoutEnCours[role] ? 'Ajout…' : 'Ajouter' }}
                 </button>
             </div>
-        </div>
 
-        <div>
-            <p v-if="lignes.length === 0" class="text-[13px] text-ink-muted">Personne n'est encore affecté à cette campagne.</p>
+            <p v-if="membresParRole[role].length === 0" class="text-[13px] text-ink-muted">Personne n'est encore affecté à ce poste.</p>
 
             <div v-else class="space-y-2">
-                <div v-for="ligne in lignes" :key="ligne.id_personne"
-                    class="flex items-center justify-between gap-3 bg-surface border border-surface-border rounded-xl p-3">
+                <div v-for="ligne in membresParRole[role]" :key="ligne.id_personne"
+                    class="flex items-center justify-between gap-3 bg-surface-2 border border-surface-border rounded-lg px-3 py-2">
                     <span class="text-[14px] font-medium text-ink">{{ ligne.prenom }} {{ ligne.nom }}</span>
-                    <div class="flex flex-wrap gap-1.5 justify-end">
-                        <span v-for="role in ligne.roles" :key="role"
-                            class="inline-flex items-center gap-1.5 text-[12px] px-2.5 py-1 rounded-full bg-accent/10 text-accent">
-                            {{ EQUIPE_ROLES[role] }}
-                            <button type="button" @click="retirer(ligne, role)"
-                                class="text-accent/70 hover:text-accent" :aria-label="`Retirer ${EQUIPE_ROLES[role]}`">
-                                ✕
-                            </button>
-                        </span>
-                    </div>
+                    <button type="button" @click="retirer(ligne, role)"
+                        class="text-[12px] text-ink-muted hover:text-rose-600 min-h-[2rem] px-2" :aria-label="`Retirer ${ligne.prenom} ${ligne.nom} — ${EQUIPE_ROLES[role]}`">
+                        Retirer
+                    </button>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 </template>

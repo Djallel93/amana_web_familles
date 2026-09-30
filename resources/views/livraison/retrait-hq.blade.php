@@ -137,7 +137,7 @@
         async function marquerLivre(id) {
             await occuper(id, async () => {
                 const r = await poster(`/livraison/retrait-hq/livraisons/${id}/livre`);
-                if (!r.success) { if (r.message) alert(r.message); return; }
+                if (!r.success) { if (r.message) window.amanaToast(r.message, 'error'); return; }
                 appliquerStatutLocal(id, 'delivre', 'Livré', 'bg-emerald-100 text-emerald-700');
             });
         }
@@ -145,7 +145,7 @@
         async function marquerNonLivre(id) {
             await occuper(id, async () => {
                 const r = await poster(`/livraison/retrait-hq/livraisons/${id}/non-livre`);
-                if (!r.success) { if (r.message) alert(r.message); return; }
+                if (!r.success) { if (r.message) window.amanaToast(r.message, 'error'); return; }
                 appliquerStatutLocal(id, 'non_delivre', 'Non livré', 'bg-rose-100 text-rose-700');
             });
         }

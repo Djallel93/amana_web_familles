@@ -40,10 +40,11 @@
             @elseif($route->urgence === 'benevole')
                 <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-600 text-white">🟠 Urgent — chauffeur</span>
             @endif
+            {{-- Couleurs alignées sur STYLES_STATUT_ROUTE (shared/types.ts, 29/09/2026 §6.1) --}}
             <span class="statut-route text-[11px] font-medium px-2 py-0.5 rounded-full
                 {{ match($route->statut) {
-                    'charge' => 'bg-emerald-100 text-emerald-700',
-                    'packaging_annule' => 'bg-rose-100 text-rose-700',
+                    'charge' => 'bg-indigo-100 text-indigo-700',
+                    'packaging_annule' => 'bg-orange-100 text-orange-700',
                     default => 'bg-stone-100 text-ink-muted',
                 } }}">
                 {{ match($route->statut) {

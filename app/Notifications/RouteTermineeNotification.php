@@ -53,7 +53,13 @@ class RouteTermineeNotification extends Notification
     ) {
         // "Retour QG" (id_livraison null) n'est pas un arrêt famille — même
         // convention que RouteLivraison::toutesEtapesTraitees().
+        //
+        // reorder() (29/09/2026) : la relation etapes() porte un orderBy('ordre')
+        // par défaut, illégal avec ce GROUP BY sous MySQL only_full_group_by
+        // (erreur 1055) — ce qui faisait échouer en 500 toute clôture de
+        // tournée dès que la notification était construite.
         $parStatut = $route->etapes()
+            ->reorder()
             ->whereNotNull('id_livraison')
             ->selectRaw('statut, count(*) as n')
             ->groupBy('statut')

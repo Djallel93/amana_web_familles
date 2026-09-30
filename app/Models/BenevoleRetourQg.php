@@ -22,6 +22,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class BenevoleRetourQg extends Model
 {
+    // Nom de table explicite (29/09/2026) : sans lui Eloquent déduit
+    // `benevole_retour_qgs` (pluriel de la dernière « mot » du nom de classe)
+    // alors que la migration crée `benevole_retours_qg` — chaque « Retour QG »
+    // (MaRouteController::retourQg()) échouait donc en 500 (table inconnue).
+    protected $table = 'benevole_retours_qg';
+
     public $timestamps = false;
 
     public function getConnectionName(): ?string
