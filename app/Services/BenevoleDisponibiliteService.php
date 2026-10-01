@@ -83,10 +83,18 @@ class BenevoleDisponibiliteService
      * permis » est refusé (contradiction). Couverture : « même zone que
      * mon profil » OU au moins un secteur.
      *
+     * « Même que mon profil » est TOUJOURS accepté, y compris pour un
+     * compte sans BenevoleProfil (staff qui ouvre le lien, profil jamais
+     * créé…) : le refuser bloquait la confirmation avec « Aucun profil
+     * bénévole » (correctif du 01/10/2026) alors que, avant le passage
+     * par journée, la case était une simple confirmation sans contrôle.
+     * Sans profil, le routage ignore simplement ce bénévole (aucun
+     * véhicule connu — voir BenevoleDisponibilite::vehiculeEffectif()).
+     *
      * @param  array<string, mixed>  $donnees
      * @param  array<string, mixed>  $reglesSupplementaires
      */
-    public function validateur(array $donnees, ?BenevoleProfil $profil, array $reglesSupplementaires = []): ValidatorContract
+    public function validateur(array $donnees, array $reglesSupplementaires = []): ValidatorContract
     {
         $validator = Validator::make($donnees, [
             'vehicule_confirme' => ['required', 'boolean'],
@@ -97,15 +105,13 @@ class BenevoleDisponibiliteService
             'secteurs.*' => ['integer', 'exists:commun.secteurs,id'],
         ] + $reglesSupplementaires);
 
-        $validator->after(function (ValidatorContract $v) use ($donnees, $profil) {
+        $validator->after(function (ValidatorContract $v) use ($donnees) {
             if ($v->errors()->isNotEmpty()) {
                 return;
             }
 
             if (filter_var($donnees['vehicule_confirme'], FILTER_VALIDATE_BOOLEAN)) {
-                if (!$profil) {
-                    $v->errors()->add('vehicule_confirme', "Aucun profil bénévole : choisissez votre véhicule.");
-                }
+                // « Même que mon profil » : rien à vérifier.
             } elseif (!array_key_exists('permis', $donnees) || $donnees['permis'] === null) {
                 $v->errors()->add('permis', 'Indiquez si vous êtes titulaire du permis de conduire.');
             } elseif (filter_var($donnees['permis'], FILTER_VALIDATE_BOOLEAN)) {
@@ -118,9 +124,7 @@ class BenevoleDisponibiliteService
             }
 
             if (filter_var($donnees['coverage_confirmee'], FILTER_VALIDATE_BOOLEAN)) {
-                if (!$profil) {
-                    $v->errors()->add('coverage_confirmee', 'Aucun profil bénévole : choisissez vos secteurs.');
-                }
+                // « Même zone que mon profil » : rien à vérifier.
             } elseif (empty($donnees['secteurs'])) {
                 $v->errors()->add('secteurs', 'Sélectionnez au moins un secteur.');
             }

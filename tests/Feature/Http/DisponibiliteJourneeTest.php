@@ -240,4 +240,51 @@ class DisponibiliteJourneeTest extends TestCase
         $this->assertSame([$this->geo['a2']], $dispo->secteurs->pluck('id_secteur')->map(fn ($i) => (int) $i)->all());
         $this->assertSame(['10-12'], $dispo->creneaux->pluck('creneau')->all());
     }
+
+    // ── Régression : « même que mon profil » sans BenevoleProfil ────────
+
+    public function test_meme_que_mon_profil_est_accepte_sans_profil_benevole(): void
+    {
+        // Compte avec le rôle bénévole mais SANS BenevoleProfil (ex. staff
+        // qui ouvre le lien) : cocher véhicule + zone habituels puis valider
+        // ne doit pas renvoyer « Aucun profil bénévole : choisissez… ».
+        $compte = $this->creerPersonne(['benevole']);
+        [$campagne, $journee] = $this->creerCampagneAvecJournee();
+
+        $this->actingAs($compte)
+            ->postJson(route('livraison.benevole.disponibilite.update', $campagne), $this->charge([
+                'vehicule_confirme' => true, 'permis' => null, 'id_vehicule_type' => null,
+                'coverage_confirmee' => true, 'secteurs' => [],
+                'creneaux' => ['08-10', '10-12', '12-14', '14-16', '16-18', '18-19'],
+            ], $journee->id))
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $dispo = BenevoleDisponibilite::with('creneaux')->where('id_personne', $compte->id)->firstOrFail();
+        $this->assertSame('confirme', $dispo->statut);
+        $this->assertTrue($dispo->vehicule_confirme);
+        $this->assertTrue($dispo->coverage_confirmee);
+        $this->assertCount(6, $dispo->creneaux);
+    }
+
+    public function test_la_page_sans_profil_benevole_s_affiche_avec_une_indication(): void
+    {
+        $compte = $this->creerPersonne(['benevole']);
+        [$campagne] = $this->creerCampagneAvecJournee();
+
+        $this->actingAs($compte)
+            ->get(route('livraison.benevole.disponibilite.show', $campagne))
+            ->assertOk()
+            ->assertSee('aucun véhicule enregistré sur votre profil');
+    }
+
+    public function test_le_choix_explicite_reste_valide_sans_profil_benevole(): void
+    {
+        $compte = $this->creerPersonne(['benevole']);
+        [$campagne, $journee] = $this->creerCampagneAvecJournee();
+
+        $this->actingAs($compte)
+            ->postJson(route('livraison.benevole.disponibilite.update', $campagne), $this->charge([], $journee->id))
+            ->assertOk();
+    }
 }

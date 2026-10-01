@@ -387,7 +387,7 @@ class PersonnesController extends Controller
 
         $journee = CampagneJournee::findOrFail($idJournee);
 
-        $validator = $this->disponibiliteService->validateur($request->all(), $profil);
+        $validator = $this->disponibiliteService->validateur($request->all());
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }

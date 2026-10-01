@@ -31,6 +31,8 @@
                 Mon véhicule correspond toujours à mon profil
                 @if($profil?->vehiculeType)
                     <strong class="font-semibold">({{ $profil->vehiculeType->type }})</strong>
+                @elseif(!$profil)
+                    <span class="text-ink-muted">(aucun véhicule enregistré sur votre profil)</span>
                 @endif
             </span>
         </label>

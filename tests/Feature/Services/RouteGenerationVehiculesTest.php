@@ -116,4 +116,13 @@ class RouteGenerationVehiculesTest extends TestCase
 
         $this->assertSame([], $this->pool($journee, '16-18'));
     }
+
+    public function test_un_compte_sans_profil_et_sans_vehicule_declare_n_entre_pas_dans_le_pool(): void
+    {
+        $compte = $this->creerPersonne(['benevole']);
+        [, $journee] = $this->creerCampagneAvecJournee();
+        $this->disponibilite($compte->id, $journee->id, ['vehicule_confirme' => true]);
+
+        $this->assertSame([], $this->pool($journee));
+    }
 }
