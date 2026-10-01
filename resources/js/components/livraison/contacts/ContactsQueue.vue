@@ -521,6 +521,7 @@ onMounted(() => {
                     <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
                         <input type="checkbox" :checked="selection.has(livraison.id)" @change="toggleSelection(livraison.id)"
                             class="w-4 h-4 accent-accent shrink-0">
+                        <span class="text-ink-muted font-normal">#{{ livraison.famille.id }}</span>
                         {{ livraison.famille.prenom }} {{ livraison.famille.nom }}
                     </span>
                     <span class="text-[13px] font-medium px-2.5 py-1 rounded-full shrink-0"

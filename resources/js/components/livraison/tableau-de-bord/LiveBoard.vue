@@ -58,6 +58,7 @@
     si l'ensemble des incidents ouverts a changé (c'est le "bénévole absent"
     signalé par l'équipe chargement qui en orpheline des livraisons — un
     arrêt livré ne change rien à cette liste), pas à chaque tick.
+    [30/09/2026 : relue désormais à chaque tick, voir rafraichirEnArrierePlan().]
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
@@ -251,9 +252,11 @@ async function rafraichirEnArrierePlan() {
 
     pollEnCours = true;
     try {
-        const avant = empreinteIncidents();
-        await Promise.all([chargerIncidents(true), chargerRoutes(true), chargerStatistiques(true)]);
-        if (empreinteIncidents() !== avant) await chargerNonCouvertes(true);
+        // « Non couvertes » relue à chaque tick (30/09/2026) : les pills de
+        // ShortfallPanel (Se déplace au QG / Non assignées) doivent suivre
+        // les confirmations et bascules en direct, pas seulement quand
+        // l'ensemble des incidents ouverts change.
+        await Promise.all([chargerIncidents(true), chargerRoutes(true), chargerStatistiques(true), chargerNonCouvertes(true)]);
     } finally {
         pollEnCours = false;
     }

@@ -103,6 +103,35 @@ class PackagingController extends Controller
      */
     public function index(Request $request, Campagne $campagne): View
     {
+        $donnees = $this->construireLignes($request, $campagne);
+
+        return view('livraison.packaging', [
+            'campagne' => $campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom']),
+            'lignes' => $donnees['lignes'],
+            'stats' => $donnees['stats'],
+            'filtreConditionnement' => $request->input('filtre_conditionnement', 'toutes'),
+            'idCampagneJourneeSelectionnee' => $request->integer('id_campagne_journee') ?: null,
+            'autresCampagnes' => Campagne::whereIn('statut', ['preparation', 'en_cours'])->orderByDesc('date_livraison')->get(),
+            'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.packaging.choisir'),
+        ]);
+    }
+
+    /**
+     * Polling de la file (30/09/2026) : même rendu que index() — cartes
+     * (HTML + signature md5) et cartes statistiques — pour que
+     * packaging.blade.php se réconcilie sans rechargement. Voir
+     * ChargementController::liste() pour le même principe.
+     */
+    public function liste(Request $request, Campagne $campagne): JsonResponse
+    {
+        return response()->json($this->construireLignes($request, $campagne));
+    }
+
+    /**
+     * @return array{lignes: list<array{id: int, sig: string, html: string}>, stats: array{terminees: int, restantes: int, en_cours: int}}
+     */
+    private function construireLignes(Request $request, Campagne $campagne): array
+    {
         $query = Livraison::where('id_campagne', $campagne->id)
             ->where('statut_contact', 'confirme') // 07/09/2026, prompt §3.2
             ->whereNotIn('statut', ['ignoree', 'livree']);
@@ -162,15 +191,13 @@ class PackagingController extends Controller
             ])
             ->values();
 
-        return view('livraison.packaging', [
-            'campagne' => $campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom']),
-            'livraisons' => $livraisons,
-            'stats' => $stats,
-            'filtreConditionnement' => $filtreConditionnement,
-            'idCampagneJourneeSelectionnee' => $request->integer('id_campagne_journee') ?: null,
-            'autresCampagnes' => Campagne::whereIn('statut', ['preparation', 'en_cours'])->orderByDesc('date_livraison')->get(),
-            'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.packaging.choisir'),
-        ]);
+        $lignes = $livraisons->map(function (Livraison $livraison) {
+            $html = view('livraison.partials.packaging-ligne', ['livraison' => $livraison])->render();
+
+            return ['id' => $livraison->id, 'sig' => md5($html), 'html' => $html];
+        })->all();
+
+        return ['lignes' => $lignes, 'stats' => $stats];
     }
 
     /**

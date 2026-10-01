@@ -208,6 +208,15 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
         ->name('etapes.scan');
     Route::post('/etapes/{etape}/ignoree', [\App\Http\Controllers\Livraison\MaRouteController::class, 'signalerIgnoree'])
         ->name('etapes.ignoree');
+    // 30/09/2026 : démarrage explicite (« Je commence ma tournée »), retour
+    // d'un arrêt ignoré à en_cours, et empreinte de polling de l'écran —
+    // voir MaRouteController.
+    Route::post('/routes/{route}/demarrer', [\App\Http\Controllers\Livraison\MaRouteController::class, 'demarrer'])
+        ->name('routes.demarrer');
+    Route::get('/routes/{route}/etat', [\App\Http\Controllers\Livraison\MaRouteController::class, 'etat'])
+        ->name('routes.etat');
+    Route::post('/etapes/{etape}/remettre-en-cours', [\App\Http\Controllers\Livraison\MaRouteController::class, 'remettreEnCours'])
+        ->name('etapes.remettre-en-cours');
     Route::post('/routes/{route}/livraison-terminee', [\App\Http\Controllers\Livraison\MaRouteController::class, 'livraisonTerminee'])
         ->name('routes.livraison-terminee');
     Route::post('/routes/{route}/retour-qg', [\App\Http\Controllers\Livraison\MaRouteController::class, 'retourQg'])
@@ -296,6 +305,9 @@ Route::middleware('auth')->prefix('livraison/packaging')->name('livraison.packag
         ->middleware('can:gerer,colis')->name('colis.statut');
     Route::post('/{livraison}/annuler', [\App\Http\Controllers\Livraison\PackagingController::class, 'annulerConditionnement'])
         ->middleware('can:gerer,livraison')->name('annuler');
+    // Polling de la file (30/09/2026) — voir PackagingController::liste().
+    Route::get('/{campagne}/liste', [\App\Http\Controllers\Livraison\PackagingController::class, 'liste'])
+        ->middleware('can:equipePackaging,campagne')->name('liste');
     Route::get('/{campagne}/feuille-preparation', [\App\Http\Controllers\Livraison\PackagingController::class, 'feuillePreparation'])
         ->middleware('can:equipePackaging,campagne')->name('feuille-preparation');
     // Couverture de la collecte (Scénario 4 du chantier "polling live") —

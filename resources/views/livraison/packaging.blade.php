@@ -49,15 +49,15 @@
         <div class="grid grid-cols-3 gap-3 mb-4">
             <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
                 <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Terminées</p>
-                <p class="text-[20px] font-semibold text-emerald-700">{{ $stats['terminees'] }}</p>
+                <p id="stat-terminees" class="text-[20px] font-semibold text-emerald-700">{{ $stats['terminees'] }}</p>
             </div>
             <div class="bg-amber-50 border border-amber-100 rounded-xl p-3">
                 <p class="text-[11px] text-amber-700 uppercase tracking-wide">En cours</p>
-                <p class="text-[20px] font-semibold text-amber-700">{{ $stats['en_cours'] }}</p>
+                <p id="stat-en-cours" class="text-[20px] font-semibold text-amber-700">{{ $stats['en_cours'] }}</p>
             </div>
             <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
                 <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restantes</p>
-                <p class="text-[20px] font-semibold text-ink">{{ $stats['restantes'] }}</p>
+                <p id="stat-restantes" class="text-[20px] font-semibold text-ink">{{ $stats['restantes'] }}</p>
             </div>
         </div>
         <div class="flex gap-2 mb-6" id="filtre-conditionnement">
@@ -141,116 +141,11 @@
         <form id="csrf-holder">@csrf</form>
 
         <div class="space-y-3" id="liste-livraisons">
-            @forelse($livraisons as $livraison)
-                {{--
-                    Teinte légère étudiant/hôtel en plus des badges
-                    (05/09/2026, prompt §4.5) — hôtel prioritaire si une
-                    famille est (en théorie jamais) les deux à la fois,
-                    simple choix arbitraire plutôt que de mélanger les
-                    teintes. Conservée telle quelle (09/09/2026, prompt de
-                    cette date §2.2 : "keep current coloring") — la bordure
-                    d'urgence ci-dessous s'ajoute par-dessus plutôt que de
-                    la remplacer, ce sont deux dimensions indépendantes
-                    (voir PackagingController::calculerUrgencePackaging()).
-                --}}
-                <div class="border rounded-xl p-4
-                    {{ $livraison->urgente ? 'border-rose-600 border-l-8' : 'border-surface-border' }}
-                    {{ $livraison->famille->est_hotel ? 'bg-amber-50' : ($livraison->famille->etudiant ? 'bg-sky-50' : 'bg-surface') }}"
-                    id="livraison-{{ $livraison->id }}">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="flex items-start gap-3">
-                            {{--
-                                Case "famille entière" (prompt §5.3) : reste
-                                cliquable en permanence (voir toggleFamille()
-                                ci-dessous) — cocher tous les colis la coche
-                                automatiquement, la décocher déclenche une
-                                confirmation avant d'annuler le
-                                conditionnement complet. Grisée visuellement
-                                (opacité) tant que tous les colis ne sont pas
-                                prêts plutôt que l'attribut HTML `disabled`
-                                (05/09/2026 : plus fiable après un
-                                changement d'état dynamique en JS).
-                            --}}
-                            <input type="checkbox" class="mt-1 case-famille" data-id-livraison="{{ $livraison->id }}"
-                                data-statut-conditionnement="{{ $livraison->statut_conditionnement }}"
-                                {{ $livraison->statut_conditionnement === 'prete' ? 'checked' : '' }}
-                                onchange="toggleFamille({{ $livraison->id }}, this.checked)">
-                            <div>
-                                {{--
-                                    Pas de nom/téléphone ici (05/09/2026,
-                                    prompt §4.4) : l'équipe packaging n'a
-                                    besoin que de l'id, du nombre
-                                    d'adultes/enfants et des besoins
-                                    spéciaux pour préparer les colis — pas
-                                    de l'identité de la famille.
-                                --}}
-                                <p class="text-[14px] font-medium text-ink">
-                                    Famille #{{ $livraison->famille->id }}
-                                    <span class="text-[12px] text-ink-muted">
-                                        — {{ $livraison->famille->nombre_adulte }} adulte(s), {{ $livraison->famille->nombre_enfant }} enfant(s)
-                                    </span>
-                                </p>
-                                <div class="flex gap-1.5 mt-1">
-                                    @if($livraison->famille->etudiant)
-                                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">Étudiant</span>
-                                    @endif
-                                    @if($livraison->famille->est_hotel)
-                                        <span class="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Hôtel</span>
-                                    @endif
-                                    {{-- Ajouté le 09/09/2026 (prompt de cette date §2.3 : "If family has kids make it more visible") — violet comme le tag "· N enfant(s)" de chargement.blade.php, en gras pour ressortir davantage que les deux badges ci-dessus. --}}
-                                    @if($livraison->famille->nombre_enfant > 0)
-                                        <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">👶 {{ $livraison->famille->nombre_enfant }} enfant(s)</span>
-                                    @endif
-                                </div>
-                                @if($livraison->note_besoins_speciaux)
-                                    <p class="text-[12px] text-rose-600 mt-1">⚠ {{ $livraison->note_besoins_speciaux }}</p>
-                                @endif
-
-                                {{-- Un colis = une personne du foyer (prompt §5.3). Verrouillées une fois la livraison 'prete' (09/09/2026, prompt de cette date §2.1) : voir PackagingController::marquerColisPret(), seule la case "famille entière" (confirmation + annulerConditionnement()) peut rouvrir les colis à ce stade. --}}
-                                <div class="flex flex-wrap gap-2 mt-2">
-                                    @foreach($livraison->colis as $colis)
-                                        <label class="inline-flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-lg border border-surface-border bg-white {{ $livraison->statut_conditionnement === 'prete' ? 'opacity-60' : '' }}">
-                                            <input type="checkbox" class="case-colis" data-id-colis="{{ $colis->id }}" data-id-livraison="{{ $livraison->id }}"
-                                                {{ $colis->statut === 'pret' ? 'checked' : '' }}
-                                                {{ $livraison->statut_conditionnement === 'prete' ? 'disabled' : '' }}
-                                                onchange="toggleColis({{ $colis->id }}, {{ $livraison->id }}, this.checked)">
-                                            Colis {{ $colis->numero }}/{{ $livraison->nombre_personnes }}
-                                        </label>
-                                    @endforeach
-                                </div>
-                            </div>
-                        </div>
-
-                        {{--
-                            Badge de statut déplacé en haut à droite + agrandi
-                            (09/09/2026, prompt de cette date §4 : "Move
-                            status (Restante, Terminée) to upper right corner
-                            and make it a little bigger") — reprend la
-                            position d'avant §6.1, seule la taille/position
-                            changent ; mis à jour en JS par
-                            appliquerStatutConditionnement(), toujours la
-                            source de vérité de l'état affiché après un
-                            toggle sans recharger la page.
-                        --}}
-                        {{-- Trois états depuis le 09/09/2026 (prompt de cette date §2.1, statut_conditionnement réellement à 3 valeurs désormais) — 'en_cours' inséré entre 'Restante' et 'Terminée', même palette ambre que le reste de l'app pour un état intermédiaire (voir chargement.blade.php/statuts route). --}}
-                        <span class="statut-conditionnement shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full
-                            {{ match($livraison->statut_conditionnement) {
-                                'prete' => 'bg-emerald-100 text-emerald-700',
-                                'en_cours' => 'bg-amber-100 text-amber-700',
-                                default => 'bg-stone-100 text-ink-muted',
-                            } }}"
-                            data-id-livraison="{{ $livraison->id }}">
-                            {{ match($livraison->statut_conditionnement) {
-                                'prete' => 'Terminée',
-                                'en_cours' => 'En cours',
-                                default => 'Restante',
-                            } }}
-                        </span>
-                    </div>
-                </div>
-            @empty
-                <p class="text-[14px] text-ink-muted">Aucune livraison en attente de conditionnement.</p>
-            @endforelse
+            {{-- Cartes rendues par PackagingController::construireLignes() (partial packaging-ligne) : les mêmes que celles du polling (liste()). --}}
+            @foreach($lignes as $ligne)
+                {!! $ligne['html'] !!}
+            @endforeach
+            <p id="liste-vide" class="text-[14px] text-ink-muted {{ count($lignes) > 0 ? 'hidden' : '' }}">Aucune livraison en attente de conditionnement.</p>
         </div>
     </div>
 
@@ -259,7 +154,25 @@
 
         document.getElementById('select-campagne').addEventListener('change', (e) => window.location.href = e.target.value);
 
-        async function toggleColis(idColis, idLivraison, coche) {
+        // Garde-fou du polling (30/09/2026) : aucune réponse de polling n'est
+        // appliquée pendant (ou juste après) une action locale — une case
+        // cochée ou une confirmation ouverte ne doit pas être écrasée par un
+        // état serveur lu juste avant.
+        let actionsEnCours = 0;
+        let derniereAction = 0;
+        async function enAction(fn) {
+            actionsEnCours++;
+            try {
+                return await fn();
+            } finally {
+                actionsEnCours--;
+                derniereAction = Date.now();
+            }
+        }
+        const toggleColis = (idColis, idLivraison, coche) => enAction(() => basculerColis(idColis, idLivraison, coche));
+        const toggleFamille = (idLivraison, coche) => enAction(() => basculerFamille(idLivraison, coche));
+
+        async function basculerColis(idColis, idLivraison, coche) {
             const checkbox = document.querySelector(`.case-colis[data-id-colis="${idColis}"]`);
             const reponse = await fetch(`/livraison/packaging/colis/${idColis}/statut`, {
                 method: 'POST',
@@ -351,7 +264,7 @@
          * du 05/09/2026 §5.3 : "get a confirmation screen before
          * validating uncheck").
          */
-        async function toggleFamille(idLivraison, coche) {
+        async function basculerFamille(idLivraison, coche) {
             const caseFamille = document.querySelector(`.case-famille[data-id-livraison="${idLivraison}"]`);
             const tousLesColis = document.querySelectorAll(`.case-colis[data-id-livraison="${idLivraison}"]`);
             const tousPrets = Array.from(tousLesColis).every((c) => c.checked);
@@ -598,5 +511,85 @@
         rafraichirCouverture(true);
         setInterval(() => rafraichirCouverture(), COUVERTURE_POLL_MS);
         document.addEventListener('visibilitychange', () => { if (!document.hidden) rafraichirCouverture(); });
+
+        // ── Polling de la liste (30/09/2026) ────────────────────────────
+        //
+        // Jusqu'ici seul l'encart « Couverture de la collecte » se
+        // rafraîchissait : cartes statistiques, familles, colis et statuts
+        // ne bougeaient qu'après rechargement manuel. Même mécanique que
+        // chargement.blade.php : toutes les 20 s, PackagingController::liste()
+        // renvoie le même rendu que la page ; on réconcilie par id de
+        // livraison (ajout, remplacement si la signature change, retrait,
+        // tri serveur) et on met à jour les compteurs. Suspendu quand
+        // l'onglet est masqué.
+        const URL_LISTE = @json(route('livraison.packaging.liste', $campagne));
+        const POLL_MS = 20000;
+        const signatures = new Map(Object.entries(@json(collect($lignes)->pluck('sig', 'id'))));
+        let pollEnCours = false;
+
+        function creerLigne(html) {
+            const modele = document.createElement('template');
+            modele.innerHTML = html;
+            return modele.content.firstElementChild;
+        }
+
+        function appliquerListe(donnees, debutRequete) {
+            // Action locale en cours ou survenue depuis le départ de la
+            // requête : réponse potentiellement périmée, le tick suivant corrige.
+            if (actionsEnCours > 0 || derniereAction >= debutRequete) return;
+
+            const liste = document.getElementById('liste-livraisons');
+            const nouveauxIds = donnees.lignes.map((l) => String(l.id));
+
+            liste.querySelectorAll(':scope > [id^="livraison-"]').forEach((el) => {
+                const id = el.id.replace('livraison-', '');
+                if (!nouveauxIds.includes(id)) {
+                    el.remove();
+                    signatures.delete(id);
+                }
+            });
+
+            donnees.lignes.forEach((ligne) => {
+                const id = String(ligne.id);
+                const existante = document.getElementById(`livraison-${id}`);
+                if (existante && signatures.get(id) === ligne.sig) return;
+                const nouvelle = creerLigne(ligne.html);
+                if (!nouvelle) return;
+                if (existante) existante.replaceWith(nouvelle);
+                else liste.appendChild(nouvelle);
+                signatures.set(id, ligne.sig);
+            });
+
+            // Tri serveur (urgentes puis criticité) : le DOM n'est touché que si l'ordre diffère.
+            const ordreActuel = Array.from(liste.querySelectorAll(':scope > [id^="livraison-"]')).map((el) => el.id.replace('livraison-', ''));
+            if (ordreActuel.join(',') !== nouveauxIds.join(',')) {
+                const vide = document.getElementById('liste-vide');
+                nouveauxIds.forEach((id) => liste.insertBefore(document.getElementById(`livraison-${id}`), vide));
+            }
+
+            document.getElementById('stat-terminees').textContent = donnees.stats.terminees;
+            document.getElementById('stat-en-cours').textContent = donnees.stats.en_cours;
+            document.getElementById('stat-restantes').textContent = donnees.stats.restantes;
+            document.getElementById('liste-vide').classList.toggle('hidden', nouveauxIds.length > 0);
+        }
+
+        async function rafraichirListe() {
+            if (pollEnCours || document.hidden) return;
+            pollEnCours = true;
+            const debutRequete = Date.now();
+            try {
+                // window.location.search : transmet filtre_conditionnement et id_campagne_journee tels quels.
+                const reponse = await fetch(URL_LISTE + window.location.search, { headers: { 'Accept': 'application/json' } });
+                if (!reponse.ok) return;
+                appliquerListe(await reponse.json(), debutRequete);
+            } catch (e) {
+                // Silencieux : le prochain tick réessaie.
+            } finally {
+                pollEnCours = false;
+            }
+        }
+
+        setInterval(rafraichirListe, POLL_MS);
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) rafraichirListe(); });
     </script>
 @endsection

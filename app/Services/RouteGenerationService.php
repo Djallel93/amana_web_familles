@@ -149,6 +149,11 @@ class RouteGenerationService
             ->where('statut', 'non_assignee')
             ->where('statut_contact', 'confirme')
             ->with('famille:id,nom,prenom,adresse')
+            // se_deplace en dernier (30/09/2026) : ces familles n'ont pas de
+            // tournée, elles restent en bas de liste au cas où une tournée
+            // personnalisée deviendrait nécessaire.
+            ->orderBy('se_deplace')
+            ->orderBy('id')
             ->get();
     }
 

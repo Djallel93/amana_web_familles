@@ -11,6 +11,7 @@ use App\Models\BenevoleRetourQg;
 use App\Models\EtapeRoute;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use App\Services\MaRouteVueService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,57 +31,120 @@ use Illuminate\Validation\ValidationException;
  */
 class MaRouteController extends Controller
 {
+    public function __construct(private readonly MaRouteVueService $vue)
+    {
+    }
+
     public function show(): View
     {
-        // 'charge' ajouté le 09/09/2026 (prompt de cette date §4) : sans
-        // cet ajout la tournée disparaîtrait de cet écran entre la
-        // confirmation de chargement (désormais 'charge', pas 'en_cours'
-        // directement — voir ChargementController::confirmer()) et le
-        // premier arrêt traité par le bénévole (voir demarrerSiBesoin()
-        // ci-dessous, qui bascule alors sur 'en_cours').
+        // 'charge' : la tournée reste visible entre la confirmation de
+        // chargement et le clic du chauffeur sur « Je commence ma tournée »
+        // (voir demarrer()) — depuis le 30/09/2026 ce clic est la SEULE
+        // façon de passer 'charge' → 'en_cours'.
         $routes = RouteLivraison::where('id_benevole', auth()->id())
             ->whereIn('statut', ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees'])
-            ->with(['etapes.livraison.famille:id,nom,prenom,adresse,telephone'])
             ->orderByDesc('created_at')
             ->get();
 
-        return view('livraison.ma-route', ['routes' => $routes, 'modeAdmin' => false]);
+        return view('livraison.ma-route', $this->donneesVue($routes, false));
     }
 
     /**
      * Vue admin/gestionnaire d'UNE tournée, strictement identique à l'écran
      * du chauffeur (29/09/2026, prompt de cette date §6.2 : "same view as
-     * the driver's ma-route") — même vue Blade, mêmes actions (Livré,
-     * Ignorer, Livraison terminé, Retour QG). Accessible quel que soit le
-     * statut de la tournée (y compris annulée/terminée, contrairement à
-     * show() qui ne liste que les tournées actives du chauffeur).
+     * the driver's ma-route") — même vue Blade, mêmes actions. Accessible
+     * quel que soit le statut de la tournée (y compris annulée/terminée).
      *
      * Les actions POST de ce contrôleur restent celles du chauffeur
-     * (livraison.benevole.*) : elles acceptent désormais aussi un
-     * gestionnaire/admin (voir peutAgirSur()), ce qui évite de dupliquer
-     * quatre endpoints et garde ma-route.blade.php inchangé côté JS.
+     * (livraison.benevole.*) : elles acceptent aussi un gestionnaire/admin
+     * (voir peutAgirSur()).
      */
     public function voirCommeChauffeur(RouteLivraison $route): View
     {
-        $route->load(['etapes.livraison.famille:id,nom,prenom,adresse,telephone', 'benevole:id,nom,prenom']);
+        $route->load('benevole:id,nom,prenom');
 
-        return view('livraison.ma-route', ['routes' => collect([$route]), 'modeAdmin' => true]);
+        return view('livraison.ma-route', $this->donneesVue(collect([$route]), true));
     }
 
     /**
-     * Bascule 'charge' → 'en_cours' (ajouté le 09/09/2026, prompt de
-     * cette date §4) : la tournée est considérée réellement démarrée au
-     * premier arrêt traité par le bénévole (confirmé, scanné, ou
-     * signalé ignoré — les trois indiquent qu'il est sur le terrain),
-     * pas au moment où l'équipe chargement a fini de charger le
-     * véhicule (le chauffeur peut s'attarder au QG avant de partir).
-     * No-op si la tournée est dans un autre statut (déjà en_cours,
-     * planifiee sans passage par le chargement, etc.).
+     * @param \Illuminate\Support\Collection<int, RouteLivraison> $routes
+     * @return array<string, mixed>
      */
-    private function demarrerSiBesoin(RouteLivraison $route): void
+    private function donneesVue($routes, bool $modeAdmin): array
     {
-        if ($route->statut === 'charge') {
-            $route->update(['statut' => 'en_cours']);
+        $vues = [];
+        foreach ($routes as $route) {
+            $vues[$route->id] = $this->vue->preparer($route);
+        }
+
+        return ['routes' => $routes, 'vues' => $vues, 'modeAdmin' => $modeAdmin];
+    }
+
+    /**
+     * « Je commence ma tournée » (30/09/2026) : seule une tournée 'charge'
+     * (chargement confirmé par l'équipe chargement) peut démarrer. Passe la
+     * tournée, tous ses arrêts ouverts et leurs livraisons à 'en_cours' —
+     * ce que suivi-livraison affiche aussitôt.
+     */
+    public function demarrer(RouteLivraison $route): JsonResponse
+    {
+        if (!$this->peutAgirSur($route)) {
+            throw ValidationException::withMessages(['route' => "Cette tournée n'est pas la vôtre."]);
+        }
+
+        if ($route->statut !== 'charge') {
+            throw ValidationException::withMessages(['route' => "Le chargement n'est pas terminé : la tournée ne peut pas démarrer."]);
+        }
+
+        $route->demarrer();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Polling de l'écran (30/09/2026) : renvoie l'empreinte courante ; la
+     * page se recharge quand elle diffère de celle rendue au chargement
+     * (démarrage, arrêt livré/ignoré/rouvert par l'admin, etc.).
+     */
+    public function etat(RouteLivraison $route): JsonResponse
+    {
+        if (!$this->peutAgirSur($route)) {
+            abort(403);
+        }
+
+        return response()->json(['signature' => $this->vue->preparer($route)['signature']]);
+    }
+
+    /**
+     * Remet un arrêt ignoré à 'en_cours' — la famille est finalement
+     * disponible (30/09/2026). Chauffeur propriétaire ou admin/gestionnaire.
+     */
+    public function remettreEnCours(EtapeRoute $etape): JsonResponse
+    {
+        $this->assertProprietaire($etape);
+
+        if ($etape->statut !== 'ignoree') {
+            throw ValidationException::withMessages(['etape' => "Seul un arrêt ignoré peut être remis en cours."]);
+        }
+
+        if (!in_array($etape->route->statut, ['en_cours', 'livraisons_terminees'], true)) {
+            throw ValidationException::withMessages(['etape' => "Cette tournée n'est plus modifiable."]);
+        }
+
+        $etape->route->rouvrirEtape($etape);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Toute action de terrain (livré / ignoré / scan) exige une tournée
+     * démarrée (30/09/2026) : le clic sur « Je commence ma tournée » n'est
+     * plus implicite.
+     */
+    private function assertTourneeDemarree(EtapeRoute $etape): void
+    {
+        if ($etape->route->statut !== 'en_cours') {
+            throw ValidationException::withMessages(['etape' => "Démarrez d'abord la tournée (« Je commence ma tournée »)."]);
         }
     }
 
@@ -91,12 +155,12 @@ class MaRouteController extends Controller
     public function confirmerEtape(EtapeRoute $etape): JsonResponse
     {
         $this->assertProprietaire($etape);
+        $this->assertTourneeDemarree($etape);
 
-        $this->demarrerSiBesoin($etape->route);
         $etape->update(['statut' => 'livree']);
         $etape->livraison->update(['statut' => 'livree']);
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'tout_traite' => $etape->route->toutesEtapesTraitees()]);
     }
 
     /**
@@ -108,13 +172,18 @@ class MaRouteController extends Controller
     {
         $this->assertProprietaire($etape);
 
+        // Tournée pas encore démarrée : rien n'est confirmé, la page de
+        // scan invite à démarrer d'abord (30/09/2026).
+        if ($etape->route->statut !== 'en_cours' && $etape->statut !== 'livree') {
+            return view('livraison.scan-confirme', ['etape' => $etape, 'demarre' => false]);
+        }
+
         if ($etape->statut !== 'livree') {
-            $this->demarrerSiBesoin($etape->route);
             $etape->update(['statut' => 'livree']);
             $etape->livraison->update(['statut' => 'livree']);
         }
 
-        return view('livraison.scan-confirme', ['etape' => $etape]);
+        return view('livraison.scan-confirme', ['etape' => $etape, 'demarre' => true]);
     }
 
     /**
@@ -125,8 +194,8 @@ class MaRouteController extends Controller
     public function signalerIgnoree(Request $request, EtapeRoute $etape): JsonResponse
     {
         $this->assertProprietaire($etape);
+        $this->assertTourneeDemarree($etape);
 
-        $this->demarrerSiBesoin($etape->route);
         $etape->update(['statut' => 'ignoree']);
         $etape->livraison->update(['statut' => 'ignoree']);
 
@@ -139,7 +208,7 @@ class MaRouteController extends Controller
             'notes' => $request->input('notes'),
         ]);
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'tout_traite' => $etape->route->toutesEtapesTraitees()]);
     }
 
     /**

@@ -10,6 +10,7 @@ use Amana\Shared\Models\VehiculeType;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
 /**
@@ -126,13 +127,57 @@ class RouteLivraison extends Model
      * null) sont livrés ou ignorés — condition d'activation du bouton
      * "Livraison terminé" côté MaRouteController/ma-route.blade.php (voir
      * le prompt du 03/09/2026).
+     *
+     * 30/09/2026 : 'en_cours' compte désormais comme NON traité — depuis
+     * le bouton « Je commence ma tournée », tous les arrêts passent
+     * en_attente → en_cours d'un coup, et seul livree/ignoree clôt un arrêt.
      */
     public function toutesEtapesTraitees(): bool
     {
         return $this->etapes()
             ->whereNotNull('id_livraison')
-            ->where('statut', 'en_attente')
+            ->whereIn('statut', ['en_attente', 'en_cours'])
             ->doesntExist();
+    }
+
+    /**
+     * Démarrage par le chauffeur (30/09/2026, « Je commence ma tournée ») :
+     * la tournée, tous ses arrêts encore ouverts et leurs livraisons passent
+     * 'en_cours' — ce que suivi-livraison affiche aussitôt. Seule une
+     * tournée 'charge' (chargement confirmé) peut démarrer.
+     */
+    public function demarrer(): void
+    {
+        DB::transaction(function () {
+            $etapes = $this->etapes()->whereNotNull('id_livraison')->where('statut', 'en_attente')->get();
+
+            Livraison::whereIn('id', $etapes->pluck('id_livraison'))->update(['statut' => 'en_cours']);
+            $this->etapes()->whereIn('id', $etapes->pluck('id'))->update(['statut' => 'en_cours']);
+            $this->update(['statut' => 'en_cours']);
+        });
+    }
+
+    /**
+     * Remet un arrêt ignoré à 'en_cours' (famille finalement disponible) :
+     * clôt l'incident 'livraison_ignoree' ouvert et rouvre la tournée si
+     * elle était déjà marquée 'livraisons_terminees'.
+     */
+    public function rouvrirEtape(EtapeRoute $etape): void
+    {
+        DB::transaction(function () use ($etape) {
+            $etape->update(['statut' => 'en_cours']);
+            $etape->livraison?->update(['statut' => 'en_cours']);
+
+            RouteIncident::where('id_route', $this->id)
+                ->where('type', 'livraison_ignoree')
+                ->where('id_livraison', $etape->id_livraison)
+                ->where('statut', 'ouvert')
+                ->update(['statut' => 'resolu']);
+
+            if ($this->statut === 'livraisons_terminees') {
+                $this->update(['statut' => 'en_cours']);
+            }
+        });
     }
 
     public function benevole(): BelongsTo
