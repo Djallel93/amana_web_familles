@@ -9,12 +9,13 @@
 
         <div class="mb-7">
             <a href="{{ route('admin.personnes.index') }}"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors no-underline">
+                class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90 no-underline">
                 ← Retour à la liste
             </a>
             {{--
                 Bouton conditionnel (24/09/2026, prompt de cette date
-                §1.1) : affiché UNIQUEMENT si $urlRetour a été validé côté
+                §1.1 ; libellé et style plein bg-ink alignés sur les autres
+                boutons « Retour à la campagne » le 01/10/2026) : affiché UNIQUEMENT si $urlRetour a été validé côté
                 serveur (voir PersonnesController::infosRetour()) — un
                 accès depuis la sidebar (create() ne passe même pas cette
                 variable, edit() sans ?retour= la laisse null) n'affiche
@@ -22,8 +23,8 @@
             --}}
             @isset($urlRetour)
                 <a href="{{ $urlRetour }}"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors no-underline ml-2">
-                    ← Retour au suivi des bénévoles
+                    class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90 no-underline ml-2">
+                    ← Retour à la campagne
                 </a>
             @endisset
             <h1 class="font-heading text-2xl font-semibold text-ink tracking-tight mt-2">
@@ -141,59 +142,6 @@
                     @error('organisations')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
                 </div>
 
-                @if($benevoleProfil)
-                    {{--
-                        Profil bénévole (véhicule, permis, secteurs couverts) —
-                        ajouté le 29/08/2026, ces champs étaient jusque-là
-                        seulement visibles en lecture seule à la candidature,
-                        pas modifiables une fois le bénévole validé (voir
-                        Admin\PersonnesController::update()). N'apparaît que
-                        si la personne a déjà un BenevoleProfil.
-                    --}}
-                    <div class="mb-6 pt-5 border-t border-surface-border">
-                        <label class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Profil bénévole</label>
-                        <p class="text-[11.5px] text-ink-muted mb-3">Véhicule et secteurs couverts — utilisés pour la répartition des livraisons.</p>
-
-                        <label class="flex items-center gap-2 text-[13.5px] text-ink cursor-pointer mb-3">
-                            <input type="checkbox" name="permis" value="1" {{ old('permis', $benevoleProfil->permis) ? 'checked' : '' }}
-                                class="rounded border-ink-faint">
-                            Titulaire du permis de conduire
-                        </label>
-
-                        <div class="mb-3">
-                            <label for="id_vehicule_type" class="block text-[11.5px] font-semibold text-ink-muted mb-1">Type de véhicule</label>
-                            <select id="id_vehicule_type" name="id_vehicule_type"
-                                class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
-                                        focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
-                                <option value="">Aucun</option>
-                                @foreach($vehicules as $vehicule)
-                                    <option value="{{ $vehicule->id }}" {{ (string) old('id_vehicule_type', $benevoleProfil->id_vehicule_type) === (string) $vehicule->id ? 'selected' : '' }}>
-                                        {{ $vehicule->type }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('id_vehicule_type')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
-                        </div>
-
-                        <div>
-                            <label class="block text-[11.5px] font-semibold text-ink-muted mb-1">Secteurs couverts</label>
-                            <div class="border-[1.5px] border-ink-faint rounded-lg bg-surface-2 p-3 space-y-2 max-h-48 overflow-y-auto">
-                                @forelse($secteurs as $secteur)
-                                    <label class="flex items-center gap-2 text-[13.5px] text-ink cursor-pointer">
-                                        <input type="checkbox" name="secteurs[]" value="{{ $secteur['id'] }}"
-                                            {{ in_array($secteur['id'], old('secteurs', $secteursActuels)) ? 'checked' : '' }}
-                                            class="rounded border-ink-faint">
-                                        {{ $secteur['libelle'] }}
-                                    </label>
-                                @empty
-                                    <p class="text-[12.5px] text-ink-muted">Aucun secteur disponible.</p>
-                                @endforelse
-                            </div>
-                            @error('secteurs')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
-                        </div>
-                    </div>
-                @endif
-
                 <div class="flex items-center gap-3">
                     <button type="submit"
                         class="flex-1 min-h-[46px] px-6 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-[13.5px] rounded-lg
@@ -208,6 +156,122 @@
                 </div>
             </form>
         </div>
+
+        {{--
+            « Par campagne / journée » (01/10/2026) : permis, véhicule et
+            secteurs couverts sont propres à chaque campagne/journée (le
+            permis peut être obtenu/perdu, le véhicule change) — plus
+            éditables sur le profil. Carte HORS du <form> principal (pas de
+            formulaires imbriqués) : elle enregistre seule, par fetch, vers
+            PersonnesController::majDisponibilite(). Une modification admin
+            vaut confirmation de la disponibilité.
+        --}}
+        @if($personne && $benevoleProfil)
+            <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-6 mt-6" id="carte-journee">
+                <h2 class="font-heading text-[14px] font-semibold text-ink mb-1">🚗 Par campagne / journée</h2>
+                <p class="text-[13px] text-ink-muted mb-4">
+                    Véhicule et zone couverte de {{ $personne->prenom }} pour la journée choisie. Enregistrer vaut confirmation de sa disponibilité.
+                </p>
+
+                @if(empty($groupesJournees))
+                    <p class="text-[13px] text-ink-muted">Aucune campagne n'existe encore.</p>
+                @else
+                    <label for="select-journee" class="block text-[11.5px] font-semibold text-ink-muted mb-1">Campagne / date</label>
+                    <select id="select-journee"
+                        class="w-full px-3.5 py-2.5 mb-5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                                focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
+                        @foreach($groupesJournees as $groupe)
+                            <optgroup label="{{ $groupe['libelle'] }}">
+                                @foreach($groupe['journees'] as $j)
+                                    <option value="{{ $j['id'] }}" @selected($j['id'] === $journeeSelectionnee)>{{ $j['libelle'] }}</option>
+                                @endforeach
+                            </optgroup>
+                        @endforeach
+                    </select>
+
+                    @include('livraison.partials.vehicule-couverture', [
+                        'vehicules' => $vehicules,
+                        'villes' => $villes,
+                        'profil' => $benevoleProfil,
+                        'etat' => [],
+                    ])
+
+                    <div class="flex items-center gap-3 mt-5">
+                        <button type="button" id="btn-enregistrer-journee"
+                            class="min-h-[46px] px-6 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-[13.5px] rounded-lg cursor-pointer">
+                            💾 Enregistrer cette journée
+                        </button>
+                        <span id="message-journee" class="text-[13px] hidden"></span>
+                    </div>
+                @endif
+            </div>
+
+            @unless(empty($groupesJournees))
+                @include('livraison.partials.vehicule-couverture-script')
+                <script>
+                    (function () {
+                        const carte = document.getElementById('carte-journee');
+                        const racine = carte.querySelector('[data-vc-root]');
+                        const select = document.getElementById('select-journee');
+                        const bouton = document.getElementById('btn-enregistrer-journee');
+                        const message = document.getElementById('message-journee');
+                        const etats = @json($etatsJournees);
+                        const urlBase = @json(route('admin.personnes.disponibilite.update', ['id' => $personne->id, 'journee' => 0]));
+                        const jeton = document.querySelector('meta[name="csrf-token"]')?.content
+                            ?? @json(csrf_token());
+
+                        function afficher(texte, ok) {
+                            message.textContent = texte;
+                            message.className = 'text-[13px] ' + (ok ? 'text-emerald-600' : 'text-rose-600');
+                        }
+
+                        function charger() {
+                            message.className = 'hidden';
+                            window.VehiculeCouverture.appliquer(racine, etats[select.value] || {});
+                        }
+
+                        select.addEventListener('change', charger);
+                        charger();
+
+                        bouton.addEventListener('click', async function () {
+                            bouton.disabled = true;
+                            const idJournee = select.value;
+                            let resultat = null;
+                            let statut = 0;
+                            try {
+                                const reponse = await fetch(urlBase.replace(/\/0$/, '/' + idJournee), {
+                                    method: 'PUT',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept': 'application/json',
+                                        'X-CSRF-TOKEN': jeton,
+                                    },
+                                    body: JSON.stringify(window.VehiculeCouverture.lire(racine)),
+                                });
+                                statut = reponse.status;
+                                resultat = await reponse.json();
+                            } catch (e) {
+                                resultat = null;
+                            }
+
+                            const ok = !!(resultat && resultat.success);
+                            window.VehiculeCouverture.afficherErreurs(racine, ok ? {} : (resultat && resultat.errors) || {});
+                            if (ok) {
+                                etats[idJournee] = resultat.etat;
+                                const option = select.querySelector('option[value="' + idJournee + '"]');
+                                if (option && !option.textContent.trim().endsWith('✓')) option.textContent = option.textContent.trim() + ' ✓';
+                                afficher('Enregistré — disponibilité confirmée.', true);
+                            } else {
+                                afficher(resultat && resultat.errors
+                                    ? 'Certains champs sont invalides — voir ci-dessus.'
+                                    : "Une erreur s'est produite" + (statut ? ' (code ' + statut + ').' : ' — vérifiez la connexion.'), false);
+                            }
+                            bouton.disabled = false;
+                        });
+                    })();
+                </script>
+            @endunless
+        @endif
 
         {{-- Mot de passe : un administrateur n'en saisit ni n'en voit jamais — il envoie un lien. --}}
         @if($personne)

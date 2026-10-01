@@ -28,6 +28,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useToast } from '@amana/shared-ui';
 import { apiGet, apiPost, buildQuery } from '../shared/api';
 import { useFormulaireCreneaux } from '../shared/useFormulaireCreneaux';
+import { usePolling } from '../shared/usePolling';
 import { CRENEAUX_MATIN, CRENEAUX_APRES_MIDI, CRENEAU_LIBELLES, type Campagne, type CampagneJournee, type Creneau } from '../shared/types';
 
 interface LigneBenevole {
@@ -39,7 +40,6 @@ interface LigneBenevole {
     statut: 'non_confirme' | 'confirme';
     vehicule_confirme: boolean;
     coverage_confirmee: boolean;
-    coverage_notes: string | null;
     creneaux: Creneau[];
 }
 
@@ -61,13 +61,18 @@ function urlModifierInformations(idPersonne: number): string {
     // Ajoute retour=campagne_benevoles&id_campagne=... (24/09/2026, prompt
     // de cette date §1.1) — revalidé côté serveur par
     // PersonnesController::infosRetour(), voir son docblock : affiche un
-    // bouton "Retour au suivi des bénévoles" sur l'écran /admin/personnes/
-    // {id}/modifier UNIQUEMENT quand on y arrive depuis cette file, jamais
-    // depuis la sidebar.
+    // bouton "Retour à la campagne" sur l'écran /admin/personnes/{id}/modifier
+    // UNIQUEMENT quand on y arrive depuis cette file, jamais depuis la
+    // sidebar. id_campagne_journee (01/10/2026) présélectionne, dans la
+    // section « Par campagne / journée » de la fiche, la journée affichée
+    // ici (véhicule et couverture sont propres à chaque journée).
     const base = props.personneEditUrlTemplate.replace('__ID__', String(idPersonne));
     const url = new URL(base, window.location.origin);
     url.searchParams.set('retour', 'campagne_benevoles');
     url.searchParams.set('id_campagne', String(props.campagne.id));
+    if (idJourneeSelectionnee.value !== '') {
+        url.searchParams.set('id_campagne_journee', String(idJourneeSelectionnee.value));
+    }
     return url.pathname + url.search;
 }
 
@@ -81,9 +86,17 @@ const lignes = ref<LigneBenevole[]>([]);
 const chargement = ref(true);
 const erreur = ref(false);
 
-async function chargerFile() {
-    chargement.value = true;
-    erreur.value = false;
+/**
+ * `silencieux` (polling, 01/10/2026) : relit la file sans « Chargement… »,
+ * sans bandeau d'erreur en cas d'échec ponctuel, et sans jamais toucher aux
+ * formulaires d'édition ouverts (état séparé, indexé par id_personne).
+ */
+async function chargerFile(silencieux = false) {
+    if (!silencieux) {
+        chargement.value = true;
+        erreur.value = false;
+    }
+    const journeeDemandee = idJourneeSelectionnee.value;
 
     const resultat = await apiGet<{ data: LigneBenevole[]; total: number; id_campagne_journee: number }>(
         props.queueUrl + buildQuery({
@@ -92,10 +105,13 @@ async function chargerFile() {
             recherche: recherche.value || undefined,
         }),
     );
-    chargement.value = false;
+    if (!silencieux) chargement.value = false;
+    // Tick de polling devenu obsolète (l'admin a changé de journée pendant
+    // la requête) : on jette ce résultat plutôt que d'écraser la liste.
+    if (silencieux && journeeDemandee !== idJourneeSelectionnee.value) return;
 
     if (!resultat.ok) {
-        erreur.value = true;
+        if (!silencieux) erreur.value = true;
         return;
     }
 
@@ -203,7 +219,11 @@ async function notifierBenevoles() {
     chargerFile();
 }
 
-onMounted(chargerFile);
+onMounted(() => chargerFile());
+
+// Réponses reçues par email (le bénévole confirme depuis le lien) : la file
+// se met à jour toute seule toutes les 15 s, sans rechargement de page.
+usePolling(() => chargerFile(true), 15_000);
 </script>
 
 <template>
@@ -240,14 +260,14 @@ onMounted(chargerFile);
         <div class="flex flex-wrap items-end gap-3 mb-4">
             <div v-if="journees.length > 1">
                 <label class="block text-[12px] text-ink-muted mb-1">Journée</label>
-                <select v-model="idJourneeSelectionnee" @change="chargerFile"
+                <select v-model="idJourneeSelectionnee" @change="chargerFile()"
                     class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
                     <option v-for="j in journees" :key="j.id" :value="j.id">{{ j.label ?? j.date }}</option>
                 </select>
             </div>
             <div>
                 <label class="block text-[12px] text-ink-muted mb-1">Statut</label>
-                <select v-model="filtreStatut" @change="chargerFile"
+                <select v-model="filtreStatut" @change="chargerFile()"
                     class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
                     <option value="">Tous</option>
                     <option value="confirme">Confirmé</option>
@@ -256,7 +276,7 @@ onMounted(chargerFile);
             </div>
             <div class="flex-1 min-w-[10rem]">
                 <label class="block text-[12px] text-ink-muted mb-1">Recherche</label>
-                <input v-model="recherche" @change="chargerFile" type="text" placeholder="Nom du bénévole…"
+                <input v-model="recherche" @change="chargerFile()" type="text" placeholder="Nom du bénévole…"
                     class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
             </div>
         </div>

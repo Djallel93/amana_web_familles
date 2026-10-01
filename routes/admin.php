@@ -94,6 +94,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 Route::middleware(['auth', 'role:gestionnaire'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/personnes/{id}/modifier', [PersonnesController::class, 'edit'])->name('personnes.edit');
     Route::put('/personnes/{id}', [PersonnesController::class, 'update'])->name('personnes.update');
+    // Véhicule/couverture d'une personne pour UNE journée (01/10/2026) —
+    // même groupe que la fiche (admin + gestionnaire), c'est un bloc de
+    // cette même page.
+    Route::put('/personnes/{id}/disponibilites/{journee}', [PersonnesController::class, 'majDisponibilite'])
+        ->whereNumber(['id', 'journee'])
+        ->name('personnes.disponibilite.update');
 });
 
 Route::middleware(['auth', 'role:gestionnaire'])->group(function () {

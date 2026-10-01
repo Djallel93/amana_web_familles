@@ -7,18 +7,23 @@ namespace App\Http\Controllers\Admin;
 
 use Amana\Shared\Services\AccountChangeNotifier;
 use App\Http\Controllers\Controller;
+use Amana\Shared\Models\BenevoleProfil;
+use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
+use App\Models\CampagneJournee;
 use App\Models\Organisation;
 use App\Models\Personne;
 use App\Notifications\InvitationFamillesNotification;
 use App\Notifications\InvitationFamillesDejaInscritNotification;
+use App\Services\BenevoleDisponibiliteService;
 use App\Services\RoleService;
-use Amana\Shared\Models\Secteur;
-use Amana\Shared\Models\VehiculeType;
+use App\Support\GeographiePicker;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -39,17 +44,75 @@ class PersonnesController extends Controller
     public function __construct(
         private readonly RoleService $roleService,
         private readonly AccountChangeNotifier $notifier,
+        private readonly BenevoleDisponibiliteService $disponibiliteService,
     ) {
     }
 
-    public function index(): View
+    /**
+     * Liste du staff avec recherche, filtre par rôle et compteurs par rôle
+     * (01/10/2026).
+     *
+     * Les compteurs sont TOUJOURS les totaux complets (indépendants de la
+     * recherche et du filtre en cours) ; seul le tableau est filtré. Le
+     * rôle affiché/compté est le rôle de RANG (RoleService::ROLES_RANG) —
+     * jamais un rôle equipe_*, qui peut coexister avec lui. Tout est
+     * filtré en mémoire : le staff n'est pas paginé, et ça permet une
+     * recherche insensible à la casse ET aux accents quelle que soit la
+     * collation de la base.
+     */
+    public function index(Request $request): View
     {
-        $personnes = Personne::staffFamilles()
+        $tous = Personne::staffFamilles()
             ->with(['roles' => fn($q) => $q->whereHas('application', fn($q2) => $q2->where('code', 'familles'))])
             ->orderBy('nom')
             ->get();
 
-        return view('personnes.index', compact('personnes'));
+        $compteurs = array_fill_keys(RoleService::ROLES_RANG, 0);
+        $compteurs['aucun'] = 0;
+
+        foreach ($tous as $personne) {
+            $role = $personne->roles->first(fn($r) => in_array($r->code, RoleService::ROLES_RANG, true));
+            $code = $role?->code;
+            $personne->setAttribute('role_code', $code);
+            $compteurs[$code ?? 'aucun']++;
+        }
+
+        $recherche = trim((string) $request->query('q', ''));
+        $roleFiltre = (string) $request->query('role', '');
+        if (!in_array($roleFiltre, [...RoleService::ROLES_RANG, 'aucun'], true)) {
+            $roleFiltre = '';
+        }
+
+        $personnes = $tous
+            ->when($roleFiltre !== '', fn($c) => $c->filter(fn($p) => ($p->role_code ?? 'aucun') === $roleFiltre))
+            ->when($recherche !== '', function ($c) use ($recherche) {
+                $mots = array_filter(explode(' ', $this->normaliserRecherche($recherche)));
+
+                return $c->filter(function ($p) use ($mots) {
+                    $texte = $this->normaliserRecherche("{$p->prenom} {$p->nom} {$p->email} {$p->telephone}");
+                    foreach ($mots as $mot) {
+                        if (!str_contains($texte, $mot)) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+            })
+            ->values();
+
+        return view('personnes.index', [
+            'personnes' => $personnes,
+            'total' => $tous->count(),
+            'compteurs' => $compteurs,
+            'recherche' => $recherche,
+            'roleFiltre' => $roleFiltre,
+        ]);
+    }
+
+    private function normaliserRecherche(string $texte): string
+    {
+        return Str::ascii(mb_strtolower($texte));
     }
 
     public function create(): View
@@ -177,12 +240,17 @@ class PersonnesController extends Controller
         $roles = $this->roleService->famillesRoles();
         $roleActuel = $this->roleService->currentRoleCode($personne);
 
-        // Profil bénévole (véhicule + secteurs couverts) — n'existe que si
-        // la personne a un BenevoleProfil (candidature bénévole acceptée,
-        // voir BenevoleIntakeConfirmationController). Champs restés en
-        // lecture seule sur cet écran jusqu'au 29/08/2026 — voir
-        // resources/views/personnes/form.blade.php pour l'édition.
+        // Profil bénévole — n'existe que si la personne a un BenevoleProfil
+        // (candidature bénévole acceptée, voir
+        // BenevoleIntakeConfirmationController). Depuis le 01/10/2026 le
+        // permis, le véhicule et les secteurs ne s'éditent PLUS sur le
+        // profil : ils sont propres à chaque campagne/journée (voir la
+        // section « Par campagne / journée » de personnes/form.blade.php) ;
+        // le profil ne sert plus que de valeur de repli (« même que mon
+        // profil »).
         $benevoleProfil = $personne->benevoleProfil;
+
+        $parJournee = $benevoleProfil ? $this->donneesParJournee($personne, $request) : [];
 
         return view('personnes.form', [
             'personne' => $personne,
@@ -191,15 +259,11 @@ class PersonnesController extends Controller
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
             'organisationsActuelles' => Organisation::idsPourPersonne($personne->id),
             'benevoleProfil' => $benevoleProfil,
-            'vehicules' => VehiculeType::orderBy('id')->get(['id', 'type']),
-            'secteurs' => Secteur::with('ville')->orderBy('nom')->get(['id', 'nom', 'id_ville'])
-                ->map(fn($secteur) => [
-                    'id' => $secteur->id,
-                    'libelle' => ($secteur->ville?->nom ?? '?') . ' - ' . $secteur->nom,
-                ])
-                ->sortBy('libelle')
-                ->values(),
-            'secteursActuels' => $benevoleProfil ? $benevoleProfil->secteurs()->pluck('secteurs.id')->all() : [],
+            'vehicules' => $benevoleProfil ? GeographiePicker::vehiculesAvecPermis() : [],
+            'villes' => $benevoleProfil ? GeographiePicker::villesAvecSecteurs() : [],
+            'groupesJournees' => $parJournee['groupes'] ?? [],
+            'etatsJournees' => $parJournee['etats'] ?? (object) [],
+            'journeeSelectionnee' => $parJournee['selectionnee'] ?? null,
             // Retour conditionnel (24/09/2026, prompt de cette date §1.1) :
             // "Add this button only if user comes from campagnes/{id}/
             // benevoles. If user access from sidebar this button does
@@ -250,6 +314,105 @@ class PersonnesController extends Controller
         return ['origine' => 'campagne_benevoles', 'url' => route('livraison.campagnes.benevoles.index', $campagne)];
     }
 
+    /**
+     * Données de la section « Par campagne / journée » de la fiche
+     * personne : TOUTES les journées de TOUTES les campagnes, les plus
+     * récentes d'abord (campagnes groupées, journées de chaque campagne
+     * dans l'ordre), avec l'état véhicule/couverture déjà enregistré pour
+     * cette personne. La journée présélectionnée vient de
+     * ?id_campagne_journee= (lien « Modifier informations » de Suivi des
+     * bénévoles) si elle existe, sinon la plus récente.
+     *
+     * @return array{groupes: array<int, array<string, mixed>>, etats: array<int, array<string, mixed>>, selectionnee: int|null}
+     */
+    private function donneesParJournee(Personne $personne, Request $request): array
+    {
+        $journees = CampagneJournee::with('campagne')
+            ->orderByDesc('date')
+            ->orderBy('ordre')
+            ->get()
+            ->filter(fn(CampagneJournee $j) => $j->campagne !== null);
+
+        $disponibilites = BenevoleDisponibilite::with('secteurs')
+            ->where('id_personne', $personne->id)
+            ->get()
+            ->keyBy('id_campagne_journee');
+
+        $typeLabels = [
+            'zakat_el_fitr' => 'Zakat el-fitr',
+            'collecte_alimentaire' => 'Collecte alimentaire',
+            'don_ponctuel' => 'Don ponctuel',
+        ];
+
+        $groupes = $journees
+            ->groupBy('id_campagne')
+            ->map(function ($groupe) use ($typeLabels, $disponibilites) {
+                $campagne = $groupe->first()->campagne;
+
+                return [
+                    'libelle' => ($typeLabels[$campagne->type] ?? $campagne->type) . ' — ' . $campagne->date_livraison->format('d/m/Y'),
+                    'journees' => $groupe->sortBy('ordre')->map(fn(CampagneJournee $j) => [
+                        'id' => $j->id,
+                        'libelle' => ($j->label ?? 'Journée') . ' — ' . $j->date->format('d/m/Y')
+                            . ($disponibilites->has($j->id) ? ' ✓' : ''),
+                    ])->values()->all(),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $etats = $journees->mapWithKeys(fn(CampagneJournee $j) => [
+            $j->id => $this->disponibiliteService->etatFormulaire($disponibilites->get($j->id)),
+        ])->all();
+
+        $demandee = $request->integer('id_campagne_journee');
+        $selectionnee = $journees->contains('id', $demandee) ? $demandee : $journees->first()?->id;
+
+        return ['groupes' => $groupes, 'etats' => $etats, 'selectionnee' => $selectionnee];
+    }
+
+    /**
+     * Enregistre le véhicule (permis + type) et la couverture (secteurs)
+     * d'une personne pour UNE journée, depuis la fiche personne
+     * (01/10/2026). Une modification admin vaut confirmation : la
+     * disponibilité passe à `confirme` (créneaux intacts — ils se règlent
+     * depuis Suivi des bénévoles). Mêmes règles que la page du bénévole
+     * (BenevoleDisponibiliteService::validateur()).
+     */
+    public function majDisponibilite(Request $request, int $id, int $idJournee): JsonResponse
+    {
+        $personne = Personne::findOrFail($id);
+        $profil = BenevoleProfil::where('id_personne', $personne->id)->first();
+        abort_unless($profil, 404);
+
+        $journee = CampagneJournee::findOrFail($idJournee);
+
+        $validator = $this->disponibiliteService->validateur($request->all(), $profil);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $avant = BenevoleDisponibilite::where('id_personne', $personne->id)
+            ->where('id_campagne_journee', $journee->id)
+            ->first()?->toArray();
+
+        $disponibilite = $this->disponibiliteService->enregistrerInformations(
+            $personne->id,
+            $journee,
+            $validator->validated(),
+        );
+
+        audit('update', 'familles_personnes', $personne->id, $avant, [
+            'action' => 'disponibilité journée (véhicule/couverture)',
+            'id_campagne_journee' => $journee->id,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'etat' => $this->disponibiliteService->etatFormulaire($disponibilite->load('secteurs')),
+        ]);
+    }
+
     public function update(Request $request, int $id): RedirectResponse
     {
         $request->validate([
@@ -259,14 +422,6 @@ class PersonnesController extends Controller
             'role' => ['required', 'string', 'in:admin,gestionnaire,membre,benevole,gestionnaire_externe'],
             'organisations' => ['array'],
             'organisations.*' => ['integer', 'exists:organisations,id'],
-            // Bloc "profil bénévole" — seulement présent/soumis quand la
-            // personne a déjà un BenevoleProfil (voir edit()/form.blade.php),
-            // donc pas de required ici : simplement ignoré s'il n'y a pas de
-            // profil à mettre à jour.
-            'permis' => ['nullable', 'boolean'],
-            'id_vehicule_type' => ['nullable', 'integer', 'exists:commun.ref_vehicules,id'],
-            'secteurs' => ['array'],
-            'secteurs.*' => ['integer', 'exists:commun.secteurs,id'],
         ], [
             'role.required' => 'Veuillez sélectionner un rôle.',
             'role.in' => 'Rôle invalide.',
@@ -284,17 +439,6 @@ class PersonnesController extends Controller
 
         $this->roleService->syncRoleFamilles($personne, $request->input('role'));
         Organisation::syncPersonne($personne->id, $request->input('role') === 'gestionnaire_externe' ? $request->input('organisations', []) : []);
-
-        // Véhicule / secteurs couverts (ajouté le 29/08/2026) — seulement
-        // si un BenevoleProfil existe déjà pour cette personne (candidature
-        // acceptée) ; ce formulaire ne crée jamais de profil bénévole.
-        $benevoleProfil = $personne->benevoleProfil;
-        if ($benevoleProfil) {
-            $benevoleProfil->permis = $request->boolean('permis');
-            $benevoleProfil->id_vehicule_type = $request->input('id_vehicule_type') ?: null;
-            $benevoleProfil->save();
-            $benevoleProfil->secteurs()->sync($request->input('secteurs', []));
-        }
 
         audit('update', 'familles_personnes', $personne->id, $avant, $personne->toArray());
 

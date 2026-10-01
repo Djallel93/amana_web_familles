@@ -5,6 +5,17 @@
 
 @section('content')
 
+    @php
+        $roleMap = [
+            'admin' => ['label' => 'Admin', 'bg' => 'bg-orange-50', 'text' => 'text-orange-700', 'border' => 'border-orange-200', 'icon' => '🛡️'],
+            'gestionnaire' => ['label' => 'Gestionnaire', 'bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => '⚙️'],
+            'membre' => ['label' => 'Membre', 'bg' => 'bg-stone-100', 'text' => 'text-stone-700', 'border' => 'border-stone-300', 'icon' => '👤'],
+            'benevole' => ['label' => 'Bénévole', 'bg' => 'bg-yellow-50', 'text' => 'text-yellow-700', 'border' => 'border-yellow-200', 'icon' => '🤝'],
+            'gestionnaire_externe' => ['label' => 'Gestionnaire externe', 'bg' => 'bg-sky-50', 'text' => 'text-sky-700', 'border' => 'border-sky-200', 'icon' => '🏢'],
+        ];
+        $filtreActif = $recherche !== '' || $roleFiltre !== '';
+    @endphp
+
     {{-- En-tête --}}
     <div class="flex flex-wrap items-center justify-between gap-4 mb-7">
         <div>
@@ -21,15 +32,64 @@
     {{-- Card tableau --}}
     <div class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden">
 
-        {{-- Header card --}}
-        <div class="flex items-center gap-2.5 px-5 py-4 border-b border-surface-3">
-            <div class="w-7 h-7 bg-amber-50 rounded-md flex items-center justify-center text-sm flex-shrink-0">👥</div>
-            <span class="font-heading text-[14px] font-semibold text-ink">
-                {{ $personnes->count() }} personne{{ $personnes->count() !== 1 ? 's' : '' }}
-            </span>
+        {{-- Header card : total + compteurs par rôle (totaux complets, indépendants du filtre) --}}
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 border-b border-surface-3">
+            <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 bg-amber-50 rounded-md flex items-center justify-center text-sm flex-shrink-0">👥</div>
+                <span class="font-heading text-[14px] font-semibold text-ink">
+                    {{ $total }} personne{{ $total !== 1 ? 's' : '' }}
+                </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+                @foreach($roleMap as $code => $info)
+                    <a href="{{ route('admin.personnes.index', array_filter(['q' => $recherche, 'role' => $roleFiltre === $code ? null : $code])) }}"
+                        title="Filtrer : {{ $info['label'] }}"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold border no-underline
+                                {{ $info['bg'] }} {{ $info['text'] }} {{ $info['border'] }} {{ $roleFiltre === $code ? 'ring-2 ring-accent' : '' }}">
+                        {{ $info['icon'] }} {{ $info['label'] }}
+                        <span class="font-bold">{{ $compteurs[$code] ?? 0 }}</span>
+                    </a>
+                @endforeach
+                @if(($compteurs['aucun'] ?? 0) > 0)
+                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold border bg-surface-2 text-ink-muted border-surface-border">
+                        Aucun rôle <span class="font-bold">{{ $compteurs['aucun'] }}</span>
+                    </span>
+                @endif
+            </div>
         </div>
 
-        @if($personnes->isEmpty())
+        {{-- Recherche + filtre par rôle (GET : URL partageable) --}}
+        <form method="GET" action="{{ route('admin.personnes.index') }}"
+            class="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-surface-3">
+            <input type="search" name="q" value="{{ $recherche }}" placeholder="Rechercher un nom, un email, un téléphone…"
+                class="flex-1 min-w-[200px] px-3.5 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13.5px] font-body text-ink bg-surface-2 outline-none transition
+                        focus:border-accent focus:bg-surface">
+            <select name="role"
+                class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13.5px] font-body text-ink bg-surface-2 outline-none focus:border-accent">
+                <option value="">Tous les rôles</option>
+                @foreach($roleMap as $code => $info)
+                    <option value="{{ $code }}" @selected($roleFiltre === $code)>{{ $info['label'] }}</option>
+                @endforeach
+                <option value="aucun" @selected($roleFiltre === 'aucun')>Aucun rôle</option>
+            </select>
+            <button type="submit"
+                class="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg cursor-pointer">
+                Filtrer
+            </button>
+            @if($filtreActif)
+                <a href="{{ route('admin.personnes.index') }}" class="text-[12.5px] text-ink-muted hover:text-accent no-underline">Réinitialiser</a>
+                <span class="text-[12.5px] text-ink-muted ml-auto">{{ $personnes->count() }} résultat{{ $personnes->count() !== 1 ? 's' : '' }}</span>
+            @endif
+        </form>
+
+        @if($personnes->isEmpty() && $filtreActif)
+            <div class="text-center py-14 px-8">
+                <div class="text-5xl mb-3 opacity-40">🔍</div>
+                <h3 class="font-heading text-base font-semibold text-ink mb-1.5">Aucun résultat</h3>
+                <p class="text-ink-muted text-[13.5px]">Aucune personne ne correspond à cette recherche.</p>
+            </div>
+
+        @elseif($personnes->isEmpty())
             <div class="text-center py-16 px-8">
                 <div class="text-5xl mb-3 opacity-40">👥</div>
                 <h3 class="font-heading text-base font-semibold text-ink mb-1.5">Aucune personne enregistrée</h3>
@@ -41,15 +101,6 @@
             </div>
 
         @else
-            @php
-                $roleMap = [
-                    'admin' => ['label' => 'Admin', 'bg' => 'bg-orange-50', 'text' => 'text-orange-700', 'border' => 'border-orange-200', 'icon' => '🛡️'],
-                    'gestionnaire' => ['label' => 'Gestionnaire', 'bg' => 'bg-amber-50', 'text' => 'text-amber-700', 'border' => 'border-amber-200', 'icon' => '⚙️'],
-                    'membre' => ['label' => 'Membre', 'bg' => 'bg-stone-100', 'text' => 'text-stone-700', 'border' => 'border-stone-300', 'icon' => '👤'],
-                    'benevole' => ['label' => 'Bénévole', 'bg' => 'bg-yellow-50', 'text' => 'text-yellow-700', 'border' => 'border-yellow-200', 'icon' => '🤝'],
-                ];
-            @endphp
-
             {{-- Table desktop (≥ md) --}}
             <div class="hidden md:block overflow-x-auto">
                 <table class="w-full border-collapse text-[13.5px]">
@@ -67,8 +118,7 @@
                     <tbody>
                         @foreach($personnes as $personne)
                             @php
-                                $roleFamilles = $personne->roles->first();
-                                $roleInfo = $roleFamilles ? ($roleMap[$roleFamilles->code] ?? null) : null;
+                                $roleInfo = $personne->role_code ? ($roleMap[$personne->role_code] ?? null) : null;
                             @endphp
                             <tr class="border-b border-surface-3 last:border-0 hover:bg-surface-2 transition-colors">
                                 <td class="px-5 py-3">
@@ -116,8 +166,7 @@
             <div class="md:hidden divide-y divide-surface-3">
                 @foreach($personnes as $personne)
                     @php
-                        $roleFamilles = $personne->roles->first();
-                        $roleInfo = $roleFamilles ? ($roleMap[$roleFamilles->code] ?? null) : null;
+                        $roleInfo = $personne->role_code ? ($roleMap[$personne->role_code] ?? null) : null;
                     @endphp
                     <div class="px-4 py-3.5">
                         <div class="flex items-center justify-between mb-2.5">

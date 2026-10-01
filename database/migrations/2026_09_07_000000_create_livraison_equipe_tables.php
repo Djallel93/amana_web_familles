@@ -44,9 +44,21 @@ return new class extends Migration {
         // de colonne id_campagne dénormalisée ici : la campagne reste
         // accessible via $disponibilite->journee->campagne.
         //
-        // `vehicule_confirme` : le bénévole confirme que son véhicule
-        // correspond toujours à BenevoleProfil.id_vehicule_type (commun) —
-        // pas de re-saisie ici, juste une confirmation booléenne.
+        // Véhicule et couverture sont PAR JOURNÉE (01/10/2026) : le permis
+        // peut être obtenu/perdu et le véhicule/les secteurs changent d'une
+        // journée à l'autre, contrairement à l'identité (nom, téléphone…).
+        //   - `vehicule_confirme` = true : « même véhicule que mon profil »
+        //     (BenevoleProfil.id_vehicule_type, commun) — `permis` et
+        //     `id_vehicule_type` restent NULL.
+        //   - `vehicule_confirme` = false : `permis` + `id_vehicule_type`
+        //     décrivent le véhicule de CETTE journée. Sans permis → la
+        //     ligne ref_vehicules « Sans permis » est stockée (convention
+        //     de l'inscription et des seeders).
+        //   - `coverage_confirmee` = true : « même zone que mon profil » ;
+        //     sinon les secteurs de CETTE journée sont dans
+        //     benevole_disponibilite_secteurs.
+        // `id_vehicule_type` référence ref_vehicules (commun, pas de FK).
+        // Les anciennes « remarques sur ma couverture » sont supprimées.
         Schema::create('benevole_disponibilites', function (Blueprint $table) {
             $table->id();
             $table->unsignedInteger('id_personne')
@@ -54,13 +66,34 @@ return new class extends Migration {
             $table->foreignId('id_campagne_journee')->constrained('campagne_journees')->cascadeOnDelete();
 
             $table->boolean('vehicule_confirme')->default(false);
+            $table->boolean('permis')->nullable();
+            $table->unsignedInteger('id_vehicule_type')->nullable()
+                ->comment('ref_vehicules.id — pas de FK, commun est une base séparée');
             $table->boolean('coverage_confirmee')->default(false);
-            $table->text('coverage_notes')->nullable();
             $table->enum('statut', ['non_confirme', 'confirme'])->default('non_confirme');
 
             $table->timestamps();
 
             $table->unique(['id_personne', 'id_campagne_journee']);
+        });
+
+        // Pivot : secteurs couverts par un bénévole pour UNE journée (quand
+        // il ne reprend pas la zone de son profil). `id_secteur` référence
+        // secteurs (commun, pas de FK). Contrainte/index nommés
+        // explicitement : les noms auto-générés dépasseraient la limite
+        // d'identifiant MySQL (64), comme pour le pivot des créneaux
+        // ci-dessous.
+        Schema::create('benevole_disponibilite_secteurs', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('id_benevole_disponibilite');
+            $table->unsignedBigInteger('id_secteur')
+                ->comment('secteurs.id — pas de FK, commun est une base séparée');
+
+            $table->foreign('id_benevole_disponibilite', 'benevole_dispo_secteurs_id_dispo_fk')
+                ->references('id')->on('benevole_disponibilites')
+                ->cascadeOnDelete();
+
+            $table->unique(['id_benevole_disponibilite', 'id_secteur'], 'benevole_dispo_secteurs_unique');
         });
 
         // Pivot : créneaux pour lesquels un bénévole se déclare disponible
@@ -173,6 +206,7 @@ return new class extends Migration {
     {
         Schema::dropIfExists('campagne_equipe_membres');
         Schema::dropIfExists('benevole_retours_qg');
+        Schema::dropIfExists('benevole_disponibilite_secteurs');
         Schema::dropIfExists('benevole_disponibilite_creneaux');
         Schema::dropIfExists('benevole_disponibilites');
     }

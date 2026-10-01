@@ -392,15 +392,23 @@ class RouteGenerationService
         foreach ($disponibilites as $dispo) {
             $profil = BenevoleProfil::where('id_personne', $dispo->id_personne)->with('vehiculeType')->first();
 
-            if (!$profil || !$profil->vehiculeType) {
+            // Véhicule PAR JOURNÉE (01/10/2026) : celui que le bénévole a
+            // déclaré pour cette journée, sinon celui de son profil.
+            $vehiculeType = $dispo->vehiculeEffectif($profil);
+
+            // Capacité nulle (« Sans permis », « Non véhiculé ») : le
+            // bénévole ne peut porter aucun colis, il ne doit jamais être
+            // proposé comme véhicule — sinon il alimenterait le pool avec
+            // un véhicule de 0 kg.
+            if (!$vehiculeType || (float) $vehiculeType->capacite_kg <= 0) {
                 continue;
             }
 
             $vehicules[] = [
                 'id_benevole' => $dispo->id_personne,
-                'id_vehicule_type' => $profil->vehiculeType->id,
-                'capacite_kg' => (float) $profil->vehiculeType->capacite_kg,
-                'nombre_part_max' => (int) $profil->vehiculeType->nombre_part_max,
+                'id_vehicule_type' => $vehiculeType->id,
+                'capacite_kg' => (float) $vehiculeType->capacite_kg,
+                'nombre_part_max' => (int) $vehiculeType->nombre_part_max,
             ];
         }
 

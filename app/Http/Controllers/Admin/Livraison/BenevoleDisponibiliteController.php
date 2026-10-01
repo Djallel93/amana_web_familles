@@ -66,10 +66,11 @@ class BenevoleDisponibiliteController extends Controller
             'mettreAJourUrlTemplate' => route('livraison.campagnes.benevoles.mettre-a-jour', [$campagne, '__ID__']),
             'notifierBenevolesUrl' => route('livraison.campagnes.notifier-benevoles', $campagne),
             // "Modifier informations" (07/09/2026, prompt §5.1) : lien
-            // direct vers la fiche personne (véhicule/couverture réels
-            // vivent sur BenevoleProfil, édités là-bas — voir
-            // resources/views/personnes/form.blade.php — pas dupliqués
-            // ici). Commentaire déplacé depuis l'ancienne Blade.
+            // direct vers la fiche personne. Depuis le 01/10/2026 le
+            // véhicule et la couverture sont PAR JOURNÉE : ils s'éditent
+            // dans la section « Par campagne / journée » de
+            // resources/views/personnes/form.blade.php (journée
+            // présélectionnée via id_campagne_journee), pas dupliqués ici.
             'personneEditUrlTemplate' => route('admin.personnes.edit', '__ID__'),
         ]);
     }
@@ -111,7 +112,6 @@ class BenevoleDisponibiliteController extends Controller
                     'statut' => $dispo->statut ?? 'non_confirme',
                     'vehicule_confirme' => $dispo->vehicule_confirme ?? false,
                     'coverage_confirmee' => $dispo->coverage_confirmee ?? false,
-                    'coverage_notes' => $dispo->coverage_notes ?? null,
                     'creneaux' => $dispo ? $dispo->creneaux->pluck('creneau') : [],
                 ];
             })
@@ -147,9 +147,6 @@ class BenevoleDisponibiliteController extends Controller
         $validator = Validator::make($request->all(), [
             'id_campagne_journee' => 'required|integer',
             'statut' => 'required|in:' . implode(',', BenevoleDisponibilite::STATUTS),
-            'vehicule_confirme' => 'nullable|boolean',
-            'coverage_confirmee' => 'nullable|boolean',
-            'coverage_notes' => 'nullable|string|max:1000',
             'creneaux' => 'nullable|array',
             'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
         ]);
@@ -181,7 +178,10 @@ class BenevoleDisponibiliteController extends Controller
         $this->disponibiliteService->confirmer(
             $idPersonne,
             $journee,
-            $validator->safe()->only(['vehicule_confirme', 'coverage_confirmee', 'coverage_notes']),
+            // Créneaux seulement (07/09/2026) ; véhicule/couverture sont
+            // édités par journée depuis la fiche personne
+            // (PersonnesController::majDisponibilite()), jamais d'ici.
+            [],
             $request->input('creneaux', []),
         );
 

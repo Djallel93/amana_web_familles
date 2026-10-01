@@ -11,10 +11,10 @@ use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Services\BenevoleDisponibiliteService;
 use App\Support\Creneau;
+use App\Support\GeographiePicker;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 /**
  * Page de disponibilité bénévole (véhicule, coverage/secteurs, créneaux)
@@ -40,11 +40,11 @@ class DisponibiliteController extends Controller
 
     public function show(Campagne $campagne): View
     {
-        $profil = BenevoleProfil::where('id_personne', auth()->id())->first();
+        $profil = BenevoleProfil::where('id_personne', auth()->id())->with(['vehiculeType', 'secteurs'])->first();
 
         $journees = $campagne->journees;
 
-        $disponibilites = BenevoleDisponibilite::with('creneaux')
+        $disponibilites = BenevoleDisponibilite::with(['creneaux', 'secteurs'])
             ->where('id_personne', auth()->id())
             ->whereIn('id_campagne_journee', $journees->pluck('id'))
             ->get()
@@ -55,21 +55,31 @@ class DisponibiliteController extends Controller
             'profil' => $profil,
             'journees' => $journees,
             'disponibilites' => $disponibilites,
+            // État initial des blocs Véhicule/Couverture, par journée.
+            'etats' => $journees->mapWithKeys(fn ($j) => [
+                $j->id => $this->disponibiliteService->etatFormulaire($disponibilites->get($j->id)),
+            ]),
+            'vehicules' => GeographiePicker::vehiculesAvecPermis(),
+            'villes' => GeographiePicker::villesAvecSecteurs(),
             'creneaux' => Creneau::LIBELLES,
+            'creneauxMatin' => Creneau::MATIN,
+            'creneauxApresMidi' => Creneau::APRES_MIDI,
         ]);
     }
 
     public function update(Request $request, Campagne $campagne): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
+        $profil = BenevoleProfil::where('id_personne', auth()->id())->first();
+
+        // Véhicule/couverture : règles partagées avec la fiche personne
+        // admin (BenevoleDisponibiliteService::validateur()). Le champ
+        // « remarques sur ma couverture » a été supprimé (01/10/2026).
+        $validator = $this->disponibiliteService->validateur($request->all(), $profil, [
             // id_campagne_journee : identifie QUELLE journée de la
             // campagne ce bloc de confirmation concerne (voir la vue,
             // un formulaire par journée) — doit appartenir à $campagne,
             // vérifié ci-dessous via $campagne->journees()->findOrFail().
             'id_campagne_journee' => 'required|integer',
-            'vehicule_confirme' => 'required|boolean',
-            'coverage_confirmee' => 'required|boolean',
-            'coverage_notes' => 'nullable|string|max:1000',
             'creneaux' => 'required|array|min:1',
             'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
         ]);

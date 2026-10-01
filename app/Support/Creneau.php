@@ -43,6 +43,17 @@ final class Creneau
         self::SOIR,
     ];
 
+    /**
+     * Regroupements « Matin » / « Après-midi » des cases à cocher de
+     * créneaux — miroir exact de CRENEAUX_MATIN / CRENEAUX_APRES_MIDI dans
+     * resources/js/components/livraison/shared/types.ts (le créneau de
+     * midi 12h-14h est rangé côté matin, comme sur l'écran Suivi des
+     * bénévoles).
+     */
+    public const MATIN = [self::MATIN_1, self::MATIN_2, self::MIDI];
+
+    public const APRES_MIDI = [self::APRES_MIDI_1, self::APRES_MIDI_2, self::SOIR];
+
     public const LIBELLES = [
         self::MATIN_1 => '8h - 10h',
         self::MATIN_2 => '10h - 12h',

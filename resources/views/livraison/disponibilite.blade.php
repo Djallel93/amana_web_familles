@@ -16,6 +16,12 @@
     créée automatiquement à la création — voir CampagnesController::store()),
     $journees ne contient qu'un élément et l'écran reste visuellement
     équivalent à avant cette évolution.
+
+    Refonte du 01/10/2026 : deux sections « Véhicule » et « Couverture »
+    (livraison/partials/vehicule-couverture.blade.php, partagée avec la
+    fiche personne admin) à la place des deux cases isolées + du champ
+    « remarques sur ma couverture » (supprimé) ; créneaux regroupés Matin /
+    Après-midi comme sur Suivi des bénévoles.
 --}}
 @extends('layouts.app')
 
@@ -54,26 +60,12 @@
                     </p>
                 @endif
 
-                <label class="flex items-center gap-2 text-[14px] text-ink">
-                    <input type="checkbox" name="vehicule_confirme" value="1"
-                        @checked($disponibilite?->vehicule_confirme)>
-                    Mon véhicule correspond toujours à mon profil bénévole
-                    @if($profil?->vehiculeType)
-                        ({{ $profil->vehiculeType->type }})
-                    @endif
-                </label>
-
-                <label class="flex items-center gap-2 text-[14px] text-ink">
-                    <input type="checkbox" name="coverage_confirmee" value="1"
-                        @checked($disponibilite?->coverage_confirmee)>
-                    Je confirme ma zone de couverture habituelle
-                </label>
-
-                <div>
-                    <label class="block text-[13px] font-medium text-ink mb-1">Remarques sur ma couverture (optionnel)</label>
-                    <textarea name="coverage_notes" rows="2"
-                        class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px]">{{ $disponibilite?->coverage_notes }}</textarea>
-                </div>
+                @include('livraison.partials.vehicule-couverture', [
+                    'etat' => $etats[$journee->id] ?? [],
+                    'vehicules' => $vehicules,
+                    'villes' => $villes,
+                    'profil' => $profil,
+                ])
 
                 <div>
                     <div class="flex items-center justify-between mb-1">
@@ -91,13 +83,24 @@
                             Tout / Rien
                         </button>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        @foreach($creneaux as $valeur => $libelle)
-                            <label class="flex items-center gap-2 text-[13px] text-ink-muted">
-                                <input type="checkbox" name="creneaux[]" value="{{ $valeur }}"
-                                    @checked(in_array($valeur, $creneauxSelectionnes))>
-                                {{ $libelle }}
-                            </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        @foreach(['matin' => ['Matin', $creneauxMatin], 'apres-midi' => ['Après-midi', $creneauxApresMidi]] as $cleGroupe => [$titreGroupe, $membres])
+                            <div class="border border-surface-border rounded-lg p-2">
+                                <label class="flex items-center gap-1.5 text-[12.5px] font-medium text-ink mb-1.5">
+                                    <input type="checkbox" class="groupe-creneaux" data-groupe="{{ $cleGroupe }}">
+                                    {{ $titreGroupe }}
+                                </label>
+                                <div class="space-y-1.5">
+                                    @foreach($membres as $valeur)
+                                        <label class="flex items-center gap-2 text-[13px] text-ink-muted">
+                                            <input type="checkbox" name="creneaux[]" value="{{ $valeur }}"
+                                                data-groupe-membre="{{ $cleGroupe }}"
+                                                @checked(in_array($valeur, $creneauxSelectionnes))>
+                                            {{ $creneaux[$valeur] }}
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
                         @endforeach
                     </div>
                 </div>
@@ -112,45 +115,91 @@
         @endforeach
     </div>
 
+    @include('livraison.partials.vehicule-couverture-script')
+
     <script>
         document.querySelectorAll('.form-disponibilite').forEach(function (form) {
+            const racine = form.querySelector('[data-vc-root]');
+            const cases = () => [...form.querySelectorAll('input[name="creneaux[]"]')];
+
+            // Cases de groupe Matin / Après-midi (01/10/2026) : cochées si
+            // tous leurs créneaux le sont, « indéterminées » si une partie.
+            function rafraichirGroupes() {
+                form.querySelectorAll('.groupe-creneaux').forEach(function (groupe) {
+                    const membres = cases().filter((c) => c.dataset.groupeMembre === groupe.dataset.groupe);
+                    const n = membres.filter((c) => c.checked).length;
+                    groupe.checked = n > 0 && n === membres.length;
+                    groupe.indeterminate = n > 0 && n < membres.length;
+                });
+            }
+
+            form.querySelectorAll('.groupe-creneaux').forEach(function (groupe) {
+                groupe.addEventListener('change', function () {
+                    cases().filter((c) => c.dataset.groupeMembre === groupe.dataset.groupe)
+                        .forEach((c) => { c.checked = groupe.checked; });
+                    rafraichirGroupes();
+                });
+            });
+            cases().forEach((c) => c.addEventListener('change', rafraichirGroupes));
+            rafraichirGroupes();
+
             // Tout / Rien (08/09/2026, prompt de cette date §5.3) — coche
             // tout si au moins une case est décochée, sinon décoche tout,
             // même règle que toggleTout() côté admin (ContactsQueue.vue).
             const toggleToutRien = form.querySelector('.toggle-tout-rien');
             if (toggleToutRien) {
                 toggleToutRien.addEventListener('click', function () {
-                    const cases = [...form.querySelectorAll('input[name="creneaux[]"]')];
-                    const toutCoche = cases.every((c) => c.checked);
-                    cases.forEach((c) => { c.checked = !toutCoche; });
+                    const toutCoche = cases().every((c) => c.checked);
+                    cases().forEach((c) => { c.checked = !toutCoche; });
+                    rafraichirGroupes();
                 });
             }
 
             form.addEventListener('submit', async function (e) {
                 e.preventDefault();
                 const message = form.querySelector('.disponibilite-message');
-                const donnees = {
+                const donnees = Object.assign({
                     id_campagne_journee: Number(form.dataset.idCampagneJournee),
-                    vehicule_confirme: form.vehicule_confirme.checked,
-                    coverage_confirmee: form.coverage_confirmee.checked,
-                    coverage_notes: form.coverage_notes.value,
-                    creneaux: [...form.querySelectorAll('input[name="creneaux[]"]:checked')].map(el => el.value),
-                };
+                    creneaux: cases().filter((c) => c.checked).map((c) => c.value),
+                }, window.VehiculeCouverture.lire(racine));
 
-                const reponse = await fetch(window.location.pathname, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value,
-                        'Accept': 'application/json',
-                    },
-                    body: JSON.stringify(donnees),
-                });
-                const resultat = await reponse.json();
+                let statut = 0;
+                let resultat = null;
+                try {
+                    const reponse = await fetch(window.location.pathname, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value,
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify(donnees),
+                    });
+                    statut = reponse.status;
+                    resultat = await reponse.json();
+                } catch (erreur) {
+                    // Réseau coupé, session expirée (redirection HTML) ou
+                    // erreur serveur sans JSON : on l'affiche au lieu de
+                    // laisser le bénévole croire que c'est enregistré.
+                    resultat = null;
+                }
+
+                const ok = !!(resultat && resultat.success);
+                window.VehiculeCouverture.afficherErreurs(racine, ok ? {} : (resultat && resultat.errors) || {});
+
+                let texte = 'Disponibilité enregistrée.';
+                if (!ok) {
+                    const erreurs = (resultat && resultat.errors) || {};
+                    texte = (erreurs.creneaux && erreurs.creneaux[0])
+                        ? 'Sélectionnez au moins un créneau.'
+                        : (resultat && resultat.errors
+                            ? 'Certains champs sont invalides — voir ci-dessus.'
+                            : "Une erreur s'est produite" + (statut ? ' (code ' + statut + ').' : ' — vérifiez votre connexion.'));
+                }
 
                 message.classList.remove('hidden');
-                message.textContent = resultat.success ? 'Disponibilité enregistrée.' : "Une erreur s'est produite.";
-                message.className = 'disponibilite-message text-[13px] text-center ' + (resultat.success ? 'text-emerald-600' : 'text-rose-600');
+                message.textContent = texte;
+                message.className = 'disponibilite-message text-[13px] text-center ' + (ok ? 'text-emerald-600' : 'text-rose-600');
             });
         });
     </script>
