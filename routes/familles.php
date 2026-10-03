@@ -143,6 +143,7 @@ Route::middleware('auth')->group(function () {
     // ouvert et actif, voir FamillesController::renouvelerVerrou().
     Route::post('/familles/{id}/renouveler-verrou', [\App\Http\Controllers\FamillesController::class, 'renouvelerVerrou'])->whereNumber('id')->name('familles.renouveler-verrou');
     Route::post('/familles/{id}/documents', [\App\Http\Controllers\FamillesController::class, 'uploadDocument'])->whereNumber('id')->name('familles.documents.store');
+    Route::post('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'updateDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.update');
     Route::get('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'downloadDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.download');
     Route::delete('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'destroyDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.destroy');
 });

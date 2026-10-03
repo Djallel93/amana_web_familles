@@ -146,6 +146,7 @@ function ouvrirSyncGoogleContacts() {
         :avec-statut="true"
         :avec-autocompletion="true"
         :ouvert-par-defaut="true"
+        :avec-puces="false"
         :base-url="baseUrl"
         :per-page="familles.per_page"
     />

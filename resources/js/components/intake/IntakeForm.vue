@@ -43,6 +43,10 @@
 import { ref, reactive, computed, watch, nextTick } from 'vue';
 import { useToast, PersonalInfoStep } from '@amana/shared-ui';
 import type { PersonalInfoValue } from '@amana/shared-ui';
+import DocumentRows from '../familles/DocumentRows.vue';
+import type { DocumentRow, DocumentRowsStrings } from '../familles/DocumentRows.vue';
+import { MAX_DOCUMENTS, TON_NEUTRE, TONS_PIECE, nomPrevisualise } from '../familles/documentRowsSupport';
+import OrganisationSelect from './OrganisationSelect.vue';
 
 declare global {
     interface Window {
@@ -81,6 +85,8 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_identite: 'Informations personnelles',
         step_organisation: 'Quelle organisation vous accompagne ?',
         organisation_select: 'Organisation',
+        organisation_search: 'Rechercher une organisation…',
+        organisation_empty: 'Aucune organisation trouvée',
         organisation_desc: "Sélectionnez l'organisation qui vous accompagne dans votre démarche.",
         nom: 'Nom de famille', prenom: 'Prénom de la personne à contacter',
         email: 'Email',
@@ -131,7 +137,17 @@ const DICT: Record<Langue, Record<string, string>> = {
         organismes_aide: "Percevez-vous actuellement des aides d'autres organismes ?",
         organisme_autre: 'Autre organisme',
         documents_resource: 'Veuillez soumettre tous justificatifs de ressources',
-        documents_resource_desc: '(optionnel, 10 fichiers max)',
+        documents_resource_desc: '(optionnel, 5 fichiers max, 10 Mo chacun)',
+        docs_add: 'Ajouter un fichier',
+        docs_label: 'Libellé (optionnel)',
+        docs_label_placeholder: 'Ex. Passeport de Karim',
+        docs_confirm_add: 'Ajouter',
+        docs_cancel: 'Annuler',
+        docs_edit: 'Modifier',
+        docs_remove: 'Supprimer',
+        docs_save: 'Enregistrer',
+        docs_replace_file: 'Remplacer le fichier',
+        docs_max_reached: 'Maximum atteint',
 
         success_title: "Merci d'avoir pris le temps de répondre à ce formulaire",
         success_text: "Un email de confirmation vient de vous être envoyé à l'adresse indiquée. Merci de cliquer sur le lien qu'il contient dans les 48 heures pour valider votre demande — sans cette confirmation, votre dossier ne sera pas transmis à notre équipe. Pensez à vérifier vos courriers indésirables si vous ne le recevez pas rapidement.",
@@ -157,6 +173,8 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_identite: 'Personal Information',
         step_organisation: 'Which organization is supporting you?',
         organisation_select: 'Organization',
+        organisation_search: 'Search for an organization…',
+        organisation_empty: 'No organization found',
         organisation_desc: 'Select the organization supporting you in this process.',
         nom: 'Last Name', prenom: 'First Name of the Contact Person',
         email: 'Email',
@@ -207,7 +225,17 @@ const DICT: Record<Langue, Record<string, string>> = {
         organismes_aide: 'Are you currently receiving support from other organizations?',
         organisme_autre: 'Other organization',
         documents_resource: 'Please submit any proof of income or financial support',
-        documents_resource_desc: '(optional, 10 files max)',
+        documents_resource_desc: '(optional, 5 files max, 10 MB each)',
+        docs_add: 'Add a file',
+        docs_label: 'Label (optional)',
+        docs_label_placeholder: "E.g. Karim's passport",
+        docs_confirm_add: 'Add',
+        docs_cancel: 'Cancel',
+        docs_edit: 'Edit',
+        docs_remove: 'Remove',
+        docs_save: 'Save',
+        docs_replace_file: 'Replace file',
+        docs_max_reached: 'Maximum reached',
 
         success_title: 'Thank you for taking the time to complete this form.',
         success_text: "A confirmation email has just been sent to the address you provided. Please click the link in it within 48 hours to validate your request — without this confirmation, your file will not be sent to our team. Please check your spam folder if you don't receive it promptly.",
@@ -233,6 +261,8 @@ const DICT: Record<Langue, Record<string, string>> = {
         step_identite: 'المعلومات الشخصية',
         step_organisation: 'ما هي المنظمة التي ترافقكم؟',
         organisation_select: 'المنظمة',
+        organisation_search: 'ابحث عن منظمة…',
+        organisation_empty: 'لم يتم العثور على منظمة',
         organisation_desc: 'يرجى اختيار المنظمة التي ترافقكم في مسعاكم.',
         nom: 'اللقب', prenom: 'إسم الشخص الذي يمكن التواصل معه',
         email: 'البريد الإلكتروني',
@@ -283,7 +313,17 @@ const DICT: Record<Langue, Record<string, string>> = {
         organismes_aide: 'هل تتلقون حالياً مساعدات من منظمات أخرى؟',
         organisme_autre: 'منظمة أخرى',
         documents_resource: 'يرجى تقديم جميع إثباتات الموارد',
-        documents_resource_desc: '(اختياري، 10 ملفات كحد أقصى)',
+        documents_resource_desc: '(اختياري، 5 ملفات كحد أقصى، 10 ميغابايت لكل ملف)',
+        docs_add: 'إضافة ملف',
+        docs_label: 'تسمية (اختياري)',
+        docs_label_placeholder: 'مثال: جواز سفر كريم',
+        docs_confirm_add: 'إضافة',
+        docs_cancel: 'إلغاء',
+        docs_edit: 'تعديل',
+        docs_remove: 'حذف',
+        docs_save: 'حفظ',
+        docs_replace_file: 'استبدال الملف',
+        docs_max_reached: 'تم بلوغ الحد الأقصى',
 
         success_title: 'شكرًا لك على تخصيص الوقت للإجابة على هذا النموذج',
         success_text: 'تم للتو إرسال رسالة تأكيد إلى البريد الإلكتروني الذي قدمته. يرجى الضغط على الرابط الموجود فيها خلال 48 ساعة لتأكيد طلبكم — بدون هذا التأكيد، لن يتم إرسال ملفكم إلى فريقنا. يرجى التحقق من مجلد الرسائل غير المرغوب فيها إذا لم تستلموها بسرعة.',
@@ -377,29 +417,57 @@ const typeDocumentAide = computed<'caf' | 'ame' | null>(() => {
     return form.type_piece_identite === 'autre' ? 'ame' : 'caf';
 });
 
-// Palette distincte pour la zone d'upload selon la branche empruntée —
-// demande du 09/08/2026 : aide visuellement à confirmer qu'on est bien dans
-// la bonne section avant d'y déposer un fichier.
-const adminUploadColorClasses = computed(() => {
-    if (typeDocumentAide.value === 'ame') {
-        return { border: 'border-violet-300', bg: 'bg-violet-50', text: 'text-violet-900', badge: 'bg-violet-600' };
-    }
-    if (typeDocumentAide.value === 'caf') {
-        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-900', badge: 'bg-sky-600' };
-    }
-    return { border: 'border-ink-faint', bg: 'bg-surface-2', text: 'text-ink', badge: 'bg-ink-faint' };
-});
+// Palette par type de pièce d'identité : TONS_PIECE (documentRowsSupport.ts,
+// partagée avec la fiche famille) — la zone d'upload reprend la couleur du
+// type choisi (01/10/2026, prompt §4.2.1).
+const adminUploadColorClasses = computed(() =>
+    form.type_piece_identite ? TONS_PIECE[form.type_piece_identite].tone : TON_NEUTRE,
+);
 
-const fichiersIdentite = ref<File[]>([]);
-const fichiersAide = ref<File[]>([]);
-const fichiersResource = ref<File[]>([]);
+// ── Justificatifs : lignes « + » avec libellé optionnel (01/10/2026) ──────
+// Chaque section garde des lignes LOCALES {file, label}, envoyées au submit
+// dans deux tableaux PARALLÈLES (documents_*[] / labels_*[], même index) —
+// voir IntakeController::store(). Rendu partagé avec la fiche famille :
+// DocumentRows.vue. Plafond de 5 par section (FamilleDocument::MAX_PAR_TYPE).
+type SlotDocuments = 'identite' | 'aide' | 'resource';
+interface LigneLocale { key: number; file: File; label: string }
 
-function onFiles(e: Event, target: 'identite' | 'aide' | 'resource'): void {
-    const files = Array.from((e.target as HTMLInputElement).files ?? []);
-    if (target === 'identite') fichiersIdentite.value = files;
-    if (target === 'aide') fichiersAide.value = files;
-    if (target === 'resource') fichiersResource.value = files;
+let compteurLignes = 0;
+
+const lignes = reactive<Record<SlotDocuments, LigneLocale[]>>({ identite: [], aide: [], resource: [] });
+
+function lignesDe(slot: SlotDocuments): DocumentRow[] {
+    return lignes[slot].map((l) => ({ key: l.key, name: nomPrevisualise(l.label, l.file.name), label: l.label }));
 }
+
+function ajouterDocument(slot: SlotDocuments, file: File, label: string): void {
+    if (lignes[slot].length >= MAX_DOCUMENTS) return;
+    lignes[slot].push({ key: ++compteurLignes, file, label });
+}
+
+function modifierDocument(slot: SlotDocuments, key: string | number, label: string, file: File | null): void {
+    const ligne = lignes[slot].find((l) => l.key === key);
+    if (!ligne) return;
+    ligne.label = label;
+    if (file) ligne.file = file;
+}
+
+function supprimerDocument(slot: SlotDocuments, key: string | number): void {
+    lignes[slot] = lignes[slot].filter((l) => l.key !== key);
+}
+
+const docStrings = computed<DocumentRowsStrings>(() => ({
+    add: t.value.docs_add,
+    label: t.value.docs_label,
+    labelPlaceholder: t.value.docs_label_placeholder,
+    confirmAdd: t.value.docs_confirm_add,
+    cancel: t.value.docs_cancel,
+    edit: t.value.docs_edit,
+    remove: t.value.docs_remove,
+    save: t.value.docs_save,
+    replaceFile: t.value.docs_replace_file,
+    maxReached: t.value.docs_max_reached,
+}));
 
 function toggleInArray(arr: number[], id: number): void {
     const i = arr.indexOf(id);
@@ -579,8 +647,8 @@ function validateStep(stepId: StepId): boolean {
             break;
         case 'administratif':
             req('type_piece_identite', !!form.type_piece_identite);
-            req('documents_identite', fichiersIdentite.value.length > 0);
-            req('documents_aide', fichiersAide.value.length > 0);
+            req('documents_identite', lignes.identite.length > 0);
+            req('documents_aide', lignes.aide.length > 0);
             break;
         case 'activite':
             req('type_activite', !!form.type_activite);
@@ -686,9 +754,14 @@ async function submit(): Promise<void> {
     form.secteurs_activite.forEach((id) => data.append('secteurs_activite[]', String(id)));
     form.organismes_aide.forEach((id) => data.append('organismes_aide[]', String(id)));
 
-    fichiersIdentite.value.forEach((f) => data.append('documents_identite[]', f));
-    fichiersAide.value.forEach((f) => data.append('documents_aide[]', f));
-    fichiersResource.value.forEach((f) => data.append('documents_resource[]', f));
+    // Fichiers + libellés en tableaux PARALLÈLES (même index) : le libellé est
+    // toujours ajouté, même vide, pour ne pas décaler les index.
+    (['identite', 'aide', 'resource'] as const).forEach((slot) => {
+        lignes[slot].forEach((l) => {
+            data.append(`documents_${slot}[]`, l.file);
+            data.append(`labels_${slot}[]`, l.label);
+        });
+    });
 
     try {
         const res = await fetch(storeUrl.value, {
@@ -809,10 +882,9 @@ async function submit(): Promise<void> {
             <h2 class="text-[15px] font-bold text-ink mb-4">{{ t.step_organisation }}</h2>
             <p class="text-[12.5px] text-ink-muted mb-3">{{ t.organisation_desc }}</p>
             <label class="block text-xs font-semibold text-ink mb-1">{{ t.organisation_select }} *</label>
-            <select v-model="form.id_organisation" class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent">
-                <option :value="null" disabled>{{ t.organisation_select }}…</option>
-                <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.nom }}</option>
-            </select>
+            <OrganisationSelect v-model="form.id_organisation" :options="organisations"
+                :placeholder="`${t.organisation_select}…`" :search-placeholder="t.organisation_search"
+                :empty-message="t.organisation_empty" :invalid="!!errors.id_organisation" />
             <span v-if="errors.id_organisation" class="block text-[11px] text-rose-600 mt-1">{{ errors.id_organisation }}</span>
         </section>
 
@@ -919,9 +991,10 @@ async function submit(): Promise<void> {
                     <div class="space-y-2">
                         <label v-for="opt in [['nationalite','piece_nationalite'],['titre_sejour','piece_titre_sejour'],['demande_asile','piece_demande_asile'],['autre','piece_autre']] as const"
                             :key="opt[0]"
-                            class="flex items-center gap-2.5 px-3 py-2.5 border rounded-md text-[13.5px] text-ink cursor-pointer select-none"
-                            :class="form.type_piece_identite === opt[0] ? 'border-accent bg-accent/5' : 'border-ink-faint'">
+                            class="flex items-center gap-2.5 px-3 py-2.5 border rounded-md text-[13.5px] text-ink cursor-pointer select-none transition-colors"
+                            :class="form.type_piece_identite === opt[0] ? TONS_PIECE[opt[0]].card : 'border-ink-faint'">
                             <input type="radio" name="type_piece_identite" :value="opt[0]" v-model="form.type_piece_identite" class="w-4 h-4 accent-accent">
+                            <span class="w-2 h-2 rounded-full shrink-0" :class="TONS_PIECE[opt[0]].dot" aria-hidden="true"></span>
                             {{ t[opt[1]] }}
                         </label>
                     </div>
@@ -947,15 +1020,19 @@ async function submit(): Promise<void> {
                     <div>
                         <label class="block text-xs font-semibold text-ink mb-1">{{ t.documents_identite }} *</label>
                         <p class="text-[11.5px] text-ink-muted mb-1">{{ t.documents_identite_desc }}</p>
-                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                            @change="onFiles($event, 'identite')" class="w-full text-[12.5px] text-ink-muted">
+                        <DocumentRows :rows="lignesDe('identite')" :max="MAX_DOCUMENTS" :strings="docStrings" :tone="adminUploadColorClasses"
+                            @add="(f, l) => ajouterDocument('identite', f, l)"
+                            @update="(k, l, f) => modifierDocument('identite', k, l, f)"
+                            @remove="(k) => supprimerDocument('identite', k)" />
                         <span v-if="errors.documents_identite" class="block text-[11px] text-rose-600">{{ errors.documents_identite }}</span>
                     </div>
                     <div v-if="typeDocumentAide">
                         <label class="block text-xs font-semibold text-ink mb-1">{{ typeDocumentAide === 'ame' ? t.documents_ame : t.documents_caf }} *</label>
                         <p class="text-[11.5px] text-ink-muted mb-1">{{ typeDocumentAide === 'ame' ? t.documents_ame_desc : t.documents_caf_desc }}</p>
-                        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                            @change="onFiles($event, 'aide')" class="w-full text-[12.5px] text-ink-muted">
+                        <DocumentRows :rows="lignesDe('aide')" :max="MAX_DOCUMENTS" :strings="docStrings" :tone="adminUploadColorClasses"
+                            @add="(f, l) => ajouterDocument('aide', f, l)"
+                            @update="(k, l, f) => modifierDocument('aide', k, l, f)"
+                            @remove="(k) => supprimerDocument('aide', k)" />
                         <span v-if="errors.documents_aide" class="block text-[11px] text-rose-600">{{ errors.documents_aide }}</span>
                     </div>
                 </div>
@@ -1018,8 +1095,10 @@ async function submit(): Promise<void> {
             <div class="mt-4">
                 <label class="block text-xs font-semibold text-ink mb-1">{{ t.documents_resource }}</label>
                 <p class="text-[11.5px] text-ink-muted mb-1">{{ t.documents_resource_desc }}</p>
-                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                    @change="onFiles($event, 'resource')" class="w-full text-[12.5px] text-ink-muted">
+                <DocumentRows :rows="lignesDe('resource')" :max="MAX_DOCUMENTS" :strings="docStrings"
+                    @add="(f, l) => ajouterDocument('resource', f, l)"
+                    @update="(k, l, f) => modifierDocument('resource', k, l, f)"
+                    @remove="(k) => supprimerDocument('resource', k)" />
             </div>
         </section>
 

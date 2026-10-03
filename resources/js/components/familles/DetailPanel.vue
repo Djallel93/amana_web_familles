@@ -25,6 +25,9 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { definirPanneauOuvert } from './useDossierPanel';
 import { useHeartbeatVerrou } from './useHeartbeatVerrou';
 import BandeauVerrouPerdu from './BandeauVerrouPerdu.vue';
+import DocumentRows from './DocumentRows.vue';
+import type { DocumentRow } from './DocumentRows.vue';
+import { MAX_DOCUMENTS, TON_NEUTRE, TONS_PIECE, sansExtension } from './documentRowsSupport';
 import { Modal } from '@amana/shared-ui';
 import { useToast } from '@amana/shared-ui';
 import { useConfirm } from '@amana/shared-ui';
@@ -227,9 +230,11 @@ function toggleInArray(arr: number[], id: number): void {
     if (i === -1) arr.push(id); else arr.splice(i, 1);
 }
 
-const uploadType = ref('identity');
-const uploadFile = ref<File | null>(null);
-const uploading = ref(false);
+// Un geste sur les lignes de documents (ajout / modification / suppression)
+// désactive les autres le temps de l'appel API — les lignes sont persistées
+// immédiatement, contrairement au reste du formulaire (enregistré au submit).
+const docBusy = ref(false);
+const docErreurs = ref<Record<string, string>>({});
 
 // URL templates (avec placeholders __ID__/__DOC__) + clés/listes reçues
 // en props Inertia (voir defineProps ci-dessous) — assignées dans
@@ -268,6 +273,11 @@ const props = defineProps<{
     uploadUrlTemplate: string;
     downloadUrlTemplate: string;
     deleteDocUrlTemplate: string;
+    // POST (multipart) renommer / remplacer un document (01/10/2026) —
+    // optionnel : même URI que downloadUrlTemplate (routes/familles.php,
+    // familles.documents.update), d'où le repli sur celui-ci pour les pages
+    // qui montent déjà ce panneau sans passer la nouvelle prop.
+    updateDocUrlTemplate?: string;
     initialGooglePlacesKey: string;
     initialGoogleEmbedKey: string;
     initialSecteursActiviteDisponibles: ListeOption[];
@@ -504,39 +514,67 @@ async function enregistrer(): Promise<void> {
     }
 }
 
-async function envoyerDocument(): Promise<void> {
-    if (!famille.value || !uploadFile.value) return;
-    uploading.value = true;
+// Messages d'erreur lisibles : 422 → premier message de validation Laravel
+// (ex. plafond de 5 fichiers, format refusé), sinon message générique.
+async function messageErreur(res: Response, defaut: string): Promise<string> {
+    const data = await res.json().catch(() => null);
+    return data?.errors?.fichier?.[0] ?? data?.errors?.label?.[0] ?? data?.message ?? defaut;
+}
+
+async function ajouterDocument(type: Document['type'], file: File, label: string): Promise<void> {
+    if (!famille.value) return;
+    docBusy.value = true;
+    docErreurs.value = { ...docErreurs.value, [type]: '' };
 
     const formData = new FormData();
-    formData.append('type', uploadType.value);
-    formData.append('fichier', uploadFile.value);
+    formData.append('type', type);
+    formData.append('fichier', file);
+    if (label) formData.append('label', label);
 
     try {
         const res = await fetch(urls.upload.replace('__ID__', String(famille.value.id)), {
             method: 'POST',
-            headers: {
-                'X-CSRF-TOKEN': csrfToken(),
-                Accept: 'application/json',
-            },
+            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
             body: formData,
         });
+        if (!res.ok) throw new Error(await messageErreur(res, "Échec de l'envoi du document."));
 
-        if (!res.ok) {
-            const data = await res.json().catch(() => null);
-            throw new Error(data?.message ?? 'Échec de l\'envoi');
-        }
-
-        const document: Document = await res.json();
-        famille.value.documents.push(document);
-        uploadFile.value = null;
-        const input = window.document.getElementById('famille-doc-input') as HTMLInputElement | null;
-        if (input) input.value = '';
+        famille.value.documents.push(await res.json());
         toast.success('Document ajouté.');
     } catch (e) {
-        toast.error(e instanceof Error ? e.message : 'Échec de l\'envoi du document.');
+        docErreurs.value = { ...docErreurs.value, [type]: e instanceof Error ? e.message : "Échec de l'envoi du document." };
     } finally {
-        uploading.value = false;
+        docBusy.value = false;
+    }
+}
+
+// Renomme (libellé) et/ou remplace le fichier d'une ligne existante.
+async function modifierDocument(key: string | number, label: string, file: File | null): Promise<void> {
+    if (!famille.value) return;
+    const doc = famille.value.documents.find((d) => d.id === key);
+    if (!doc) return;
+
+    docBusy.value = true;
+    docErreurs.value = { ...docErreurs.value, [doc.type]: '' };
+
+    const formData = new FormData();
+    formData.append('label', label);
+    if (file) formData.append('fichier', file);
+
+    try {
+        const res = await fetch(
+            urls.updateDoc.replace('__ID__', String(famille.value.id)).replace('__DOC__', String(doc.id)),
+            { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' }, body: formData },
+        );
+        if (!res.ok) throw new Error(await messageErreur(res, 'Échec de la modification du document.'));
+
+        const maj: Document = await res.json();
+        famille.value.documents = famille.value.documents.map((d) => (d.id === maj.id ? { ...d, ...maj } : d));
+        toast.success('Document modifié.');
+    } catch (e) {
+        docErreurs.value = { ...docErreurs.value, [doc.type]: e instanceof Error ? e.message : 'Échec de la modification du document.' };
+    } finally {
+        docBusy.value = false;
     }
 }
 
@@ -564,6 +602,11 @@ async function supprimerDocument(doc: Document): Promise<void> {
     } catch (e) {
         toast.error('Échec de la suppression du document.');
     }
+}
+
+function supprimerDocumentParCle(key: string | number): void {
+    const doc = famille.value?.documents.find((d) => d.id === key);
+    if (doc) void supprimerDocument(doc);
 }
 
 function urlTelechargement(doc: Document): string {
@@ -599,16 +642,27 @@ const typesDocumentsAffiches = computed(() => {
     });
 });
 
-// Garde-fou : si le type actuellement sélectionné dans le menu d'envoi
-// disparaît de typesDocumentsAffiches (ex : changement de type de pièce
-// d'identité alors que "AME" était choisi et n'a aucun document existant),
-// on retombe sur "identity" plutôt que de laisser une valeur invisible
-// sélectionnée en arrière-plan.
-watch(typesDocumentsAffiches, (types) => {
-    if (!types.some((t) => t.code === uploadType.value)) {
-        uploadType.value = 'identity';
+// Lignes + couleur de chaque section de documents (DocumentRows.vue).
+// Identité reprend la couleur du type de pièce choisi (même palette que le
+// formulaire public — documentRowsSupport.ts) ; CAF = bleu, AME = violet
+// (anciennes couleurs du formulaire public), ressources = neutre.
+function lignesDocuments(type: string): DocumentRow[] {
+    return documentsParType(type).map((d) => ({
+        key: d.id,
+        name: d.original_name,
+        label: sansExtension(d.original_name),
+        href: urlTelechargement(d),
+    }));
+}
+
+function tonDocuments(type: string) {
+    if (type === 'identity') {
+        return famille.value?.type_piece_identite ? TONS_PIECE[famille.value.type_piece_identite].tone : TON_NEUTRE;
     }
-});
+    if (type === 'caf') return TONS_PIECE.titre_sejour.tone;
+    if (type === 'ame') return TONS_PIECE.autre.tone;
+    return TON_NEUTRE;
+}
 
 // ── Autocomplétion d'adresse (Google Places, PlaceAutocompleteElement) ──
 // Même widget que IntakeForm.vue (google.maps.places.Autocomplete legacy
@@ -782,6 +836,7 @@ onMounted(() => {
         upload: props.uploadUrlTemplate,
         download: props.downloadUrlTemplate,
         deleteDoc: props.deleteDocUrlTemplate,
+        updateDoc: props.updateDocUrlTemplate ?? props.downloadUrlTemplate,
     };
     googlePlacesKey.value = props.initialGooglePlacesKey;
     googleEmbedKey.value = props.initialGoogleEmbedKey;
@@ -1233,32 +1288,11 @@ onMounted(() => {
                             {{ t.label }}
                             <span v-if="t.code === typeDocumentAide" class="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold">Requis</span>
                         </p>
-                        <ul v-if="documentsParType(t.code).length" class="space-y-1.5 mb-2">
-                            <li v-for="doc in documentsParType(t.code)" :key="doc.id"
-                                class="flex items-center justify-between gap-2 px-3 py-2 bg-surface rounded-md text-[12.5px] border border-surface-border">
-                                <a :href="urlTelechargement(doc)" class="text-accent hover:underline truncate flex-1">
-                                    📄 {{ doc.original_name }}
-                                </a>
-                                <button type="button" @click="supprimerDocument(doc)"
-                                    class="text-rose-500 hover:text-rose-700 text-xs bg-transparent border-0 cursor-pointer flex-shrink-0 min-h-[32px] min-w-[32px]">
-                                    🗑️
-                                </button>
-                            </li>
-                        </ul>
-                        <p v-else class="text-[11.5px] text-ink-faint mb-2">Aucun document.</p>
-                    </div>
-
-                    <div class="flex items-center gap-2 pt-2 border-t border-surface-3">
-                        <select v-model="uploadType" class="px-2.5 py-2 border border-ink-faint rounded-md text-[12.5px] bg-surface outline-none">
-                            <option v-for="t in typesDocumentsAffiches" :key="t.code" :value="t.code">{{ t.label }}</option>
-                        </select>
-                        <input id="famille-doc-input" type="file" accept=".pdf,.jpg,.jpeg,.png"
-                            @change="uploadFile = ($event.target as HTMLInputElement).files?.[0] ?? null"
-                            class="flex-1 text-[12px] text-ink-muted">
-                        <button type="button" @click="envoyerDocument" :disabled="!uploadFile || uploading"
-                            class="px-3 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer flex-shrink-0">
-                            {{ uploading ? 'Envoi…' : 'Ajouter' }}
-                        </button>
+                        <DocumentRows :rows="lignesDocuments(t.code)" :max="MAX_DOCUMENTS" :tone="tonDocuments(t.code)"
+                            accept=".pdf,.jpg,.jpeg,.png" :busy="docBusy" :error="docErreurs[t.code] ?? ''"
+                            @add="(f, l) => ajouterDocument(t.code as Document['type'], f, l)"
+                            @update="modifierDocument"
+                            @remove="supprimerDocumentParCle" />
                     </div>
                 </section>
             </div>

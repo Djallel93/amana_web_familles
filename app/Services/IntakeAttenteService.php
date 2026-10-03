@@ -68,6 +68,7 @@ class IntakeAttenteService
      * @param int[] $secteursActivite
      * @param int[] $organismesAide
      * @param array<string, UploadedFile[]> $fichiersParSlot Clés attendues : identite, aide, resource
+     * @param array<string, array<int, string|null>> $labelsParSlot Libellés optionnels (01/10/2026), même clés et MÊME INDEX que $fichiersParSlot
      * @return array{demande: IntakeDemandeAttente, token: string} `token` est le jeton EN CLAIR — à
      *         transmettre à la Notification, jamais lu depuis $demande->token (qui ne contient que le hash)
      */
@@ -77,6 +78,7 @@ class IntakeAttenteService
         array $organismesAide,
         string $langue,
         array $fichiersParSlot,
+        array $labelsParSlot = [],
     ): array {
         $existante = $this->trouverAttenteExistante($donneesValidees);
         if ($existante) {
@@ -103,7 +105,7 @@ class IntakeAttenteService
 
         $documentsMeta = [];
         foreach ($fichiersParSlot as $slot => $fichiers) {
-            $documentsMeta[$slot] = $this->stockerFichiersAttente($demande, $slot, $fichiers);
+            $documentsMeta[$slot] = $this->stockerFichiersAttente($demande, $slot, $fichiers, $labelsParSlot[$slot] ?? []);
         }
         $demande->update(['documents_meta' => $documentsMeta]);
 
@@ -143,13 +145,14 @@ class IntakeAttenteService
 
     /**
      * @param UploadedFile[] $fichiers
+     * @param array<int, string|null> $labels Libellé optionnel par fichier, même index que $fichiers (le fichier prend ce nom — FamilleDocument::nomAvecLabel())
      * @return array<int, array{disk_path: string, original_name: string, mime_type: string}>
      */
-    private function stockerFichiersAttente(IntakeDemandeAttente $demande, string $slot, array $fichiers): array
+    private function stockerFichiersAttente(IntakeDemandeAttente $demande, string $slot, array $fichiers, array $labels = []): array
     {
         $meta = [];
 
-        foreach ($fichiers as $fichier) {
+        foreach ($fichiers as $index => $fichier) {
             if (!$fichier || !$fichier->isValid()) {
                 continue;
             }
@@ -158,7 +161,7 @@ class IntakeAttenteService
 
             $meta[] = [
                 'disk_path' => $path,
-                'original_name' => $fichier->getClientOriginalName(),
+                'original_name' => FamilleDocument::nomAvecLabel($labels[$index] ?? null, $fichier->getClientOriginalName()),
                 'mime_type' => $fichier->getClientMimeType(),
             ];
         }

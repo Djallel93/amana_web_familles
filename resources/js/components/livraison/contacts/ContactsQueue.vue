@@ -124,6 +124,36 @@ function formatDateFr(iso: string): string {
     return `${jour}/${mois}/${annee}`;
 }
 
+// ── Lignes repliables (01/10/2026) ───────────────────────────────────────
+// Repliées par défaut ; l'état est local à l'écran (pas de persistance).
+// Volontairement NON réinitialisé par chargerFile() : assigner une personne
+// recharge la file, et la ligne en cours d'édition ne doit pas se replier
+// sous les doigts de l'utilisateur.
+const ouvertes = reactive(new Set<number>());
+
+function ligneOuverte(id: number): boolean {
+    return ouvertes.has(id);
+}
+function basculerLigne(id: number) {
+    if (ouvertes.has(id)) ouvertes.delete(id);
+    else ouvertes.add(id);
+}
+
+// Libellés/couleurs d'affichage du statut de contact — une couleur par
+// statut (a_contacter inclus : il n'avait pas de libellé et s'affichait
+// en clair, « a_contacter »).
+const LIBELLES_STATUT_AFFICHE: Record<string, string> = {
+    a_contacter: 'À contacter',
+    ...LIBELLES_STATUT_CONTACT,
+};
+const CLASSES_STATUT_CONTACT: Record<string, string> = {
+    a_contacter: 'bg-stone-100 text-ink-muted',
+    injoignable: 'bg-amber-100 text-amber-700',
+    confirme: 'bg-emerald-100 text-emerald-700',
+    archive: 'bg-gray-200 text-gray-600',
+    rejetee: 'bg-rose-100 text-rose-700',
+};
+
 // ── Filtre + file ────────────────────────────────────────────────────────
 const paramsUrl = new URLSearchParams(window.location.search);
 const filtreCampagne = ref(paramsUrl.get('id_campagne') ?? '');
@@ -138,6 +168,16 @@ const file = ref<Livraison[]>([]);
 const meta = ref<Paginated<Livraison>['meta'] | null>(null);
 const chargement = ref(true);
 const erreur = ref(false);
+
+const toutesOuvertes = computed(() => file.value.length > 0 && file.value.every((l) => ouvertes.has(l.id)));
+
+function toutDeplier() {
+    if (toutesOuvertes.value) {
+        ouvertes.clear();
+    } else {
+        file.value.forEach((l) => ouvertes.add(l.id));
+    }
+}
 
 function queryFiltres(page: number) {
     return buildQuery({
@@ -156,6 +196,8 @@ function queryFiltres(page: number) {
         id_organisation_origine: filtresFamille.value.id_organisation_origine,
         id_organisation_rattachee: filtresFamille.value.id_organisation_rattachee,
         recherche: filtresFamille.value.recherche,
+        id_personne_assignee: filtresFamille.value.id_personne_assignee,
+        non_assigne: filtresFamille.value.non_assigne || undefined,
     });
 }
 
@@ -486,7 +528,7 @@ onMounted(() => {
         </div>
 
         <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
-            :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" avec-se-deplace />
+            :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" avec-se-deplace avec-assignation />
 
         <p v-if="chargement" class="text-[14px] text-ink-muted">Chargement…</p>
         <p v-else-if="erreur" class="text-[14px] text-rose-600">Impossible de charger la file de contact.</p>
@@ -500,6 +542,10 @@ onMounted(() => {
                         @change="toutSelectionnerFiltre" class="w-4 h-4 accent-accent">
                     Tout sélectionner (le filtre entier — {{ selection.size }})
                 </label>
+                <button type="button" @click="toutDeplier"
+                    class="min-h-[2rem] text-[12px] font-medium px-2.5 py-1 rounded-lg border border-surface-border text-ink-muted hover:bg-surface">
+                    {{ toutesOuvertes ? 'Tout replier' : 'Tout déplier' }}
+                </button>
                 <div v-if="selection.size > 0" class="max-w-xs">
                     <PersonSelect role="gestionnaire" placeholder="Assigner la sélection à…"
                         :model-value="null"
@@ -509,180 +555,196 @@ onMounted(() => {
                      déplacé sur CampagneDetail.vue (livraison/campagnes/{id}). -->
             </div>
 
-            <div v-for="livraison in file" :key="livraison.id" class="bg-surface border border-surface-border rounded-xl p-4 shadow-sm">
-                <!--
-                    Statut déplacé en haut à droite + agrandi (09/09/2026,
-                    prompt de cette date §3 : "move the current status of
-                    each family to upper right corner and make it a little
-                    bigger") — remplace la position à côté du nom
-                    (08/09/2026, prompt §3.1).
-                -->
-                <div class="flex items-start justify-between gap-2 mb-2">
-                    <span class="flex items-center gap-2 text-[15px] font-semibold text-ink">
-                        <input type="checkbox" :checked="selection.has(livraison.id)" @change="toggleSelection(livraison.id)"
-                            class="w-4 h-4 accent-accent shrink-0">
-                        <span class="text-ink-muted font-normal">#{{ livraison.famille.id }}</span>
-                        {{ livraison.famille.prenom }} {{ livraison.famille.nom }}
-                    </span>
+            <!--
+                Ligne repliable (01/10/2026, prompt de cette date §2) : l'en-tête
+                reste toujours visible (case, #id, nom, pastille assigné,
+                pastille se_deplace, téléphone, statut en haut à droite) ; le
+                détail (coordonnées, assignation, actions, formulaire de
+                confirmation) vit dans le corps déplié. Repliée par défaut —
+                voir ouvertes / basculerLigne() / toutDeplier().
+            -->
+            <div v-for="livraison in file" :key="livraison.id"
+                class="bg-surface border border-surface-border rounded-xl shadow-sm overflow-hidden"
+                :class="selection.has(livraison.id) ? 'ring-2 ring-accent/40' : ''">
+                <div class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-2/60 transition-colors"
+                    role="button" tabindex="0" :aria-expanded="ligneOuverte(livraison.id)"
+                    @click="basculerLigne(livraison.id)" @keydown.enter.self.prevent="basculerLigne(livraison.id)"
+                    @keydown.space.self.prevent="basculerLigne(livraison.id)">
+                    <input type="checkbox" :checked="selection.has(livraison.id)" @click.stop
+                        @change="toggleSelection(livraison.id)" class="w-4 h-4 accent-accent shrink-0" aria-label="Sélectionner">
+                    <span class="text-ink-muted text-[12px] transition-transform duration-200 shrink-0"
+                        :class="ligneOuverte(livraison.id) ? 'rotate-90' : ''" aria-hidden="true">▶</span>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span class="text-ink-muted text-[12.5px] font-medium shrink-0">#{{ livraison.famille.id }}</span>
+                            <span class="text-[15px] font-semibold text-ink truncate">{{ livraison.famille.prenom }} {{ livraison.famille.nom }}</span>
+                            <span v-if="livraison.personne_assignee"
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                👤 {{ livraison.personne_assignee.prenom }} {{ livraison.personne_assignee.nom }}
+                            </span>
+                            <span v-else
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-ink-muted border border-surface-border">
+                                👤 Non assigné
+                            </span>
+                            <span v-if="livraison.se_deplace"
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                🚶 Se déplace
+                            </span>
+                        </div>
+                        <p v-if="!ligneOuverte(livraison.id)" class="text-[12.5px] text-ink-muted mt-0.5 truncate">
+                            📞 {{ livraison.famille.telephone || '—' }}
+                            <span v-if="livraison.famille.telephone_bis"> · {{ livraison.famille.telephone_bis }}</span>
+                        </p>
+                    </div>
+                    <!--
+                        Statut en haut à droite + agrandi (09/09/2026), une
+                        couleur par statut (01/10/2026 : seuls a_contacter et
+                        confirmé en avaient une, les autres retombaient sur
+                        aucune classe).
+                    -->
                     <span class="text-[13px] font-medium px-2.5 py-1 rounded-full shrink-0"
-                        :class="{
-                            'bg-stone-100 text-ink-muted': livraison.statut_contact === 'a_contacter',
-                            'bg-emerald-100 text-emerald-700': livraison.statut_contact === 'confirme',
-                        }">
-                        {{ LIBELLES_STATUT_CONTACT[livraison.statut_contact as StatutContactPostable] ?? livraison.statut_contact }}
+                        :class="CLASSES_STATUT_CONTACT[livraison.statut_contact] ?? 'bg-stone-100 text-ink-muted'">
+                        {{ LIBELLES_STATUT_AFFICHE[livraison.statut_contact] ?? livraison.statut_contact }}
                     </span>
                 </div>
 
-                <!-- Coordonnées — mises en avant + téléphone bis affiché
-                     (05/09/2026, prompt §2.5 : "Are you displaying phone
-                     bis?" → non, corrigé ici et côté requête serveur). -->
-                <div class="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink mb-3 bg-stone-50 rounded-lg px-3 py-2">
-                    <span>📞 {{ livraison.famille.telephone || '—' }}</span>
-                    <span v-if="livraison.famille.telephone_bis">📞 {{ livraison.famille.telephone_bis }} <span class="text-ink-muted">(bis)</span></span>
-                    <span>✉️ {{ livraison.famille.email || "pas d'email" }}</span>
-                    <span v-if="livraison.personne_assignee" class="text-ink-muted">
-                        · assigné à {{ livraison.personne_assignee.prenom }} {{ livraison.personne_assignee.nom }}
-                    </span>
-                </div>
-
-                <!-- Toggle se_deplace (25/09/2026, prompt de cette date) —
-                     correction a posteriori (mettreAJourSeDeplace()), à ne
-                     pas confondre avec les radios du formulaire de
-                     confirmation ci-dessous (le choix initial). Affiché
-                     uniquement une fois confirmé : avant, se_deplace vaut
-                     toujours false (défaut colonne), rien à corriger. -->
-                <button v-if="livraison.statut_contact === 'confirme'" type="button" :disabled="seDeplaceEnCours[livraison.id]"
-                    @click="basculerSeDeplace(livraison)"
-                    class="mb-3 inline-flex items-center gap-1.5 text-[12.5px] font-medium px-2.5 py-1 rounded-full disabled:opacity-60"
-                    :class="livraison.se_deplace ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-ink-muted'">
-                    🚶 Se déplace : {{ livraison.se_deplace ? 'Oui' : 'Non' }} · changer
-                </button>
-
-                <!--
-                    "Modifier le dossier" (07/09/2026, prompt §2.4) —
-                    statut retiré de cette rangée le 08/09/2026 (remonté à
-                    côté du nom ci-dessus, voir commentaire plus haut) :
-                    ne reste ici que l'assignation et l'édition.
-                -->
-                <div class="flex flex-wrap items-center gap-2 mb-3">
-                    <div class="max-w-xs">
-                        <PersonSelect role="gestionnaire" placeholder="Assigner à…"
-                            :model-value="livraison.personne_assignee"
-                            @update:model-value="(p) => assigner(livraison, p)" />
-                    </div>
-                    <button type="button" @click="modifierDossier(livraison)"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90">
-                        ✏️ Modifier le dossier
-                    </button>
-                </div>
-
-                <!--
-                    Remplace l'ancien bouton "Saisie téléphonique" +
-                    sélecteur de statut (05/09/2026, prompt §2.2/§2.3) :
-                    injoignable/rejetée/archivée n'ont plus besoin d'aucun
-                    champ (un clic suffit, voir marquerStatutSimple()) —
-                    seule la confirmation garde un formulaire, préremplie
-                    avec les infos famille actuelles, repliée derrière un
-                    vrai bouton visible plutôt qu'un lien discret.
-                -->
-                <div class="flex flex-wrap gap-2">
-                    <button type="button" @click="basculerOuverture(livraison.id)"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90">
-                        ✅ Confirmer
-                    </button>
-                    <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'injoignable')"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:opacity-90 disabled:opacity-60">
-                        Injoignable
-                    </button>
-                    <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'rejetee')"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:opacity-90 disabled:opacity-60">
-                        Rejetée
-                    </button>
-                    <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'archive')"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-stone-500 text-white hover:opacity-90 disabled:opacity-60">
-                        Archivée
-                    </button>
-                </div>
-
-                <div v-if="formulaire(livraison.id).ouvert" class="mt-3 space-y-3 bg-stone-50 rounded-lg p-3">
-                    <!-- Regroupement matin/après-midi (05/09/2026, prompt §2.8).
-                         Adresse/code postal/ville/adultes/enfants retirés
-                         d'ici (07/09/2026, prompt §2.5) — voir le
-                         commentaire sur FormeConfirmation plus haut :
-                         édition désormais uniquement via "✏️ Modifier le
-                         dossier". -->
-                    <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                            <!--
-                                Déplacé à gauche + rendu plus visible
-                                (08/09/2026, prompt de cette date §3.3) —
-                                était un simple lien texte à droite du
-                                label, difficile à repérer.
-                            -->
-                            <button type="button" @click="toggleTout(livraison.id)"
-                                class="min-h-[1.875rem] text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5">
-                                Tout / Rien
+                <div v-if="ligneOuverte(livraison.id)" class="border-t border-surface-border px-4 py-4 space-y-4 bg-surface">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <!-- Coordonnées — téléphone bis affiché (05/09/2026, prompt §2.5). -->
+                        <div class="bg-stone-50 rounded-lg px-3 py-2.5 space-y-1">
+                            <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wide">Coordonnées</p>
+                            <p class="text-[13px] text-ink">📞 {{ livraison.famille.telephone || '—' }}</p>
+                            <p v-if="livraison.famille.telephone_bis" class="text-[13px] text-ink">
+                                📞 {{ livraison.famille.telephone_bis }} <span class="text-ink-muted">(bis)</span>
+                            </p>
+                            <p class="text-[13px] text-ink break-all">✉️ {{ livraison.famille.email || "pas d'email" }}</p>
+                        </div>
+                        <!-- Assignation + édition du dossier -->
+                        <div class="bg-stone-50 rounded-lg px-3 py-2.5 space-y-2">
+                            <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wide">Suivi</p>
+                            <PersonSelect role="gestionnaire" placeholder="Assigner à…"
+                                :model-value="livraison.personne_assignee"
+                                @update:model-value="(p) => assigner(livraison, p)" />
+                            <button type="button" @click="modifierDossier(livraison)"
+                                class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90">
+                                ✏️ Modifier le dossier
                             </button>
-                            <label class="text-[11px] text-ink-muted">Créneaux</label>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div class="border border-ink-faint rounded-lg p-2">
-                                <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
-                                    <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_MATIN)"
-                                        @change="toggleGroupe(livraison.id, CRENEAUX_MATIN)" class="w-3.5 h-3.5 accent-accent">
-                                    Matin
-                                </label>
-                                <div class="flex flex-wrap gap-1.5">
-                                    <label v-for="creneau in CRENEAUX_MATIN" :key="creneau"
-                                        class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
-                                        <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
-                                            @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
-                                        {{ CRENEAU_LIBELLES[creneau] }}
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="border border-ink-faint rounded-lg p-2">
-                                <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
-                                    <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_APRES_MIDI)"
-                                        @change="toggleGroupe(livraison.id, CRENEAUX_APRES_MIDI)" class="w-3.5 h-3.5 accent-accent">
-                                    Après-midi
-                                </label>
-                                <div class="flex flex-wrap gap-1.5">
-                                    <label v-for="creneau in CRENEAUX_APRES_MIDI" :key="creneau"
-                                        class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
-                                        <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
-                                            @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
-                                        {{ CRENEAU_LIBELLES[creneau] }}
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <p v-for="e in etatEnvoi(livraison.id).erreurs.creneaux ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
                     </div>
 
-                    <!-- se_deplace (25/09/2026, prompt de cette date) :
-                         posée UNIQUEMENT ici (saisie téléphonique staff),
-                         pas sur le formulaire public de confirmation —
-                         décision produit actée avec l'utilisateur. -->
-                    <div>
-                        <label class="block text-[11px] text-ink-muted mb-1.5">La famille se déplacera-t-elle au QG pour récupérer son colis ?</label>
-                        <div class="flex gap-2 max-w-xs">
-                            <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
-                                :class="seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
-                                <input type="radio" :value="true" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Oui
-                            </label>
-                            <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
-                                :class="!seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
-                                <input type="radio" :value="false" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Non
-                            </label>
-                        </div>
-                        <p v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                    </div>
-
-                    <button type="button" :disabled="etatEnvoi(livraison.id).envoiEnCours" @click="enregistrerContact(livraison)"
-                        class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
-                        {{ etatEnvoi(livraison.id).envoiEnCours ? 'Enregistrement…' : 'Enregistrer la confirmation' }}
+                    <!-- Toggle se_deplace (25/09/2026) — correction a posteriori
+                         (mettreAJourSeDeplace()), distincte des radios du formulaire
+                         de confirmation (le choix initial). Seulement une fois
+                         confirmé : avant, se_deplace vaut toujours false. -->
+                    <button v-if="livraison.statut_contact === 'confirme'" type="button" :disabled="seDeplaceEnCours[livraison.id]"
+                        @click="basculerSeDeplace(livraison)"
+                        class="inline-flex items-center gap-1.5 text-[12.5px] font-medium px-2.5 py-1 rounded-full disabled:opacity-60"
+                        :class="livraison.se_deplace ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-ink-muted'">
+                        🚶 Se déplace : {{ livraison.se_deplace ? 'Oui' : 'Non' }} · changer
                     </button>
+
+                    <!-- Actions de statut : injoignable/rejetée/archivée n'ont
+                         besoin d'aucun champ (un clic, voir marquerStatutSimple()) —
+                         seule la confirmation ouvre un formulaire. -->
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" @click="basculerOuverture(livraison.id)"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90">
+                            ✅ Confirmer
+                        </button>
+                        <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'injoignable')"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:opacity-90 disabled:opacity-60">
+                            Injoignable
+                        </button>
+                        <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'rejetee')"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:opacity-90 disabled:opacity-60">
+                            Rejetée
+                        </button>
+                        <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'archive')"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-stone-500 text-white hover:opacity-90 disabled:opacity-60">
+                            Archivée
+                        </button>
+                    </div>
+
+                    <div v-if="formulaire(livraison.id).ouvert" class="mt-3 space-y-3 bg-stone-50 rounded-lg p-3">
+                        <!-- Regroupement matin/après-midi (05/09/2026, prompt §2.8).
+                             Adresse/code postal/ville/adultes/enfants retirés
+                             d'ici (07/09/2026, prompt §2.5) — voir le
+                             commentaire sur FormeConfirmation plus haut :
+                             édition désormais uniquement via "✏️ Modifier le
+                             dossier". -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1.5">
+                                <!--
+                                    Déplacé à gauche + rendu plus visible
+                                    (08/09/2026, prompt de cette date §3.3) —
+                                    était un simple lien texte à droite du
+                                    label, difficile à repérer.
+                                -->
+                                <button type="button" @click="toggleTout(livraison.id)"
+                                    class="min-h-[1.875rem] text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5">
+                                    Tout / Rien
+                                </button>
+                                <label class="text-[11px] text-ink-muted">Créneaux</label>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div class="border border-ink-faint rounded-lg p-2">
+                                    <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
+                                        <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_MATIN)"
+                                            @change="toggleGroupe(livraison.id, CRENEAUX_MATIN)" class="w-3.5 h-3.5 accent-accent">
+                                        Matin
+                                    </label>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <label v-for="creneau in CRENEAUX_MATIN" :key="creneau"
+                                            class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
+                                            <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
+                                                @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                            {{ CRENEAU_LIBELLES[creneau] }}
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="border border-ink-faint rounded-lg p-2">
+                                    <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
+                                        <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_APRES_MIDI)"
+                                            @change="toggleGroupe(livraison.id, CRENEAUX_APRES_MIDI)" class="w-3.5 h-3.5 accent-accent">
+                                        Après-midi
+                                    </label>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <label v-for="creneau in CRENEAUX_APRES_MIDI" :key="creneau"
+                                            class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
+                                            <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
+                                                @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                            {{ CRENEAU_LIBELLES[creneau] }}
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <p v-for="e in etatEnvoi(livraison.id).erreurs.creneaux ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                        </div>
+
+                        <!-- se_deplace (25/09/2026, prompt de cette date) :
+                             posée UNIQUEMENT ici (saisie téléphonique staff),
+                             pas sur le formulaire public de confirmation —
+                             décision produit actée avec l'utilisateur. -->
+                        <div>
+                            <label class="block text-[11px] text-ink-muted mb-1.5">La famille se déplacera-t-elle au QG pour récupérer son colis ?</label>
+                            <div class="flex gap-2 max-w-xs">
+                                <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                    :class="seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
+                                    <input type="radio" :value="true" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Oui
+                                </label>
+                                <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                    :class="!seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
+                                    <input type="radio" :value="false" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Non
+                                </label>
+                            </div>
+                            <p v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                        </div>
+
+                        <button type="button" :disabled="etatEnvoi(livraison.id).envoiEnCours" @click="enregistrerContact(livraison)"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
+                            {{ etatEnvoi(livraison.id).envoiEnCours ? 'Enregistrement…' : 'Enregistrer la confirmation' }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

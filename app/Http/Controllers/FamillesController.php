@@ -996,11 +996,26 @@ class FamillesController extends Controller
         $request->validate([
             'type' => ['required', 'string', 'in:identity,caf,ame,resource'],
             'fichier' => ['required', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
+            // Libellé optionnel (01/10/2026) : le fichier prend ce nom — voir
+            // FamilleDocument::nomAvecLabel().
+            'label' => ['nullable', 'string', 'max:100'],
         ], [
             'fichier.required' => 'Aucun fichier sélectionné.',
             'fichier.max' => 'Le fichier ne doit pas dépasser 10 Mo.',
             'fichier.mimes' => 'Formats acceptés : PDF, JPG, PNG.',
+            'label.max' => 'Le libellé ne doit pas dépasser 100 caractères.',
         ]);
+
+        // Plafond par section (01/10/2026) — voir FamilleDocument::MAX_PAR_TYPE.
+        $dejaPresents = FamilleDocument::where('id_famille', $famille->id)
+            ->where('type', $request->input('type'))
+            ->count();
+        if ($dejaPresents >= FamilleDocument::MAX_PAR_TYPE) {
+            return response()->json([
+                'message' => 'Cinq fichiers maximum par section.',
+                'errors' => ['fichier' => ['Cinq fichiers maximum par section.']],
+            ], 422);
+        }
 
         $file = $request->file('fichier');
         $path = $file->store("familles/{$famille->id}", 'local');
@@ -1009,7 +1024,7 @@ class FamillesController extends Controller
             'id_famille' => $famille->id,
             'type' => $request->input('type'),
             'disk_path' => $path,
-            'original_name' => $file->getClientOriginalName(),
+            'original_name' => FamilleDocument::nomAvecLabel($request->input('label'), $file->getClientOriginalName()),
             'mime_type' => $file->getClientMimeType(),
             'uploaded_at' => now(),
         ]);
@@ -1017,6 +1032,53 @@ class FamillesController extends Controller
         audit('create', 'familles_documents', $document->id, null, $document->toArray());
 
         return response()->json($document, 201);
+    }
+
+    /**
+     * Modification d'une ligne de document (01/10/2026) : renommer via le
+     * libellé et/ou remplacer le fichier. Sans nouveau fichier, seul le nom
+     * change (l'extension d'origine est conservée, voir
+     * FamilleDocument::nomAvecLabel()) ; avec un nouveau fichier, l'ancien
+     * est supprimé du disque. Un libellé vide conserve le nom de base (voir
+     * le commentaire plus bas). POST (pas PATCH) côté route :
+     * un envoi multipart n'est pas lu par PHP sur PATCH.
+     */
+    public function updateDocument(Request $request, int $id, int $documentId): JsonResponse
+    {
+        $document = FamilleDocument::where('id_famille', $id)->findOrFail($documentId);
+        $this->assertAccesFamille(Famille::findOrFail($id));
+
+        $request->validate([
+            'label' => ['nullable', 'string', 'max:100'],
+            'fichier' => ['nullable', 'file', 'max:10240', 'mimes:pdf,jpg,jpeg,png'],
+        ], [
+            'fichier.max' => 'Le fichier ne doit pas dépasser 10 Mo.',
+            'fichier.mimes' => 'Formats acceptés : PDF, JPG, PNG.',
+            'label.max' => 'Le libellé ne doit pas dépasser 100 caractères.',
+        ]);
+
+        $avant = $document->toArray();
+        $nomBase = $document->original_name;
+
+        if ($request->hasFile('fichier')) {
+            $file = $request->file('fichier');
+            Storage::disk('local')->delete($document->disk_path);
+            $document->disk_path = $file->store("familles/{$document->id_famille}", 'local');
+            $document->mime_type = $file->getClientMimeType();
+            $document->uploaded_at = now();
+            $nomBase = $file->getClientOriginalName();
+        }
+
+        // Libellé vide = « pas de libellé » : le nom de base est conservé (nom
+        // du nouveau fichier s'il y en a un, sinon nom courant — le nom brut
+        // d'origine n'est pas stocké à part). L'extension en est reprise
+        // telle quelle.
+        $document->original_name = FamilleDocument::nomAvecLabel($request->input('label'), $nomBase);
+        $document->save();
+
+        audit('update', 'familles_documents', $document->id, $avant, $document->toArray());
+
+        return response()->json($document);
     }
 
     public function downloadDocument(int $id, int $documentId)

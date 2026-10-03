@@ -208,6 +208,12 @@ export interface FamilleFiltres {
     nom?: string;
     telephone?: string;
     id_selection?: number | '';
+    // Contacts uniquement (FamilleFilterPanel.vue, prop avecAssignation —
+    // 01/10/2026) : filtre sur livraisons.id_personne_assignee, voir
+    // ContactTrackingController::queteBase(). non_assigne prime côté
+    // serveur sur id_personne_assignee (mutuellement exclusifs en UI).
+    id_personne_assignee?: number | '';
+    non_assigne?: boolean;
 }
 
 /** Résultat d'une suggestion d'autocomplétion — voir

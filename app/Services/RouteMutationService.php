@@ -262,7 +262,12 @@ class RouteMutationService
         $route = $route->fresh();
         $this->notifierBenevole($route, 'Une nouvelle tournée personnalisée vous a été assignée.');
 
-        return $route;
+        // Colis déjà tous prêts : bascule immédiate en 'chargement' (voir
+        // RouteChargementService, 01/10/2026). app() : ce service est
+        // instancié à la main dans les tests.
+        app(RouteChargementService::class)->promouvoirSiPrete($route);
+
+        return $route->fresh();
     }
 
     /**

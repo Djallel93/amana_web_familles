@@ -479,7 +479,7 @@ class RouteGenerationService
         array $hq,
         ?int $idCampagneJournee = null,
     ): RouteLivraison {
-        return DB::transaction(function () use ($campagne, $idBenevole, $idVehiculeType, $creneau, $livraisonsOrdonnees, $hq, $idCampagneJournee) {
+        $route = DB::transaction(function () use ($campagne, $idBenevole, $idVehiculeType, $creneau, $livraisonsOrdonnees, $hq, $idCampagneJournee) {
             $poidsTotal = array_sum(array_column($livraisonsOrdonnees, 'poids_kg'));
             $distanceTotale = $this->geo->distanceTotaleRoute($livraisonsOrdonnees, $hq);
 
@@ -509,6 +509,15 @@ class RouteGenerationService
 
             return $route;
         });
+
+        // Colis déjà tous prêts avant la génération (conditionnement
+        // découplé des tournées) : bascule immédiate en 'chargement',
+        // sinon plus rien ne la déclencherait (01/10/2026). Résolu via
+        // app() plutôt que le constructeur — ce service est instancié à la
+        // main avec des dépendances explicites dans les tests.
+        app(RouteChargementService::class)->promouvoirSiPrete($route);
+
+        return $route;
     }
 
     /**

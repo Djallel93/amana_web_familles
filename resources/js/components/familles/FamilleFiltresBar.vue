@@ -40,6 +40,9 @@ const props = defineProps<{
     avecAutocompletion: boolean;
     suggestionsUrl?: string;
     ouvertParDefaut: boolean;
+    // Voir FamilleFilterPanel.vue (prop avecPuces) : Familles/Index.vue le
+    // passe à false car il rend déjà ses propres puces de filtres actifs.
+    avecPuces?: boolean;
     baseUrl: string;
     perPage: string | number;
 }>();
@@ -95,6 +98,7 @@ function ouvrirFiche(id: number) {
         :avec-autocompletion="avecAutocompletion"
         :suggestions-url="suggestionsUrl ?? ''"
         :ouvert-par-defaut="ouvertParDefaut"
+        :avec-puces="avecPuces ?? true"
         @filtrer="naviguer"
         @selection="ouvrirFiche"
     />

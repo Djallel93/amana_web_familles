@@ -6,7 +6,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Livraison;
 
 use Amana\Shared\Models\Personne;
-use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
@@ -14,11 +13,10 @@ use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\LivraisonColis;
 use App\Models\RouteIncident;
-use App\Models\RouteLivraison;
 use App\Notifications\PackagingAnnuleNotification;
-use App\Notifications\RoutePretePourChargementNotification;
 use App\Services\CouvertureCollecteService;
 use App\Services\QrCodeService;
+use App\Services\RouteChargementService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -52,7 +50,7 @@ class PackagingController extends Controller
 
     public function __construct(
         private readonly QrCodeService $qrCode,
-        private readonly NotificationCenterService $notificationCenter,
+        private readonly RouteChargementService $routeChargement,
     ) {
     }
 
@@ -293,87 +291,20 @@ class PackagingController extends Controller
     }
 
     /**
-     * Une tournée re-conditionnée après une annulation n'a plus de raison de
-     * garder son incident 'packaging_annule' ouvert — sans cela, la bannière
-     * d'alerte urgente des admins (UrgentAlertBar) continuait de signaler un
-     * problème réglé jusqu'à une résolution manuelle dans le Suivi
-     * livraison. Mêmes deux gestes que la résolution manuelle pour ce type
-     * (voir LiveBoardController::resoudreIncident()) : statut 'resolu' +
-     * retrait de la notification urgente correspondante. Aucun autre champ
-     * n'est renseigné à la résolution manuelle, donc aucune trace d'audit
-     * n'est perdue ici. Sans effet si l'incident a déjà été résolu à la main.
-     */
-    private function resoudreIncidentsPackagingAnnule(RouteLivraison $route): void
-    {
-        RouteIncident::ouverts()
-            ->where('id_route', $route->id)
-            ->where('type', 'packaging_annule')
-            ->get()
-            ->each(function (RouteIncident $incident) {
-                $incident->update(['statut' => 'resolu']);
-                $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
-            });
-    }
-
-    /**
-     * Bascule la tournée en 'chargement' + notifie l'équipe chargement/
-     * chauffeur quand TOUTES les livraisons de cette tournée sont
-     * désormais prêtes — logique inchangée par rapport à l'ancien
-     * marquerPret() (voir le prompt du 03/09/2026 §2.9), simplement
-     * extraite ici pour être appelée depuis marquerColisPret() une fois
-     * le dernier colis d'une famille coché, plutôt que sur un bouton
-     * "famille entière" cliqué directement par l'utilisateur.
-     *
-     * Bascule aussi 'packaging_annule' → 'chargement' quand une tournée dont
-     * le conditionnement avait été annulé est de nouveau entièrement prête
-     * (et notifie à nouveau l'équipe chargement/chauffeur).
+     * Marque la livraison 'prete' puis, si c'était le dernier colis de sa
+     * tournée, délègue la bascule 'chargement' + notifications à
+     * RouteChargementService (extraite le 01/10/2026 : la même bascule doit
+     * aussi avoir lieu à la création d'une tournée dont tous les colis sont
+     * déjà prêts — voir le docblock du service).
      */
     private function finaliserConditionnement(Livraison $livraison): void
     {
         $livraison->update(['statut_conditionnement' => 'prete']);
 
-        $etape = $livraison->etapesRoute()->with('route.etapes.livraison')->first();
+        $etape = $livraison->etapesRoute()->with('route')->first();
 
         if ($etape) {
-            $route = $etape->route;
-            $toutesPretes = $route->etapes->every(
-                fn ($e) => $e->livraison === null || $e->livraison->statut_conditionnement === 'prete',
-            );
-
-            // 'packaging_annule' accepté en plus de 'planifiee' : une tournée
-            // repassée là par annulerConditionnement() ne redevenait jamais
-            // 'chargement' une fois ses colis re-conditionnés (aucun autre
-            // code n'écrit 'chargement' — constaté le 19/09/2026 en
-            // relisant tous les écrivains de statut), et restait
-            // indéfiniment "Packaging annulé" sur
-            // l'écran chargement, boutons masqués. Le(s) RouteIncident
-            // 'packaging_annule' ouvert(s) de cette tournée sont résolus
-            // dans la foulée — voir resoudreIncidentsPackagingAnnule().
-            $etaitAnnulee = $route->statut === 'packaging_annule';
-
-            if ($toutesPretes && in_array($route->statut, ['planifiee', 'packaging_annule'], true)) {
-                $route->update(['statut' => 'chargement']);
-
-                if ($etaitAnnulee) {
-                    $this->resoudreIncidentsPackagingAnnule($route);
-                }
-
-                // Remplacé le 08/09/2026 : Personne::avecRole('equipe_chargement')
-                // notifiait TOUT détenteur du rôle global, toutes campagnes
-                // confondues — voir Campagne::personnesAvecRole() pour le
-                // raisonnement complet (distinction rôle global / affectation
-                // par campagne).
-                $destinataires = $route->campagne->personnesAvecRole('equipe_chargement');
-
-                if ($route->id_benevole) {
-                    $chauffeur = Personne::find($route->id_benevole);
-                    if ($chauffeur) {
-                        $destinataires->push($chauffeur);
-                    }
-                }
-
-                Notification::send($destinataires, new RoutePretePourChargementNotification($route));
-            }
+            $this->routeChargement->promouvoirSiPrete($etape->route);
         }
     }
 

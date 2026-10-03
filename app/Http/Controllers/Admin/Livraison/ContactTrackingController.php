@@ -222,6 +222,11 @@ class ContactTrackingController extends Controller
 
         if ($request->boolean('mine')) {
             $query->where('id_personne_assignee', auth()->id());
+        } elseif ($request->boolean('non_assigne')) {
+            // "Non assigné" (01/10/2026, filtre "Assigné à" de la file de
+            // contact) : prime sur id_personne_assignee — les deux sont
+            // mutuellement exclusifs côté UI (FamilleFilterPanel.vue).
+            $query->whereNull('id_personne_assignee');
         } elseif ($request->filled('id_personne_assignee')) {
             $query->where('id_personne_assignee', $request->input('id_personne_assignee'));
         }
