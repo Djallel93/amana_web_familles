@@ -38,9 +38,20 @@
     Aucun repli dataset conservé : cet écran est le seul consommateur de
     ce composant (vérifié par grep avant conversion), il n'y a pas de
     page Blade non migrée à faire coexister.
+
+    Mode staff (03/10/2026, prop modeStaff) : même assistant, utilisé par
+    pages/Familles/Creer.vue pour la création d'un dossier par le staff
+    (FamilleCreationController). Différences : pas d'étape consentement
+    (phase 'wizard' d'emblée, aucun consentement envoyé), pas de piège à
+    robots, libellés toujours en français — la langue choisie devient la
+    « langue de la famille » (champ `langue` du dossier) via un sélecteur
+    dédié plutôt que la langue d'affichage —, un doublon (409) affiche un
+    lien vers le dossier existant, et le succès redirige vers la liste avec
+    le dossier ouvert au lieu de l'écran « merci ».
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick } from 'vue';
+import { Link, router } from '@inertiajs/vue3';
 import { useToast, PersonalInfoStep } from '@amana/shared-ui';
 import type { PersonalInfoValue } from '@amana/shared-ui';
 import DocumentRows from '../familles/DocumentRows.vue';
@@ -152,6 +163,11 @@ const DICT: Record<Langue, Record<string, string>> = {
         success_title: "Merci d'avoir pris le temps de répondre à ce formulaire",
         success_text: "Un email de confirmation vient de vous être envoyé à l'adresse indiquée. Merci de cliquer sur le lien qu'il contient dans les 48 heures pour valider votre demande — sans cette confirmation, votre dossier ne sera pas transmis à notre équipe. Pensez à vérifier vos courriers indésirables si vous ne le recevez pas rapidement.",
         error_generic: 'Une erreur est survenue. Merci de réessayer.',
+        // Mode staff (03/10/2026) — libellés FR uniquement, ce mode n'affiche jamais EN/AR.
+        staff_submit: 'Créer le dossier', staff_submitting: 'Création en cours…',
+        staff_langue_famille: 'Langue de la famille',
+        staff_doublon_titre: 'Cette famille existe déjà',
+        staff_doublon_ouvrir: 'Ouvrir le dossier existant',
         error_session_expired: 'Votre session a expiré (formulaire resté ouvert trop longtemps). Merci de recharger la page.',
         error_too_many_attempts: 'Trop de tentatives. Merci de patienter une minute avant de réessayer.',
     },
@@ -346,9 +362,13 @@ const props = defineProps<{
     organismesAide: ListeOption[];
     organisations: { id: number; code: string; nom: string }[];
     googlePlacesApiKey: string;
+    modeStaff?: boolean;
 }>();
 
-const langue = ref<Langue>(props.langue);
+// Mode staff : libellés toujours en FR ; props.langue devient la langue de
+// la FAMILLE (champ `langue` envoyé), modifiable via le sélecteur dédié.
+const langueFamille = ref<Langue>(props.langue);
+const langue = ref<Langue>(props.modeStaff ? 'fr' : props.langue);
 const t = computed(() => DICT[langue.value]);
 
 function tr(key: string, vars: Record<string, string | number> = {}): string {
@@ -370,7 +390,8 @@ const organismesAide = ref<ListeOption[]>(props.organismesAide);
 const organisations = ref<{ id: number; code: string; nom: string }[]>(props.organisations);
 const googlePlacesKey = ref(props.googlePlacesApiKey);
 
-const phase = ref<Phase>('consent');
+const phase = ref<Phase>(props.modeStaff ? 'wizard' : 'consent');
+const doublon = ref<{ id: number; nom: string; prenom: string; url: string } | null>(null);
 const currentStep = ref(0);
 const submitting = ref(false);
 const errors = ref<Record<string, string>>({});
@@ -713,6 +734,7 @@ async function submit(): Promise<void> {
 
     submitting.value = true;
     errors.value = {};
+    doublon.value = null;
 
     const data = new FormData();
     const append = (key: string, value: unknown) => {
@@ -742,11 +764,13 @@ async function submit(): Promise<void> {
     append('work_days', form.type_activite === 'temps_partiel' ? form.work_days : null);
     append('secteur_activite_autre', form.secteur_activite_autre);
     append('organisme_aide_autre', form.organisme_aide_autre);
-    append('langue', langue.value);
-    append('consentement', true);
-    // Piège à robots : jamais rempli par un humain (voir IntakeController::
-    // store). On l'envoie même vide pour que le backend puisse le vérifier.
-    data.append('site_web', form.site_web);
+    append('langue', props.modeStaff ? langueFamille.value : langue.value);
+    if (!props.modeStaff) {
+        append('consentement', true);
+        // Piège à robots : jamais rempli par un humain (voir IntakeController::
+        // store). On l'envoie même vide pour que le backend puisse le vérifier.
+        data.append('site_web', form.site_web);
+    }
 
     // Champs volontairement omis si vide : le backend traite l'absence de
     // clé comme "aucune sélection" (voir IntakeController::store — les deux
@@ -780,6 +804,16 @@ async function submit(): Promise<void> {
             return;
         }
 
+        // Mode staff : doublon (même email, ou même téléphone + nom) — pas
+        // d'écrasement silencieux, on propose d'ouvrir le dossier existant.
+        if (res.status === 409) {
+            const body = await res.json();
+            doublon.value = body.doublon ?? null;
+            toast.error(body.message ?? t.value.error_generic);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
+
         // 419 (jeton CSRF expiré, formulaire resté ouvert trop longtemps) et
         // 429 (throttle:5,1 sur /demande) sont fréquents en usage réel et NE
         // SONT PAS journalisés côté Laravel par défaut (TokenMismatchException
@@ -799,6 +833,13 @@ async function submit(): Promise<void> {
             // eslint-disable-next-line no-console
             console.error('Intake submit failed', res.status, await res.text().catch(() => ''));
             throw new Error(`http_${res.status}`);
+        }
+
+        if (props.modeStaff) {
+            const body = await res.json();
+            toast.success('Dossier créé.');
+            router.visit(body.redirect);
+            return;
         }
 
         phase.value = 'success';
@@ -851,8 +892,26 @@ async function submit(): Promise<void> {
         <!-- Piège à robots : jamais visible/atteignable par un humain (CSS,
              pas display:none — certains bots l'ignorent), jamais rempli.
              Voir IntakeController::store. -->
-        <input type="text" v-model="form.site_web" name="site_web" tabindex="-1" autocomplete="off"
+        <input v-if="!modeStaff" type="text" v-model="form.site_web" name="site_web" tabindex="-1" autocomplete="off"
             class="absolute -left-[9999px] w-px h-px opacity-0 overflow-hidden" aria-hidden="true">
+
+        <!-- Mode staff : langue de la famille + bandeau doublon -->
+        <div v-if="modeStaff" class="space-y-3">
+            <div>
+                <label class="block text-xs font-semibold text-ink mb-1">{{ t.staff_langue_famille }}</label>
+                <select v-model="langueFamille"
+                    class="w-full sm:w-56 px-3 py-2 border border-surface-border rounded-lg text-[13px] bg-surface text-ink">
+                    <option value="fr">Français</option>
+                    <option value="ar">العربية</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <div v-if="doublon" class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900">
+                <p class="font-semibold">⚠️ {{ t.staff_doublon_titre }}</p>
+                <p class="mt-0.5">{{ doublon.prenom }} {{ doublon.nom }}</p>
+                <Link :href="doublon.url" class="inline-block mt-2 font-semibold underline">{{ t.staff_doublon_ouvrir }}</Link>
+            </div>
+        </div>
 
         <div>
             <div class="flex items-center justify-between mb-1.5">
@@ -1111,7 +1170,9 @@ async function submit(): Promise<void> {
             <button type="submit" :disabled="submitting"
                 class="flex-1 min-h-[46px] px-6 py-3 bg-accent hover:bg-accent-dark disabled:bg-ink-faint disabled:hover:bg-ink-faint disabled:cursor-not-allowed text-white font-bold text-[14px] rounded-lg
                         shadow-[0_3px_14px_rgba(180,83,9,0.3)] disabled:shadow-none transition-all cursor-pointer">
-                {{ currentStep === STEP_IDS.length - 1 ? (submitting ? t.nav_submitting : t.nav_submit) : t.nav_next }}
+                {{ currentStep === STEP_IDS.length - 1
+                    ? (submitting ? (modeStaff ? t.staff_submitting : t.nav_submitting) : (modeStaff ? t.staff_submit : t.nav_submit))
+                    : t.nav_next }}
             </button>
         </div>
     </form>

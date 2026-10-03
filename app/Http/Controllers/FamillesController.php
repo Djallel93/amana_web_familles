@@ -144,7 +144,19 @@ class FamillesController extends Controller
             'filtresActifs' => $filtresActifs,
             'puces' => $puces,
             'reinitialiserUrl' => route('familles.index', ['etat_dossier' => '']),
+            // Groupe « Statut » du panneau de filtres (03/10/2026) : les pastilles
+            // étaient vides faute de ces deux props (FamilleFiltresBar les
+            // défaut à []). 'Recu' exclu : ces dossiers n'apparaissent que
+            // sur Nouvelles demandes, jamais sur cette liste (voir
+            // appliquerFiltreStatut()).
+            'etatsDisponibles' => array_values(array_diff(Famille::ETATS, ['Recu'])),
+            'etatCouleurs' => Famille::ETAT_COLORS,
             'peutSyncGoogleContacts' => $utilisateur && ($utilisateur->isAdmin() || $utilisateur->isGestionnaire()),
+            // Bouton « Créer une famille » (03/10/2026) — même audience que la
+            // route (role:gestionnaire, cascade admin), voir
+            // FamilleCreationController.
+            'peutCreerFamille' => $utilisateur && ($utilisateur->isAdmin() || $utilisateur->isGestionnaire()),
+            'creerFamilleUrl' => route('familles.creer'),
             'googleContactsScanUrl' => route('familles.google-contacts.scan'),
             'googleContactsAppliquerUrl' => route('familles.google-contacts.appliquer'),
             'exportUrl' => route('familles.export', $request->query()),

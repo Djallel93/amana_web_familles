@@ -379,12 +379,17 @@ function choisirSuggestion(champ: 'nom' | 'telephone', suggestion: FamilleSugges
                     </div>
 
                     <!-- Statut (avecStatut uniquement — voir docblock en tête de
-                         fichier). Pas d'option "Tous" : les radios ne peuvent pas
-                         se décocher nativement, revenir à "Tous" passe par la
-                         puce Statut ou par Réinitialiser. -->
+                         fichier). Pastille « Tous » (03/10/2026) : valeur vide
+                         EXPLICITE (tous statuts sauf Recu), distincte de
+                         l'absence de paramètre qui retombe sur « Validé » côté
+                         serveur — voir FamilleFiltresBar.naviguer(). -->
                     <div v-if="avecStatut" class="mt-2">
                         <label :class="CHAMP_LABEL">🏷️ Statut</label>
                         <div class="flex flex-wrap gap-1.5">
+                            <label class="cursor-pointer">
+                                <input type="radio" value="" v-model="filtres.etat_dossier" class="sr-only peer">
+                                <span class="inline-flex px-2.5 py-1 rounded-full text-[11.5px] font-semibold border bg-surface-2 text-ink-muted border-surface-border peer-checked:ring-2 peer-checked:ring-offset-1 peer-checked:ring-accent">Tous</span>
+                            </label>
                             <label v-for="etat in etatsDisponibles" :key="etat" class="cursor-pointer">
                                 <input type="radio" :value="etat" v-model="filtres.etat_dossier" class="sr-only peer">
                                 <span class="inline-flex px-2.5 py-1 rounded-full text-[11.5px] font-semibold border peer-checked:ring-2 peer-checked:ring-offset-1 peer-checked:ring-accent"

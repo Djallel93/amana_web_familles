@@ -67,7 +67,12 @@ const props = defineProps<{
     filtresActifs: boolean;
     puces: Puce[];
     reinitialiserUrl: string;
+    // Pastilles du groupe Statut (03/10/2026) — voir FamillesController::index().
+    etatsDisponibles: string[];
+    etatCouleurs: Record<string, string>;
     peutSyncGoogleContacts: boolean;
+    peutCreerFamille: boolean;
+    creerFamilleUrl: string;
     googleContactsScanUrl: string;
     googleContactsAppliquerUrl: string;
     exportUrl: string;
@@ -135,6 +140,14 @@ function ouvrirSyncGoogleContacts() {
                 <template v-if="filtresActifs">(filtré{{ familles.total !== 1 ? 's' : '' }})</template>
             </p>
         </div>
+        <!-- Création d'un dossier par le staff (03/10/2026) — voir
+             FamilleCreationController. Ouvre le formulaire en mode staff
+             (page dédiée) plutôt qu'un panneau : même assistant que le
+             formulaire public, sans le consentement. -->
+        <Link v-if="peutCreerFamille" :href="creerFamilleUrl"
+            class="inline-flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors active:scale-95 no-underline">
+            ➕ Créer une famille
+        </Link>
     </div>
 
     <FamilleFiltresBar
@@ -144,6 +157,8 @@ function ouvrirSyncGoogleContacts() {
         :organisations="organisations"
         :valeurs-filtres="valeursFiltres"
         :avec-statut="true"
+        :etats-disponibles="etatsDisponibles"
+        :etat-couleurs="etatCouleurs"
         :avec-autocompletion="true"
         :ouvert-par-defaut="true"
         :avec-puces="false"

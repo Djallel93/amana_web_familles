@@ -132,6 +132,15 @@ Route::middleware('auth')->group(function () {
     // garder les routes explicites avant le wildcard).
     Route::get('/familles/recherche-suggestions', [\App\Http\Controllers\FamillesController::class, 'rechercheSuggestions'])->name('familles.recherche-suggestions');
     Route::get('/familles/export', [\App\Http\Controllers\FamillesController::class, 'export'])->name('familles.export');
+
+    // Création d'un dossier par le staff (03/10/2026) — gestionnaire et
+    // plus, voir FamilleCreationController. Déclarées avant /familles/{id}
+    // (même convention que ci-dessus) ; POST /familles ne collisionne avec
+    // rien (les autres POST ont tous un /{id} dans le chemin).
+    Route::middleware('role:gestionnaire')->group(function () {
+        Route::get('/familles/creer/{langue?}', [\App\Http\Controllers\FamilleCreationController::class, 'create'])->name('familles.creer');
+        Route::post('/familles', [\App\Http\Controllers\FamilleCreationController::class, 'store'])->name('familles.store');
+    });
     Route::get('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'show'])->whereNumber('id')->name('familles.show');
     Route::put('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'update'])->whereNumber('id')->name('familles.update');
     // Verrouillage d'édition (décision du 15/08/2026) — relâche le verrou
