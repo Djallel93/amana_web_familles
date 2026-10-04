@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http;
 
+use Amana\Shared\Models\Personne as SharedPersonne;
+use Amana\Shared\Models\VehiculeType;
 use App\Models\BenevoleProfil;
 use App\Models\Campagne;
 use App\Models\Famille;
@@ -188,14 +190,15 @@ class PersonneDesactivationTest extends TestCase
 
         $this->actingAs($admin)->get(route('admin.personnes.index'))
             ->assertOk()
-            ->assertSee('Zidane')
-            ->assertDontSee('Yahia')
+            // Personne::setNomAttribute() stocke le nom en MAJUSCULES.
+            ->assertSee('ZIDANE')
+            ->assertDontSee('YAHIA')
             ->assertSee('Désactivées')
             ->assertViewHas('total', 2)            // admin + active
             ->assertViewHas('nbDesactives', 1);
 
         $this->get(route('admin.personnes.index', ['desactives' => 1]))
-            ->assertSee('Yahia')
+            ->assertSee('YAHIA')
             ->assertSee(route('admin.personnes.reactiver', $inactive->id), false);
     }
 
@@ -247,16 +250,26 @@ class PersonneDesactivationTest extends TestCase
     {
         $active = $this->creerPersonne(['benevole']);
         $inactive = $this->creerPersonne(['benevole']);
+        // benevole_profils.id_vehicule_type est une vraie clé étrangère (base commun).
+        $vehicule = VehiculeType::create(['type' => 'Voiture', 'capacite_kg' => 200, 'nombre_part_max' => 5]);
         foreach ([$active, $inactive] as $p) {
-            BenevoleProfil::create(['id_personne' => $p->id, 'id_vehicule_type' => 1, 'statut' => 'Validé']);
+            BenevoleProfil::create(['id_personne' => $p->id, 'id_vehicule_type' => $vehicule->id, 'statut' => 'Validé']);
         }
         PersonneDesactivee::create(['id_personne' => $inactive->id]);
 
         $resultat = app(BenevoleDisponibiliteService::class)->notifierCampagne($this->creerCampagne());
 
         $this->assertSame(1, $resultat['envoyes']);
-        Notification::assertSentTo($active, CampagneDisponibiliteNotification::class);
-        Notification::assertNotSentTo($inactive, CampagneDisponibiliteNotification::class);
+
+        // BenevoleProfil::personne() (amana/shared) renvoie Amana\Shared\Models\Personne,
+        // pas App\Models\Personne : NotificationFake classe les envois par
+        // get_class($notifiable), donc on vérifie avec la classe réellement notifiée
+        // (sinon assertSentTo échoue et assertNotSentTo réussit à vide).
+        $notifieActive = SharedPersonne::findOrFail($active->id);
+        $notifieInactive = SharedPersonne::findOrFail($inactive->id);
+
+        Notification::assertSentToTimes($notifieActive, CampagneDisponibiliteNotification::class, 1);
+        Notification::assertNotSentTo($notifieInactive, CampagneDisponibiliteNotification::class);
     }
 
     public function test_on_ne_peut_pas_reassigner_une_tournee_a_une_desactivee(): void

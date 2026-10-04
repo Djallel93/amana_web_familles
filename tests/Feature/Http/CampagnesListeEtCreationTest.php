@@ -106,8 +106,10 @@ class CampagnesListeEtCreationTest extends TestCase
         $membre = $this->creerPersonne(['membre']);
         $campagne = $this->creerCampagne();
 
-        $this->actingAs($membre)->get(route('livraison.campagnes.creer'))->assertForbidden();
-        $this->actingAs($membre)->getJson(route('livraison.campagnes.apercu', $campagne))->assertForbidden();
+        // EnsureRole redirige vers l'accueil avec un message d'erreur (jamais de 403).
+        $accueil = route(config('amana-shared.home_route'));
+        $this->actingAs($membre)->get(route('livraison.campagnes.creer'))->assertRedirect($accueil);
+        $this->actingAs($membre)->getJson(route('livraison.campagnes.apercu', $campagne))->assertRedirect($accueil);
     }
 
     public function test_store_exige_un_type_et_au_moins_une_date(): void

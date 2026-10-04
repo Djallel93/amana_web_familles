@@ -15,7 +15,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { useConfirm } from '@amana/shared-ui';
+import { useConfirm, useToast } from '@amana/shared-ui';
 import { apiPost } from '../shared/api';
 import { CAMPAGNE_TYPES, type Campagne, type CampagneType } from '../shared/types';
 import HqCoordinatesAutocomplete from '../../admin/HqCoordinatesAutocomplete.vue';
@@ -31,22 +31,30 @@ const props = defineProps<{
 }>();
 
 const confirmDialog = useConfirm();
+const toast = useToast();
 
 interface FormJournee {
     date: string;
     label: string;
 }
 
+// Champs numériques : Vue convertit automatiquement la valeur d'un
+// <input type="number"> sous v-model en NOMBRE dès qu'on tape (et ne la
+// laisse en chaîne que si elle est vide : ''). Les déclarer `string` seul
+// masquait ce cas au compilateur — c'est ce qui faisait planter le
+// récapitulatif (kg() appelait .replace() sur un nombre) sans aucun message.
+type ChampNumerique = string | number;
+
 interface FormCampagne {
     type: CampagneType | null;
     journees: FormJournee[];
-    poids_moyen_kg: string;
-    poids_moyen_hotel_kg: string;
-    poids_moyen_etudiant_kg: string;
-    livraisons_max_par_tournee: string;
+    poids_moyen_kg: ChampNumerique;
+    poids_moyen_hotel_kg: ChampNumerique;
+    poids_moyen_etudiant_kg: ChampNumerique;
+    livraisons_max_par_tournee: ChampNumerique;
     hq_adresse: string;
-    hq_latitude: string;
-    hq_longitude: string;
+    hq_latitude: ChampNumerique;
+    hq_longitude: ChampNumerique;
 }
 
 function nouvelleLigneJournee(): FormJournee {
@@ -87,6 +95,7 @@ const elementsManquants = computed(() => {
     return manquants;
 });
 
+const avancesOuverts = ref(false);
 const fieldErrors = ref<Record<string, string[]>>({});
 const messageGeneral = ref('');
 const envoiEnCours = ref(false);
@@ -105,8 +114,8 @@ function erreursPourChampJournee(index: number, champ: 'date' | 'label'): string
 }
 
 // ── Récapitulatif de confirmation ───────────────────────────────────────
-function kg(valeur: string): string {
-    return `${valeur.replace('.', ',')} kg`;
+function kg(valeur: ChampNumerique): string {
+    return `${String(valeur).replace('.', ',')} kg`;
 }
 
 function lignesRecapitulatif(): { label: string; value: string }[] {
@@ -135,7 +144,7 @@ function lignesRecapitulatif(): { label: string; value: string }[] {
         { label: 'Poids moyen étudiant', value: f.poids_moyen_etudiant_kg ? kg(f.poids_moyen_etudiant_kg) : 'Poids standard' },
         {
             label: 'Livraisons max / tournée',
-            value: f.livraisons_max_par_tournee || `Réglage global (${props.livraisonsMaxParTourneeDefaut})`,
+            value: f.livraisons_max_par_tournee !== '' ? String(f.livraisons_max_par_tournee) : `Réglage global (${props.livraisonsMaxParTourneeDefaut})`,
         },
         { label: 'Point de départ (HQ)', value: hq },
     ];
@@ -144,15 +153,23 @@ function lignesRecapitulatif(): { label: string; value: string }[] {
 async function demanderConfirmation() {
     if (elementsManquants.value.length > 0 || envoiEnCours.value) return;
 
-    const confirme = await confirmDialog.ask({
-        title: 'Créer cette campagne ?',
-        message: 'Vous êtes sur le point de créer la campagne ci-dessous. Elle démarre en préparation ; '
-            + 'vous pourrez ensuite ajuster ses poids, son point de départ et ses journées depuis la page de la campagne.',
-        details: lignesRecapitulatif(),
-        confirmLabel: 'Créer la campagne',
-    });
+    // try/catch : une erreur dans la construction du récapitulatif (ou dans la
+    // boîte de confirmation) ne doit jamais se traduire par un bouton qui ne
+    // fait « rien » — on la montre et on la garde dans la console.
+    try {
+        const confirme = await confirmDialog.ask({
+            title: 'Créer cette campagne ?',
+            message: 'Vous êtes sur le point de créer la campagne ci-dessous. Elle démarre en préparation ; '
+                + 'vous pourrez ensuite ajuster ses poids, son point de départ et ses journées depuis la page de la campagne.',
+            details: lignesRecapitulatif(),
+            confirmLabel: 'Créer la campagne',
+        });
 
-    if (confirme) await creerCampagne();
+        if (confirme) await creerCampagne();
+    } catch (erreur) {
+        console.error('[CampagneCreerForm] confirmation de création', erreur);
+        toast.error('Impossible d\'afficher le récapitulatif. Réessayez ou rechargez la page.');
+    }
 }
 
 async function creerCampagne() {
@@ -180,6 +197,10 @@ async function creerCampagne() {
 
     if (!resultat.ok) {
         fieldErrors.value = resultat.errors;
+        // Les erreurs de la section repliée seraient invisibles : on l'ouvre.
+        if (Object.keys(resultat.errors).some((champ) => champ.startsWith('livraisons_max') || champ.startsWith('hq_'))) {
+            avancesOuverts.value = true;
+        }
         messageGeneral.value = Object.keys(resultat.errors).length === 0 ? resultat.message : '';
         return;
     }
@@ -191,7 +212,11 @@ async function creerCampagne() {
 </script>
 
 <template>
-    <form class="space-y-5" @submit.prevent="demanderConfirmation">
+    <!-- novalidate : la validation est faite par le formulaire (éléments manquants)
+         et par le serveur (messages sous les champs). Sans lui, un champ
+         invalide caché dans « Paramètres avancés » (replié) fait refuser la
+         soumission par le navigateur sans rien afficher. -->
+    <form class="space-y-5" novalidate @submit.prevent="demanderConfirmation">
         <!-- Type : obligatoire, sans valeur par défaut -->
         <section class="bg-surface border border-surface-border rounded-xl p-4">
             <h2 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide mb-2">Type <span class="text-rose-600">*</span></h2>
@@ -263,7 +288,8 @@ async function creerCampagne() {
         </section>
 
         <!-- Paramètres avancés : seule section repliable -->
-        <details class="group bg-surface border border-surface-border rounded-xl p-4">
+        <details class="group bg-surface border border-surface-border rounded-xl p-4" :open="avancesOuverts"
+            @toggle="avancesOuverts = ($event.target as HTMLDetailsElement).open">
             <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
                 <h2 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Paramètres avancés</h2>
                 <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>

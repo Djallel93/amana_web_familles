@@ -91,7 +91,9 @@ class FamilleCreationEtStatutTest extends TestCase
 
     public function test_la_page_de_creation_est_reservee_au_gestionnaire(): void
     {
-        $this->actingAs($this->creerPersonne(['membre']))->get(route('familles.creer'))->assertForbidden();
+        // EnsureRole redirige vers l'accueil avec un message d'erreur (jamais de 403).
+        $accueil = route(config('amana-shared.home_route'));
+        $this->actingAs($this->creerPersonne(['membre']))->get(route('familles.creer'))->assertRedirect($accueil);
         $this->actingAs($this->creerPersonne(['gestionnaire']))->get(route('familles.creer'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('Familles/Creer')->where('storeUrl', route('familles.store')));
@@ -99,7 +101,8 @@ class FamilleCreationEtStatutTest extends TestCase
 
     public function test_un_membre_ne_peut_pas_creer_de_famille(): void
     {
-        $this->actingAs($this->creerPersonne(['membre']))->postJson(route('familles.store'), $this->payload())->assertForbidden();
+        $this->actingAs($this->creerPersonne(['membre']))->postJson(route('familles.store'), $this->payload())
+            ->assertRedirect(route(config('amana-shared.home_route')));
         $this->assertSame(0, Famille::count());
     }
 

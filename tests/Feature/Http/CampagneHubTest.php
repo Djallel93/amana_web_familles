@@ -344,8 +344,10 @@ class CampagneHubTest extends TestCase
         $membre = $this->creerPersonne(['membre']);
         $campagne = $this->creerCampagne();
 
-        $this->actingAs($membre)->postJson(route('livraison.campagnes.terminer', $campagne))->assertForbidden();
-        $this->actingAs($membre)->get(route('livraison.campagnes.gestion-incidents', $campagne))->assertForbidden();
+        // EnsureRole redirige vers l'accueil avec un message d'erreur (jamais de 403).
+        $accueil = route(config('amana-shared.home_route'));
+        $this->actingAs($membre)->postJson(route('livraison.campagnes.terminer', $campagne))->assertRedirect($accueil);
+        $this->actingAs($membre)->get(route('livraison.campagnes.gestion-incidents', $campagne))->assertRedirect($accueil)->assertSessionHas('error');
         $this->assertSame('preparation', $campagne->fresh()->statut);
     }
 

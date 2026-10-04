@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Amana\Shared\Services\NotificationCenterService;
 use App\Models\Campagne;
 use App\Models\RouteIncident;
 
