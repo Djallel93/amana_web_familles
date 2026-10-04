@@ -1,221 +1,81 @@
 <!-- resources/js/components/livraison/campagnes/CampagnesIndex.vue -->
 <!--
-    Écran Campagnes (liste + création) — reconstruit en Vue le
-    03/09/2026, voir resources/views/livraison/campagnes.blade.php pour
-    la coquille Blade et le patch de migration frontend livraison pour le
-    contexte complet.
+    Écran Campagnes — LISTE SEULE depuis le 03/10/2026 : le formulaire de
+    création (qui vivait au-dessus de la liste) est devenu sa propre page,
+    CampagneCreer.vue, atteinte par le bouton « Nouvelle campagne » en haut
+    à droite (voir pages/Livraison/Campagnes.vue).
 
-    Remplace la version placeholder : formulaire vanilla JS avec
-    alert(JSON.stringify(...)) sur erreur → erreurs de validation
-    affichées champ par champ (voir erreursPourChampJournee ci-dessous).
+    Conservés tels quels : filtres type + date (08/09/2026 §2.1.3) et
+    suppression en cascade avec aperçu des répercussions (08/09/2026
+    §2.1/§2.2 — voir CampagnesController::destroy()).
 
-    JOURNÉES MULTIPLES À LA CRÉATION (05/09/2026, suivi du prompt §3.1/
-    §3.2) : le champ unique "Date de livraison" est remplacé par une
-    liste dynamique de journées (date + label optionnel, au moins une),
-    envoyée à CampagnesController::store() qui crée une CampagneJournee
-    par ligne — voir Campagne::ajouterJournee(). Le cas mono-jour (le
-    plus courant) est simplement une liste à une seule ligne, sans
-    changement de comportement perçu par rapport à avant cette évolution.
-
-    SUPPRESSION + BOUTONS/FILTRES/SECTIONS (08/09/2026, prompt de cette
-    date §2.1/§2.2) :
-      - suppression en cascade (voir CampagnesController::destroy() —
-        cascadeOnDelete() en base sur toute la chaîne, rien à faire ici
-        d'autre qu'afficher l'aperçu des répercussions et confirmer) ;
-      - chaque ligne devient éditer/supprimer plutôt qu'un lien plein sur
-        toute la ligne (édition = simplement la même navigation
-        qu'avant, vers la page détail, qui sert déjà de surface
-        d'édition — voir CampagneDetail.vue) ;
-      - filtre type + date sur "Campagnes existantes" ;
-      - type sur sa propre ligne en pastilles colorées (voir
-        CAMPAGNE_TYPE_STYLES) plutôt qu'un <select> natif — aucun
-        composant listbox/Teleport réutilisable dans cette app
-        (contrairement à amana_web_planning), un simple groupe de
-        boutons façon "segmented control" reste plus cohérent avec le
-        reste de l'app (boutons bruts partout ailleurs) qu'une
-        dépendance nouvelle pour ce seul écran — et les poids partagent
-        une seule ligne à 3 colonnes.
-
-    HQ OPTIONNEL À LA CRÉATION (09/09/2026, prompt de cette date §2.1) :
-    le formulaire n'avait jusque-là que type/poids/max livraisons/
-    journées — le champ HQ existait déjà côté serveur (store()
-    l'acceptait) mais jamais affiché ici. Ajouté dans "Paramètres
-    avancés", mêmes champs que la section HQ & commentaire de
-    CampagneDetail.vue (adresse + autocomplétion Google Maps + lat/lng
-    en lecture seule) ; laissé vide, retombe sur le réglage global comme
-    avant.
-
-    Section E4 du refactor (16/09/2026) : ce composant n'est plus un
-    îlot monté par app.ts sur #vue-livraison-campagnes-index, mais un
-    enfant normal de resources/js/pages/Livraison/Campagnes.vue. Les
-    data-* lues jusqu'ici sur le point de montage sont devenues des
-    props — y compris `campagnes`, déjà passée intégralement chargée
-    avant ce chunk (voir l'ancien commentaire dans campagnes.blade.php,
-    repris dans le docblock de CampagnesController::index()) : aucun
-    changement de fond, seule la source de la prop change (Inertia au
-    lieu d'un data-* JSON.parse'é).
-
-    Aucun repli dataset conservé : cet écran est le seul consommateur de
-    ce composant (vérifié par grep avant conversion), il n'y a pas de
-    page Blade non migrée à faire coexister.
+    Nouveau : cliquer sur une ligne la déplie et affiche les statistiques de
+    la campagne (familles, contacts, bénévoles, poids, tournées, packaging,
+    livraisons). Elles sont demandées à la PREMIÈRE ouverture de chaque ligne
+    (CampagnesController::apercu()) puis gardées en mémoire, plutôt que
+    précalculées pour toute la liste — même principe que l'aperçu de
+    suppression : N requêtes à chaque visite pour une info qu'on ne consulte
+    que ligne par ligne serait du gâchis. « Modifier » devient « Ouvrir » :
+    la page campagne est le hub, plus seulement une surface d'édition.
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useConfirm, useToast } from '@amana/shared-ui';
-import { apiDelete, apiGet, apiPost } from '../shared/api';
-import { CAMPAGNE_TYPES, type Campagne, type CampagneType } from '../shared/types';
-import HqCoordinatesAutocomplete from '../../admin/HqCoordinatesAutocomplete.vue';
+import { apiDelete, apiGet } from '../shared/api';
+import { CAMPAGNE_TYPES, type Campagne, type ApercuCampagne, type CampagneType } from '../shared/types';
+import CampagneApercu from './CampagneApercu.vue';
+import { CAMPAGNE_STATUT_LABELS, CAMPAGNE_TYPE_STYLES, formatDateFr } from './campagneStyles';
 
 const props = defineProps<{
     campagnes: Campagne[];
-    storeUrl: string;
+    apercuUrlTemplate: string;
     resumeSuppressionUrlTemplate: string;
     destroyUrlTemplate: string;
-    livraisonsMaxParTourneeDefaut: string;
-    googlePlacesKey: string;
-    // Ajouté le 09/09/2026 (prompt de cette date §2.1) — affiché à titre
-    // indicatif à côté du champ HQ, comme livraisonsMaxParTourneeDefaut
-    // ci-dessus (même page, même patron de préremplissage visible).
-    hqGlobalDefaut: { lat: number; lng: number } | null;
 }>();
 
 // Copie locale mutable : supprimerCampagne() retire une ligne
-// optimistiquement après succès (voir plus bas) — identique au
-// comportement d'avant ce chunk, seule la source initiale change.
+// optimistiquement après succès.
 const campagnes = ref<Campagne[]>([...props.campagnes]);
 
 const toast = useToast();
 const confirmDialog = useConfirm();
 
-/**
- * Couleurs des pastilles de type — reprises pour le sélecteur du
- * formulaire ET le badge de chaque ligne "Campagnes existantes", pour
- * qu'un type se reconnaisse visuellement au premier coup d'œil aux deux
- * endroits (prompt du 08/09/2026 §2.2.1/§2.3).
- */
-const CAMPAGNE_TYPE_STYLES: Record<CampagneType, { pastille: string; pastilleActive: string }> = {
-    zakat_el_fitr: {
-        pastille: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-        pastilleActive: 'bg-emerald-600 text-white border-emerald-600',
-    },
-    collecte_alimentaire: {
-        pastille: 'bg-amber-100 text-amber-700 border-amber-200',
-        pastilleActive: 'bg-amber-600 text-white border-amber-600',
-    },
-    don_ponctuel: {
-        pastille: 'bg-sky-100 text-sky-700 border-sky-200',
-        pastilleActive: 'bg-sky-600 text-white border-sky-600',
-    },
-};
+// ── Lignes dépliables + statistiques à la demande ───────────────────────
+const ouvertes = ref<Set<number>>(new Set());
+const apercus = ref<Record<number, ApercuCampagne>>({});
+const apercusEnCours = ref<Set<number>>(new Set());
+const apercusEnErreur = ref<Set<number>>(new Set());
 
-interface FormJournee {
-    date: string;
-    label: string;
-}
+async function chargerApercu(campagne: Campagne) {
+    if (apercus.value[campagne.id] || apercusEnCours.value.has(campagne.id)) return;
 
-interface FormCampagne {
-    type: CampagneType;
-    journees: FormJournee[];
-    poids_moyen_kg: string;
-    poids_moyen_hotel_kg: string;
-    poids_moyen_etudiant_kg: string;
-    livraisons_max_par_tournee: string;
-    // Ajoutés le 09/09/2026 (prompt §2.1) — optionnels, voir
-    // CampagnesController::store() pour le repli sur le réglage global
-    // si laissés vides.
-    hq_adresse: string;
-    hq_latitude: string;
-    hq_longitude: string;
-}
+    apercusEnCours.value = new Set(apercusEnCours.value).add(campagne.id);
+    apercusEnErreur.value.delete(campagne.id);
 
-function nouvelleLigneJournee(): FormJournee {
-    return { date: '', label: '' };
-}
+    const resultat = await apiGet<ApercuCampagne>(props.apercuUrlTemplate.replace('__CAMPAGNE__', String(campagne.id)));
 
-const form = ref<FormCampagne>({
-    type: 'zakat_el_fitr',
-    journees: [nouvelleLigneJournee()],
-    poids_moyen_kg: '',
-    poids_moyen_hotel_kg: '',
-    poids_moyen_etudiant_kg: '',
-    // Préremplie depuis le réglage global (voir data-livraisons-max-par-
-    // tournee-defaut, CampagnesController::index()) — éditable avant
-    // envoi, laissée vide retombe de toute façon sur le même réglage
-    // côté serveur (voir store()).
-    livraisons_max_par_tournee: props.livraisonsMaxParTourneeDefaut,
-    hq_adresse: '',
-    hq_latitude: '',
-    hq_longitude: '',
-});
-
-function ajouterLigneJournee() {
-    form.value.journees.push(nouvelleLigneJournee());
-}
-
-function retirerLigneJournee(index: number) {
-    // Toujours au moins une ligne — voir validation serveur
-    // (journees required|array|min:1).
-    if (form.value.journees.length <= 1) return;
-    form.value.journees.splice(index, 1);
-}
-
-const fieldErrors = ref<Record<string, string[]>>({});
-const messageGeneral = ref('');
-const envoiEnCours = ref(false);
-
-function erreursPourChamp(champ: string): string[] {
-    return fieldErrors.value[champ] ?? [];
-}
-
-// Erreurs de validation d'une ligne de journée — Laravel renvoie des
-// clés du type "journees.0.date" pour un tableau, pas un simple nom de
-// champ plat (voir erreursPourChamp ci-dessus, utilisé pour les autres
-// champs du formulaire).
-function erreursPourChampJournee(index: number, champ: 'date' | 'label'): string[] {
-    return fieldErrors.value[`journees.${index}.${champ}`] ?? [];
-}
-
-async function creerCampagne() {
-    envoiEnCours.value = true;
-    fieldErrors.value = {};
-    messageGeneral.value = '';
-
-    const resultat = await apiPost<{ success: boolean; campagne: Campagne }>(props.storeUrl, {
-        type: form.value.type,
-        journees: form.value.journees.map((j) => ({ date: j.date, label: j.label || null })),
-        poids_moyen_kg: form.value.poids_moyen_kg,
-        poids_moyen_hotel_kg: form.value.poids_moyen_hotel_kg || null,
-        poids_moyen_etudiant_kg: form.value.poids_moyen_etudiant_kg || null,
-        livraisons_max_par_tournee: form.value.livraisons_max_par_tournee || null,
-        hq_adresse: form.value.hq_adresse || null,
-        hq_latitude: form.value.hq_latitude === '' ? null : Number(form.value.hq_latitude),
-        hq_longitude: form.value.hq_longitude === '' ? null : Number(form.value.hq_longitude),
-    });
-
-    envoiEnCours.value = false;
+    const encours = new Set(apercusEnCours.value);
+    encours.delete(campagne.id);
+    apercusEnCours.value = encours;
 
     if (!resultat.ok) {
-        fieldErrors.value = resultat.errors;
-        messageGeneral.value = Object.keys(resultat.errors).length === 0 ? resultat.message : '';
+        apercusEnErreur.value = new Set(apercusEnErreur.value).add(campagne.id);
+        toast.error(resultat.message);
         return;
     }
 
-    // Comportement identique à la version placeholder : navigation
-    // directe vers le détail de la campagne créée plutôt que de recharger
-    // la liste sur place (pas de raison de garder l'admin sur cette page,
-    // la prochaine étape est toujours de sélectionner les familles). Si
-    // d'autres journées sont nécessaires plus tard, l'écran détail a son
-    // propre bouton "+ Ajouter une journée" (voir CampagneDetail.vue).
-    window.location.href = `/livraison/campagnes/${resultat.data.campagne.id}`;
+    apercus.value = { ...apercus.value, [campagne.id]: resultat.data };
 }
 
-function formatDateFr(iso: string): string {
-    // date_livraison est castée 'date' côté modèle : soit 'YYYY-MM-DD'
-    // soit 'YYYY-MM-DDTHH:mm:ss.ssssssZ' selon la sérialisation Eloquent
-    // — on ne prend que la partie calendaire pour éviter tout décalage
-    // de fuseau horaire lié à un objet Date JS.
-    const [annee, mois, jour] = iso.split('T')[0].split('-');
-    return `${jour}/${mois}/${annee}`;
+function basculer(campagne: Campagne) {
+    const suivantes = new Set(ouvertes.value);
+    if (suivantes.has(campagne.id)) {
+        suivantes.delete(campagne.id);
+    } else {
+        suivantes.add(campagne.id);
+        void chargerApercu(campagne);
+    }
+    ouvertes.value = suivantes;
 }
 
 // ── Filtres type + date (08/09/2026, prompt §2.1.3) ─────────────────────
@@ -244,11 +104,8 @@ function reinitialiserFiltres() {
 }
 
 // ── Suppression en cascade (08/09/2026, prompt §2.1/§2.2) ───────────────
-// L'aperçu (resumeSuppression()) est demandé à CHAQUE clic sur
-// "Supprimer" plutôt que précalculé pour toute la liste au chargement :
-// ces comptages ne servent qu'à cet écran de confirmation ponctuel, pas
-// affichés ailleurs sur la ligne — inutile de payer N requêtes à chaque
-// visite de la page pour une info qu'on ne regarde qu'à la suppression.
+// L'aperçu des répercussions est demandé à CHAQUE clic sur « Supprimer »
+// (voir resumeSuppression()) — jamais précalculé pour toute la liste.
 const suppressionEnCours = ref<number | null>(null);
 
 async function supprimerCampagne(campagne: Campagne) {
@@ -296,167 +153,6 @@ async function supprimerCampagne(campagne: Campagne) {
 
 <template>
     <div>
-        <div class="bg-surface border border-surface-border rounded-xl p-5 mb-8">
-            <h2 class="text-[14px] font-medium text-ink mb-4">Nouvelle campagne</h2>
-            <form class="space-y-6" @submit.prevent="creerCampagne">
-                <!--
-                    Section : Type — repliable par thème (09/09/2026, prompt
-                    de cette date §1 : "all options/parameters are in a same
-                    block, create collapsable sections by theme") — même
-                    patron <details>/<summary> que FamilleFilterPanel.vue,
-                    repliée par défaut.
-                -->
-                <details class="group border border-surface-border rounded-lg p-3">
-                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
-                        <span class="flex items-center gap-2">
-                            <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Type</h3>
-                            <span class="text-[11px] font-medium px-2 py-0.5 rounded-full border"
-                                :class="CAMPAGNE_TYPE_STYLES[form.type].pastille">
-                                {{ CAMPAGNE_TYPES[form.type] }}
-                            </span>
-                        </span>
-                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
-                    </summary>
-                    <div class="flex flex-wrap gap-2 mt-2" role="radiogroup" aria-label="Type de campagne">
-                        <button v-for="(label, code) in CAMPAGNE_TYPES" :key="code" type="button"
-                            role="radio" :aria-checked="form.type === code" @click="form.type = code as CampagneType"
-                            class="min-h-[2.25rem] px-4 py-1.5 rounded-full text-[13px] font-medium border transition-colors"
-                            :class="form.type === code ? CAMPAGNE_TYPE_STYLES[code as CampagneType].pastilleActive : CAMPAGNE_TYPE_STYLES[code as CampagneType].pastille">
-                            {{ label }}
-                        </button>
-                    </div>
-                    <p v-for="e in erreursPourChamp('type')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                </details>
-
-                <!-- Section : Poids — repliable (09/09/2026, prompt §1) -->
-                <details class="group border border-surface-border rounded-lg p-3">
-                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
-                        <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Poids</h3>
-                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
-                    </summary>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
-                        <div>
-                            <label class="block text-[12px] text-ink-muted mb-1">Poids moyen / personne (kg)</label>
-                            <input v-model="form.poids_moyen_kg" type="number" step="0.1" required
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
-                            <p v-for="e in erreursPourChamp('poids_moyen_kg')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                        </div>
-                        <div>
-                            <label class="block text-[12px] text-ink-muted mb-1">— hôtel (kg, optionnel)</label>
-                            <input v-model="form.poids_moyen_hotel_kg" type="number" step="0.1"
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
-                            <p v-for="e in erreursPourChamp('poids_moyen_hotel_kg')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                        </div>
-                        <div>
-                            <label class="block text-[12px] text-ink-muted mb-1">— étudiant (kg, optionnel)</label>
-                            <input v-model="form.poids_moyen_etudiant_kg" type="number" step="0.1"
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
-                            <p v-for="e in erreursPourChamp('poids_moyen_etudiant_kg')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                        </div>
-                    </div>
-                </details>
-
-                <!--
-                    Section : Journées — repliable (09/09/2026, prompt §1) ;
-                    au moins une ligne, bouton de
-                    suppression masqué s'il n'en reste qu'une (voir
-                    retirerLigneJournee, min 1 imposé côté serveur).
-                -->
-                <details class="group border border-surface-border rounded-lg p-3">
-                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
-                        <span class="flex items-center gap-2">
-                            <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Journée(s) de collecte/livraison</h3>
-                            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-accent/10 text-accent-dark">{{ form.journees.length }}</span>
-                        </span>
-                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
-                    </summary>
-                    <div v-for="(journee, index) in form.journees" :key="index"
-                        class="flex flex-col sm:flex-row gap-2 sm:items-start mb-2 mt-2">
-                        <div>
-                            <input v-model="journee.date" type="date" required
-                                class="rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
-                            <p v-for="e in erreursPourChampJournee(index, 'date')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                        </div>
-                        <div class="flex-1">
-                            <input v-model="journee.label" type="text" placeholder="Label (optionnel, ex: Livraison jour 2)"
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
-                            <p v-for="e in erreursPourChampJournee(index, 'label')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                        </div>
-                        <button v-if="form.journees.length > 1" type="button" @click="retirerLigneJournee(index)"
-                            class="min-h-[2.5rem] px-3 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50 shrink-0">
-                            ×
-                        </button>
-                    </div>
-                    <p v-for="e in erreursPourChamp('journees')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                    <button type="button" @click="ajouterLigneJournee"
-                        class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50 mt-1">
-                        + Ajouter une date
-                    </button>
-                </details>
-
-                <!-- Section : Paramètres avancés — repliable (09/09/2026, prompt §1) -->
-                <details class="group border border-surface-border rounded-lg p-3">
-                    <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 rounded-lg hover:bg-surface-2 transition-colors">
-                        <h3 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide">Paramètres avancés</h3>
-                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
-                    </summary>
-                    <div class="max-w-xs mt-2">
-                        <label class="block text-[12px] text-ink-muted mb-1">Nombre maximum de livraisons par tournée</label>
-                        <input v-model="form.livraisons_max_par_tournee" type="number" min="1" step="1"
-                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
-                        <p class="text-[11px] text-ink-muted mt-1">Préremplie depuis les réglages, modifiable pour cette campagne uniquement.</p>
-                        <p v-for="e in erreursPourChamp('livraisons_max_par_tournee')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
-                    </div>
-
-                    <!--
-                        HQ (09/09/2026, prompt de cette date §2.1) —
-                        entièrement optionnel, laissé vide retombe sur le
-                        réglage global comme avant cette évolution (voir
-                        CampagnesController::store()). Mêmes champs/même
-                        composant que la section HQ & commentaire de
-                        CampagneDetail.vue, ids d'autocomplétion distincts
-                        pour ne jamais coexister avec cette page-là.
-                    -->
-                    <div class="max-w-xs mt-4">
-                        <label class="block text-[12px] text-ink-muted mb-1">Adresse HQ (optionnel)</label>
-                        <input v-model="form.hq_adresse" type="text"
-                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
-                        <p class="text-[11px] text-ink-muted mt-1">
-                            Laissée vide, cette campagne utilisera le réglage global
-                            <template v-if="hqGlobalDefaut">({{ hqGlobalDefaut.lat }}, {{ hqGlobalDefaut.lng }})</template>
-                            <template v-else>— non configuré actuellement, pensez à le renseigner ci-dessous ou dans les réglages.</template>
-                        </p>
-                    </div>
-                    <HqCoordinatesAutocomplete :google-places-key="googlePlacesKey"
-                        target-lat-id="nouvelle-campagne-hq-lat" target-lng-id="nouvelle-campagne-hq-lng" />
-                    <div class="max-w-xs grid grid-cols-2 gap-3 mt-2">
-                        <div>
-                            <label class="block text-[12px] text-ink-muted mb-1">Latitude</label>
-                            <input id="nouvelle-campagne-hq-lat" v-model="form.hq_latitude" type="number" step="any" readonly
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
-                        </div>
-                        <div>
-                            <label class="block text-[12px] text-ink-muted mb-1">Longitude</label>
-                            <input id="nouvelle-campagne-hq-lng" v-model="form.hq_longitude" type="number" step="any" readonly
-                                class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted">
-                        </div>
-                    </div>
-                </details>
-
-                <div>
-                    <button type="submit" :disabled="envoiEnCours"
-                        class="w-full sm:w-auto min-h-[2.5rem] rounded-lg bg-accent text-white text-[14px] font-medium px-4 py-2 disabled:opacity-60">
-                        {{ envoiEnCours ? 'Création…' : 'Créer la campagne' }}
-                    </button>
-                    <p v-if="messageGeneral" class="text-[12.5px] text-rose-600 mt-2">{{ messageGeneral }}</p>
-                </div>
-            </form>
-        </div>
-
-        <div class="flex items-center justify-between gap-3 mb-3">
-            <h2 class="text-[14px] font-medium text-ink">Campagnes existantes</h2>
-        </div>
-
         <!-- Filtres type + date (08/09/2026, prompt §2.1.3) -->
         <div class="flex flex-wrap items-end gap-3 mb-4">
             <div>
@@ -484,26 +180,45 @@ async function supprimerCampagne(campagne: Campagne) {
 
         <div class="space-y-2">
             <div v-for="campagne in campagnesFiltrees" :key="campagne.id"
-                class="bg-surface border border-surface-border rounded-xl p-4 hover:border-accent transition-colors">
-                <div class="flex items-center justify-between gap-3">
+                class="bg-surface border rounded-xl transition-colors"
+                :class="ouvertes.has(campagne.id) ? 'border-accent' : 'border-surface-border hover:border-accent'">
+                <!-- En-tête cliquable : div role=button plutôt que <button>, car il contient d'autres boutons -->
+                <div role="button" tabindex="0" :aria-expanded="ouvertes.has(campagne.id)"
+                    class="flex items-center justify-between gap-3 p-4 cursor-pointer select-none"
+                    @click="basculer(campagne)" @keydown.enter.prevent="basculer(campagne)" @keydown.space.prevent="basculer(campagne)">
                     <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-ink-muted text-[13px] transition-transform duration-200 shrink-0"
+                            :class="ouvertes.has(campagne.id) ? 'rotate-180' : ''">▾</span>
                         <span class="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full border"
                             :class="CAMPAGNE_TYPE_STYLES[campagne.type]?.pastille">
                             {{ CAMPAGNE_TYPES[campagne.type] ?? campagne.type }}
                         </span>
                         <span class="text-[14px] font-medium text-ink truncate">{{ formatDateFr(campagne.date_livraison) }}</span>
-                        <span class="text-[12px] text-ink-muted shrink-0">{{ campagne.statut }}</span>
+                        <span class="text-[12px] text-ink-muted shrink-0">{{ CAMPAGNE_STATUT_LABELS[campagne.statut] ?? campagne.statut }}</span>
                     </div>
                     <div class="flex items-center gap-2 shrink-0">
-                        <a :href="`/livraison/campagnes/${campagne.id}`"
+                        <a :href="`/livraison/campagnes/${campagne.id}`" @click.stop
                             class="text-[12.5px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted hover:bg-stone-50">
-                            Modifier
+                            Ouvrir
                         </a>
-                        <button type="button" :disabled="suppressionEnCours === campagne.id" @click="supprimerCampagne(campagne)"
+                        <button type="button" :disabled="suppressionEnCours === campagne.id"
+                            @click.stop="supprimerCampagne(campagne)"
                             class="text-[12.5px] px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60">
                             {{ suppressionEnCours === campagne.id ? 'Suppression…' : 'Supprimer' }}
                         </button>
                     </div>
+                </div>
+
+                <!-- Statistiques (chargées à la première ouverture) -->
+                <div v-if="ouvertes.has(campagne.id)" class="border-t border-surface-border px-4 py-4">
+                    <p v-if="apercusEnCours.has(campagne.id)" class="text-[13px] text-ink-muted">Chargement des statistiques…</p>
+
+                    <p v-else-if="apercusEnErreur.has(campagne.id)" class="text-[13px] text-rose-600">
+                        Impossible de charger les statistiques.
+                        <button type="button" class="underline" @click="chargerApercu(campagne)">Réessayer</button>
+                    </p>
+
+                    <CampagneApercu v-else-if="apercus[campagne.id]" :apercu="apercus[campagne.id]" />
                 </div>
             </div>
             <p v-if="campagnesFiltrees.length === 0" class="text-[14px] text-ink-muted">Aucune campagne pour ces filtres.</p>

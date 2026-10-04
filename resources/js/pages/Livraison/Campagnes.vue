@@ -1,6 +1,7 @@
 <!-- resources/js/pages/Livraison/Campagnes.vue -->
 <!--
-    Page Inertia "Campagnes" (liste + création) — Section E4 du refactor
+    Page Inertia "Campagnes" (liste seule depuis le 03/10/2026 : la création
+    est sur CampagneCreer.vue, bouton en haut à droite) — Section E4 du refactor
     (16/09/2026, troisième chunk du domaine livraison), remplace
     resources/views/livraison/campagnes.blade.php (supprimée dans ce
     même chunk, plus aucun consommateur une fois
@@ -20,18 +21,16 @@
     changement silencieux ici.
 -->
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import CampagnesIndex from '../../components/livraison/campagnes/CampagnesIndex.vue';
 import type { Campagne } from '../../components/livraison/shared/types';
 
 defineProps<{
     campagnes: Campagne[];
-    storeUrl: string;
+    creerUrl: string;
+    apercuUrlTemplate: string;
     resumeSuppressionUrlTemplate: string;
     destroyUrlTemplate: string;
-    livraisonsMaxParTourneeDefaut: string;
-    googlePlacesKey: string;
-    hqGlobalDefaut: { lat: number; lng: number } | null;
 }>();
 </script>
 
@@ -39,11 +38,16 @@ defineProps<{
     <Head title="Campagnes — AMANA Familles" />
 
     <div class="max-w-3xl mx-auto py-8">
-        <h1 class="font-heading text-xl font-semibold text-ink mb-6">Campagnes</h1>
+        <div class="flex items-center justify-between gap-3 mb-6">
+            <h1 class="font-heading text-xl font-semibold text-ink">Campagnes</h1>
+            <!-- Création sur sa propre page (03/10/2026) — voir CampagneCreer.vue -->
+            <Link :href="creerUrl"
+                class="inline-flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors active:scale-95 no-underline">
+                ➕ Nouvelle campagne
+            </Link>
+        </div>
 
-        <CampagnesIndex :campagnes="campagnes" :store-url="storeUrl"
-            :resume-suppression-url-template="resumeSuppressionUrlTemplate" :destroy-url-template="destroyUrlTemplate"
-            :livraisons-max-par-tournee-defaut="livraisonsMaxParTourneeDefaut" :google-places-key="googlePlacesKey"
-            :hq-global-defaut="hqGlobalDefaut" />
+        <CampagnesIndex :campagnes="campagnes" :apercu-url-template="apercuUrlTemplate"
+            :resume-suppression-url-template="resumeSuppressionUrlTemplate" :destroy-url-template="destroyUrlTemplate" />
     </div>
 </template>

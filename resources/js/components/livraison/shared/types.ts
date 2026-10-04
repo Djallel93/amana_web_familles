@@ -59,6 +59,20 @@ export const CAMPAGNE_TYPES = {
 
 export type CampagneType = keyof typeof CAMPAGNE_TYPES;
 
+/**
+ * Statistiques d'une campagne pour la ligne dépliée de la liste
+ * (CampagnesController::apercu(), 03/10/2026).
+ */
+export interface ApercuCampagne {
+    familles: { total: number; confirmees: number; se_deplacent: number };
+    contacts: Record<string, number>;
+    benevoles: { disponibles: number; en_attente: number };
+    poids: { estime_kg: number; collecte_kg: number };
+    tournees: { total: number; par_statut: Record<string, number> };
+    packaging: { pretes: number; confirmees: number; taux: number | null };
+    livraisons: { livrees: number; ignorees: number; en_attente: number };
+}
+
 export interface Campagne {
     id: number;
     type: CampagneType;

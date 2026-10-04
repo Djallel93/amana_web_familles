@@ -35,8 +35,15 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('livraison.')->group(function () {
     Route::get('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'index'])
         ->name('campagnes.index');
+    // Page de création (03/10/2026) — AVANT /campagnes/{campagne}, sinon
+    // « creer » serait interprété comme un id de campagne.
+    Route::get('/campagnes/creer', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'creer'])
+        ->name('campagnes.creer');
     Route::get('/campagnes/{campagne}', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'show'])
         ->name('campagnes.show');
+    // Stats de la ligne dépliée de la liste (03/10/2026).
+    Route::get('/campagnes/{campagne}/apercu', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'apercu'])
+        ->name('campagnes.apercu');
     Route::post('/campagnes', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'store'])
         ->name('campagnes.store');
     Route::post('/campagnes/{campagne}/journees', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'ajouterJournee'])

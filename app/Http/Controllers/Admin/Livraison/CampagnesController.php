@@ -12,10 +12,12 @@ use App\Http\Resources\CampagneJourneeResource;
 use App\Http\Resources\CampagnePoidsMoyenHistoriqueResource;
 use App\Http\Resources\CampagneResource;
 use App\Http\Resources\FamilleEligibleResource;
+use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\CampagnePoidsMoyenHistorique;
 use App\Models\Livraison;
 use App\Models\Organisation;
+use App\Models\PersonneDesactivee;
 use App\Models\Quartier;
 use App\Models\RouteLivraison;
 use App\Services\BenevoleDisponibiliteService;
@@ -65,25 +67,119 @@ class CampagnesController extends Controller
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->get();
 
+        // Liste seule depuis le 03/10/2026 : le formulaire de création a
+        // déménagé sur sa propre page (creer() ci-dessous, bouton « Nouvelle
+        // campagne » en haut à droite) — ne restent ici que les URLs de la
+        // liste : aperçu (stats d'une ligne dépliée, chargées à la demande
+        // comme resumeSuppression), suppression et création.
         return Inertia::render('Livraison/Campagnes', [
             'campagnes' => CampagneResource::collection($campagnes),
-            'storeUrl' => route('livraison.campagnes.store'),
+            'creerUrl' => route('livraison.campagnes.creer'),
+            'apercuUrlTemplate' => route('livraison.campagnes.apercu', ['campagne' => '__CAMPAGNE__']),
             'resumeSuppressionUrlTemplate' => route('livraison.campagnes.resume-suppression', ['campagne' => '__CAMPAGNE__']),
             'destroyUrlTemplate' => route('livraison.campagnes.destroy', ['campagne' => '__CAMPAGNE__']),
-            // Préremplissage visible du formulaire "Nouvelle campagne" (prompt
-            // du 08/09/2026 §2.2.3) — même valeur que celle effectivement
-            // appliquée à la création si le champ est laissé vide (voir
-            // store() ci-dessous), affichée ici pour que l'admin la voie et
-            // puisse la modifier AVANT de créer, pas seulement après coup.
+        ]);
+    }
+
+    /**
+     * Page « Nouvelle campagne » (03/10/2026) — le formulaire qui vivait
+     * sous la liste (CampagnesIndex.vue), à part entière : mêmes champs,
+     * même POST store(), mais type sans valeur par défaut et obligatoire,
+     * au moins une date, sections toutes visibles (seul « Paramètres
+     * avancés » reste repliable) et récapitulatif de confirmation avant
+     * l'envoi — voir CampagneCreer.vue.
+     */
+    public function creer(): InertiaResponse
+    {
+        return Inertia::render('Livraison/CampagneCreer', [
+            'storeUrl' => route('livraison.campagnes.store'),
+            'retourUrl' => route('livraison.campagnes.index'),
+            // Préremplissage visible (prompt du 08/09/2026 §2.2.3) — même
+            // valeur que celle appliquée si le champ est laissé vide (voir
+            // store()), affichée pour que l'admin la voie AVANT de créer.
             'livraisonsMaxParTourneeDefaut' => RouteOptimizationConfig::maxLivraisonsParRoute(),
             'googlePlacesKey' => config('services.google.maps.places_api_key'),
-            // Ajouté le 09/09/2026 (prompt de cette date §2.1) : le
-            // formulaire de création expose désormais le même champ HQ
-            // optionnel que la page détail — même principe de
-            // préremplissage visible que ci-dessus, voir aussi
-            // CampagnesController::store() pour le repli côté serveur si
-            // laissé vide.
+            // Idem pour le HQ (prompt du 09/09/2026 §2.1) : laissé vide, la
+            // campagne retombe sur le réglage global.
             'hqGlobalDefaut' => RouteOptimizationConfig::coordonneesHq(),
+        ]);
+    }
+
+    /**
+     * Statistiques d'une campagne pour la ligne dépliée de la liste
+     * (03/10/2026) — demandées à la première ouverture de la ligne, pas
+     * précalculées pour toute la liste (même principe que
+     * resumeSuppression()). Choix de l'utilisateur : familles, contacts,
+     * « se déplace au QG », bénévoles, poids estimé/collecté, tournées par
+     * statut, taux de packaging, livraisons livrées/ignorées/en attente.
+     *
+     * Définitions :
+     *  - « confirmées » = livraisons dont statut_contact = 'confirme' ;
+     *    base du taux de packaging et du suivi livré/ignoré/en attente (une
+     *    famille rejetée/archivée ne sera jamais livrée) ;
+     *  - poids estimé = somme de livraisons.poids_kg hors rejetées/archivées ;
+     *    poids collecté = somme des donations (Campagne::poids_collecte_kg) ;
+     *  - bénévoles « disponibles » = personnes distinctes ayant confirmé au
+     *    moins une journée de la campagne, hors comptes désactivés ;
+     *    « en attente » = personnes ayant une disponibilité non confirmée et
+     *    aucune confirmée. L'envoi des invitations n'étant pas journalisé
+     *    (simple email), « notifiés » n'est pas calculable ici.
+     */
+    public function apercu(Campagne $campagne): JsonResponse
+    {
+        $livraisons = $campagne->livraisons();
+        $confirmees = (clone $livraisons)->where('statut_contact', 'confirme');
+
+        $parContact = (clone $livraisons)->selectRaw('statut_contact, COUNT(*) as total')
+            ->groupBy('statut_contact')->pluck('total', 'statut_contact');
+
+        $parStatutRoute = $campagne->routes()->selectRaw('statut, COUNT(*) as total')
+            ->groupBy('statut')->pluck('total', 'statut');
+
+        $nbConfirmees = (clone $confirmees)->count();
+        $nbPretes = (clone $confirmees)->where('statut_conditionnement', 'prete')->count();
+
+        $parLivraison = (clone $confirmees)->selectRaw('statut, COUNT(*) as total')
+            ->groupBy('statut')->pluck('total', 'statut');
+
+        $disponibilites = BenevoleDisponibilite::whereIn('id_campagne_journee', $campagne->journees()->pluck('id'))
+            ->whereNotIn('id_personne', PersonneDesactivee::ids())
+            ->get(['id_personne', 'statut']);
+        $disponibles = $disponibilites->where('statut', 'confirme')->pluck('id_personne')->unique();
+        $enAttente = $disponibilites->where('statut', '!=', 'confirme')->pluck('id_personne')->unique()->diff($disponibles);
+
+        return response()->json([
+            'familles' => [
+                'total' => (clone $livraisons)->count(),
+                'confirmees' => $nbConfirmees,
+                'se_deplacent' => (clone $livraisons)->where('se_deplace', true)->count(),
+            ],
+            'contacts' => collect(Livraison::STATUTS_CONTACT)
+                ->mapWithKeys(fn (string $statut) => [$statut => (int) ($parContact[$statut] ?? 0)])->all(),
+            'benevoles' => [
+                'disponibles' => $disponibles->count(),
+                'en_attente' => $enAttente->count(),
+            ],
+            'poids' => [
+                'estime_kg' => round((float) (clone $livraisons)->whereNotIn('statut_contact', ['rejetee', 'archive'])->sum('poids_kg'), 1),
+                'collecte_kg' => round($campagne->poids_collecte_kg, 1),
+            ],
+            'tournees' => [
+                'total' => (int) $parStatutRoute->sum(),
+                'par_statut' => collect(RouteLivraison::STATUTS)
+                    ->mapWithKeys(fn (string $statut) => [$statut => (int) ($parStatutRoute[$statut] ?? 0)])
+                    ->filter(fn (int $n) => $n > 0)->all(),
+            ],
+            'packaging' => [
+                'pretes' => $nbPretes,
+                'confirmees' => $nbConfirmees,
+                'taux' => $nbConfirmees > 0 ? (int) round($nbPretes * 100 / $nbConfirmees) : null,
+            ],
+            'livraisons' => [
+                'livrees' => (int) ($parLivraison['livree'] ?? 0),
+                'ignorees' => (int) ($parLivraison['ignoree'] ?? 0),
+                'en_attente' => (int) ($parLivraison['non_assignee'] ?? 0) + (int) ($parLivraison['assignee'] ?? 0) + (int) ($parLivraison['en_cours'] ?? 0),
+            ],
         ]);
     }
 
