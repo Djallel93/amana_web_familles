@@ -136,7 +136,18 @@ function surChangementJournee() {
     verifierGateClustering();
 }
 
-onMounted(verifierGateClustering);
+// Ancre #generer-routes (03/10/2026) : le rappel de la page Chargement y
+// renvoie (« générez d'abord les routes »). Le panneau n'existe qu'après le
+// rendu client — l'ancre native se déclenche trop tôt —, donc on fait défiler
+// jusqu'à lui nous-mêmes quand l'URL la porte.
+const racine = ref<HTMLElement | null>(null);
+
+onMounted(() => {
+    verifierGateClustering();
+    if (window.location.hash === "#generer-routes") {
+        racine.value?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+});
 
 const peutGenerer = computed(
     () => !(chargementRoutes.value || chargementVerifGate.value || (resteAContacter.value ?? 1) > 0 || aucuneLivraison.value !== false),
@@ -144,7 +155,7 @@ const peutGenerer = computed(
 </script>
 
 <template>
-    <div class="bg-surface border border-surface-border rounded-xl p-5 mb-6">
+    <div id="generer-routes" ref="racine" class="bg-surface border border-surface-border rounded-xl p-5 mb-6 scroll-mt-4">
         <h2 class="text-[14px] font-medium text-ink mb-3">Génération des routes</h2>
 
         <div v-if="journees.length > 1" class="mb-3">

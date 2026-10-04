@@ -301,6 +301,15 @@ onUnmounted(() => {
 
         <div v-if="campagneId">
             <!--
+                Génération des routes EN PREMIER (03/10/2026) : début de la
+                phase livraison, et cible de l'ancre #generer-routes du rappel
+                de la page Chargement — rien d'asynchrone au-dessus, donc le
+                défilement vers l'ancre ne bouge plus quand les stats arrivent.
+            -->
+            <GenererRoutesPanel v-if="campagneSelectionnee" :key="campagneSelectionnee.id" :campagne-id="campagneSelectionnee.id"
+                :journees="campagneSelectionnee.journees ?? []" :urls="urlsGeneration" @generated="chargerTout" />
+
+            <!--
                 Cartes statistiques (09/09/2026, prompt §5.2.4 : "Add
                 statistique cards at the top like the rest of the pages")
                 — même patron que ContactsQueue.vue/packaging.blade.php.
@@ -339,9 +348,6 @@ onUnmounted(() => {
                     <p class="text-[20px] font-semibold text-rose-700">{{ stats.livraisons_ignorees }}</p>
                 </div>
             </div>
-
-            <GenererRoutesPanel v-if="campagneSelectionnee" :key="campagneSelectionnee.id" :campagne-id="campagneSelectionnee.id"
-                :journees="campagneSelectionnee.journees ?? []" :urls="urlsGeneration" @generated="chargerTout" />
 
             <IncidentsPanel :incidents="incidents" :chargement="chargementIncidents" :erreur="erreurIncidents"
                 :url-resoudre="urls.incidentResoudre ?? ''" @changed="chargerTout" />

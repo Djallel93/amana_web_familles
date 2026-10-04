@@ -96,17 +96,29 @@
         --}}
         @if($etatSansTournee)
             @if($etatSansTournee['routesJamaisGenerees'])
-                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
-                    <p class="text-[14px] text-amber-800 font-medium mb-1">Conditionnement terminé, tournées pas encore générées</p>
-                    <p class="text-[13px] text-amber-700">
+                {{--
+                    Rappel « générez d'abord les routes » refait le 03/10/2026 :
+                    emoji, texte aéré (titre / explication / action) et lien
+                    « Suivi livraison » devenu un vrai bouton. Le bouton mène
+                    au bloc « Génération des routes » de Suivi livraison
+                    (#generer-routes, voir GenererRoutesPanel.vue — la
+                    génération a quitté la page campagne le même jour) ; les
+                    équipes sans droit de génération voient le texte seul.
+                --}}
+                <div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-6 mb-4 text-center">
+                    <div class="text-[36px] leading-none mb-3" aria-hidden="true">🚚</div>
+                    <p class="text-[16px] text-amber-900 font-semibold mb-3">Conditionnement terminé, tournées pas encore générées</p>
+                    <p class="text-[13.5px] text-amber-800 leading-relaxed max-w-md mx-auto mb-5">
                         Toutes les familles confirmées sont conditionnées, mais aucune tournée n'a encore été créée pour cette campagne.
-                        @if(auth()->user()?->isAdmin() || auth()->user()?->isGestionnaire())
-                            Un admin/gestionnaire peut les générer depuis
-                            <a href="{{ route('livraison.suivi-livraison.index', $campagne) }}" class="underline font-medium">Suivi livraison</a>.
-                        @else
-                            Prévenez un admin/gestionnaire pour qu'il les génère depuis l'écran Suivi livraison.
-                        @endif
                     </p>
+                    @if(auth()->user()?->isAdmin() || auth()->user()?->isGestionnaire())
+                        <a href="{{ route('livraison.suivi-livraison.index', $campagne) }}#generer-routes"
+                            class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 rounded-lg bg-accent hover:bg-accent-dark text-white text-[14px] font-semibold no-underline transition-colors active:scale-95">
+                            🗺️ Générer les routes dans Suivi livraison
+                        </a>
+                    @else
+                        <p class="text-[13px] text-amber-700">Prévenez un admin/gestionnaire pour qu'il les génère depuis l'écran Suivi livraison.</p>
+                    @endif
                 </div>
             @elseif(count($etatSansTournee['lignesPreparation']) > 0)
                 <p class="text-[13px] text-ink-muted mb-2">Conditionnement en cours — ces familles ne sont pas encore prêtes à charger :</p>
