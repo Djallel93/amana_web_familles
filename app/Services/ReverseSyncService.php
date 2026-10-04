@@ -6,6 +6,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Famille;
+use Google\Service\Exception;
+use Google\Service\PeopleService;
 use Google\Service\PeopleService\Person;
 use Illuminate\Support\Facades\Log;
 
@@ -36,8 +38,7 @@ class ReverseSyncService
 {
     public function __construct(
         private readonly GoogleContactsService $googleContacts
-    ) {
-    }
+    ) {}
 
     /**
      * Définition des champs comparés — chaque entrée sait lire sa valeur
@@ -127,7 +128,7 @@ class ReverseSyncService
                     ['personFields' => 'names,phoneNumbers,emailAddresses,addresses,userDefined,memberships']
                 );
             } catch (\Throwable $e) {
-                $estIntrouvable = $e instanceof \Google\Service\Exception && $e->getCode() === 404;
+                $estIntrouvable = $e instanceof Exception && $e->getCode() === 404;
 
                 Log::warning('[ReverseSyncService] Lecture contact impossible — ignoré', [
                     'id_famille' => $famille->id,
@@ -174,7 +175,7 @@ class ReverseSyncService
      * réduit aux seuls champs synchronisés par cette application (voir
      * GoogleContactsService::buildPerson).
      */
-    private function extraireDonneesContact(\Google\Service\PeopleService $service, Person $contact): array
+    private function extraireDonneesContact(PeopleService $service, Person $contact): array
     {
         $noms = $contact->getNames()[0] ?? null;
         $telephones = $contact->getPhoneNumbers() ?? [];
@@ -202,8 +203,7 @@ class ReverseSyncService
         // derrière — d'où le crash "Undefined array key 1" en prod dès
         // qu'un contact n'a qu'un seul numéro de téléphone (index 1
         // absent). isset() explicite avant l'accès, ici.
-        $valeurIndex = static fn(array $items, int $index): ?string =>
-            isset($items[$index]) ? $items[$index]->getValue() : null;
+        $valeurIndex = static fn(array $items, int $index): ?string => isset($items[$index]) ? $items[$index]->getValue() : null;
 
         // Label de statut : parmi les groupes du contact, celui dont le
         // nom correspond à une valeur connue de Famille::ETATS_SELECTIONNABLES
@@ -340,6 +340,7 @@ class ReverseSyncService
 
             if (!$famille) {
                 $resultats[] = ['id_famille' => $idFamille, 'succes' => false, 'erreur' => 'Famille introuvable.'];
+
                 continue;
             }
 

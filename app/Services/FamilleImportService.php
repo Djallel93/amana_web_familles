@@ -29,8 +29,7 @@ class FamilleImportService
 {
     public function __construct(
         private readonly FamilleUpsertService $upsertService,
-    ) {
-    }
+    ) {}
 
     /**
      * @param int|null $idOrganisation Organisation au nom de laquelle cette ligne est importée — voir FamilleUpsertService::upsert().

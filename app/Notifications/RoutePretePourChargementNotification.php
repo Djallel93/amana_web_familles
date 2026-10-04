@@ -41,8 +41,7 @@ class RoutePretePourChargementNotification extends Notification
 
     public function __construct(
         private readonly RouteLivraison $route,
-    ) {
-    }
+    ) {}
 
     /**
      * Distingue le chauffeur (route.id_benevole) des autres destinataires
@@ -60,7 +59,7 @@ class RoutePretePourChargementNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('AMANA Livraison — Votre tournée est prête à charger')
             ->view('emails.route-prete-a-charger', [
                 'prenom' => $notifiable->prenom ?? '',

@@ -35,7 +35,7 @@
     même façon quelle que soit leur origine.
 -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted } from "vue";
 
 interface TabDef {
     id: string;
@@ -44,28 +44,26 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-    { id: 'general', label: 'Général', icon: '⚙️' },
-    { id: 'itineraires', label: 'Itinéraires', icon: '🗺️' },
-    { id: 'vehicules', label: 'Véhicules', icon: '🚗' },
-    { id: 'organisations', label: 'Organisations', icon: '🤝' },
-    { id: 'hotels', label: 'Adresses hôtel', icon: '🏨' },
+    { id: "general", label: "Général", icon: "⚙️" },
+    { id: "itineraires", label: "Itinéraires", icon: "🗺️" },
+    { id: "vehicules", label: "Véhicules", icon: "🚗" },
+    { id: "organisations", label: "Organisations", icon: "🤝" },
+    { id: "hotels", label: "Adresses hôtel", icon: "🏨" },
 ];
 
 const props = defineProps<{
     defaultTab: string;
 }>();
 
-const activeTab = ref<string>(
-    TABS.some((tab) => tab.id === props.defaultTab) ? props.defaultTab : TABS[0].id,
-);
+const activeTab = ref<string>(TABS.some((tab) => tab.id === props.defaultTab) ? props.defaultTab : TABS[0].id);
 
 function panneaux(): NodeListOf<HTMLElement> {
-    return document.querySelectorAll<HTMLElement>('[data-settings-tab]');
+    return document.querySelectorAll<HTMLElement>("[data-settings-tab]");
 }
 
 function appliquerVisibilite(): void {
     panneaux().forEach((panneau) => {
-        panneau.style.display = panneau.dataset.settingsTab === activeTab.value ? '' : 'none';
+        panneau.style.display = panneau.dataset.settingsTab === activeTab.value ? "" : "none";
     });
 }
 
@@ -81,13 +79,18 @@ onMounted(() => {
 
 <template>
     <div class="flex flex-wrap gap-1 border-b border-surface-3 mb-6" role="tablist">
-        <button v-for="tab in TABS" :key="tab.id" type="button" role="tab"
+        <button
+            v-for="tab in TABS"
+            :key="tab.id"
+            type="button"
+            role="tab"
             :aria-selected="activeTab === tab.id"
             @click="selectionner(tab.id)"
-            :class="activeTab === tab.id
-                ? 'border-accent text-accent'
-                : 'border-transparent text-ink-muted hover:text-ink'"
-            class="px-3.5 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 min-h-[44px]">
+            :class="
+                activeTab === tab.id ? 'border-accent text-accent' : 'border-transparent text-ink-muted hover:text-ink'
+            "
+            class="px-3.5 py-2.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 min-h-[44px]"
+        >
             <span aria-hidden="true">{{ tab.icon }}</span>
             {{ tab.label }}
         </button>

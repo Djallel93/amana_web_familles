@@ -8,6 +8,7 @@ namespace App\Models;
 use Amana\Shared\Models\Personne;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Un relevé de pesée au poste "entrée QG" — poids total unique, jamais
@@ -17,7 +18,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int      $id_campagne
  * @property int|null $id_campagne_journee  Ajouté le 05/09/2026, voir migration — nullable, pas de FK (ordre des migrations)
  * @property float    $poids_kg
- * @property \Illuminate\Support\Carbon $horodatage
+ * @property Carbon $horodatage
  * @property int      $logge_par
  */
 class Donation extends Model

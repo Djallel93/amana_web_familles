@@ -41,8 +41,7 @@ class LivraisonConfirmationNotification extends Notification
         private readonly Livraison $livraison,
         private readonly Famille $famille,
         private readonly string $token,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -57,7 +56,7 @@ class LivraisonConfirmationNotification extends Notification
             'id_livraison' => $this->livraison->id,
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject(self::SUJETS[$langue])
             ->view('emails.livraison-confirmation', [
                 'prenom' => $this->famille->prenom,

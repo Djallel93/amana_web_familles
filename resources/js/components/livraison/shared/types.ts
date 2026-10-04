@@ -24,7 +24,7 @@ export interface Paginated<T> {
 // utilisées ; les contrôleurs livraison renvoient response()->json($paginator)
 // brut (voir CampagnesController::eligibles(), ContactTrackingController::queue()),
 // donc les métadonnées sont à la racine. On les recompose ici pour que le
-// reste du code (Paginator.vue notamment) n'ait qu'une seule forme à gérer.
+// reste du code (PaginationControls.vue notamment) n'ait qu'une seule forme à gérer.
 export interface RawLaravelPaginator<T> {
     data: T[];
     links: { url: string | null; label: string; active: boolean }[];
@@ -52,9 +52,9 @@ export function normalizePaginated<T>(raw: RawLaravelPaginator<T>): Paginated<T>
 }
 
 export const CAMPAGNE_TYPES = {
-    zakat_el_fitr: 'Zakat el-fitr',
-    collecte_alimentaire: 'Collecte alimentaire',
-    don_ponctuel: 'Don ponctuel',
+    zakat_el_fitr: "Zakat el-fitr",
+    collecte_alimentaire: "Collecte alimentaire",
+    don_ponctuel: "Don ponctuel",
 } as const;
 
 export type CampagneType = keyof typeof CAMPAGNE_TYPES;
@@ -105,7 +105,7 @@ export interface Campagne {
 /** Voir CampagnePoidsMoyenHistorique (modèle PHP) et le prompt du 05/09/2026 §5.2. */
 export interface CampagnePoidsMoyenHistorique {
     id: number;
-    type: 'normal' | 'hotel' | 'etudiant';
+    type: "normal" | "hotel" | "etudiant";
     ancienne_valeur: number;
     nouvelle_valeur: number;
     horodatage: string;
@@ -197,17 +197,17 @@ export interface FamilleEligible {
  * défaut false).
  */
 export interface FamilleFiltres {
-    id_ville?: number | '';
-    id_secteur?: number | '';
-    id_quartier?: number | '';
+    id_ville?: number | "";
+    id_secteur?: number | "";
+    id_quartier?: number | "";
     criticite?: number[];
     se_deplace?: boolean;
     est_hotel?: boolean;
     etudiant?: boolean;
     zakat_el_fitr?: boolean;
     sadaqa?: boolean;
-    id_organisation_origine?: number | '';
-    id_organisation_rattachee?: number | '';
+    id_organisation_origine?: number | "";
+    id_organisation_rattachee?: number | "";
     recherche?: string;
     // Champs Dossier Familles uniquement (voir FamilleFilterPanel.vue,
     // props avecStatut/avecAutocompletion — ajoutés le 10/09/2026, Section
@@ -221,12 +221,12 @@ export interface FamilleFiltres {
     etat_dossier?: string;
     nom?: string;
     telephone?: string;
-    id_selection?: number | '';
+    id_selection?: number | "";
     // Contacts uniquement (FamilleFilterPanel.vue, prop avecAssignation —
     // 01/10/2026) : filtre sur livraisons.id_personne_assignee, voir
     // ContactTrackingController::queteBase(). non_assigne prime côté
     // serveur sur id_personne_assignee (mutuellement exclusifs en UI).
-    id_personne_assignee?: number | '';
+    id_personne_assignee?: number | "";
     non_assigne?: boolean;
 }
 
@@ -304,10 +304,10 @@ export interface PersonneResume {
  * (ref_personnes_roles), voir le docblock de ce composant.
  */
 export const EQUIPE_ROLES = {
-    equipe_reception: 'Réception',
-    equipe_pesee: 'Pesée',
-    equipe_packaging: 'Packaging',
-    equipe_chargement: 'Chargement',
+    equipe_reception: "Réception",
+    equipe_pesee: "Pesée",
+    equipe_packaging: "Packaging",
+    equipe_chargement: "Chargement",
 } as const;
 
 export type EquipeRole = keyof typeof EQUIPE_ROLES;
@@ -315,8 +315,8 @@ export type EquipeRole = keyof typeof EQUIPE_ROLES;
 // a_contacter est l'état initial (jamais posté par le front, seulement
 // lu) — seuls contacte/injoignable/confirme sont acceptés par
 // ContactTrackingController::contacterManuel() (voir sa validation).
-export const STATUTS_CONTACT_INITIAL = 'a_contacter' as const;
-export const STATUTS_CONTACT = ['a_contacter', 'contacte', 'injoignable', 'confirme'] as const;
+export const STATUTS_CONTACT_INITIAL = "a_contacter" as const;
+export const STATUTS_CONTACT = ["a_contacter", "contacte", "injoignable", "confirme"] as const;
 export type StatutContact = (typeof STATUTS_CONTACT)[number];
 /** Sous-ensemble réellement postable à .../contacter-manuel. */
 // 'rejetee'/'archive' ajoutés le 03/09/2026 (voir le prompt de cette
@@ -328,7 +328,7 @@ export type StatutContact = (typeof STATUTS_CONTACT)[number];
 // Contacte status and keep only confirme") — reste un statut affichable
 // pour les lignes déjà en base (voir Livraison::STATUTS_CONTACT côté PHP),
 // mais plus proposable dans le formulaire de contact manuel.
-export const STATUTS_CONTACT_POSTABLES = ['injoignable', 'confirme', 'rejetee', 'archive'] as const;
+export const STATUTS_CONTACT_POSTABLES = ["injoignable", "confirme", "rejetee", "archive"] as const;
 export type StatutContactPostable = (typeof STATUTS_CONTACT_POSTABLES)[number];
 
 // Créneaux horaires fixes — source de vérité PHP : app/Support/Creneau.php
@@ -336,16 +336,16 @@ export type StatutContactPostable = (typeof STATUTS_CONTACT_POSTABLES)[number];
 // plutôt qu'inventé côté front : la version placeholder codait déjà ces
 // six créneaux en dur dans contacts.blade.php, donc CRENEAUX doit matcher
 // exactement Creneau::TOUS pour rester valide côté validation serveur.
-export const CRENEAUX = ['08-10', '10-12', '12-14', '14-16', '16-18', '18-19'] as const;
+export const CRENEAUX = ["08-10", "10-12", "12-14", "14-16", "16-18", "18-19"] as const;
 export type Creneau = (typeof CRENEAUX)[number];
 
 export const CRENEAU_LIBELLES: Record<Creneau, string> = {
-    '08-10': '8h - 10h',
-    '10-12': '10h - 12h',
-    '12-14': '12h - 14h',
-    '14-16': '14h - 16h',
-    '16-18': '16h - 18h',
-    '18-19': '18h - 19h',
+    "08-10": "8h - 10h",
+    "10-12": "10h - 12h",
+    "12-14": "12h - 14h",
+    "14-16": "14h - 16h",
+    "16-18": "16h - 18h",
+    "18-19": "18h - 19h",
 };
 
 /**
@@ -356,8 +356,8 @@ export const CRENEAU_LIBELLES: Record<Creneau, string> = {
  * prompt ("8-13 was just an example") — rangé côté matin, choix
  * arbitraire mais assumé plutôt que de casser ce bloc en deux.
  */
-export const CRENEAUX_MATIN: Creneau[] = ['08-10', '10-12', '12-14'];
-export const CRENEAUX_APRES_MIDI: Creneau[] = ['14-16', '16-18', '18-19'];
+export const CRENEAUX_MATIN: Creneau[] = ["08-10", "10-12", "12-14"];
+export const CRENEAUX_APRES_MIDI: Creneau[] = ["14-16", "16-18", "18-19"];
 
 /**
  * Livraison telle qu'utilisée par la file de contact et les écrans
@@ -408,14 +408,14 @@ export interface VehiculeType {
  * parcours bénévole, seulement via l'override manuel gestionnaire (voir
  * changerStatutEtape() dans RoutesPanel.vue).
  */
-export const STATUTS_ETAPE = ['en_attente', 'en_cours', 'livree', 'ignoree'] as const;
+export const STATUTS_ETAPE = ["en_attente", "en_cours", "livree", "ignoree"] as const;
 export type StatutEtape = (typeof STATUTS_ETAPE)[number];
 
 export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
-    en_attente: 'Restante',
-    en_cours: 'En cours',
-    livree: 'Livrée',
-    ignoree: 'Ignorée',
+    en_attente: "Restante",
+    en_cours: "En cours",
+    livree: "Livrée",
+    ignoree: "Ignorée",
 };
 
 /**
@@ -425,10 +425,10 @@ export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
  * paraissait « sans couleur » à côté des autres.
  */
 export const STYLES_STATUT_ETAPE: Record<StatutEtape, string> = {
-    en_attente: 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200',
-    en_cours: 'bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200',
-    livree: 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200',
-    ignoree: 'bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200',
+    en_attente: "bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200",
+    en_cours: "bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200",
+    livree: "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+    ignoree: "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200",
 };
 
 export interface Etape {
@@ -443,18 +443,27 @@ export interface Etape {
  * (voir RouteMutationService::supprimer()), la tournée reste visible en
  * historique sur Suivi livraison.
  */
-export const STATUTS_ROUTE = ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule', 'annulee'] as const;
+export const STATUTS_ROUTE = [
+    "planifiee",
+    "chargement",
+    "charge",
+    "en_cours",
+    "livraisons_terminees",
+    "terminee",
+    "packaging_annule",
+    "annulee",
+] as const;
 export type StatutRoute = (typeof STATUTS_ROUTE)[number];
 
 export const LIBELLES_STATUT_ROUTE: Record<StatutRoute, string> = {
-    planifiee: 'Planifiée',
-    chargement: 'Chargement',
-    charge: 'Chargée',
-    en_cours: 'En cours',
-    livraisons_terminees: 'Livraisons terminées',
-    terminee: 'Terminée',
-    packaging_annule: 'Packaging annulé',
-    annulee: 'Annulée',
+    planifiee: "Planifiée",
+    chargement: "Chargement",
+    charge: "Chargée",
+    en_cours: "En cours",
+    livraisons_terminees: "Livraisons terminées",
+    terminee: "Terminée",
+    packaging_annule: "Packaging annulé",
+    annulee: "Annulée",
 };
 
 /**
@@ -469,14 +478,14 @@ export const LIBELLES_STATUT_ROUTE: Record<StatutRoute, string> = {
  * les mêmes classes pour « Chargée » / « Packaging annulé ».
  */
 export const STYLES_STATUT_ROUTE: Record<StatutRoute, string> = {
-    planifiee: 'bg-stone-100 text-stone-700 ring-1 ring-inset ring-stone-200',
-    chargement: 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200',
-    charge: 'bg-indigo-100 text-indigo-700 ring-1 ring-inset ring-indigo-200',
-    en_cours: 'bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200',
-    livraisons_terminees: 'bg-teal-100 text-teal-700 ring-1 ring-inset ring-teal-200',
-    terminee: 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200',
-    packaging_annule: 'bg-orange-100 text-orange-700 ring-1 ring-inset ring-orange-200',
-    annulee: 'bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200',
+    planifiee: "bg-stone-100 text-stone-700 ring-1 ring-inset ring-stone-200",
+    chargement: "bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200",
+    charge: "bg-indigo-100 text-indigo-700 ring-1 ring-inset ring-indigo-200",
+    en_cours: "bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200",
+    livraisons_terminees: "bg-teal-100 text-teal-700 ring-1 ring-inset ring-teal-200",
+    terminee: "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+    packaging_annule: "bg-orange-100 text-orange-700 ring-1 ring-inset ring-orange-200",
+    annulee: "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200",
 };
 
 export interface RouteLivraison {
@@ -496,14 +505,20 @@ export interface RouteLivraison {
 // déclenche un re-cluster (voir LiveBoardController::resoudre() et
 // RouteIncident::TYPES_SANS_STATUT pour chargement_termine, qui est
 // informationnel et n'a pas d'état "résolu" au sens propre).
-export const TYPES_INCIDENT = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule'] as const;
+export const TYPES_INCIDENT = [
+    "benevole_absent",
+    "capacite",
+    "chargement_termine",
+    "livraison_ignoree",
+    "packaging_annule",
+] as const;
 export type TypeIncident = (typeof TYPES_INCIDENT)[number];
 
 export interface RouteIncident {
     id: number;
     type: TypeIncident;
     // 'ignore' (03/10/2026) : fermé sans traitement, voir RouteIncident::STATUTS.
-    statut: 'ouvert' | 'ignore' | 'resolu';
+    statut: "ouvert" | "ignore" | "resolu";
     route: RouteLivraison | null;
     livraison: Livraison | null;
     created_at: string;
@@ -589,7 +604,7 @@ export interface LigneIncident {
     id: number;
     type: TypeIncident;
     type_label: string;
-    statut: 'ouvert' | 'ignore' | 'resolu';
+    statut: "ouvert" | "ignore" | "resolu";
     description: string;
     guide: string | null;
     notes: string | null;

@@ -29,6 +29,7 @@ use Illuminate\Console\Command;
 class NettoyerDemandesAttente extends Command
 {
     protected $signature = 'familles:nettoyer-demandes-attente';
+
     protected $description = "Supprime les demandes d'intake non confirmées expirées (48h) et leurs fichiers temporaires";
 
     public function handle(IntakeAttenteService $service): int

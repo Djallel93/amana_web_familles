@@ -7,9 +7,11 @@ namespace App\Models;
 
 use Amana\Shared\Models\Personne;
 use Amana\Shared\Models\VehiculeType;
+use App\Notifications\RouteTermineeNotification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
@@ -32,7 +34,7 @@ use Illuminate\Support\Facades\Notification;
  * @property float|null  $poids_total_kg
  * @property string|null $lien_maps
  * @property int|null    $locked_by
- * @property \Illuminate\Support\Carbon|null $locked_at
+ * @property Carbon|null $locked_at
  */
 class RouteLivraison extends Model
 {
@@ -103,10 +105,10 @@ class RouteLivraison extends Model
             }
 
             $destinataires = Personne::adminsDe()
-                ->orWhere(fn ($q) => $q->avecRole('gestionnaire'))
+                ->orWhere(fn($q) => $q->avecRole('gestionnaire'))
                 ->get();
 
-            Notification::send($destinataires, new \App\Notifications\RouteTermineeNotification($route));
+            Notification::send($destinataires, new RouteTermineeNotification($route));
         });
     }
 

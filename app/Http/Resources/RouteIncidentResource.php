@@ -24,8 +24,8 @@ class RouteIncidentResource extends JsonResource
             'id' => $this->id,
             'type' => $this->type,
             'statut' => $this->statut,
-            'route' => $this->whenLoaded('route', fn () => $this->route ? new RouteLivraisonResource($this->route) : null),
-            'livraison' => $this->whenLoaded('livraison', fn () => $this->livraison ? [
+            'route' => $this->whenLoaded('route', fn() => $this->route ? new RouteLivraisonResource($this->route) : null),
+            'livraison' => $this->whenLoaded('livraison', fn() => $this->livraison ? [
                 'id' => $this->livraison->id,
                 'famille' => new FamilleResumeResource($this->livraison->famille),
             ] : null),

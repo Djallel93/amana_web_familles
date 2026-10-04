@@ -7,10 +7,10 @@ namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\BenevoleProfil;
 use App\Http\Controllers\Controller;
+use App\Http\Resources\CampagneResource;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Services\BenevoleDisponibiliteService;
-use App\Http\Resources\CampagneResource;
 use App\Support\Creneau;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,8 +39,7 @@ class BenevoleDisponibiliteController extends Controller
 {
     public function __construct(
         private readonly BenevoleDisponibiliteService $disponibiliteService,
-    ) {
-    }
+    ) {}
 
     /**
      * Section E4 du refactor (16/09/2026) — page Inertia, remplace
@@ -99,7 +98,7 @@ class BenevoleDisponibiliteController extends Controller
             ->keyBy('id_personne');
 
         $lignes = $profils
-            ->filter(fn (BenevoleProfil $p) => $p->personne !== null)
+            ->filter(fn(BenevoleProfil $p) => $p->personne !== null)
             ->map(function (BenevoleProfil $profil) use ($disponibilites) {
                 $dispo = $disponibilites->get($profil->id_personne);
 
@@ -126,7 +125,7 @@ class BenevoleDisponibiliteController extends Controller
         }
         if ($request->filled('recherche')) {
             $terme = mb_strtolower($request->input('recherche'));
-            $lignes = $lignes->filter(fn ($l) => str_contains(mb_strtolower($l['nom'] . ' ' . $l['prenom']), $terme))->values();
+            $lignes = $lignes->filter(fn($l) => str_contains(mb_strtolower($l['nom'] . ' ' . $l['prenom']), $terme))->values();
         }
 
         return response()->json([

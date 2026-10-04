@@ -43,7 +43,8 @@ use Illuminate\Support\Facades\Schema;
  * Admin\HotelAddressesController::store()/update() pour le message
  * d'erreur convivial rendu avant que cette contrainte ne soit atteinte.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('hotel_addresses', function (Blueprint $table) {

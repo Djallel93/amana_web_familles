@@ -22,8 +22,7 @@ class BenevoleCandidatureValideeNotification extends Notification
 
     public function __construct(
         private readonly string $resetUrl
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -37,7 +36,7 @@ class BenevoleCandidatureValideeNotification extends Notification
             'mailer' => config('mail.default'),
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('Votre candidature bénévole AMANA est validée — Créez votre mot de passe')
             ->view('emails.benevole-candidature-validee', [
                 'prenom' => $notifiable->prenom,

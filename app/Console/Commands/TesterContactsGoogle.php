@@ -8,6 +8,7 @@ namespace App\Console\Commands;
 use App\Models\Famille;
 use App\Services\GoogleContactsService;
 use Google\Service\Exception as GoogleServiceException;
+use Google\Service\PeopleService\Person;
 use Illuminate\Console\Command;
 
 /**
@@ -39,7 +40,7 @@ class TesterContactsGoogle extends Command
     protected $signature = 'familles:tester-contacts-google
         {--conserver : Ne pas supprimer le contact de test à la fin (par défaut, il est supprimé)}';
 
-    protected $description = "Round-trip CRUD réel (create/read/update/read/delete) contre Google People API, sur un contact jetable dédié";
+    protected $description = 'Round-trip CRUD réel (create/read/update/read/delete) contre Google People API, sur un contact jetable dédié';
 
     private const PREFIXE_TEST = '[TEST AMANA — à supprimer]';
 
@@ -47,9 +48,10 @@ class TesterContactsGoogle extends Command
     {
         if (!$googleContacts->isConfigured()) {
             $this->error(
-                "Google Contacts non configuré/autorisé (GOOGLE_CONTACTS_CLIENT_ID/SECRET manquants, "
+                'Google Contacts non configuré/autorisé (GOOGLE_CONTACTS_CLIENT_ID/SECRET manquants, '
                 . "ou flux d'autorisation jamais effectué). Voir /admin/google-contacts/authorize."
             );
+
             return self::FAILURE;
         }
 
@@ -63,6 +65,7 @@ class TesterContactsGoogle extends Command
             $resourceName = $googleContacts->createContact($contactTest);
         } catch (GoogleServiceException $e) {
             $this->afficherErreurGoogle('Échec de la création', $e);
+
             return self::FAILURE;
         }
 
@@ -75,6 +78,7 @@ class TesterContactsGoogle extends Command
         } catch (GoogleServiceException $e) {
             $this->afficherErreurGoogle('Échec de la lecture après création', $e);
             $this->nettoyer($googleContacts, $resourceName);
+
             return self::FAILURE;
         }
 
@@ -89,6 +93,7 @@ class TesterContactsGoogle extends Command
         } catch (GoogleServiceException $e) {
             $this->afficherErreurGoogle('Échec de la mise à jour', $e);
             $this->nettoyer($googleContacts, $resourceName);
+
             return self::FAILURE;
         }
 
@@ -100,6 +105,7 @@ class TesterContactsGoogle extends Command
         } catch (GoogleServiceException $e) {
             $this->afficherErreurGoogle('Échec de la lecture après mise à jour', $e);
             $this->nettoyer($googleContacts, $resourceName);
+
             return self::FAILURE;
         }
 
@@ -115,6 +121,7 @@ class TesterContactsGoogle extends Command
         // ── DELETE ───────────────────────────────────────────────────────
         if ($this->option('conserver')) {
             $this->warn("--conserver : le contact de test N'A PAS été supprimé ({$resourceName}). À nettoyer manuellement dans Google Contacts si besoin.");
+
             return self::SUCCESS;
         }
 
@@ -152,14 +159,16 @@ class TesterContactsGoogle extends Command
                 "Échec de la suppression — le contact de test ({$resourceName}) reste dans Google Contacts, à supprimer manuellement",
                 $e
             );
+
             return false;
         }
 
         $this->info('Supprimé — round-trip CRUD complet, rien ne reste dans Google Contacts.');
+
         return true;
     }
 
-    private function afficherPerson(string $titre, \Google\Service\PeopleService\Person $person): void
+    private function afficherPerson(string $titre, Person $person): void
     {
         $nom = $person->getNames()[0] ?? null;
         $telephone = $person->getPhoneNumbers()[0]?->getValue();

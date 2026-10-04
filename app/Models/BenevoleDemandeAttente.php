@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * Soumission du formulaire public de candidature bénévole en attente de
@@ -17,8 +18,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $langue
  * @property array  $donnees          nom/prenom/email/telephone/permis/id_vehicule_type/zone_livraison
  * @property array|null $secteurs         IDs de secteurs (hors $donnees)
- * @property \Illuminate\Support\Carbon $expires_at
- * @property \Illuminate\Support\Carbon|null $confirmed_at
+ * @property Carbon $expires_at
+ * @property Carbon|null $confirmed_at
  */
 class BenevoleDemandeAttente extends Model
 {

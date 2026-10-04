@@ -36,7 +36,7 @@ class BenevoleProfileExtension implements ProfileExtension
     {
         $profil = $personne->benevoleProfil;
 
-        if (! $profil) {
+        if (!$profil) {
             return [];
         }
 
@@ -69,7 +69,7 @@ class BenevoleProfileExtension implements ProfileExtension
                 'label' => 'Secteurs que je peux couvrir',
                 'type' => 'multiselect',
                 'options' => Secteur::with('ville')->orderBy('nom')->get()
-                    ->mapWithKeys(fn (Secteur $s) => [$s->id => ($s->ville?->nom ?? '?') . ' - ' . $s->nom])
+                    ->mapWithKeys(fn(Secteur $s) => [$s->id => ($s->ville?->nom ?? '?') . ' - ' . $s->nom])
                     ->sort()
                     ->all(),
                 'value' => $profil->secteurs()->pluck('secteurs.id')->all(),
@@ -94,7 +94,7 @@ class BenevoleProfileExtension implements ProfileExtension
     {
         $profil = $personne->benevoleProfil;
 
-        if (! $profil) {
+        if (!$profil) {
             return;
         }
 

@@ -77,7 +77,7 @@ class RouteGenerationServiceTest extends TestCase
      */
     private function contient(Collection $collection, Livraison $livraison): bool
     {
-        return $collection->contains(fn (Livraison $candidate) => $candidate === $livraison);
+        return $collection->contains(fn(Livraison $candidate) => $candidate === $livraison);
     }
 
     /**

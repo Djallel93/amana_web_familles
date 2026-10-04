@@ -28,8 +28,7 @@ class RetraitHqNotificationService
 {
     public function __construct(
         private readonly QrCodeService $qrCode,
-    ) {
-    }
+    ) {}
 
     public function notifierPour(Livraison $livraison): bool
     {
@@ -42,12 +41,14 @@ class RetraitHqNotificationService
         try {
             Notification::route('mail', $famille->email)
                 ->notify(new RetraitHqNotification($livraison, $famille, $this->qrCode));
+
             return true;
         } catch (\Throwable $e) {
             Log::error('[RetraitHqNotificationService] Échec envoi email de retrait QG', [
                 'id_livraison' => $livraison->id,
                 'message' => $e->getMessage(),
             ]);
+
             return false;
         }
     }

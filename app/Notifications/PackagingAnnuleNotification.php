@@ -32,8 +32,7 @@ class PackagingAnnuleNotification extends Notification
     public function __construct(
         private readonly RouteLivraison $route,
         private readonly Livraison $livraison,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -44,7 +43,7 @@ class PackagingAnnuleNotification extends Notification
     {
         $nomFamille = trim(($this->livraison->famille->prenom ?? '') . ' ' . ($this->livraison->famille->nom ?? ''));
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('AMANA Livraison — Colis repris par le packaging')
             ->line("Le colis de la famille {$nomFamille} (tournée #{$this->route->id}) a été repris par l'équipe packaging pour correction.")
             ->line('Ce colis n\'est plus disponible au chargement pour le moment.')

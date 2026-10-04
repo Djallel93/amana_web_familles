@@ -29,7 +29,8 @@ use Illuminate\Support\Facades\Schema;
  * jeton en clair à rehacher sur un environnement recréé depuis ces
  * migrations. Sans objet sur une base fraîche — rien à préserver.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // ── Journal des refus de consentement RGPD (formulaire famille) ──

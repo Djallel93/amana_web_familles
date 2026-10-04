@@ -23,7 +23,7 @@
     conversion plutôt que reconduit en prop inutile.
 -->
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from "vue";
 import {
     Chart,
     BarController,
@@ -38,12 +38,21 @@ import {
     Tooltip,
     Legend,
     Filler,
-} from 'chart.js';
+} from "chart.js";
 
 Chart.register(
-    BarController, LineController, DoughnutController,
-    BarElement, LineElement, PointElement, ArcElement,
-    LinearScale, CategoryScale, Tooltip, Legend, Filler,
+    BarController,
+    LineController,
+    DoughnutController,
+    BarElement,
+    LineElement,
+    PointElement,
+    ArcElement,
+    LinearScale,
+    CategoryScale,
+    Tooltip,
+    Legend,
+    Filler,
 );
 
 const props = defineProps<{
@@ -71,8 +80,8 @@ interface Donnees {
 }
 
 const donnees = ref<Donnees | null>(null);
-type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
-const loadState = ref<LoadState>('idle');
+type LoadState = "idle" | "loading" | "loaded" | "error";
+const loadState = ref<LoadState>("idle");
 
 /**
  * Couleurs lues depuis les variables CSS --color-accent* (voir
@@ -103,21 +112,24 @@ const canvasEvolution = ref<HTMLCanvasElement | null>(null);
 let charts: Chart[] = [];
 
 function fmtMoisLabel(iso: string): string {
-    const [annee, mois] = iso.split('-');
-    return new Date(Number(annee), Number(mois) - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+    const [annee, mois] = iso.split("-");
+    return new Date(Number(annee), Number(mois) - 1, 1).toLocaleDateString("fr-FR", {
+        month: "short",
+        year: "2-digit",
+    });
 }
 
 async function charger(): Promise<void> {
-    loadState.value = 'loading';
+    loadState.value = "loading";
     try {
-        const res = await fetch(props.dataUrl, { headers: { Accept: 'application/json' } });
+        const res = await fetch(props.dataUrl, { headers: { Accept: "application/json" } });
         if (!res.ok) throw new Error();
         donnees.value = await res.json();
-        loadState.value = 'loaded';
+        loadState.value = "loaded";
         await nextTick();
         dessinerGraphiques();
-    } catch (e) {
-        loadState.value = 'error';
+    } catch {
+        loadState.value = "error";
     }
 }
 
@@ -134,9 +146,9 @@ function dessinerGraphiques(): void {
     // Recalculées à chaque tracé (coût négligeable) plutôt qu'une fois à
     // l'import du module : garantit que getComputedStyle() lit bien les
     // variables une fois les feuilles de style effectivement appliquées.
-    const accentRgb = lireVariableCouleur('--color-accent', '15 118 110');
-    const accentDarkRgb = lireVariableCouleur('--color-accent-dark', '13 148 136');
-    const accentLightRgb = lireVariableCouleur('--color-accent-light', '20 184 166');
+    const accentRgb = lireVariableCouleur("--color-accent", "15 118 110");
+    const accentDarkRgb = lireVariableCouleur("--color-accent-dark", "13 148 136");
+    const accentLightRgb = lireVariableCouleur("--color-accent-light", "20 184 166");
     const COULEUR_ACCENT = versRgb(accentRgb);
     const COULEUR_ACCENT_DARK = versRgb(accentDarkRgb);
     const COULEUR_ACCENT_CLAIR = versRgb(accentLightRgb);
@@ -144,32 +156,49 @@ function dessinerGraphiques(): void {
     const COULEUR_ACCENT_DARK_FAIBLE = versRgb(accentDarkRgb, 0.1);
 
     if (canvasEtat.value) {
-        charts.push(new Chart(canvasEtat.value, {
-            type: 'bar',
-            data: {
-                labels: d.parEtatDossier.map((e) => e.valeur),
-                datasets: [{ data: d.parEtatDossier.map((e) => e.total), backgroundColor: COULEUR_ACCENT, borderRadius: 4 }],
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-            },
-        }));
+        charts.push(
+            new Chart(canvasEtat.value, {
+                type: "bar",
+                data: {
+                    labels: d.parEtatDossier.map((e) => e.valeur),
+                    datasets: [
+                        {
+                            data: d.parEtatDossier.map((e) => e.total),
+                            backgroundColor: COULEUR_ACCENT,
+                            borderRadius: 4,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                },
+            }),
+        );
     }
 
     if (canvasEligibilite.value) {
-        charts.push(new Chart(canvasEligibilite.value, {
-            type: 'doughnut',
-            data: {
-                labels: ['Zakat El Fitr', 'Sadaqa', 'Aucune'],
-                datasets: [{
-                    data: [d.eligibilite.zakatElFitr, d.eligibilite.sadaqa, d.eligibilite.aucune],
-                    backgroundColor: [COULEUR_ACCENT, COULEUR_ACCENT_CLAIR, '#e5e7eb'],
-                }],
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } },
-        }));
+        charts.push(
+            new Chart(canvasEligibilite.value, {
+                type: "doughnut",
+                data: {
+                    labels: ["Zakat El Fitr", "Sadaqa", "Aucune"],
+                    datasets: [
+                        {
+                            data: [d.eligibilite.zakatElFitr, d.eligibilite.sadaqa, d.eligibilite.aucune],
+                            backgroundColor: [COULEUR_ACCENT, COULEUR_ACCENT_CLAIR, "#e5e7eb"],
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } } },
+                },
+            }),
+        );
     }
 
     // Remplace l'ancienne "Distribution de criticité" le 13/08/2026 (la
@@ -177,54 +206,83 @@ function dessinerGraphiques(): void {
     // géographique est plus actionnable) — 10 quartiers les plus
     // représentés déjà triés côté FamilleStatistics::repartitionParQuartier().
     if (canvasQuartier.value) {
-        charts.push(new Chart(canvasQuartier.value, {
-            type: 'bar',
-            data: {
-                labels: d.parQuartier.map((q) => q.valeur),
-                datasets: [{ data: d.parQuartier.map((q) => q.total), backgroundColor: COULEUR_ACCENT_DARK, borderRadius: 4 }],
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
-            },
-        }));
+        charts.push(
+            new Chart(canvasQuartier.value, {
+                type: "bar",
+                data: {
+                    labels: d.parQuartier.map((q) => q.valeur),
+                    datasets: [
+                        {
+                            data: d.parQuartier.map((q) => q.total),
+                            backgroundColor: COULEUR_ACCENT_DARK,
+                            borderRadius: 4,
+                        },
+                    ],
+                },
+                options: {
+                    indexAxis: "y",
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                },
+            }),
+        );
     }
 
     if (canvasVille.value) {
         const top = d.parVille.slice(0, 8);
-        charts.push(new Chart(canvasVille.value, {
-            type: 'bar',
-            data: {
-                labels: top.map((v) => v.valeur),
-                datasets: [{ data: top.map((v) => v.total), backgroundColor: COULEUR_ACCENT, borderRadius: 4 }],
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
-            },
-        }));
+        charts.push(
+            new Chart(canvasVille.value, {
+                type: "bar",
+                data: {
+                    labels: top.map((v) => v.valeur),
+                    datasets: [{ data: top.map((v) => v.total), backgroundColor: COULEUR_ACCENT, borderRadius: 4 }],
+                },
+                options: {
+                    indexAxis: "y",
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+                },
+            }),
+        );
     }
 
     if (canvasEvolution.value) {
-        charts.push(new Chart(canvasEvolution.value, {
-            type: 'line',
-            data: {
-                labels: d.evolutionFoyer.map((m) => fmtMoisLabel(m.mois)),
-                datasets: [
-                    { label: 'Adultes', data: d.evolutionFoyer.map((m) => m.adultes), borderColor: COULEUR_ACCENT, backgroundColor: COULEUR_ACCENT_FAIBLE, fill: true, tension: 0.3 },
-                    { label: 'Enfants', data: d.evolutionFoyer.map((m) => m.enfants), borderColor: COULEUR_ACCENT_DARK, backgroundColor: COULEUR_ACCENT_DARK_FAIBLE, fill: true, tension: 0.3 },
-                ],
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
-                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
-            },
-        }));
+        charts.push(
+            new Chart(canvasEvolution.value, {
+                type: "line",
+                data: {
+                    labels: d.evolutionFoyer.map((m) => fmtMoisLabel(m.mois)),
+                    datasets: [
+                        {
+                            label: "Adultes",
+                            data: d.evolutionFoyer.map((m) => m.adultes),
+                            borderColor: COULEUR_ACCENT,
+                            backgroundColor: COULEUR_ACCENT_FAIBLE,
+                            fill: true,
+                            tension: 0.3,
+                        },
+                        {
+                            label: "Enfants",
+                            data: d.evolutionFoyer.map((m) => m.enfants),
+                            borderColor: COULEUR_ACCENT_DARK,
+                            backgroundColor: COULEUR_ACCENT_DARK_FAIBLE,
+                            fill: true,
+                            tension: 0.3,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                },
+            }),
+        );
     }
 }
 
@@ -233,11 +291,14 @@ onUnmounted(detruireGraphiques);
 </script>
 
 <template>
-    <div v-if="loadState === 'loading'" class="text-center py-16 text-ink-muted text-[13.5px]">Chargement des statistiques…</div>
-    <div v-else-if="loadState === 'error'" class="text-center py-16 text-rose-600 text-[13.5px]">Impossible de charger les statistiques.</div>
+    <div v-if="loadState === 'loading'" class="text-center py-16 text-ink-muted text-[13.5px]">
+        Chargement des statistiques…
+    </div>
+    <div v-else-if="loadState === 'error'" class="text-center py-16 text-rose-600 text-[13.5px]">
+        Impossible de charger les statistiques.
+    </div>
 
     <div v-else-if="donnees" class="space-y-6">
-
         <!-- Cartes — icônes ré-introduites le 13/08/2026 (retirées par
              erreur lors de la migration du bandeau KPI de
              familles/index.blade.php, alors que ce dernier en avait) : même
@@ -251,37 +312,64 @@ onUnmounted(detruireGraphiques);
              colonnes, sans étape sur tablette. -->
         <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🏠</div>
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                    🏠
+                </div>
                 <div class="min-w-0">
-                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.cartes.totalFamilles }}</div>
+                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">
+                        {{ donnees.cartes.totalFamilles }}
+                    </div>
                     <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Dossiers</div>
                 </div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🧑</div>
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                    🧑
+                </div>
                 <div class="min-w-0">
-                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.cartes.totalAdultes }}</div>
+                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">
+                        {{ donnees.cartes.totalAdultes }}
+                    </div>
                     <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Adultes</div>
                 </div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🧒</div>
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                    🧒
+                </div>
                 <div class="min-w-0">
-                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.cartes.totalEnfants }}</div>
+                    <div class="text-[20px] font-heading font-semibold text-ink leading-none">
+                        {{ donnees.cartes.totalEnfants }}
+                    </div>
                     <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Enfants</div>
                 </div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🎚️</div>
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                    🎚️
+                </div>
                 <div class="min-w-0">
-                    <div class="text-[20px] font-heading font-semibold text-accent leading-none">{{ donnees.cartes.criticiteMoyenne }}<span class="text-[13px] text-ink-muted font-medium">/5</span></div>
+                    <div class="text-[20px] font-heading font-semibold text-accent leading-none">
+                        {{ donnees.cartes.criticiteMoyenne
+                        }}<span class="text-[13px] text-ink-muted font-medium">/5</span>
+                    </div>
                     <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Criticité moy.</div>
                 </div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0" :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'bg-rose-100' : 'bg-emerald-100'">🪪</div>
+                <div
+                    class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                    :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'bg-rose-100' : 'bg-emerald-100'"
+                >
+                    🪪
+                </div>
                 <div class="min-w-0">
-                    <div class="text-[20px] font-heading font-semibold leading-none" :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'text-rose-600' : 'text-ink'">{{ donnees.cartes.documentsIdentiteManquants }}</div>
+                    <div
+                        class="text-[20px] font-heading font-semibold leading-none"
+                        :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'text-rose-600' : 'text-ink'"
+                    >
+                        {{ donnees.cartes.documentsIdentiteManquants }}
+                    </div>
                     <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Identité manquante</div>
                 </div>
             </div>
@@ -289,11 +377,19 @@ onUnmounted(detruireGraphiques);
                  13/08/2026 (seule carte de ce bandeau sans équivalent déjà
                  présent ici) -->
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0" :class="donnees.cartes.aTraiterPriorite > 0 ? 'bg-rose-100' : 'bg-emerald-100'">
-                    {{ donnees.cartes.aTraiterPriorite > 0 ? '⚠️' : '✅' }}
+                <div
+                    class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                    :class="donnees.cartes.aTraiterPriorite > 0 ? 'bg-rose-100' : 'bg-emerald-100'"
+                >
+                    {{ donnees.cartes.aTraiterPriorite > 0 ? "⚠️" : "✅" }}
                 </div>
                 <div class="min-w-0">
-                    <div class="text-[20px] font-heading font-semibold leading-none" :class="donnees.cartes.aTraiterPriorite > 0 ? 'text-rose-600' : 'text-ink'">{{ donnees.cartes.aTraiterPriorite }}</div>
+                    <div
+                        class="text-[20px] font-heading font-semibold leading-none"
+                        :class="donnees.cartes.aTraiterPriorite > 0 ? 'text-rose-600' : 'text-ink'"
+                    >
+                        {{ donnees.cartes.aTraiterPriorite }}
+                    </div>
                     <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">À traiter en priorité</div>
                 </div>
             </div>
@@ -319,16 +415,28 @@ onUnmounted(detruireGraphiques);
                  déplace" ci-dessus. -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🎓</div>
+                    <div
+                        class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0"
+                    >
+                        🎓
+                    </div>
                     <div class="min-w-0">
-                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.etudiant.etudiant }}</div>
+                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">
+                            {{ donnees.etudiant.etudiant }}
+                        </div>
                         <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Étudiant</div>
                     </div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">🏨</div>
+                    <div
+                        class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0"
+                    >
+                        🏨
+                    </div>
                     <div class="min-w-0">
-                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">{{ donnees.estHotel.estHotel }}</div>
+                        <div class="text-[20px] font-heading font-semibold text-ink leading-none">
+                            {{ donnees.estHotel.estHotel }}
+                        </div>
                         <div class="text-[10.5px] text-ink-muted uppercase tracking-wide mt-1">Hôtel</div>
                     </div>
                 </div>
@@ -358,6 +466,5 @@ onUnmounted(detruireGraphiques);
                 <div class="h-64"><canvas ref="canvasEvolution"></canvas></div>
             </div>
         </div>
-
     </div>
 </template>

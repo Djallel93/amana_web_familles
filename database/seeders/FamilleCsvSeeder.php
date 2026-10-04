@@ -30,6 +30,7 @@ class FamilleCsvSeeder extends Seeder
 
         if (!is_file($path)) {
             $this->command->warn("⏭️  Fichier CSV introuvable ({$path}) — seeder ignoré.");
+
             return;
         }
 
@@ -37,6 +38,7 @@ class FamilleCsvSeeder extends Seeder
 
         if (empty($lignes)) {
             $this->command->warn('⚠️  CSV vide ou illisible.');
+
             return;
         }
 

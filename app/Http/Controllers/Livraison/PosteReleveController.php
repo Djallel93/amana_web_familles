@@ -166,7 +166,7 @@ class PosteReleveController extends Controller
         $releves = $query->with('loggePar:id,nom,prenom')->orderByDesc('horodatage')->get();
 
         return response()->json([
-            $definition->cleListeJson => $releves->map(fn ($releve) => new ReleveResource($releve, $definition)),
+            $definition->cleListeJson => $releves->map(fn($releve) => new ReleveResource($releve, $definition)),
             $definition->cleTotalJournalJson => $definition->estEntier
                 ? (int) $query->sum($definition->champ)
                 : (float) $query->sum($definition->champ),

@@ -39,8 +39,7 @@ class ContactConfirmationController extends Controller
     public function __construct(
         private readonly ContactTokenService $tokenService,
         private readonly FamilleConfirmationSyncService $syncService,
-    ) {
-    }
+    ) {}
 
     public function show(string $token): View
     {

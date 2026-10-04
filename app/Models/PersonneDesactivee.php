@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * Compte désactivé POUR AMANA FAMILLES (03/10/2026) — voir la migration
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property int         $id
  * @property int         $id_personne
  * @property int|null    $desactivee_par
- * @property \Illuminate\Support\Carbon $desactivee_at
+ * @property Carbon $desactivee_at
  */
 class PersonneDesactivee extends Model
 {
@@ -41,7 +42,7 @@ class PersonneDesactivee extends Model
      */
     public static function ids(): array
     {
-        return static::query()->pluck('id_personne')->map(fn ($id) => (int) $id)->all();
+        return static::query()->pluck('id_personne')->map(fn($id) => (int) $id)->all();
     }
 
     public static function estDesactivee(int $idPersonne): bool

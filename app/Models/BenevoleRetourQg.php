@@ -8,6 +8,7 @@ namespace App\Models;
 use Amana\Shared\Models\Personne;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Un bénévole s'étant déclaré de retour au QG et disponible pour une
@@ -17,8 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id_campagne
  * @property int $id_personne
  * @property int|null $id_route_origine
- * @property \Illuminate\Support\Carbon $disponible_depuis
- * @property \Illuminate\Support\Carbon|null $recupere_le
+ * @property Carbon $disponible_depuis
+ * @property Carbon|null $recupere_le
  */
 class BenevoleRetourQg extends Model
 {

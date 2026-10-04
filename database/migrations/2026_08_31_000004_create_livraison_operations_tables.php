@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Schema;
  * remplacé le 31/08/2026 par ces 4 colonnes à granularité fine) n'existe
  * donc jamais dans ce schéma squashé.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // Une ligne par famille bénéficiaire par campagne — c'est le pivot

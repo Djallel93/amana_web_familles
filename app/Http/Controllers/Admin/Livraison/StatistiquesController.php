@@ -24,8 +24,7 @@ class StatistiquesController extends Controller
 {
     public function __construct(
         private readonly CampagneStatsService $statsService,
-    ) {
-    }
+    ) {}
 
     /**
      * {campagne?} optionnel ajouté le 09/09/2026 (prompt de cette date
@@ -60,7 +59,7 @@ class StatistiquesController extends Controller
             'donneesUrlTemplate' => route('livraison.statistiques.donnees', ['campagne' => '__CAMPAGNE__']),
             'snapshotUrlTemplate' => route('livraison.statistiques.snapshot', ['campagne' => '__CAMPAGNE__']),
             'peutSnapshotter' => $personne->isAdmin() || $personne->isGestionnaire(),
-            'historique' => $historique->map(fn (CampagneStatsSnapshot $s) => [
+            'historique' => $historique->map(fn(CampagneStatsSnapshot $s) => [
                 'id' => $s->id,
                 'label' => $s->campagne->date_livraison->format('d/m/Y') . ' — ' . $s->campagne->type,
                 'nombre_menages' => $s->donnees['nombre_menages'] ?? null,

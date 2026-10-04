@@ -5,8 +5,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use Amana\Shared\Models\Setting;
+use App\Http\Controllers\Controller;
 use App\Services\GoogleContactsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,8 +30,7 @@ class GoogleContactsController extends Controller
 {
     public function __construct(
         private readonly GoogleContactsService $googleContacts
-    ) {
-    }
+    ) {}
 
     /**
      * Redirige vers l'écran de consentement Google. À usage ponctuel
@@ -81,8 +80,8 @@ class GoogleContactsController extends Controller
             // renvoi systématique ; si ce message apparaît malgré tout,
             // révoquer l'accès existant avant de relancer le flux.
             return redirect()->route('admin.activite.index')->with('error',
-                "Google n'a pas renvoyé de refresh token. Révoquez l'accès existant sur ".
-                'https://myaccount.google.com/permissions (compte amana44.pole.social@gmail.com) '.
+                "Google n'a pas renvoyé de refresh token. Révoquez l'accès existant sur " .
+                'https://myaccount.google.com/permissions (compte amana44.pole.social@gmail.com) ' .
                 'puis relancez l\'autorisation.'
             );
         }
@@ -92,7 +91,7 @@ class GoogleContactsController extends Controller
             'familles',
             $token['refresh_token'],
             'Jeton Google Contacts (People API)',
-            "Refresh token OAuth pour la synchronisation des contacts (compte amana44.pole.social@gmail.com). ".
+            'Refresh token OAuth pour la synchronisation des contacts (compte amana44.pole.social@gmail.com). ' .
             'Généré automatiquement via /admin/google-contacts/authorize — ne pas éditer manuellement.'
         );
 

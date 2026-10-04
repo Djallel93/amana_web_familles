@@ -7,6 +7,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Photo des métriques d'une campagne à un instant donné (conclusion ou
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property int    $id
  * @property int    $id_campagne
- * @property \Illuminate\Support\Carbon $snapshot_at
+ * @property Carbon $snapshot_at
  * @property array  $donnees
  */
 class CampagneStatsSnapshot extends Model

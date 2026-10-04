@@ -85,7 +85,7 @@ class PersonneActivationService
             ->where('statut', '!=', 'terminee')
             ->orderBy('id')
             ->get()
-            ->map(fn (Campagne $c) => [
+            ->map(fn(Campagne $c) => [
                 'id' => $c->id,
                 'label' => $this->libelleCampagne($c),
                 'raisons' => array_values(array_unique($raisonsParCampagne[$c->id])),

@@ -8,7 +8,7 @@
 // composants peuvent afficher champ par champ (voir ApiError.errors).
 
 export function csrfToken(): string {
-    return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+    return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "";
 }
 
 export interface ApiError {
@@ -49,35 +49,35 @@ async function traiterReponse<T>(res: Response): Promise<ApiResult<T>> {
 }
 
 function messageParDefaut(status: number): string {
-    if (status === 422) return 'Certains champs sont invalides.';
+    if (status === 422) return "Certains champs sont invalides.";
     if (status === 403) return "Vous n'avez pas les droits nécessaires pour cette action.";
-    if (status === 404) return 'Ressource introuvable.';
+    if (status === 404) return "Ressource introuvable.";
     return "Une erreur est survenue. Merci de réessayer.";
 }
 
 export async function apiGet<T>(url: string): Promise<ApiResult<T>> {
     try {
-        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        const res = await fetch(url, { headers: { Accept: "application/json" } });
         return await traiterReponse<T>(res);
     } catch {
-        return { ok: false, status: 0, message: 'Connexion impossible. Vérifiez votre réseau.', errors: {} };
+        return { ok: false, status: 0, message: "Connexion impossible. Vérifiez votre réseau.", errors: {} };
     }
 }
 
 export async function apiPost<T>(url: string, body?: unknown): Promise<ApiResult<T>> {
     try {
         const res = await fetch(url, {
-            method: 'POST',
+            method: "POST",
             headers: {
-                'X-CSRF-TOKEN': csrfToken(),
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
+                "X-CSRF-TOKEN": csrfToken(),
+                "Content-Type": "application/json",
+                Accept: "application/json",
             },
             body: JSON.stringify(body ?? {}),
         });
         return await traiterReponse<T>(res);
     } catch {
-        return { ok: false, status: 0, message: 'Connexion impossible. Vérifiez votre réseau.', errors: {} };
+        return { ok: false, status: 0, message: "Connexion impossible. Vérifiez votre réseau.", errors: {} };
     }
 }
 
@@ -92,29 +92,29 @@ export async function apiPost<T>(url: string, body?: unknown): Promise<ApiResult
 export async function apiPatch<T>(url: string, body?: unknown): Promise<ApiResult<T>> {
     try {
         const res = await fetch(url, {
-            method: 'PATCH',
+            method: "PATCH",
             headers: {
-                'X-CSRF-TOKEN': csrfToken(),
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
+                "X-CSRF-TOKEN": csrfToken(),
+                "Content-Type": "application/json",
+                Accept: "application/json",
             },
             body: JSON.stringify(body ?? {}),
         });
         return await traiterReponse<T>(res);
     } catch {
-        return { ok: false, status: 0, message: 'Connexion impossible. Vérifiez votre réseau.', errors: {} };
+        return { ok: false, status: 0, message: "Connexion impossible. Vérifiez votre réseau.", errors: {} };
     }
 }
 
 export async function apiDelete<T>(url: string): Promise<ApiResult<T>> {
     try {
         const res = await fetch(url, {
-            method: 'DELETE',
-            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+            method: "DELETE",
+            headers: { "X-CSRF-TOKEN": csrfToken(), Accept: "application/json" },
         });
         return await traiterReponse<T>(res);
     } catch {
-        return { ok: false, status: 0, message: 'Connexion impossible. Vérifiez votre réseau.', errors: {} };
+        return { ok: false, status: 0, message: "Connexion impossible. Vérifiez votre réseau.", errors: {} };
     }
 }
 
@@ -124,10 +124,12 @@ export async function apiDelete<T>(url: string): Promise<ApiResult<T>> {
  * entrée `cle[]=` par élément, format que Laravel désérialise nativement
  * en tableau côté Request::input().
  */
-export function buildQuery(params: Record<string, string | number | boolean | null | undefined | (string | number)[]>): string {
+export function buildQuery(
+    params: Record<string, string | number | boolean | null | undefined | (string | number)[]>,
+): string {
     const usp = new URLSearchParams();
     for (const [cle, valeur] of Object.entries(params)) {
-        if (valeur === null || valeur === undefined || valeur === '') continue;
+        if (valeur === null || valeur === undefined || valeur === "") continue;
         if (Array.isArray(valeur)) {
             if (valeur.length === 0) continue;
             for (const v of valeur) usp.append(`${cle}[]`, String(v));
@@ -136,5 +138,5 @@ export function buildQuery(params: Record<string, string | number | boolean | nu
         usp.set(cle, String(valeur));
     }
     const chaine = usp.toString();
-    return chaine ? `?${chaine}` : '';
+    return chaine ? `?${chaine}` : "";
 }

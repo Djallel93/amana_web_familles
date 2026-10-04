@@ -49,7 +49,7 @@ trait MigratesCommunConnection
 
     protected function refreshTestDatabase(): void
     {
-        if (! self::$communMigrated) {
+        if (!self::$communMigrated) {
             $this->artisan('migrate:fresh', [
                 '--database' => config('amana-shared.connection', 'commun'),
                 // Relative to base_path() (no --realpath), same convention

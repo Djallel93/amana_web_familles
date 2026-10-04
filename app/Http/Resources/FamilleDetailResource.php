@@ -72,12 +72,12 @@ class FamilleDetailResource extends JsonResource
 
             // Seuls id/nom lus par DetailPanel.vue — jamais `boundary`
             // (voir docblock de classe).
-            'quartier' => $this->whenLoaded('quartier', fn () => $this->quartier ? [
+            'quartier' => $this->whenLoaded('quartier', fn() => $this->quartier ? [
                 'id' => $this->quartier->id,
                 'nom' => $this->quartier->nom,
             ] : null),
 
-            'documents' => $this->whenLoaded('documents', fn () => $this->documents->map(fn ($document) => [
+            'documents' => $this->whenLoaded('documents', fn() => $this->documents->map(fn($document) => [
                 'id' => $document->id,
                 'type' => $document->type,
                 'original_name' => $document->original_name,
@@ -88,7 +88,7 @@ class FamilleDetailResource extends JsonResource
                 // familles.documents.download, pas par ce chemin direct).
             ])),
 
-            'secteurs_activite' => $this->whenLoaded('secteursActivite', fn () => $this->secteursActivite->map(fn ($secteur) => [
+            'secteurs_activite' => $this->whenLoaded('secteursActivite', fn() => $this->secteursActivite->map(fn($secteur) => [
                 'id' => $secteur->id,
                 'code' => $secteur->code,
                 'libelle_fr' => $secteur->libelle_fr,
@@ -96,7 +96,7 @@ class FamilleDetailResource extends JsonResource
                 'libelle_en' => $secteur->libelle_en,
             ])),
 
-            'organismes_aide' => $this->whenLoaded('organismesAide', fn () => $this->organismesAide->map(fn ($organisme) => [
+            'organismes_aide' => $this->whenLoaded('organismesAide', fn() => $this->organismesAide->map(fn($organisme) => [
                 'id' => $organisme->id,
                 'code' => $organisme->code,
                 'libelle_fr' => $organisme->libelle_fr,

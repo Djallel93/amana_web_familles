@@ -1,5 +1,6 @@
 includes:
     - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.neon
 
 # phpstan.neon
 #
@@ -21,13 +22,30 @@ parameters:
         - database/migrations
         - routes
 
-    # Laravel resout beaucoup de types (Auth::user(), route model
-    # binding, façades) dynamiquement — Larastan sait déjà interpréter la
-    # plupart de ces cas via son extension (voir includes: ci-dessus),
-    # mais reste volontairement permissif sur les deux points suivants,
-    # propres à cette codebase :
-    checkMissingIterableValueType: false
-    checkGenericClassInNonGenericObjectType: false
+    # Larastan déduit les colonnes des modèles en lisant les migrations. Les
+    # modèles partagés (Personne, Role, BenevoleProfil… dans amana/shared)
+    # ont les leurs dans le paquet : sans ce chemin, chaque `$personne->email`
+    # ressortait en `property.notFound` (317 faux positifs sur 414 au premier
+    # passage). Le chemin de l'app est répété car la valeur ci-dessous
+    # REMPLACE le défaut de Larastan (database/migrations).
+    databaseMigrationsPath:
+        - database/migrations
+        - vendor/amana/shared/database/migrations
+
+    # Laravel résout beaucoup de types (Auth::user(), route model binding,
+    # façades) dynamiquement — Larastan sait déjà interpréter la plupart de
+    # ces cas via son extension (voir includes: ci-dessus).
+    #
+    # NB : `checkMissingIterableValueType` et
+    # `checkGenericClassInNonGenericObjectType` ont été SUPPRIMÉES de
+    # PHPStan 2.x (ils provoquaient « Unexpected item 'parameters › ...' »).
+    # Leur comportement est désormais celui par défaut du niveau 6+ ; au
+    # niveau 5 ils ne s'appliquent pas, il n'y a donc rien à les remplacer.
+    #
+    # La baseline (phpstan-baseline.neon) absorbe les signalements déjà
+    # présents au moment de l'ajout de la porte de qualité. Ne pas l'élargir
+    # à la main : corriger le code, puis la régénérer avec
+    # `composer analyse -- --generate-baseline` (qui ne doit que rétrécir).
 
 rules:
     - App\PHPStan\Rules\NoForeignIdOnCrossDatabaseColumnsRule

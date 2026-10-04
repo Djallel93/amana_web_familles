@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array|null  $donnees_soumises
  * @property string      $statut        en_attente | validee | rejetee
  * @property int|null    $traite_par
- * @property \Carbon\Carbon|null $traite_le
+ * @property Carbon|null $traite_le
  */
 class FamilleOrganisationDemande extends Model
 {
@@ -36,6 +37,7 @@ class FamilleOrganisationDemande extends Model
     ];
 
     public const SOURCES = ['intake', 'import', 'manuel'];
+
     public const STATUTS = ['en_attente', 'validee', 'rejetee'];
 
     public function famille(): BelongsTo

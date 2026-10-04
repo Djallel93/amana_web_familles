@@ -23,11 +23,11 @@
     Blade.
 -->
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import { onMounted, ref } from 'vue';
-import ContactsQueue from '../../components/livraison/contacts/ContactsQueue.vue';
-import DetailPanel from '../../components/familles/DetailPanel.vue';
-import type { Campagne, Organisation, Quartier, Secteur, Ville } from '../../components/livraison/shared/types';
+import { Head } from "@inertiajs/vue3";
+import { onMounted, ref } from "vue";
+import ContactsQueue from "../../components/livraison/contacts/ContactsQueue.vue";
+import DetailPanel from "../../components/familles/DetailPanel.vue";
+import type { Campagne, Organisation, Quartier, Secteur, Ville } from "../../components/livraison/shared/types";
 
 interface ListeOption {
     id: number;
@@ -69,7 +69,7 @@ const props = defineProps<{
 // depuis CampagneDetail.vue (?id_campagne=…) plutôt que vers la liste.
 const retourHref = ref(props.retourUrl);
 onMounted(() => {
-    const idCampagneRetour = new URLSearchParams(window.location.search).get('id_campagne');
+    const idCampagneRetour = new URLSearchParams(window.location.search).get("id_campagne");
     if (idCampagneRetour) {
         retourHref.value = `/livraison/campagnes/${idCampagneRetour}`;
     }
@@ -80,25 +80,42 @@ onMounted(() => {
     <Head title="Suivi des contacts — AMANA Familles" />
 
     <div class="max-w-5xl mx-auto py-8">
-        <a :href="retourHref"
-            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
+        <a
+            :href="retourHref"
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90"
+        >
             ← Retour à la campagne
         </a>
 
         <h1 class="font-heading text-xl font-semibold text-ink mb-6">Suivi des contacts</h1>
 
-        <ContactsQueue :campagnes="campagnes" :villes="villes" :secteurs="secteurs" :quartiers="quartiers"
-            :organisations="organisations" :queue-url="queueUrl" :statistiques-url="statistiquesUrl"
-            :assigner-url-template="assignerUrlTemplate" :assigner-lot-url="assignerLotUrl"
-            :contacter-manuel-url-template="contacterManuelUrlTemplate" :se-deplace-url-template="seDeplaceUrlTemplate" />
+        <ContactsQueue
+            :campagnes="campagnes"
+            :villes="villes"
+            :secteurs="secteurs"
+            :quartiers="quartiers"
+            :organisations="organisations"
+            :queue-url="queueUrl"
+            :statistiques-url="statistiquesUrl"
+            :assigner-url-template="assignerUrlTemplate"
+            :assigner-lot-url="assignerLotUrl"
+            :contacter-manuel-url-template="contacterManuelUrlTemplate"
+            :se-deplace-url-template="seDeplaceUrlTemplate"
+        />
     </div>
 
-    <DetailPanel :show-url-template="showUrlTemplate" :update-url-template="updateUrlTemplate"
+    <DetailPanel
+        :show-url-template="showUrlTemplate"
+        :update-url-template="updateUrlTemplate"
         :deverrouiller-url-template="deverrouillerUrlTemplate"
         :renouveler-verrou-url-template="renouvelerVerrouUrlTemplate"
         :forcer-deverrouillage-url-template="forcerDeverrouillageUrlTemplate"
-        :upload-url-template="uploadUrlTemplate" :download-url-template="downloadUrlTemplate"
-        :delete-doc-url-template="deleteDocUrlTemplate" :initial-google-places-key="initialGooglePlacesKey"
-        :initial-google-embed-key="initialGoogleEmbedKey" :initial-secteurs-activite-disponibles="secteursActivite"
-        :initial-organismes-aide-disponibles="organismesAide" />
+        :upload-url-template="uploadUrlTemplate"
+        :download-url-template="downloadUrlTemplate"
+        :delete-doc-url-template="deleteDocUrlTemplate"
+        :initial-google-places-key="initialGooglePlacesKey"
+        :initial-google-embed-key="initialGoogleEmbedKey"
+        :initial-secteurs-activite-disponibles="secteursActivite"
+        :initial-organismes-aide-disponibles="organismesAide"
+    />
 </template>

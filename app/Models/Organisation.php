@@ -7,6 +7,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -44,7 +45,7 @@ class Organisation extends Model
             ->withPivot('rattachee_le');
     }
 
-    public function demandesRattachement(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function demandesRattachement(): HasMany
     {
         return $this->hasMany(FamilleOrganisationDemande::class, 'id_organisation');
     }

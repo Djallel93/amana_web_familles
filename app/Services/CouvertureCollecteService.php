@@ -63,7 +63,7 @@ class CouvertureCollecteService
         // simplement pas commencé, rien à signaler.
         $collecteDemarree = $campagne->donations()->exists();
 
-        $base = fn () => Livraison::where('id_campagne', $campagne->id)
+        $base = fn() => Livraison::where('id_campagne', $campagne->id)
             ->where('statut_contact', 'confirme')
             ->where('statut', '!=', 'ignoree');
 
@@ -125,7 +125,7 @@ class CouvertureCollecteService
         $realisable = null;
         if ($couverture !== null && $couverture > 0 && $couverture < 1) {
             $realisable = array_map(
-                fn (?float $taux) => $taux === null ? null : round($taux * $couverture, 2),
+                fn(?float $taux) => $taux === null ? null : round($taux * $couverture, 2),
                 $actuel,
             );
         }

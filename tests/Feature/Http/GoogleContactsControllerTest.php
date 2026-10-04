@@ -37,6 +37,16 @@ class GoogleContactsControllerTest extends TestCase
 
     public function test_redirect_renvoie_vers_lecran_de_consentement_google(): void
     {
+        // Identifiants factices : sans client_id, google/auth lève
+        // « missing the required client identifier » (500) — le test dépendait
+        // donc d'un .env renseigné, ce qui n'est pas le cas en CI. Aucun appel
+        // réseau n'est fait : l'URL de consentement est construite localement.
+        config([
+            'services.google.contacts.client_id' => 'client-id-de-test',
+            'services.google.contacts.client_secret' => 'client-secret-de-test',
+            'services.google.contacts.redirect_uri' => 'http://localhost/admin/google-contacts/callback',
+        ]);
+
         $admin = $this->creerPersonne(['admin']);
 
         $reponse = $this->actingAs($admin)->get(route('admin.google-contacts.authorize'));

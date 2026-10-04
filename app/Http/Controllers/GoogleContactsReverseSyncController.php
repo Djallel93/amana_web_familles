@@ -31,8 +31,7 @@ class GoogleContactsReverseSyncController extends Controller
     public function __construct(
         private readonly ReverseSyncService $reverseSync,
         private readonly GoogleContactsService $googleContacts
-    ) {
-    }
+    ) {}
 
     public function scan(): JsonResponse
     {

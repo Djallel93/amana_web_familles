@@ -19,8 +19,8 @@ use Tests\TestCase;
  */
 class DisponibiliteJourneeTest extends TestCase
 {
-    use SeedsCommunFixtures;
     use BuildsDisponibiliteFixtures;
+    use SeedsCommunFixtures;
 
     private array $vehicules;
 
@@ -83,7 +83,7 @@ class DisponibiliteJourneeTest extends TestCase
         $this->assertFalse($dispo->vehicule_confirme);
         $this->assertTrue($dispo->permis);
         $this->assertSame($this->vehicules['utilitaire'], (int) $dispo->id_vehicule_type);
-        $this->assertEqualsCanonicalizing([$this->geo['a1'], $this->geo['b1']], $dispo->secteurs->pluck('id_secteur')->map(fn ($i) => (int) $i)->all());
+        $this->assertEqualsCanonicalizing([$this->geo['a1'], $this->geo['b1']], $dispo->secteurs->pluck('id_secteur')->map(fn($i) => (int) $i)->all());
         $this->assertEqualsCanonicalizing(['08-10', '14-16'], $dispo->creneaux->pluck('creneau')->all());
     }
 
@@ -211,7 +211,7 @@ class DisponibiliteJourneeTest extends TestCase
         $d2 = BenevoleDisponibilite::with('secteurs')->where('id_campagne_journee', $journee2->id)->firstOrFail();
         $this->assertSame($this->vehicules['utilitaire'], (int) $d1->id_vehicule_type);
         $this->assertSame($this->vehicules['sans_permis'], (int) $d2->id_vehicule_type);
-        $this->assertSame([$this->geo['a2']], $d2->secteurs->pluck('id_secteur')->map(fn ($i) => (int) $i)->all());
+        $this->assertSame([$this->geo['a2']], $d2->secteurs->pluck('id_secteur')->map(fn($i) => (int) $i)->all());
     }
 
     public function test_une_journee_d_une_autre_campagne_est_refusee(): void
@@ -237,7 +237,7 @@ class DisponibiliteJourneeTest extends TestCase
         ], $journee->id))->assertOk();
 
         $dispo = BenevoleDisponibilite::with(['secteurs', 'creneaux'])->where('id_personne', $benevole->id)->firstOrFail();
-        $this->assertSame([$this->geo['a2']], $dispo->secteurs->pluck('id_secteur')->map(fn ($i) => (int) $i)->all());
+        $this->assertSame([$this->geo['a2']], $dispo->secteurs->pluck('id_secteur')->map(fn($i) => (int) $i)->all());
         $this->assertSame(['10-12'], $dispo->creneaux->pluck('creneau')->all());
     }
 

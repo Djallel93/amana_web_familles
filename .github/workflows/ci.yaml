@@ -1,0 +1,15 @@
+name: CI
+
+# Tests & quality gate on every push to a branch other than main / develop
+# (those two trigger their own deploy workflow, which runs the very same gate
+# before any build). No build here.
+on:
+  push:
+    branches-ignore:
+      - main
+      - develop
+
+jobs:
+  test:
+    uses: ./.github/workflows/tests.yaml
+    secrets: inherit

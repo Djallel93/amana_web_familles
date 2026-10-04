@@ -60,8 +60,7 @@ class IntakeAttenteService
 
     public function __construct(
         private readonly FamilleUpsertService $upsertService,
-    ) {
-    }
+    ) {}
 
     /**
      * @param array<string, mixed> $donneesValidees Mêmes clés que Famille::$fillable

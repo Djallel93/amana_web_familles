@@ -9,9 +9,9 @@ use Amana\Shared\Models\BenevoleProfil;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
-use App\Models\PersonneDesactivee;
 use App\Models\EtapeRoute;
 use App\Models\Livraison;
+use App\Models\PersonneDesactivee;
 use App\Models\RouteLivraison;
 use App\Support\Creneau;
 use App\Support\RouteOptimizationConfig;
@@ -81,8 +81,7 @@ class RouteGenerationService
         private readonly VehicleAssignmentService $assignment,
         private readonly TspOptimizationService $tsp,
         private readonly GeoCalculationService $geo,
-    ) {
-    }
+    ) {}
 
     /**
      * Génère les tournées d'UNE journée de campagne : livraisons imposées
@@ -146,7 +145,7 @@ class RouteGenerationService
     public function livraisonsNonCouvertes(Campagne $campagne, ?CampagneJournee $journee = null): Collection
     {
         return Livraison::where('id_campagne', $campagne->id)
-            ->when($journee !== null, fn ($q) => $q->where('id_campagne_journee', $journee->id))
+            ->when($journee !== null, fn($q) => $q->where('id_campagne_journee', $journee->id))
             ->where('statut', 'non_assignee')
             ->where('statut_contact', 'confirme')
             ->with('famille:id,nom,prenom,adresse')
@@ -185,7 +184,7 @@ class RouteGenerationService
             ->where('statut', 'non_assignee')
             ->with('famille:id,latitude,longitude,id_quartier')
             ->get()
-            ->filter(fn (Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
+            ->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
             ->values();
 
         if ($livraisons->isEmpty()) {
@@ -209,14 +208,14 @@ class RouteGenerationService
         $vehicules = ($creneau !== null && $journee !== null)
             ? $this->vehiculesDisponiblesPour($journee, $creneau)
             : [];
-        $vehicules = array_values(array_filter($vehicules, fn (array $v) => $v['id_benevole'] !== $idBenevoleExclu));
+        $vehicules = array_values(array_filter($vehicules, fn(array $v) => $v['id_benevole'] !== $idBenevoleExclu));
 
         if (empty($vehicules)) {
             return ['routes_creees' => 0, 'non_couvertes' => $livraisons->count()];
         }
 
         $plafondPoids = max(array_column($vehicules, 'capacite_kg'));
-        $livraisonsArray = $livraisons->map(fn (Livraison $l) => $this->versArrayClustering($l))->all();
+        $livraisonsArray = $livraisons->map(fn(Livraison $l) => $this->versArrayClustering($l))->all();
 
         $clusters = $this->clustering->identifierClusters($livraisonsArray, $hq, $plafondPoids);
         $resultat = $this->assignment->assigner($clusters, $vehicules, RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne($campagne));
@@ -236,7 +235,7 @@ class RouteGenerationService
             $routesCreees++;
         }
 
-        $nonCouvertes = array_sum(array_map(fn (array $c) => count($c['livraisons']), $resultat['non_places']));
+        $nonCouvertes = array_sum(array_map(fn(array $c) => count($c['livraisons']), $resultat['non_places']));
 
         return ['routes_creees' => $routesCreees, 'non_couvertes' => $nonCouvertes];
     }
@@ -264,7 +263,7 @@ class RouteGenerationService
             ->where('se_deplace', false)
             ->with('famille:id,latitude,longitude,id_quartier')
             ->get()
-            ->filter(fn (Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
+            ->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
             ->groupBy('id_benevole_impose');
 
         $routes = [];
@@ -279,7 +278,7 @@ class RouteGenerationService
                 continue;
             }
 
-            $livraisonsArray = $groupe->map(fn (Livraison $l) => $this->versArrayClustering($l))->all();
+            $livraisonsArray = $groupe->map(fn(Livraison $l) => $this->versArrayClustering($l))->all();
             $ordonnees = $this->tsp->optimiser($livraisonsArray, $hq);
 
             // idCampagneJournee: null volontaire — transverse, voir
@@ -303,7 +302,7 @@ class RouteGenerationService
             ->where('statut', 'non_assignee')
             ->where('statut_contact', 'confirme')
             ->whereNull('id_benevole_impose')
-            ->whereHas('creneaux', fn ($q) => $q->where('creneau', $creneau))
+            ->whereHas('creneaux', fn($q) => $q->where('creneau', $creneau))
             // Familles se_deplace (24/09/2026, prompt de cette date §2) :
             // viennent chercher leur colis au QG, jamais livrées — exclues
             // du pool de clustering, voir RetraitHqSchedulingService pour
@@ -314,7 +313,7 @@ class RouteGenerationService
             ->where('se_deplace', false)
             ->with(['famille:id,latitude,longitude,id_quartier', 'creneaux'])
             ->get()
-            ->filter(fn (Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
+            ->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
             ->values();
         // Familles sans coordonnées résolues (géocodage en attente/échoué,
         // voir App\Jobs\ResoudreAdresseFamille) exclues du clustering plutôt
@@ -334,7 +333,7 @@ class RouteGenerationService
 
         $plafondPoids = max(array_column($vehicules, 'capacite_kg'));
 
-        $livraisonsArray = $poolRetenu->map(fn (Livraison $l) => $this->versArrayClustering($l))->all();
+        $livraisonsArray = $poolRetenu->map(fn(Livraison $l) => $this->versArrayClustering($l))->all();
 
         $clusters = $this->clustering->identifierClusters($livraisonsArray, $hq, $plafondPoids);
         $resultat = $this->assignment->assigner($clusters, $vehicules, RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne($campagne));
@@ -354,7 +353,7 @@ class RouteGenerationService
             $routesCreees++;
         }
 
-        $nonCouvertes = array_sum(array_map(fn (array $c) => count($c['livraisons']), $resultat['non_places']));
+        $nonCouvertes = array_sum(array_map(fn(array $c) => count($c['livraisons']), $resultat['non_places']));
         // Les livraisons écartées du pool par prioriserInflexibles() (pool
         // total moins pool retenu) restent non_assignee et seront
         // reconsidérées à un créneau ultérieur — pas comptées ici comme
@@ -389,7 +388,7 @@ class RouteGenerationService
         $disponibilites = BenevoleDisponibilite::where('id_campagne_journee', $journee->id)
             ->whereNotIn('id_personne', PersonneDesactivee::ids())
             ->where('statut', 'confirme')
-            ->whereHas('creneaux', fn ($q) => $q->where('creneau', $creneau))
+            ->whereHas('creneaux', fn($q) => $q->where('creneau', $creneau))
             ->get();
 
         $vehicules = [];
@@ -441,14 +440,14 @@ class RouteGenerationService
             return $pool; // Tout tient, rien à retirer.
         }
 
-        [$inflexibles, $flexibles] = $pool->partition(fn (Livraison $l) => $l->creneaux->count() <= 1);
+        [$inflexibles, $flexibles] = $pool->partition(fn(Livraison $l) => $l->creneaux->count() <= 1);
 
         // CORRECTION du 31/08/2026 : sortByDesc, pas sortBy — les familles
         // flexibles les plus PRIORITAIRES (criticité la plus haute) doivent
         // être servies/retenues en premier ; l'ordre croissant précédent
         // retenait par erreur les moins urgentes et excluait les plus
         // urgentes en cas de pool trop grand pour la capacité disponible.
-        $flexibles = $flexibles->sortByDesc(fn (Livraison $l) => $l->famille->criticite ?? 0)->values();
+        $flexibles = $flexibles->sortByDesc(fn(Livraison $l) => $l->famille->criticite ?? 0)->values();
 
         $poidsRetenu = (float) $inflexibles->sum('poids_kg');
         $retenues = $inflexibles;

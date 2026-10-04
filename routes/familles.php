@@ -3,6 +3,20 @@
 
 declare(strict_types=1);
 
+use Amana\Shared\Http\Controllers\NavBadgesController;
+use Amana\Shared\Http\Controllers\NotificationsController;
+use Amana\Shared\Http\Controllers\ProfileController;
+use App\Http\Controllers\Admin\ImportsController;
+use App\Http\Controllers\Admin\StatistiquesFamillesController;
+use App\Http\Controllers\BenevoleIntakeConfirmationController;
+use App\Http\Controllers\BenevoleIntakeController;
+use App\Http\Controllers\FamilleCreationController;
+use App\Http\Controllers\FamillesController;
+use App\Http\Controllers\GoogleContactsReverseSyncController;
+use App\Http\Controllers\IntakeConfirmationController;
+use App\Http\Controllers\IntakeController;
+use App\Http\Controllers\VehiculeTypesController;
+use App\Http\Controllers\VerificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -23,16 +37,16 @@ use Illuminate\Support\Facades\Route;
 // throttle:5,1 sur /demande (store) + piège à robots (champ site_web,
 // silencieusement ignoré côté IntakeController::store) : deux couches
 // complémentaires contre le spam/bots, demande du 09/08/2026.
-Route::get('/demande/{langue?}', [\App\Http\Controllers\IntakeController::class, 'showForm'])
+Route::get('/demande/{langue?}', [IntakeController::class, 'showForm'])
     ->name('intake.show')
     ->middleware('throttle:20,1');
-Route::post('/demande', [\App\Http\Controllers\IntakeController::class, 'store'])
+Route::post('/demande', [IntakeController::class, 'store'])
     ->name('intake.store')
     ->middleware('throttle:5,1');
 // Étape 0 du formulaire (consentement RGPD) — appelée seule quand la famille
 // refuse, pour journaliser le refus sans jamais collecter le reste du
 // formulaire (voir IntakeConsentRefusal / section "Refus" du Google Form).
-Route::post('/demande/refus-consentement', [\App\Http\Controllers\IntakeController::class, 'refuserConsentement'])
+Route::post('/demande/refus-consentement', [IntakeController::class, 'refuserConsentement'])
     ->name('intake.refus-consentement')
     ->middleware('throttle:10,1');
 
@@ -42,14 +56,14 @@ Route::post('/demande/refus-consentement', [\App\Http\Controllers\IntakeControll
 // Confirmation en un clic (30/08/2026) : show() confirme directement, pas
 // de route POST séparée pour un second temps de confirmation (même schéma
 // que VerificationController ci-dessous).
-Route::get('/demande/confirmer/{token}', [\App\Http\Controllers\IntakeConfirmationController::class, 'show'])
+Route::get('/demande/confirmer/{token}', [IntakeConfirmationController::class, 'show'])
     ->name('intake.confirmer.show')
     ->middleware('throttle:20,1');
 
 // ── Vérification publique des informations (lien reçu par email) ────────
 // Confirmation en un clic : show() confirme directement, pas de route
 // séparée pour un second temps de confirmation (voir VerificationController).
-Route::get('/verification/{token}', [\App\Http\Controllers\VerificationController::class, 'show'])
+Route::get('/verification/{token}', [VerificationController::class, 'show'])
     ->name('verification.show')
     ->middleware('throttle:20,1');
 
@@ -57,18 +71,18 @@ Route::get('/verification/{token}', [\App\Http\Controllers\VerificationControlle
 // Même schéma de throttle/piège à robots que l'intake familles ci-dessus.
 // Ajouté le 24/08/2026 — voir BenevoleIntakeController et le prompt de
 // migration du module bénévoles.
-Route::get('/devenir-benevole/{langue?}', [\App\Http\Controllers\BenevoleIntakeController::class, 'showForm'])
+Route::get('/devenir-benevole/{langue?}', [BenevoleIntakeController::class, 'showForm'])
     ->name('benevole.show')
     ->middleware('throttle:20,1');
-Route::post('/devenir-benevole', [\App\Http\Controllers\BenevoleIntakeController::class, 'store'])
+Route::post('/devenir-benevole', [BenevoleIntakeController::class, 'store'])
     ->name('benevole.store')
     ->middleware('throttle:5,1');
-Route::post('/devenir-benevole/refus-consentement', [\App\Http\Controllers\BenevoleIntakeController::class, 'refuserConsentement'])
+Route::post('/devenir-benevole/refus-consentement', [BenevoleIntakeController::class, 'refuserConsentement'])
     ->name('benevole.refus-consentement')
     ->middleware('throttle:10,1');
 // Confirmation en un clic (30/08/2026) : voir commentaire équivalent sur
 // les routes /demande/confirmer ci-dessus.
-Route::get('/devenir-benevole/confirmer/{token}', [\App\Http\Controllers\BenevoleIntakeConfirmationController::class, 'show'])
+Route::get('/devenir-benevole/confirmer/{token}', [BenevoleIntakeConfirmationController::class, 'show'])
     ->name('benevole.confirmer.show')
     ->middleware('throttle:20,1');
 
@@ -80,7 +94,7 @@ Route::get('/devenir-benevole/confirmer/{token}', [\App\Http\Controllers\Benevol
 //    cet ajout (capacite_kg/nombre_part_max) — voir VehiculeTypesController::index().
 //    Écriture (update) reste réservée au groupe role:gestionnaire
 //    ci-dessous, inchangée.
-Route::get('/vehicules', [\App\Http\Controllers\VehiculeTypesController::class, 'index'])
+Route::get('/vehicules', [VehiculeTypesController::class, 'index'])
     ->name('vehicules.index')
     ->middleware('throttle:60,1');
 
@@ -93,9 +107,9 @@ Route::middleware('auth')->group(function () {
     // service par destinataire (voir RouteIncident::booted() et
     // PackagingController::marquerPret()), cette route ne fait qu'exposer
     // "mes notifications à moi".
-    Route::get('/notifications', [\Amana\Shared\Http\Controllers\NotificationsController::class, 'index'])
+    Route::get('/notifications', [NotificationsController::class, 'index'])
         ->name('notifications.index');
-    Route::post('/notifications/{id}/lue', [\Amana\Shared\Http\Controllers\NotificationsController::class, 'marquerLue'])
+    Route::post('/notifications/{id}/lue', [NotificationsController::class, 'marquerLue'])
         ->name('notifications.marquer-lue');
 
     // Badges de la sidebar en direct — même convention que les routes de
@@ -104,7 +118,7 @@ Route::middleware('auth')->group(function () {
     // l'utilisateur ; interrogé toutes les 45 s et après chaque navigation
     // Inertia (la sidebar est hors de la région @inertia). Voir
     // App\Services\NavBadges et le README d'amana/shared.
-    Route::get('/nav-badges', \Amana\Shared\Http\Controllers\NavBadgesController::class)
+    Route::get('/nav-badges', NavBadgesController::class)
         ->name('nav-badges.index')
         ->middleware('throttle:60,1');
 
@@ -115,7 +129,7 @@ Route::middleware('auth')->group(function () {
     // (App\Services\BenevoleProfileExtension). Le nom profile.password.update ne
     // heurte pas password.update (flux de réinitialisation, routes/web.php).
     Route::prefix('mon-profil')->name('profile.')->group(function () {
-        $profil = \Amana\Shared\Http\Controllers\ProfileController::class;
+        $profil = ProfileController::class;
 
         Route::get('/', [$profil, 'edit'])->name('edit');
         Route::put('/', [$profil, 'update'])->name('update')->middleware('throttle:20,1');
@@ -125,36 +139,36 @@ Route::middleware('auth')->group(function () {
         Route::put('/extra', [$profil, 'updateExtra'])->name('extra.update')->middleware('throttle:20,1');
     });
 
-    Route::get('/', [\App\Http\Controllers\FamillesController::class, 'index'])->name('familles.index');
-    Route::get('/nouvelles', [\App\Http\Controllers\FamillesController::class, 'nouvelles'])->name('familles.nouvelles');
+    Route::get('/', [FamillesController::class, 'index'])->name('familles.index');
+    Route::get('/nouvelles', [FamillesController::class, 'nouvelles'])->name('familles.nouvelles');
     // Placée avant /familles/{id} par convention (whereNumber la protège déjà
     // d'une collision, ce chemin littéral ne matchant pas \d+, mais autant
     // garder les routes explicites avant le wildcard).
-    Route::get('/familles/recherche-suggestions', [\App\Http\Controllers\FamillesController::class, 'rechercheSuggestions'])->name('familles.recherche-suggestions');
-    Route::get('/familles/export', [\App\Http\Controllers\FamillesController::class, 'export'])->name('familles.export');
+    Route::get('/familles/recherche-suggestions', [FamillesController::class, 'rechercheSuggestions'])->name('familles.recherche-suggestions');
+    Route::get('/familles/export', [FamillesController::class, 'export'])->name('familles.export');
 
     // Création d'un dossier par le staff (03/10/2026) — gestionnaire et
     // plus, voir FamilleCreationController. Déclarées avant /familles/{id}
     // (même convention que ci-dessus) ; POST /familles ne collisionne avec
     // rien (les autres POST ont tous un /{id} dans le chemin).
     Route::middleware('role:gestionnaire')->group(function () {
-        Route::get('/familles/creer/{langue?}', [\App\Http\Controllers\FamilleCreationController::class, 'create'])->name('familles.creer');
-        Route::post('/familles', [\App\Http\Controllers\FamilleCreationController::class, 'store'])->name('familles.store');
+        Route::get('/familles/creer/{langue?}', [FamilleCreationController::class, 'create'])->name('familles.creer');
+        Route::post('/familles', [FamilleCreationController::class, 'store'])->name('familles.store');
     });
-    Route::get('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'show'])->whereNumber('id')->name('familles.show');
-    Route::put('/familles/{id}', [\App\Http\Controllers\FamillesController::class, 'update'])->whereNumber('id')->name('familles.update');
+    Route::get('/familles/{id}', [FamillesController::class, 'show'])->whereNumber('id')->name('familles.show');
+    Route::put('/familles/{id}', [FamillesController::class, 'update'])->whereNumber('id')->name('familles.update');
     // Verrouillage d'édition (décision du 15/08/2026) — relâche le verrou
     // pris par show() sans enregistrer, voir FamillesController::deverrouiller()
     // et DetailPanel.vue (fermeture du panneau sans sauvegarde).
-    Route::post('/familles/{id}/deverrouiller', [\App\Http\Controllers\FamillesController::class, 'deverrouiller'])->whereNumber('id')->name('familles.deverrouiller');
+    Route::post('/familles/{id}/deverrouiller', [FamillesController::class, 'deverrouiller'])->whereNumber('id')->name('familles.deverrouiller');
     // Battement de cœur du verrou (19/09/2026, suite du Scénario 5 du chantier
     // "polling live") — renouvelle/reprend le verrou tant que le panneau est
     // ouvert et actif, voir FamillesController::renouvelerVerrou().
-    Route::post('/familles/{id}/renouveler-verrou', [\App\Http\Controllers\FamillesController::class, 'renouvelerVerrou'])->whereNumber('id')->name('familles.renouveler-verrou');
-    Route::post('/familles/{id}/documents', [\App\Http\Controllers\FamillesController::class, 'uploadDocument'])->whereNumber('id')->name('familles.documents.store');
-    Route::post('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'updateDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.update');
-    Route::get('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'downloadDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.download');
-    Route::delete('/familles/{id}/documents/{documentId}', [\App\Http\Controllers\FamillesController::class, 'destroyDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.destroy');
+    Route::post('/familles/{id}/renouveler-verrou', [FamillesController::class, 'renouvelerVerrou'])->whereNumber('id')->name('familles.renouveler-verrou');
+    Route::post('/familles/{id}/documents', [FamillesController::class, 'uploadDocument'])->whereNumber('id')->name('familles.documents.store');
+    Route::post('/familles/{id}/documents/{documentId}', [FamillesController::class, 'updateDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.update');
+    Route::get('/familles/{id}/documents/{documentId}', [FamillesController::class, 'downloadDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.download');
+    Route::delete('/familles/{id}/documents/{documentId}', [FamillesController::class, 'destroyDocument'])->whereNumber('id')->whereNumber('documentId')->name('familles.documents.destroy');
 });
 
 // Déverrouillage forcé d'un dossier (décision du 15/08/2026) — réservé
@@ -163,20 +177,20 @@ Route::middleware('auth')->group(function () {
 // utilisateur authentifié) pour appliquer role:admin uniquement à cette
 // route — voir FamillesController::forcerDeverrouillage().
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    Route::post('/familles/{id}/forcer-deverrouillage', [\App\Http\Controllers\FamillesController::class, 'forcerDeverrouillage'])->whereNumber('id')->name('familles.forcer-deverrouillage');
+    Route::post('/familles/{id}/forcer-deverrouillage', [FamillesController::class, 'forcerDeverrouillage'])->whereNumber('id')->name('familles.forcer-deverrouillage');
 });
 
 // ── Statistiques dossiers familles (admin + gestionnaire) ────────────────
 Route::middleware(['auth', 'role:gestionnaire'])->prefix('familles')->name('familles.')->group(function () {
-    Route::get('/statistiques', [\App\Http\Controllers\Admin\StatistiquesFamillesController::class, 'index'])->name('statistiques.index');
-    Route::get('/statistiques/data', [\App\Http\Controllers\Admin\StatistiquesFamillesController::class, 'data'])->name('statistiques.data');
+    Route::get('/statistiques', [StatistiquesFamillesController::class, 'index'])->name('statistiques.index');
+    Route::get('/statistiques/data', [StatistiquesFamillesController::class, 'data'])->name('statistiques.data');
 
     // ── Sync retour Google Contacts → Dossier (décision du 14/08/2026) ──
     // Bouton dédié dans familles/index.blade.php — voir
     // App\Http\Controllers\GoogleContactsReverseSyncController et
     // resources/js/components/familles/ReverseSyncPanel.vue.
-    Route::get('/google-contacts/scan', [\App\Http\Controllers\GoogleContactsReverseSyncController::class, 'scan'])->name('google-contacts.scan');
-    Route::post('/google-contacts/appliquer', [\App\Http\Controllers\GoogleContactsReverseSyncController::class, 'apply'])->name('google-contacts.appliquer');
+    Route::get('/google-contacts/scan', [GoogleContactsReverseSyncController::class, 'scan'])->name('google-contacts.scan');
+    Route::post('/google-contacts/appliquer', [GoogleContactsReverseSyncController::class, 'apply'])->name('google-contacts.appliquer');
 });
 
 // ── Ajout/import de familles par un gestionnaire externe (ajouté le
@@ -186,9 +200,9 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('familles')->name('fami
 //    (role:admin) où vit normalement ce contrôleur. Organisation forcée
 //    à celle de l'auteur — voir ImportsController::resoudreIdOrganisation().
 Route::middleware(['auth', 'role:gestionnaire_externe'])->prefix('mes-imports')->name('externe.imports.')->group(function () {
-    Route::get('/', [\App\Http\Controllers\Admin\ImportsController::class, 'index'])->name('index');
-    Route::get('/creer', [\App\Http\Controllers\Admin\ImportsController::class, 'create'])->name('create');
-    Route::post('/csv', [\App\Http\Controllers\Admin\ImportsController::class, 'storeCsv'])->name('store-csv');
-    Route::post('/manuel', [\App\Http\Controllers\Admin\ImportsController::class, 'storeManuel'])->name('store-manuel');
-    Route::get('/{id}', [\App\Http\Controllers\Admin\ImportsController::class, 'show'])->name('show');
+    Route::get('/', [ImportsController::class, 'index'])->name('index');
+    Route::get('/creer', [ImportsController::class, 'create'])->name('create');
+    Route::post('/csv', [ImportsController::class, 'storeCsv'])->name('store-csv');
+    Route::post('/manuel', [ImportsController::class, 'storeManuel'])->name('store-manuel');
+    Route::get('/{id}', [ImportsController::class, 'show'])->name('show');
 });

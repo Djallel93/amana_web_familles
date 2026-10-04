@@ -22,6 +22,7 @@ use Illuminate\Console\Command;
 class PromouvoirTourneesPretes extends Command
 {
     protected $signature = 'livraison:promouvoir-tournees-pretes';
+
     protected $description = "Bascule en 'chargement' les tournées 'planifiee' dont tous les colis sont déjà prêts";
 
     public function handle(RouteChargementService $service): int

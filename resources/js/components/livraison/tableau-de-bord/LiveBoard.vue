@@ -61,14 +61,24 @@
     [30/09/2026 : relue désormais à chaque tick, voir rafraichirEnArrierePlan().]
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { apiGet } from '../shared/api';
-import type { Campagne, Livraison, Organisation, Quartier, RouteIncident, RouteLivraison, Secteur, SuiviLivraisonStatistiques, Ville } from '../shared/types';
-import IncidentsPanel from './IncidentsPanel.vue';
-import RoutesPanel from './RoutesPanel.vue';
-import ShortfallPanel from './ShortfallPanel.vue';
-import BuildRouteFlow from './BuildRouteFlow.vue';
-import GenererRoutesPanel from './GenererRoutesPanel.vue';
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { apiGet } from "../shared/api";
+import type {
+    Campagne,
+    Livraison,
+    Organisation,
+    Quartier,
+    RouteIncident,
+    RouteLivraison,
+    Secteur,
+    SuiviLivraisonStatistiques,
+    Ville,
+} from "../shared/types";
+import IncidentsPanel from "./IncidentsPanel.vue";
+import RoutesPanel from "./RoutesPanel.vue";
+import ShortfallPanel from "./ShortfallPanel.vue";
+import BuildRouteFlow from "./BuildRouteFlow.vue";
+import GenererRoutesPanel from "./GenererRoutesPanel.vue";
 
 const props = defineProps<{
     campagnes: Campagne[];
@@ -88,13 +98,13 @@ const organisations = ref<Organisation[]>(props.organisations);
 const urls = props.urls;
 
 function formatDateFr(iso: string): string {
-    const [annee, mois, jour] = iso.split('T')[0].split('-');
+    const [annee, mois, jour] = iso.split("T")[0].split("-");
     return `${jour}/${mois}/${annee}`;
 }
 
 // Présélectionné quand on arrive depuis CampagneDetail.vue (07/09/2026,
 // prompt §6) — voir campagneSelectionneeId (prop, ex-data-campagne-id).
-const campagneId = ref(props.campagneSelectionneeId ? String(props.campagneSelectionneeId) : '');
+const campagneId = ref(props.campagneSelectionneeId ? String(props.campagneSelectionneeId) : "");
 
 // URLs campagne-scopées : __CAMPAGNE__ substitué une fois l'id connu,
 // mémorisées pour être repassées telles quelles aux panneaux enfants
@@ -104,14 +114,14 @@ const campagneId = ref(props.campagneSelectionneeId ? String(props.campagneSelec
 // remplacement (même patron que routeAjouter/routeRetirer existants).
 const urlsCampagne = computed(() => {
     const id = campagneId.value;
-    const remplacer = (gabarit: string) => gabarit.replace('__CAMPAGNE__', id);
+    const remplacer = (gabarit: string) => gabarit.replace("__CAMPAGNE__", id);
     return {
-        incidents: remplacer(urls.incidents ?? ''),
-        routes: remplacer(urls.routes ?? ''),
-        nonCouvertes: remplacer(urls.nonCouvertes ?? ''),
-        nonCouvertesTableau: remplacer(urls.nonCouvertesTableau ?? ''),
-        statistiques: remplacer(urls.statistiques ?? ''),
-        routesPersonnalisees: remplacer(urls.routesPersonnalisees ?? ''),
+        incidents: remplacer(urls.incidents ?? ""),
+        routes: remplacer(urls.routes ?? ""),
+        nonCouvertes: remplacer(urls.nonCouvertes ?? ""),
+        nonCouvertesTableau: remplacer(urls.nonCouvertesTableau ?? ""),
+        statistiques: remplacer(urls.statistiques ?? ""),
+        routesPersonnalisees: remplacer(urls.routesPersonnalisees ?? ""),
     };
 });
 
@@ -120,9 +130,9 @@ const urlsCampagne = computed(() => {
 // choisie (CampagneResource avec journees, voir LiveBoardController::index()).
 const campagneSelectionnee = computed(() => campagnes.value.find((c) => String(c.id) === campagneId.value) ?? null);
 const urlsGeneration = computed(() => ({
-    genererRoutes: (urls.genererRoutes ?? '').replace('__CAMPAGNE__', campagneId.value),
-    queue: urls.contactsQueue ?? '',
-    contactsStatistiques: urls.contactsStatistiques ?? '',
+    genererRoutes: (urls.genererRoutes ?? "").replace("__CAMPAGNE__", campagneId.value),
+    queue: urls.contactsQueue ?? "",
+    contactsStatistiques: urls.contactsStatistiques ?? "",
 }));
 
 const incidents = ref<RouteIncident[]>([]);
@@ -247,14 +257,6 @@ function onCampagneChange() {
 let pollEnCours = false;
 let minuterie: ReturnType<typeof setInterval> | undefined;
 
-/** Empreinte de l'ensemble des incidents ouverts (ids triés). */
-function empreinteIncidents(): string {
-    return incidents.value
-        .map((i) => i.id)
-        .sort((a, b) => a - b)
-        .join(',');
-}
-
 async function rafraichirEnArrierePlan() {
     if (!campagneId.value || document.hidden || pollEnCours) return;
     // Un chargement non silencieux (action de l'admin, changement de
@@ -267,7 +269,12 @@ async function rafraichirEnArrierePlan() {
         // ShortfallPanel (Se déplace au QG / Non assignées) doivent suivre
         // les confirmations et bascules en direct, pas seulement quand
         // l'ensemble des incidents ouverts change.
-        await Promise.all([chargerIncidents(true), chargerRoutes(true), chargerStatistiques(true), chargerNonCouvertes(true)]);
+        await Promise.all([
+            chargerIncidents(true),
+            chargerRoutes(true),
+            chargerStatistiques(true),
+            chargerNonCouvertes(true),
+        ]);
     } finally {
         pollEnCours = false;
     }
@@ -280,19 +287,22 @@ function auChangementDeVisibilite() {
 onMounted(() => {
     if (campagneId.value) chargerTout();
     minuterie = setInterval(rafraichirEnArrierePlan, POLL_MS);
-    document.addEventListener('visibilitychange', auChangementDeVisibilite);
+    document.addEventListener("visibilitychange", auChangementDeVisibilite);
 });
 
 onUnmounted(() => {
     if (minuterie) clearInterval(minuterie);
-    document.removeEventListener('visibilitychange', auChangementDeVisibilite);
+    document.removeEventListener("visibilitychange", auChangementDeVisibilite);
 });
 </script>
 
 <template>
     <div>
-        <select v-model="campagneId" @change="onCampagneChange"
-            class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem] mb-6">
+        <select
+            v-model="campagneId"
+            @change="onCampagneChange"
+            class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem] mb-6"
+        >
             <option value="">— Choisir une campagne —</option>
             <option v-for="c in campagnes" :key="c.id" :value="String(c.id)">
                 {{ formatDateFr(c.date_livraison) }} — {{ c.type }}
@@ -306,8 +316,14 @@ onUnmounted(() => {
                 de la page Chargement — rien d'asynchrone au-dessus, donc le
                 défilement vers l'ancre ne bouge plus quand les stats arrivent.
             -->
-            <GenererRoutesPanel v-if="campagneSelectionnee" :key="campagneSelectionnee.id" :campagne-id="campagneSelectionnee.id"
-                :journees="campagneSelectionnee.journees ?? []" :urls="urlsGeneration" @generated="chargerTout" />
+            <GenererRoutesPanel
+                v-if="campagneSelectionnee"
+                :key="campagneSelectionnee.id"
+                :campagne-id="campagneSelectionnee.id"
+                :journees="campagneSelectionnee.journees ?? []"
+                :urls="urlsGeneration"
+                @generated="chargerTout"
+            />
 
             <!--
                 Cartes statistiques (09/09/2026, prompt §5.2.4 : "Add
@@ -349,25 +365,47 @@ onUnmounted(() => {
                 </div>
             </div>
 
-            <IncidentsPanel :incidents="incidents" :chargement="chargementIncidents" :erreur="erreurIncidents"
-                :url-resoudre="urls.incidentResoudre ?? ''" @changed="chargerTout" />
+            <IncidentsPanel
+                :incidents="incidents"
+                :chargement="chargementIncidents"
+                :erreur="erreurIncidents"
+                :url-resoudre="urls.incidentResoudre ?? ''"
+                @changed="chargerTout"
+            />
 
-            <BuildRouteFlow :campagne-id="campagneId"
-                :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
-                :url="urlsCampagne.routesPersonnalisees" :url-non-couvertes-tableau="urlsCampagne.nonCouvertesTableau"
+            <BuildRouteFlow
+                :campagne-id="campagneId"
+                :villes="villes"
+                :secteurs="secteurs"
+                :quartiers="quartiers"
+                :organisations="organisations"
+                :url="urlsCampagne.routesPersonnalisees"
+                :url-non-couvertes-tableau="urlsCampagne.nonCouvertesTableau"
                 :version-rafraichissement="versionTableauNonCouvertes"
-                @created="chargerTout" />
+                @created="chargerTout"
+            />
 
             <h2 class="text-[14px] font-medium text-ink mb-3">Tournées</h2>
-            <RoutesPanel :routes="routes" :chargement="chargementRoutes" :erreur="erreurRoutes"
+            <RoutesPanel
+                :routes="routes"
+                :chargement="chargementRoutes"
+                :erreur="erreurRoutes"
                 :non-couvertes="nonCouvertes"
-                :url-ajouter="urls.routeAjouter ?? ''" :url-retirer="urls.routeRetirer ?? ''"
-                :url-reassigner="urls.routeReassigner ?? ''" :url-diviser="urls.routeDiviser ?? ''"
-                :url-supprimer="urls.routeSupprimer ?? ''" :url-etape-statut="urls.etapeStatut ?? ''"
+                :url-ajouter="urls.routeAjouter ?? ''"
+                :url-retirer="urls.routeRetirer ?? ''"
+                :url-reassigner="urls.routeReassigner ?? ''"
+                :url-diviser="urls.routeDiviser ?? ''"
+                :url-supprimer="urls.routeSupprimer ?? ''"
+                :url-etape-statut="urls.etapeStatut ?? ''"
                 :url-vue-chauffeur="urls.routeVueChauffeur ?? ''"
-                @changed="apresChangementTournee" />
+                @changed="apresChangementTournee"
+            />
 
-            <ShortfallPanel :livraisons="nonCouvertes" :chargement="chargementNonCouvertes" :erreur="erreurNonCouvertes" />
+            <ShortfallPanel
+                :livraisons="nonCouvertes"
+                :chargement="chargementNonCouvertes"
+                :erreur="erreurNonCouvertes"
+            />
         </div>
     </div>
 </template>

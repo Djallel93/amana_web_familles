@@ -9,9 +9,9 @@
     Retour : même gabarit que les autres pages (lien plein bg-ink).
 -->
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
-import CampagneDetail from '../../components/livraison/campagnes/CampagneDetail.vue';
-import type { Campagne } from '../../components/livraison/shared/types';
+import { Head, Link } from "@inertiajs/vue3";
+import CampagneDetail from "../../components/livraison/campagnes/CampagneDetail.vue";
+import type { Campagne } from "../../components/livraison/shared/types";
 
 defineProps<{
     campagne: Campagne;
@@ -42,12 +42,21 @@ defineProps<{
     <Head title="Campagne — AMANA Familles" />
 
     <div class="max-w-4xl mx-auto py-8">
-        <Link :href="retourUrl"
-            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
-        ← Retour aux campagnes
+        <Link
+            :href="retourUrl"
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90"
+        >
+            ← Retour aux campagnes
         </Link>
 
-        <CampagneDetail :campagne="campagne" :avancement-url="avancementUrl" :cloture-url="clotureUrl"
-            :terminer-url="terminerUrl" :rouvrir-url="rouvrirUrl" :forcer-incidents-url="forcerIncidentsUrl" :urls="urls" />
+        <CampagneDetail
+            :campagne="campagne"
+            :avancement-url="avancementUrl"
+            :cloture-url="clotureUrl"
+            :terminer-url="terminerUrl"
+            :rouvrir-url="rouvrirUrl"
+            :forcer-incidents-url="forcerIncidentsUrl"
+            :urls="urls"
+        />
     </div>
 </template>

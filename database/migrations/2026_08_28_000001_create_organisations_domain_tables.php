@@ -29,7 +29,8 @@ use Illuminate\Support\Facades\Schema;
  * famille_organisation pour ces mêmes familles) sont OMISES ici — sans
  * objet sur une base fraîche, aucune ligne existante à rattraper.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // Ajouté le 28/08/2026 (décision : voir échange du 28/08/2026 sur

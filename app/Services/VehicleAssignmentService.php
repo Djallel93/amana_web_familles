@@ -34,8 +34,7 @@ class VehicleAssignmentService
     public function __construct(
         private readonly ClusterSplitService $splitter,
         private readonly GeoCalculationService $geo,
-    ) {
-    }
+    ) {}
 
     /**
      * @param array<int, array{id: string, centre: array, livraisons: array, quartier_id: ?int, distance_hq: float, nombre_livraisons: int, nombre_parts: int, poids_total: float}> $clusters Triés par distance_hq DESC
@@ -79,6 +78,7 @@ class VehicleAssignmentService
             if ($candidat !== null) {
                 $assignations[] = ['cluster' => $cluster, 'vehicule' => $candidat];
                 $benevolesAvecRoute[] = $candidat['id_benevole'];
+
                 continue;
             }
 
@@ -87,6 +87,7 @@ class VehicleAssignmentService
 
             if ($spliteur === null) {
                 $nonPlaces[] = $cluster;
+
                 continue;
             }
 
@@ -100,6 +101,7 @@ class VehicleAssignmentService
                 // comportement non désiré plutôt que fidèle au port).
                 $nonPlaces[] = $cluster;
                 $benevolesAvecRoute[] = $spliteur['id_benevole'];
+
                 continue;
             }
 
@@ -128,7 +130,7 @@ class VehicleAssignmentService
     {
         $eligibles = array_values(array_filter(
             $vehicules,
-            fn (array $v) => !in_array($v['id_benevole'], $exclus, true)
+            fn(array $v) => !in_array($v['id_benevole'], $exclus, true)
                 && $this->vehiculeCompatible($v, $cluster, $maxLivraisonsParRoute),
         ));
 
@@ -136,7 +138,7 @@ class VehicleAssignmentService
             return null;
         }
 
-        usort($eligibles, fn (array $a, array $b) => $a['capacite_kg'] <=> $b['capacite_kg']);
+        usort($eligibles, fn(array $a, array $b) => $a['capacite_kg'] <=> $b['capacite_kg']);
 
         return $eligibles[0];
     }
@@ -149,14 +151,14 @@ class VehicleAssignmentService
     {
         $disponibles = array_values(array_filter(
             $vehicules,
-            fn (array $v) => !in_array($v['id_benevole'], $exclus, true),
+            fn(array $v) => !in_array($v['id_benevole'], $exclus, true),
         ));
 
         if (empty($disponibles)) {
             return null;
         }
 
-        usort($disponibles, fn (array $a, array $b) => $b['capacite_kg'] <=> $a['capacite_kg']);
+        usort($disponibles, fn(array $a, array $b) => $b['capacite_kg'] <=> $a['capacite_kg']);
 
         return $disponibles[0];
     }

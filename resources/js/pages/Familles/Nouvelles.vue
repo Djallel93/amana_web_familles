@@ -12,13 +12,13 @@
     — reprend exactement le même périmètre que l'ancienne vue Blade.
 -->
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import { computed } from 'vue';
-import FamilleFiltresBar from '../../components/familles/FamilleFiltresBar.vue';
-import FamillesTable, { type FamilleLigne } from '../../components/familles/FamillesTable.vue';
-import DetailPanel from '../../components/familles/DetailPanel.vue';
-import { useLiveDossiers } from '../../components/familles/useLiveDossiers';
-import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from '../../components/livraison/shared/types';
+import { Head } from "@inertiajs/vue3";
+import { computed } from "vue";
+import FamilleFiltresBar from "../../components/familles/FamilleFiltresBar.vue";
+import FamillesTable, { type FamilleLigne } from "../../components/familles/FamillesTable.vue";
+import DetailPanel from "../../components/familles/DetailPanel.vue";
+import { useLiveDossiers } from "../../components/familles/useLiveDossiers";
+import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from "../../components/livraison/shared/types";
 
 interface ListeOption {
     id: number;
@@ -48,7 +48,7 @@ const props = defineProps<{
     organismesAide: ListeOption[];
     valeursFiltres: FamilleFiltres;
     triActuel: string | null;
-    directionActuelle: 'asc' | 'desc';
+    directionActuelle: "asc" | "desc";
     aFiltresActifs: boolean;
     showUrlTemplate: string;
     updateUrlTemplate: string;
@@ -83,8 +83,9 @@ const currentQuery = computed(() => ({
         <div>
             <h1 class="font-heading text-2xl font-semibold text-ink tracking-tight">Nouvelles demandes</h1>
             <p class="text-[13px] text-ink-muted mt-1">
-                {{ familles.total }} demande{{ familles.total !== 1 ? 's' : '' }} pas encore ouverte{{ familles.total !== 1 ? 's' : '' }},
-                triées de la plus ancienne à la plus récente
+                {{ familles.total }} demande{{ familles.total !== 1 ? "s" : "" }} pas encore ouverte{{
+                    familles.total !== 1 ? "s" : ""
+                }}, triées de la plus ancienne à la plus récente
             </p>
         </div>
     </div>

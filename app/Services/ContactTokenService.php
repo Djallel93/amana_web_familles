@@ -59,12 +59,14 @@ class ContactTokenService
         try {
             Notification::route('mail', $famille->email)
                 ->notify(new LivraisonConfirmationNotification($livraison, $famille, $tokenEnClair));
+
             return true;
         } catch (\Throwable $e) {
             Log::error('[ContactTokenService] Échec envoi email de confirmation', [
                 'id_livraison' => $livraison->id,
                 'message' => $e->getMessage(),
             ]);
+
             return false;
         }
     }

@@ -136,13 +136,13 @@ class CampagneStatsService
      * chacune, qui pourrait avoir plusieurs snapshots périodiques —
      * seul le dernier représente l'état final utile à la comparaison).
      */
-    public function comparaisonHistorique(): \Illuminate\Support\Collection
+    public function comparaisonHistorique(): Collection
     {
         return CampagneStatsSnapshot::with('campagne')
             ->orderByDesc('snapshot_at')
             ->get()
             ->unique('id_campagne')
-            ->sortByDesc(fn (CampagneStatsSnapshot $s) => $s->campagne->date_livraison)
+            ->sortByDesc(fn(CampagneStatsSnapshot $s) => $s->campagne->date_livraison)
             ->values();
     }
 }

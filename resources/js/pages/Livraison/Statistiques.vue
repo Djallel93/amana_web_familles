@@ -17,9 +17,9 @@
     recalculé ici, pour rester fidèle à l'original plutôt que réécrit.
 -->
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import LivraisonStatistiques from '../../components/livraison/statistiques/LivraisonStatistiques.vue';
-import type { Campagne } from '../../components/livraison/shared/types';
+import { Head } from "@inertiajs/vue3";
+import LivraisonStatistiques from "../../components/livraison/statistiques/LivraisonStatistiques.vue";
+import type { Campagne } from "../../components/livraison/shared/types";
 
 interface LigneHistorique {
     id: number;
@@ -45,9 +45,13 @@ defineProps<{
     <div class="max-w-3xl mx-auto py-8">
         <h1 class="font-heading text-xl font-semibold text-ink mb-6">Statistiques livraison</h1>
 
-        <LivraisonStatistiques :campagnes="campagnes" :campagne-selectionnee-id="campagneSelectionneeId"
-            :donnees-url-template="donneesUrlTemplate" :snapshot-url-template="snapshotUrlTemplate"
-            :peut-snapshotter="peutSnapshotter" />
+        <LivraisonStatistiques
+            :campagnes="campagnes"
+            :campagne-selectionnee-id="campagneSelectionneeId"
+            :donnees-url-template="donneesUrlTemplate"
+            :snapshot-url-template="snapshotUrlTemplate"
+            :peut-snapshotter="peutSnapshotter"
+        />
 
         <div class="bg-surface border border-surface-border rounded-xl p-5 mt-8">
             <h2 class="text-[14px] font-medium text-ink mb-4">Comparaison historique</h2>
@@ -66,9 +70,13 @@ defineProps<{
                     </tr>
                     <tr v-for="ligne in historique" :key="ligne.id" class="border-b border-surface-border">
                         <td class="py-2">{{ ligne.label }}</td>
-                        <td>{{ ligne.nombre_menages ?? '—' }}</td>
-                        <td>{{ ligne.poids_collecte_kg ?? '—' }} kg</td>
-                        <td>{{ ligne.taux_livraison_pourcentage !== null ? `${ligne.taux_livraison_pourcentage}%` : '—' }}</td>
+                        <td>{{ ligne.nombre_menages ?? "—" }}</td>
+                        <td>{{ ligne.poids_collecte_kg ?? "—" }} kg</td>
+                        <td>
+                            {{
+                                ligne.taux_livraison_pourcentage !== null ? `${ligne.taux_livraison_pourcentage}%` : "—"
+                            }}
+                        </td>
                     </tr>
                 </tbody>
             </table>

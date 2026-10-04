@@ -9,6 +9,7 @@ use App\Models\Famille;
 use App\Models\FamilleVerification;
 use App\Notifications\FamilleVerificationNotification;
 use App\Support\TokenHasher;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Str;
 
@@ -52,6 +53,7 @@ class FamilleVerificationService
         foreach ($familles as $famille) {
             if ($this->verificationRecenteExistante($famille)) {
                 $resultats['ignores']++;
+
                 continue;
             }
 
@@ -86,12 +88,14 @@ class FamilleVerificationService
             Notification::route('mail', $famille->email)
                 ->notify(new FamilleVerificationNotification($verification, $famille, $tokenEnClair));
             audit('create', 'familles_verification', $verification->id, null, ['id_famille' => $famille->id]);
+
             return true;
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('[FamilleVerificationService] Échec envoi', [
+            Log::error('[FamilleVerificationService] Échec envoi', [
                 'id_famille' => $famille->id,
                 'erreur' => $e->getMessage(),
             ]);
+
             return false;
         }
     }
@@ -102,6 +106,7 @@ class FamilleVerificationService
             if ($v->confirmed_at) {
                 return $v->confirmed_at->gt(now()->subDays(90));
             }
+
             return $v->expires_at->isFuture();
         });
     }

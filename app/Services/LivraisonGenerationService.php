@@ -112,7 +112,7 @@ class LivraisonGenerationService
     {
         $livraisonMatch = function ($q) use ($campagne, $journee, $seDeplace) {
             $q->where('id_campagne', $campagne->id)
-                ->when($journee !== null, fn ($qq) => $qq->where('id_campagne_journee', $journee->id))
+                ->when($journee !== null, fn($qq) => $qq->where('id_campagne_journee', $journee->id))
                 ->where('statut', 'non_assignee')
                 ->where('statut_contact', 'confirme')
                 // se_deplace (25/09/2026, prompt de cette date) : propriété
@@ -121,7 +121,7 @@ class LivraisonGenerationService
                 // Livraison existe déjà pour chaque ligne (non couvertes,
                 // déjà confirmées), à la différence de eligibles()
                 // ci-dessous (familles pas encore ajoutées à la campagne).
-                ->when($seDeplace !== null, fn ($qq) => $qq->where('se_deplace', $seDeplace));
+                ->when($seDeplace !== null, fn($qq) => $qq->where('se_deplace', $seDeplace));
 
             return $q;
         };
@@ -144,7 +144,7 @@ class LivraisonGenerationService
      * défaut : NULL avant les valeurs pour un ASC), ce qui correspond au
      * besoin métier ("familles jamais livrées d'abord").
      */
-    private function dateDerniereLivraisonSql(): \Illuminate\Database\Eloquent\Builder
+    private function dateDerniereLivraisonSql(): Builder
     {
         return Livraison::query()
             ->join('campagnes', 'campagnes.id', '=', 'livraisons.id_campagne')
@@ -186,11 +186,13 @@ class LivraisonGenerationService
         foreach ($familles as $famille) {
             if (in_array($famille->id, $dejaGenerees, true)) {
                 $dejaExistantesCount++;
+
                 continue;
             }
 
             if ($famille->etudiant && $famille->est_hotel) {
                 $conflits->push($famille);
+
                 continue;
             }
 

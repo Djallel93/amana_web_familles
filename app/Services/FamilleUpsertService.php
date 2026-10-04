@@ -41,8 +41,7 @@ class FamilleUpsertService
 {
     public function __construct(
         private readonly FamilleOrganisationDemandeService $demandeService,
-    ) {
-    }
+    ) {}
 
     public function trouverDoublon(array $donnees): ?Famille
     {

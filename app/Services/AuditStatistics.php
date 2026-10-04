@@ -8,6 +8,7 @@ namespace App\Services;
 use Amana\Shared\Contracts\ActivityStatisticsProvider;
 use Amana\Shared\Helpers\AuditHelper;
 use Amana\Shared\Models\AuditLog;
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -50,8 +51,8 @@ class AuditStatistics implements ActivityStatisticsProvider
         $parJour = $logs->groupBy(fn(AuditLog $l) => $l->created_at->toDateString());
 
         $serie = [];
-        $curseur = \Carbon\Carbon::parse($from);
-        $fin = \Carbon\Carbon::parse($to);
+        $curseur = Carbon::parse($from);
+        $fin = Carbon::parse($to);
 
         while ($curseur->lte($fin)) {
             $date = $curseur->toDateString();

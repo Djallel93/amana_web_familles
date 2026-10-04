@@ -7,7 +7,6 @@ namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Secteur;
 use Amana\Shared\Models\Ville;
-use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CampagneResource;
 use App\Http\Resources\FamilleEligibleResource;
@@ -17,16 +16,17 @@ use App\Models\Campagne;
 use App\Models\EtapeRoute;
 use App\Models\Livraison;
 use App\Models\Organisation;
+use App\Models\PersonneDesactivee;
 use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
-use App\Models\PersonneDesactivee;
 use App\Services\IncidentResolutionService;
 use App\Services\LivraisonGenerationService;
 use App\Services\RetraitHqNotificationService;
 use App\Services\RetraitHqSchedulingService;
 use App\Services\RouteGenerationService;
 use App\Services\RouteMutationService;
+use App\Support\Creneau;
 use App\Support\FamilleFilters;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -63,8 +63,7 @@ class LiveBoardController extends Controller
         private readonly RetraitHqNotificationService $retraitHqNotification,
         // Résolution/fermeture des incidents (03/10/2026).
         private readonly IncidentResolutionService $incidentService,
-    ) {
-    }
+    ) {}
 
     /**
      * Section E4 du refactor (16/09/2026, septième et dernier chunk du
@@ -244,7 +243,7 @@ class LiveBoardController extends Controller
         $routes = RouteLivraison::where('id_campagne', $campagne->id)->select('statut')->get();
         $routesParStatut = $routes->countBy('statut');
 
-        $etapes = EtapeRoute::whereHas('route', fn ($q) => $q->where('id_campagne', $campagne->id))
+        $etapes = EtapeRoute::whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
             ->whereNotNull('id_livraison')
             ->select('statut')
             ->get();
@@ -355,7 +354,7 @@ class LiveBoardController extends Controller
         // RawLaravelPaginator côté TS) — changer cette forme est un sujet à
         // part, volontairement pas traité ici.
         $paginateur = $query->paginate($request->integer('per_page') ?: 50)->withQueryString();
-        $paginateur->getCollection()->transform(fn ($famille) => new FamilleEligibleResource($famille));
+        $paginateur->getCollection()->transform(fn($famille) => new FamilleEligibleResource($famille));
 
         return response()->json($paginateur);
     }
@@ -367,7 +366,7 @@ class LiveBoardController extends Controller
      */
     public function incidents(Campagne $campagne): JsonResponse
     {
-        $incidents = RouteIncident::whereHas('route', fn ($q) => $q->where('id_campagne', $campagne->id))
+        $incidents = RouteIncident::whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
             ->where('statut', 'ouvert')
             ->with(['route.benevole', 'livraison.famille:id,nom,prenom'])
             ->get();
@@ -529,7 +528,7 @@ class LiveBoardController extends Controller
             'id_vehicule_type' => 'required|integer',
             'ids_livraisons' => 'required|array|min:1',
             'ids_livraisons.*' => 'integer|exists:livraisons,id',
-            'creneau' => 'nullable|in:' . implode(',', \App\Support\Creneau::TOUS),
+            'creneau' => 'nullable|in:' . implode(',', Creneau::TOUS),
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);

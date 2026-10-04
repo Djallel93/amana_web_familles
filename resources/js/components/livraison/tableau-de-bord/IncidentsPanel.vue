@@ -11,10 +11,10 @@
     n'arrive ici.
 -->
 <script setup lang="ts">
-import { reactive } from 'vue';
-import { useToast, useConfirm } from '@amana/shared-ui';
-import { apiPost } from '../shared/api';
-import type { ResoudreIncidentResultat, RouteIncident } from '../shared/types';
+import { reactive } from "vue";
+import { useToast, useConfirm } from "@amana/shared-ui";
+import { apiPost } from "../shared/api";
+import type { ResoudreIncidentResultat, RouteIncident } from "../shared/types";
 
 const props = defineProps<{
     incidents: RouteIncident[];
@@ -31,16 +31,16 @@ const confirmDialog = useConfirm();
 const enCours = reactive<Record<number, boolean>>({});
 
 const LABELS: Record<string, string> = {
-    benevole_absent: 'Bénévole absent',
-    capacite: 'Capacité dépassée',
-    livraison_ignoree: 'Livraison ignorée',
+    benevole_absent: "Bénévole absent",
+    capacite: "Capacité dépassée",
+    livraison_ignoree: "Livraison ignorée",
     // Manquait (03/10/2026) : packaging_annule s'affichait avec son code brut.
-    packaging_annule: 'Packaging annulé',
-    chargement_termine: 'Chargement terminé',
+    packaging_annule: "Packaging annulé",
+    chargement_termine: "Chargement terminé",
 };
 
 function urlPour(id: number): string {
-    return props.urlResoudre.replace('__ID__', String(id));
+    return props.urlResoudre.replace("__ID__", String(id));
 }
 
 async function resoudre(incident: RouteIncident) {
@@ -49,11 +49,12 @@ async function resoudre(incident: RouteIncident) {
     // action pour ce type précis, contrairement à capacite/
     // livraison_ignoree qui se contentent de marquer l'incident résolu
     // sans effet de bord.
-    if (incident.type === 'benevole_absent') {
+    if (incident.type === "benevole_absent") {
         const confirmed = await confirmDialog.ask({
-            title: 'Résoudre cet incident',
-            message: 'Les livraisons orphelines de cette tournée vont être relancées dans un nouveau cycle de clustering. Continuer ?',
-            confirmLabel: 'Résoudre et relancer',
+            title: "Résoudre cet incident",
+            message:
+                "Les livraisons orphelines de cette tournée vont être relancées dans un nouveau cycle de clustering. Continuer ?",
+            confirmLabel: "Résoudre et relancer",
         });
         if (!confirmed) return;
     }
@@ -68,12 +69,14 @@ async function resoudre(incident: RouteIncident) {
     }
 
     if (resultat.data.routes_creees !== undefined) {
-        toast.success(`Résolu. ${resultat.data.routes_creees} nouvelle(s) tournée(s), ${resultat.data.non_couvertes} non couverte(s).`);
+        toast.success(
+            `Résolu. ${resultat.data.routes_creees} nouvelle(s) tournée(s), ${resultat.data.non_couvertes} non couverte(s).`,
+        );
     } else {
-        toast.success('Incident résolu.');
+        toast.success("Incident résolu.");
     }
 
-    emit('changed');
+    emit("changed");
 }
 </script>
 
@@ -84,16 +87,23 @@ async function resoudre(incident: RouteIncident) {
         <p v-else-if="erreur" class="text-[13px] text-rose-600">Impossible de charger les incidents.</p>
         <p v-else-if="incidents.length === 0" class="text-[13px] text-ink-muted">Aucun incident ouvert.</p>
         <div v-else class="space-y-2">
-            <div v-for="incident in incidents" :key="incident.id"
-                class="bg-rose-50 border border-rose-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div
+                v-for="incident in incidents"
+                :key="incident.id"
+                class="bg-rose-50 border border-rose-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+            >
                 <span class="text-[13px] text-rose-700">
                     {{ LABELS[incident.type] ?? incident.type }}
-                    — tournée #{{ incident.route?.id }}
-                    ({{ incident.route?.benevole?.prenom ?? '' }} {{ incident.route?.benevole?.nom ?? '' }})
+                    — tournée #{{ incident.route?.id }} ({{ incident.route?.benevole?.prenom ?? "" }}
+                    {{ incident.route?.benevole?.nom ?? "" }})
                 </span>
-                <button type="button" :disabled="enCours[incident.id]" @click="resoudre(incident)"
-                    class="min-h-[2.25rem] shrink-0 text-[12px] px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-rose-700 disabled:opacity-60">
-                    {{ enCours[incident.id] ? 'Résolution…' : 'Résoudre' }}
+                <button
+                    type="button"
+                    :disabled="enCours[incident.id]"
+                    @click="resoudre(incident)"
+                    class="min-h-[2.25rem] shrink-0 text-[12px] px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-rose-700 disabled:opacity-60"
+                >
+                    {{ enCours[incident.id] ? "Résolution…" : "Résoudre" }}
                 </button>
             </div>
         </div>

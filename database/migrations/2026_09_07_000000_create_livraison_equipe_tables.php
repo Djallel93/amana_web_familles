@@ -19,7 +19,8 @@ use Illuminate\Support\Facades\Schema;
  * routes (id_route_origine), donc ce fichier s'exécute après le squash
  * "Routing" (2026_08_31_000009_...).
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // Confirmation de disponibilité d'un bénévole (= chauffeur

@@ -22,8 +22,7 @@ class InvitationFamillesDejaInscritNotification extends Notification
 
     public function __construct(
         private readonly string $loginUrl
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -37,7 +36,7 @@ class InvitationFamillesDejaInscritNotification extends Notification
             'mailer' => config('mail.default'),
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('Votre accès AMANA Familles est activé')
             ->view('emails.invitation-familles-deja-inscrit', [
                 'prenom' => $notifiable->prenom,

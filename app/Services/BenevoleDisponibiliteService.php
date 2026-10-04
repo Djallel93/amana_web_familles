@@ -9,8 +9,8 @@ use Amana\Shared\Models\BenevoleProfil;
 use Amana\Shared\Models\VehiculeType;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
-use App\Models\PersonneDesactivee;
 use App\Models\CampagneJournee;
+use App\Models\PersonneDesactivee;
 use App\Notifications\CampagneDisponibiliteNotification;
 use App\Support\GeographiePicker;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
@@ -163,7 +163,7 @@ class BenevoleDisponibiliteService
             'id_vehicule_type' => $idVehicule,
             'coverage_confirmee' => (bool) $disponibilite?->coverage_confirmee,
             'secteurs' => $disponibilite
-                ? $disponibilite->secteurs->pluck('id_secteur')->map(fn ($id) => (int) $id)->values()->all()
+                ? $disponibilite->secteurs->pluck('id_secteur')->map(fn($id) => (int) $id)->values()->all()
                 : [],
         ];
     }

@@ -30,8 +30,7 @@ class RouteChargeeNotification extends Notification
 
     public function __construct(
         private readonly RouteLivraison $route,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -40,7 +39,7 @@ class RouteChargeeNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('AMANA Livraison — Votre tournée est chargée, en route !')
             ->view('emails.route-chargee', [
                 'prenom' => $notifiable->prenom ?? '',

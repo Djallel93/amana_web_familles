@@ -72,7 +72,7 @@ class FamilleCreationEtStatutTest extends TestCase
 
         $this->actingAs($gestionnaire)->get(route('familles.index'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Familles/Index')
                 ->where('etatsDisponibles', ['En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'])
                 ->where('etatCouleurs', Famille::ETAT_COLORS));
@@ -83,10 +83,10 @@ class FamilleCreationEtStatutTest extends TestCase
     public function test_le_bouton_creer_est_propose_au_gestionnaire_pas_au_membre(): void
     {
         $this->actingAs($this->creerPersonne(['gestionnaire']))->get(route('familles.index'))
-            ->assertInertia(fn ($page) => $page->where('peutCreerFamille', true)->where('creerFamilleUrl', route('familles.creer')));
+            ->assertInertia(fn($page) => $page->where('peutCreerFamille', true)->where('creerFamilleUrl', route('familles.creer')));
 
         $this->actingAs($this->creerPersonne(['membre']))->get(route('familles.index'))
-            ->assertInertia(fn ($page) => $page->where('peutCreerFamille', false));
+            ->assertInertia(fn($page) => $page->where('peutCreerFamille', false));
     }
 
     public function test_la_page_de_creation_est_reservee_au_gestionnaire(): void
@@ -96,7 +96,7 @@ class FamilleCreationEtStatutTest extends TestCase
         $this->actingAs($this->creerPersonne(['membre']))->get(route('familles.creer'))->assertRedirect($accueil);
         $this->actingAs($this->creerPersonne(['gestionnaire']))->get(route('familles.creer'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Familles/Creer')->where('storeUrl', route('familles.store')));
+            ->assertInertia(fn($page) => $page->component('Familles/Creer')->where('storeUrl', route('familles.store')));
     }
 
     public function test_un_membre_ne_peut_pas_creer_de_famille(): void

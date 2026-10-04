@@ -8,8 +8,8 @@ namespace App\Models;
 use Amana\Shared\Models\Personne;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Une famille bénéficiaire, dans une campagne donnée — le pivot central du
@@ -35,9 +35,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null    $nombre_enfant_confirme
  * @property int|null    $id_campagne_journee
  * @property int|null    $locked_by
- * @property \Illuminate\Support\Carbon|null $locked_at
+ * @property Carbon|null $locked_at
  * @property bool         $se_deplace             La famille se déplace au QG pour cette campagne (propriété pure de la campagne, pas de valeur par défaut)
- * @property \Illuminate\Support\Carbon|null $heure_arrivee_prevue_hq  Créneau de rendez-vous QG — familles se_deplace uniquement
+ * @property Carbon|null $heure_arrivee_prevue_hq  Créneau de rendez-vous QG — familles se_deplace uniquement
  * @property string|null $statut_retrait_hq      delivre|non_delivre — familles se_deplace uniquement
  */
 class Livraison extends Model
@@ -73,7 +73,9 @@ class Livraison extends Model
     ];
 
     public const STATUTS = ['non_assignee', 'assignee', 'en_cours', 'livree', 'ignoree'];
+
     public const STATUTS_CONDITIONNEMENT = ['en_attente', 'prete'];
+
     public const STATUTS_RETRAIT_HQ = ['delivre', 'non_delivre'];
 
     /**
@@ -139,6 +141,7 @@ class Livraison extends Model
 
         return 'CASE livraisons.statut_contact' . $cas . ' ELSE ' . count(self::ORDRE_AFFICHAGE_CONTACT) . ' END';
     }
+
     /**
      * Sous-ensemble réellement postable — 'a_contacter' est l'état
      * initial, jamais choisi manuellement. 'contacte' retiré le
@@ -189,10 +192,10 @@ class Livraison extends Model
         if ($colis->isEmpty()) {
             return 'en_attente';
         }
-        if ($colis->every(fn (LivraisonColis $c) => $c->statut === 'pret')) {
+        if ($colis->every(fn(LivraisonColis $c) => $c->statut === 'pret')) {
             return 'prete';
         }
-        if ($colis->contains(fn (LivraisonColis $c) => $c->statut === 'pret')) {
+        if ($colis->contains(fn(LivraisonColis $c) => $c->statut === 'pret')) {
             return 'en_cours';
         }
 

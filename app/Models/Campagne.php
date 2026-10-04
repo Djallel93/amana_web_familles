@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Carbon;
 
 /**
  * Une campagne de livraison — zakat_el_fitr (annuelle, toutes les
@@ -21,12 +22,12 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
  * @property int    $id
  * @property string $type          zakat_el_fitr | collecte_alimentaire | don_ponctuel
  * @property string $statut        preparation | collecte | en_cours | terminee
- * @property \Illuminate\Support\Carbon $date_livraison  Date de RÉFÉRENCE — voir journees() depuis le 03/09/2026
+ * @property Carbon $date_livraison  Date de RÉFÉRENCE — voir journees() depuis le 03/09/2026
  * @property float  $poids_moyen_kg
  * @property string|null $hq_adresse      Libellé HQ propre à cette campagne — voir create_campagnes_domain_tables.php
  * @property float|null  $hq_latitude
  * @property float|null  $hq_longitude
- * @property \Illuminate\Support\Carbon|null $hq_confirmee_le  NULL tant que le HQ n'est qu'hérité du réglage global — voir create_campagnes_domain_tables.php (ajouté le 09/09/2026)
+ * @property Carbon|null $hq_confirmee_le  NULL tant que le HQ n'est qu'hérité du réglage global — voir create_campagnes_domain_tables.php (ajouté le 09/09/2026)
  * @property int|null    $livraisons_max_par_tournee  Cap propre à cette campagne, préremplie depuis le réglage global à la création — voir RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne()
  * @property string|null $commentaire     Dernière valeur seulement, pas d'historique
  */
@@ -81,6 +82,7 @@ class Campagne extends Model
     ];
 
     public const TYPES = ['zakat_el_fitr', 'collecte_alimentaire', 'don_ponctuel'];
+
     public const STATUTS = ['preparation', 'collecte', 'en_cours', 'terminee'];
 
     // ── Relations ─────────────────────────────────────────────────────────

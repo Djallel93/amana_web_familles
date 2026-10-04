@@ -16,9 +16,9 @@
     de confirmation et l'avertissement porte une action secondaire.
 -->
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { Modal, useConfirm, useToast } from '@amana/shared-ui';
-import { apiGet, apiPost } from '../shared/api';
+import { ref, watch } from "vue";
+import { Modal, useConfirm, useToast } from "@amana/shared-ui";
+import { apiGet, apiPost } from "../shared/api";
 
 interface Cloture {
     statut: string;
@@ -42,21 +42,21 @@ const confirmDialog = useConfirm();
 
 const cloture = ref<Cloture | null>(null);
 const chargement = ref(false);
-const erreur = ref('');
+const erreur = ref("");
 const enCours = ref(false);
 
 const LABELS_STATUT_ROUTE: Record<string, string> = {
-    planifiee: 'Planifiée',
-    chargement: 'Chargement',
-    charge: 'Chargée',
-    en_cours: 'En cours',
-    livraisons_terminees: 'Livraisons terminées',
-    packaging_annule: 'Packaging annulé',
+    planifiee: "Planifiée",
+    chargement: "Chargement",
+    charge: "Chargée",
+    en_cours: "En cours",
+    livraisons_terminees: "Livraisons terminées",
+    packaging_annule: "Packaging annulé",
 };
 
 async function charger() {
     chargement.value = true;
-    erreur.value = '';
+    erreur.value = "";
     cloture.value = null;
 
     const resultat = await apiGet<Cloture>(props.clotureUrl);
@@ -70,16 +70,20 @@ async function charger() {
 }
 
 // Recalculé à CHAQUE ouverture : l'état d'une campagne bouge vite le jour J.
-watch(() => props.open, (ouvert) => {
-    if (ouvert) void charger();
-});
+watch(
+    () => props.open,
+    (ouvert) => {
+        if (ouvert) void charger();
+    },
+);
 
 async function forcerIncidents() {
     const confirmed = await confirmDialog.ask({
-        title: 'Résoudre tous les incidents ?',
-        message: `${cloture.value?.incidents_ouverts ?? 0} incident(s) ouvert(s) vont être marqués « résolus » sans aucune action `
-            + '(pas de re-clustering des tournées). Cette opération est définitive.',
-        confirmLabel: 'Tout résoudre',
+        title: "Résoudre tous les incidents ?",
+        message:
+            `${cloture.value?.incidents_ouverts ?? 0} incident(s) ouvert(s) vont être marqués « résolus » sans aucune action ` +
+            "(pas de re-clustering des tournées). Cette opération est définitive.",
+        confirmLabel: "Tout résoudre",
         danger: true,
     });
     if (!confirmed) return;
@@ -95,7 +99,7 @@ async function forcerIncidents() {
 
     toast.success(`${resultat.data.resolus} incident(s) résolu(s).`);
     if (cloture.value) cloture.value = { ...cloture.value, incidents_ouverts: 0 };
-    emit('incidentsResolus');
+    emit("incidentsResolus");
 }
 
 async function terminer() {
@@ -110,8 +114,8 @@ async function terminer() {
         return;
     }
 
-    toast.success('Campagne terminée.');
-    emit('terminee');
+    toast.success("Campagne terminée.");
+    emit("terminee");
 }
 </script>
 
@@ -136,31 +140,58 @@ async function terminer() {
                     <p class="mt-0.5">Terminez-les ou annulez-les avant de clôturer la campagne.</p>
                 </div>
                 <ul class="space-y-1 mb-4 text-[13px]">
-                    <li v-for="route in cloture.routes_non_terminees" :key="route.id"
-                        class="flex justify-between gap-3 rounded-lg bg-surface-2 px-3 py-2">
-                        <span class="font-medium text-ink">Tournée #{{ route.id }}<template v-if="route.benevole"> · {{ route.benevole }}</template></span>
-                        <span class="text-ink-muted shrink-0">{{ LABELS_STATUT_ROUTE[route.statut] ?? route.statut }}</span>
+                    <li
+                        v-for="route in cloture.routes_non_terminees"
+                        :key="route.id"
+                        class="flex justify-between gap-3 rounded-lg bg-surface-2 px-3 py-2"
+                    >
+                        <span class="font-medium text-ink"
+                            >Tournée #{{ route.id
+                            }}<template v-if="route.benevole"> · {{ route.benevole }}</template></span
+                        >
+                        <span class="text-ink-muted shrink-0">{{
+                            LABELS_STATUT_ROUTE[route.statut] ?? route.statut
+                        }}</span>
                     </li>
                 </ul>
                 <div class="flex flex-wrap justify-end gap-2">
-                    <a :href="suiviLivraisonUrl"
-                        class="px-4 py-2 rounded-lg border border-surface-border text-[13px] text-ink hover:bg-stone-50 no-underline">Ouvrir Suivi livraison</a>
-                    <button type="button" @click="emit('close')"
-                        class="px-4 py-2 rounded-lg bg-ink text-white text-[13px] font-semibold">Fermer</button>
+                    <a
+                        :href="suiviLivraisonUrl"
+                        class="px-4 py-2 rounded-lg border border-surface-border text-[13px] text-ink hover:bg-stone-50 no-underline"
+                        >Ouvrir Suivi livraison</a
+                    >
+                    <button
+                        type="button"
+                        @click="emit('close')"
+                        class="px-4 py-2 rounded-lg bg-ink text-white text-[13px] font-semibold"
+                    >
+                        Fermer
+                    </button>
                 </div>
             </div>
 
             <!-- Confirmation -->
             <div v-else>
                 <p class="text-[13.5px] text-ink mb-3">
-                    Toutes les tournées sont terminées. La campagne sera marquée comme terminée ; vous pourrez la rouvrir si besoin.
+                    Toutes les tournées sont terminées. La campagne sera marquée comme terminée ; vous pourrez la
+                    rouvrir si besoin.
                 </p>
 
-                <div v-if="cloture.incidents_ouverts > 0" class="rounded-lg border border-amber-300 bg-amber-50 p-3 mb-3 text-[13px] text-amber-900">
+                <div
+                    v-if="cloture.incidents_ouverts > 0"
+                    class="rounded-lg border border-amber-300 bg-amber-50 p-3 mb-3 text-[13px] text-amber-900"
+                >
                     <p class="font-semibold">⚠️ {{ cloture.incidents_ouverts }} incident(s) encore ouvert(s)</p>
-                    <p class="mt-0.5">Ils ne bloquent pas la clôture, mais resteront ouverts. Vous pouvez les résoudre de force maintenant.</p>
-                    <button type="button" :disabled="enCours" @click="forcerIncidents"
-                        class="mt-2 px-3 py-1.5 rounded-lg border border-amber-400 bg-white text-[12.5px] font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60">
+                    <p class="mt-0.5">
+                        Ils ne bloquent pas la clôture, mais resteront ouverts. Vous pouvez les résoudre de force
+                        maintenant.
+                    </p>
+                    <button
+                        type="button"
+                        :disabled="enCours"
+                        @click="forcerIncidents"
+                        class="mt-2 px-3 py-1.5 rounded-lg border border-amber-400 bg-white text-[12.5px] font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+                    >
                         Tout résoudre de force
                     </button>
                 </div>
@@ -170,11 +201,20 @@ async function terminer() {
                 </p>
 
                 <div class="flex flex-wrap justify-end gap-2 mt-4">
-                    <button type="button" @click="emit('close')"
-                        class="px-4 py-2 rounded-lg border border-surface-border text-[13px] text-ink-muted hover:bg-stone-50">Annuler</button>
-                    <button type="button" :disabled="enCours" @click="terminer"
-                        class="px-4 py-2 rounded-lg bg-accent text-white text-[13px] font-semibold disabled:opacity-60">
-                        {{ enCours ? 'Clôture…' : 'Terminer la campagne' }}
+                    <button
+                        type="button"
+                        @click="emit('close')"
+                        class="px-4 py-2 rounded-lg border border-surface-border text-[13px] text-ink-muted hover:bg-stone-50"
+                    >
+                        Annuler
+                    </button>
+                    <button
+                        type="button"
+                        :disabled="enCours"
+                        @click="terminer"
+                        class="px-4 py-2 rounded-lg bg-accent text-white text-[13px] font-semibold disabled:opacity-60"
+                    >
+                        {{ enCours ? "Clôture…" : "Terminer la campagne" }}
                     </button>
                 </div>
             </div>

@@ -28,7 +28,7 @@ class EtapeRouteResource extends JsonResource
             'id' => $this->id,
             'ordre' => $this->ordre,
             'statut' => $this->statut,
-            'livraison' => $this->whenLoaded('livraison', fn () => $this->livraison ? [
+            'livraison' => $this->whenLoaded('livraison', fn() => $this->livraison ? [
                 'id' => $this->livraison->id,
                 'famille' => new FamilleResumeResource($this->livraison->famille),
             ] : null),

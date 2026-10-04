@@ -37,12 +37,12 @@
 //    définitivement les battements : il n'y a plus rien à protéger.
 //    Toute autre erreur (réseau, 5xx) est réessayée au battement suivant.
 
-import { readonly, ref } from 'vue';
+import { readonly, ref } from "vue";
 
 export const HEARTBEAT_INTERVALLE_MS = 5 * 60 * 1000;
 export const HEARTBEAT_INACTIVITE_MAX_MS = 10 * 60 * 1000;
 
-const EVENEMENTS_ACTIVITE = ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart', 'scroll'] as const;
+const EVENEMENTS_ACTIVITE = ["pointerdown", "keydown", "input", "wheel", "touchstart", "scroll"] as const;
 const STATUTS_TERMINAUX = [401, 404, 419];
 
 export interface VerrouPerdu {
@@ -77,8 +77,8 @@ export function useHeartbeatVerrou({ urlPour, csrf }: Options) {
 
         try {
             const reponse = await fetch(url, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrf(), Accept: 'application/json' },
+                method: "POST",
+                headers: { "X-CSRF-TOKEN": csrf(), Accept: "application/json" },
                 signal: mien.signal,
             });
             if (!actif) return;
@@ -123,7 +123,7 @@ export function useHeartbeatVerrou({ urlPour, csrf }: Options) {
         derniereTentative = Date.now(); // le verrou vient d'être pris (ouverture) ou l'était à l'instant
         minuterie = setInterval(surBattement, HEARTBEAT_INTERVALLE_MS);
         EVENEMENTS_ACTIVITE.forEach((e) => document.addEventListener(e, surActivite, { capture: true, passive: true }));
-        document.addEventListener('visibilitychange', surVisibilite);
+        document.addEventListener("visibilitychange", surVisibilite);
     }
 
     /** Arrête minuterie, écouteurs et requête en vol — conserve le dossier et le bandeau. */
@@ -132,7 +132,7 @@ export function useHeartbeatVerrou({ urlPour, csrf }: Options) {
         if (minuterie !== undefined) clearInterval(minuterie);
         minuterie = undefined;
         EVENEMENTS_ACTIVITE.forEach((e) => document.removeEventListener(e, surActivite, { capture: true }));
-        document.removeEventListener('visibilitychange', surVisibilite);
+        document.removeEventListener("visibilitychange", surVisibilite);
         controleur?.abort();
         controleur = null;
     }

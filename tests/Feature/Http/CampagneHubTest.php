@@ -58,7 +58,7 @@ class CampagneHubTest extends TestCase
 
     private function creerIncident(RouteLivraison $route, string $type = 'capacite', ?string $statut = 'ouvert', array $surcharge = []): RouteIncident
     {
-        return RouteIncident::withoutEvents(fn () => RouteIncident::create(array_merge([
+        return RouteIncident::withoutEvents(fn() => RouteIncident::create(array_merge([
             'id_route' => $route->id,
             'type' => $type,
             'signale_par' => $route->id_benevole,
@@ -74,7 +74,7 @@ class CampagneHubTest extends TestCase
 
         $this->actingAs($this->gestionnaire())->get(route('livraison.campagnes.show', $campagne))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/CampagneDetail')
                 ->where('urls.parametres', route('livraison.campagnes.parametres', $campagne))
                 ->where('urls.familles', route('livraison.familles-eligibles.index', $campagne))
@@ -116,7 +116,7 @@ class CampagneHubTest extends TestCase
 
         $this->actingAs($this->gestionnaire())->get(route('livraison.familles-eligibles.index', $campagne))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/CampagneFamilles')
                 ->where('campagne.id', $campagne->id)
                 ->has('campagne.journees', 1)
@@ -132,7 +132,7 @@ class CampagneHubTest extends TestCase
         // Entrée de la barre latérale : pas de campagne dans l'URL.
         $this->actingAs($this->gestionnaire())->get(route('livraison.familles-eligibles.index'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/CampagneFamilles')
                 ->where('campagne', null)
                 ->where('urlsCampagne', null)
@@ -150,7 +150,7 @@ class CampagneHubTest extends TestCase
 
         $this->actingAs($this->gestionnaire())->get(route('livraison.campagnes.parametres', $campagne))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/CampagneParametres')
                 ->where('onglet', 'hq')
                 ->where('updateUrl', route('livraison.campagnes.update', $campagne))
@@ -166,9 +166,9 @@ class CampagneHubTest extends TestCase
         $gestionnaire = $this->gestionnaire();
 
         $this->actingAs($gestionnaire)->get(route('livraison.campagnes.parametres', [$campagne, 'onglet' => 'equipes']))
-            ->assertInertia(fn ($page) => $page->where('onglet', 'equipes'));
+            ->assertInertia(fn($page) => $page->where('onglet', 'equipes'));
         $this->get(route('livraison.campagnes.parametres', [$campagne, 'onglet' => 'nimporte-quoi']))
-            ->assertInertia(fn ($page) => $page->where('onglet', 'hq'));
+            ->assertInertia(fn($page) => $page->where('onglet', 'hq'));
     }
 
     public function test_lancienne_page_equipes_redirige_vers_longlet_equipes(): void
@@ -193,12 +193,12 @@ class CampagneHubTest extends TestCase
 
         $this->actingAs($this->gestionnaire())->get(route('livraison.campagnes.gestion-incidents', $campagne))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/CampagneIncidents')
                 ->has('incidents', 3)
                 ->where('resoudreUrlTemplate', route('livraison.incidents.resoudre', ['incident' => '__ID__']))
                 ->where('ignorerUrlTemplate', route('livraison.incidents.ignorer', ['incident' => '__ID__']))
-                ->where('incidents', fn ($lignes) => collect($lignes)->pluck('id')->sort()->values()->all()
+                ->where('incidents', fn($lignes) => collect($lignes)->pluck('id')->sort()->values()->all()
                     === collect([$ouvert->id, $ignore->id, $resolu->id])->sort()->values()->all()));
     }
 
@@ -208,12 +208,12 @@ class CampagneHubTest extends TestCase
         $incident = $this->creerIncident($this->creerRoute($campagne), 'packaging_annule', 'ouvert');
 
         $this->actingAs($this->gestionnaire())->get(route('livraison.campagnes.gestion-incidents', $campagne))
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->where('incidents.0.id', $incident->id)
                 ->where('incidents.0.type_label', 'Packaging annulé')
                 ->where('incidents.0.statut', 'ouvert')
                 ->where('incidents.0.guide', null)
-                ->where('incidents.0.description', fn ($d) => str_contains($d, 'annulé')));
+                ->where('incidents.0.description', fn($d) => str_contains($d, 'annulé')));
     }
 
     public function test_ignorer_ferme_lincident_sans_effet_de_bord(): void
@@ -360,7 +360,7 @@ class CampagneHubTest extends TestCase
 
         $this->actingAs($this->gestionnaire())->get(route('livraison.suivi-livraison.index', $campagne))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/SuiviLivraison')
                 ->where('urls.genererRoutes', route('livraison.campagnes.generer-routes', ['campagne' => '__CAMPAGNE__']))
                 ->where('urls.contactsQueue', route('livraison.contacts.queue'))

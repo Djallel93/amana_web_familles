@@ -6,8 +6,8 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
-use App\Models\PersonneDesactivee;
 use App\Http\Controllers\Controller;
+use App\Models\PersonneDesactivee;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -73,7 +73,7 @@ class PickersController extends Controller
         // de tronquer la liste avec des résultats qui seraient de toute
         // façon exclus ensuite.
         if ($request->boolean('avec_vehicule')) {
-            $query->whereHas('benevoleProfil', fn ($q) => $q->whereNotNull('id_vehicule_type'));
+            $query->whereHas('benevoleProfil', fn($q) => $q->whereNotNull('id_vehicule_type'));
         }
 
         // hasAtLeastRole() n'est pas une contrainte SQL (logique de cascade

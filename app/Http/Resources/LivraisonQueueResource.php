@@ -39,8 +39,8 @@ class LivraisonQueueResource extends JsonResource
             'statut' => $this->statut,
             'statut_contact' => $this->statut_contact,
             'id_personne_assignee' => $this->id_personne_assignee,
-            'personne_assignee' => $this->whenLoaded('personneAssignee', fn () => $this->personneAssignee ? new PersonneResumeResource($this->personneAssignee) : null),
-            'famille' => $this->whenLoaded('famille', fn () => new FamilleResumeResource($this->famille)),
+            'personne_assignee' => $this->whenLoaded('personneAssignee', fn() => $this->personneAssignee ? new PersonneResumeResource($this->personneAssignee) : null),
+            'famille' => $this->whenLoaded('famille', fn() => new FamilleResumeResource($this->famille)),
             'adresse_confirmee' => $this->adresse_confirmee,
             'code_postal_confirme' => $this->code_postal_confirme,
             'ville_confirmee' => $this->ville_confirmee,
@@ -50,7 +50,7 @@ class LivraisonQueueResource extends JsonResource
             // l'affichage/toggle par ligne + au filtre sur cet écran (voir
             // ContactsQueue.vue), propriété pure de la campagne désormais.
             'se_deplace' => $this->se_deplace,
-            'creneaux' => $this->whenLoaded('creneaux', fn () => $this->creneaux->map(fn ($c) => ['creneau' => $c->creneau])),
+            'creneaux' => $this->whenLoaded('creneaux', fn() => $this->creneaux->map(fn($c) => ['creneau' => $c->creneau])),
         ];
     }
 }

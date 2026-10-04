@@ -7,13 +7,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int    $id
  * @property int    $id_famille
  * @property string $token  hash sha256 (voir App\Support\TokenHasher) — jamais le jeton en clair
- * @property \Illuminate\Support\Carbon $expires_at
- * @property \Illuminate\Support\Carbon|null $confirmed_at
+ * @property Carbon $expires_at
+ * @property Carbon|null $confirmed_at
  */
 class FamilleVerification extends Model
 {

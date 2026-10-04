@@ -24,10 +24,15 @@ namespace App\Support;
 final class Creneau
 {
     public const MATIN_1 = '08-10';
+
     public const MATIN_2 = '10-12';
+
     public const MIDI = '12-14';
+
     public const APRES_MIDI_1 = '14-16';
+
     public const APRES_MIDI_2 = '16-18';
+
     public const SOIR = '18-19';
 
     /**

@@ -13,8 +13,8 @@
     monté par app.ts.
 -->
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import FamillesStatistiques from '../../components/familles/FamillesStatistiques.vue';
+import { Head } from "@inertiajs/vue3";
+import FamillesStatistiques from "../../components/familles/FamillesStatistiques.vue";
 
 defineProps<{
     dataUrl: string;

@@ -57,7 +57,9 @@
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
         ],
-        "analyse": "phpstan analyse"
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "format": "pint",
+        "format:check": "pint --test"
     },
     "extra": {
         "laravel": {

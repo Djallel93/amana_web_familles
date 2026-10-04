@@ -7,7 +7,9 @@ declare(strict_types=1);
 use Amana\Shared\Http\Middleware\EnsureAuthenticated;
 use Amana\Shared\Http\Middleware\EnsureRole;
 use App\Http\Middleware\EnsureLivraisonRole;
+use App\Http\Middleware\EnsurePersonneActive;
 use App\Http\Middleware\HandleInertiaRequests;
+use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -29,7 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             // Personne désactivée pour Familles (03/10/2026) — voir le
             // docblock de la classe.
-            \App\Http\Middleware\EnsurePersonneActive::class,
+            EnsurePersonneActive::class,
         ]);
 
         // ── Middlewares d'authentification (amana/shared) ──────────────────
@@ -55,7 +57,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth' => EnsureAuthenticated::class,
             'role' => EnsureRole::class,
             'livraison_role' => EnsureLivraisonRole::class,
-            'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+            'verified' => EnsureEmailIsVerified::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

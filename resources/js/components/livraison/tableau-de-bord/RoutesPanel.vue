@@ -38,11 +38,22 @@
     jour.
 -->
 <script setup lang="ts">
-import { reactive } from 'vue';
-import { useToast, useConfirm } from '@amana/shared-ui';
-import { apiPost, apiDelete } from '../shared/api';
-import PersonSelect from '../shared/PersonSelect.vue';
-import { LIBELLES_STATUT_ETAPE, LIBELLES_STATUT_ROUTE, STATUTS_ETAPE, STYLES_STATUT_ETAPE, STYLES_STATUT_ROUTE, type Etape, type Livraison, type PersonneResume, type RouteLivraison, type StatutEtape, type StatutRoute } from '../shared/types';
+import { reactive } from "vue";
+import { useToast, useConfirm } from "@amana/shared-ui";
+import { apiPost, apiDelete } from "../shared/api";
+import PersonSelect from "../shared/PersonSelect.vue";
+import {
+    LIBELLES_STATUT_ETAPE,
+    LIBELLES_STATUT_ROUTE,
+    STATUTS_ETAPE,
+    STYLES_STATUT_ETAPE,
+    STYLES_STATUT_ROUTE,
+    type Etape,
+    type Livraison,
+    type PersonneResume,
+    type RouteLivraison,
+    type StatutEtape,
+} from "../shared/types";
 
 const props = defineProps<{
     routes: RouteLivraison[];
@@ -88,7 +99,7 @@ const etats = reactive<Record<number, EtatRoute>>({});
 function etat(routeId: number): EtatRoute {
     if (!etats[routeId]) {
         etats[routeId] = {
-            idLivraisonAAjouter: '',
+            idLivraisonAAjouter: "",
             benevoleReassigne: null,
             ajoutEnCours: false,
             reassignationEnCours: false,
@@ -110,7 +121,7 @@ function etapesFamilles(route: RouteLivraison): Etape[] {
 /** "3/5" — avancement affiché en résumé de la ligne repliée (prompt §5.2.3). */
 function avancement(route: RouteLivraison): string {
     const familles = etapesFamilles(route);
-    const traitees = familles.filter((e) => e.statut === 'livree' || e.statut === 'ignoree').length;
+    const traitees = familles.filter((e) => e.statut === "livree" || e.statut === "ignoree").length;
     return `${traitees}/${familles.length}`;
 }
 
@@ -120,7 +131,7 @@ async function ajouter(route: RouteLivraison) {
     if (!idLivraison) return;
 
     e.ajoutEnCours = true;
-    const resultat = await apiPost<{ success: boolean }>(props.urlAjouter.replace('__ID__', String(route.id)), {
+    const resultat = await apiPost<{ success: boolean }>(props.urlAjouter.replace("__ID__", String(route.id)), {
         id_livraison: idLivraison,
     });
     e.ajoutEnCours = false;
@@ -130,9 +141,9 @@ async function ajouter(route: RouteLivraison) {
         return;
     }
 
-    e.idLivraisonAAjouter = '';
-    toast.success('Livraison ajoutée à la tournée.');
-    emit('changed');
+    e.idLivraisonAAjouter = "";
+    toast.success("Livraison ajoutée à la tournée.");
+    emit("changed");
 }
 
 async function retirer(route: RouteLivraison, etapeId: number, nomFamille: string) {
@@ -145,7 +156,7 @@ async function retirer(route: RouteLivraison, etapeId: number, nomFamille: strin
     const e = etat(route.id);
     e.retraitEnCours[etapeId] = true;
     const resultat = await apiDelete<{ success: boolean }>(
-        props.urlRetirer.replace('__ID__', String(route.id)).replace('__ETAPE__', String(etapeId)),
+        props.urlRetirer.replace("__ID__", String(route.id)).replace("__ETAPE__", String(etapeId)),
     );
     e.retraitEnCours[etapeId] = false;
 
@@ -154,8 +165,8 @@ async function retirer(route: RouteLivraison, etapeId: number, nomFamille: strin
         return;
     }
 
-    toast.success('Retirée de la tournée.');
-    emit('changed');
+    toast.success("Retirée de la tournée.");
+    emit("changed");
 }
 
 async function reassigner(route: RouteLivraison) {
@@ -165,12 +176,12 @@ async function reassigner(route: RouteLivraison) {
     // ce champ ne devrait jamais être vide ici sauf réponse inattendue du
     // picker.
     if (!e.benevoleReassigne?.id_vehicule_type) {
-        toast.error('Choisissez un bénévole ayant déclaré un véhicule.');
+        toast.error("Choisissez un bénévole ayant déclaré un véhicule.");
         return;
     }
 
     e.reassignationEnCours = true;
-    const resultat = await apiPost<{ success: boolean }>(props.urlReassigner.replace('__ID__', String(route.id)), {
+    const resultat = await apiPost<{ success: boolean }>(props.urlReassigner.replace("__ID__", String(route.id)), {
         id_benevole: e.benevoleReassigne.id,
         id_vehicule_type: e.benevoleReassigne.id_vehicule_type,
     });
@@ -182,31 +193,8 @@ async function reassigner(route: RouteLivraison) {
     }
 
     e.benevoleReassigne = null;
-    toast.success('Tournée réassignée.');
-    emit('changed');
-}
-
-async function diviser(route: RouteLivraison) {
-    const confirmed = await confirmDialog.ask({
-        title: 'Scinder cette tournée',
-        message: 'La tournée va être divisée en deux tournées distinctes. Continuer ?',
-        confirmLabel: 'Scinder',
-        danger: true,
-    });
-    if (!confirmed) return;
-
-    const e = etat(route.id);
-    e.divisionEnCours = true;
-    const resultat = await apiPost<{ success: boolean }>(props.urlDiviser.replace('__ID__', String(route.id)));
-    e.divisionEnCours = false;
-
-    if (!resultat.ok) {
-        toast.error(resultat.message);
-        return;
-    }
-
-    toast.success('Tournée scindée en deux.');
-    emit('changed');
+    toast.success("Tournée réassignée.");
+    emit("changed");
 }
 
 /**
@@ -217,16 +205,17 @@ async function diviser(route: RouteLivraison) {
  */
 async function supprimer(route: RouteLivraison) {
     const confirmed = await confirmDialog.ask({
-        title: 'Supprimer cette tournée',
-        message: "La tournée sera annulée et ses familles repasseront non affectées. Elle restera visible avec le statut \"Annulée\". Continuer ?",
-        confirmLabel: 'Supprimer',
+        title: "Supprimer cette tournée",
+        message:
+            'La tournée sera annulée et ses familles repasseront non affectées. Elle restera visible avec le statut "Annulée". Continuer ?',
+        confirmLabel: "Supprimer",
         danger: true,
     });
     if (!confirmed) return;
 
     const e = etat(route.id);
     e.suppressionEnCours = true;
-    const resultat = await apiDelete<{ success: boolean }>(props.urlSupprimer.replace('__ID__', String(route.id)));
+    const resultat = await apiDelete<{ success: boolean }>(props.urlSupprimer.replace("__ID__", String(route.id)));
     e.suppressionEnCours = false;
 
     if (!resultat.ok) {
@@ -234,8 +223,8 @@ async function supprimer(route: RouteLivraison) {
         return;
     }
 
-    toast.success('Tournée supprimée.');
-    emit('changed');
+    toast.success("Tournée supprimée.");
+    emit("changed");
 }
 
 /**
@@ -249,7 +238,7 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
     const e = etat(route.id);
     e.statutEnCours[etape.id] = true;
     const resultat = await apiPost<{ success: boolean }>(
-        props.urlEtapeStatut.replace('__ID__', String(route.id)).replace('__ETAPE__', String(etape.id)),
+        props.urlEtapeStatut.replace("__ID__", String(route.id)).replace("__ETAPE__", String(etape.id)),
         { statut },
     );
     e.statutEnCours[etape.id] = false;
@@ -259,7 +248,7 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
         return;
     }
 
-    emit('changed');
+    emit("changed");
 }
 </script>
 
@@ -270,25 +259,41 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
         <p v-else-if="routes.length === 0" class="text-[13px] text-ink-muted">Aucune tournée générée.</p>
 
         <div v-else class="space-y-3">
-            <details v-for="route in routes" :key="route.id"
-                class="group bg-surface border border-surface-border rounded-xl p-4" :open="etat(route.id).ouverte"
-                @toggle="etat(route.id).ouverte = ($event.target as HTMLDetailsElement).open">
-                <summary class="cursor-pointer list-none flex items-center justify-between gap-2 select-none -mx-1 -my-1 px-1 py-1 mb-2 rounded-lg hover:bg-surface-2 transition-colors">
+            <details
+                v-for="route in routes"
+                :key="route.id"
+                class="group bg-surface border border-surface-border rounded-xl p-4"
+                :open="etat(route.id).ouverte"
+                @toggle="etat(route.id).ouverte = ($event.target as HTMLDetailsElement).open"
+            >
+                <summary
+                    class="cursor-pointer list-none flex items-center justify-between gap-2 select-none -mx-1 -my-1 px-1 py-1 mb-2 rounded-lg hover:bg-surface-2 transition-colors"
+                >
                     <span class="flex items-center gap-2 text-[14px] font-medium text-ink min-w-0">
-                        <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-90 shrink-0">▸</span>
+                        <span
+                            class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-90 shrink-0"
+                            >▸</span
+                        >
                         <span class="truncate">
-                            #{{ route.id }} — {{ route.benevole?.prenom ?? '' }} {{ route.benevole?.nom ?? '' }}
-                            ({{ route.creneau ?? 'imposée' }}) — {{ avancement(route) }}
+                            #{{ route.id }} — {{ route.benevole?.prenom ?? "" }} {{ route.benevole?.nom ?? "" }} ({{
+                                route.creneau ?? "imposée"
+                            }}) — {{ avancement(route) }}
                         </span>
                     </span>
                     <span class="flex items-center gap-2 shrink-0">
                         <!-- Accès admin à l'écran du chauffeur (29/09/2026, prompt §6.2) :
                              .stop pour ne pas replier/déplier le <details> au clic. -->
-                        <a :href="urlVueChauffeur.replace('__ID__', String(route.id))" @click.stop
-                            class="text-[12px] text-accent underline min-h-[1.75rem] inline-flex items-center px-1">
+                        <a
+                            :href="urlVueChauffeur.replace('__ID__', String(route.id))"
+                            @click.stop
+                            class="text-[12px] text-accent underline min-h-[1.75rem] inline-flex items-center px-1"
+                        >
                             Vue chauffeur
                         </a>
-                        <span class="text-[13px] font-medium px-2.5 py-1 rounded-full" :class="STYLES_STATUT_ROUTE[route.statut]">
+                        <span
+                            class="text-[13px] font-medium px-2.5 py-1 rounded-full"
+                            :class="STYLES_STATUT_ROUTE[route.statut]"
+                        >
                             {{ LIBELLES_STATUT_ROUTE[route.statut] }}
                         </span>
                     </span>
@@ -306,7 +311,13 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
                     <tbody>
                         <tr v-for="e in route.etapes" :key="e.id" class="border-b border-surface-border last:border-0">
                             <td class="py-1.5 text-ink-muted">{{ e.ordre }}</td>
-                            <td class="py-1.5 text-ink">{{ e.livraison ? `${e.livraison.famille.prenom} ${e.livraison.famille.nom}` : 'Retour QG' }}</td>
+                            <td class="py-1.5 text-ink">
+                                {{
+                                    e.livraison
+                                        ? `${e.livraison.famille.prenom} ${e.livraison.famille.nom}`
+                                        : "Retour QG"
+                                }}
+                            </td>
                             <td class="py-1.5">
                                 <!--
                                     Ajouté le 09/09/2026 (prompt de cette
@@ -346,17 +357,36 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
                                     place, et la règle .statut-select (bas du
                                     fichier) le réduit/repositionne pour la pastille.
                                 -->
-                                <select v-if="e.livraison" :value="e.statut" :disabled="etat(route.id).statutEnCours[e.id]"
-                                    @change="changerStatutEtape(route, e, ($event.target as HTMLSelectElement).value as StatutEtape)"
-                                    class="statut-select text-[11.5px] font-medium rounded-full pl-2.5 pr-7 py-0.5 border-0 appearance-none disabled:opacity-60 cursor-pointer" :class="STYLES_STATUT_ETAPE[e.statut]">
-                                    <option v-for="s in STATUTS_ETAPE" :key="s" :value="s">{{ LIBELLES_STATUT_ETAPE[s] }}</option>
+                                <select
+                                    v-if="e.livraison"
+                                    :value="e.statut"
+                                    :disabled="etat(route.id).statutEnCours[e.id]"
+                                    @change="
+                                        changerStatutEtape(
+                                            route,
+                                            e,
+                                            ($event.target as HTMLSelectElement).value as StatutEtape,
+                                        )
+                                    "
+                                    class="statut-select text-[11.5px] font-medium rounded-full pl-2.5 pr-7 py-0.5 border-0 appearance-none disabled:opacity-60 cursor-pointer"
+                                    :class="STYLES_STATUT_ETAPE[e.statut]"
+                                >
+                                    <option v-for="s in STATUTS_ETAPE" :key="s" :value="s">
+                                        {{ LIBELLES_STATUT_ETAPE[s] }}
+                                    </option>
                                 </select>
                                 <span v-else class="text-[11.5px] text-ink-muted">—</span>
                             </td>
                             <td class="py-1.5 text-right">
-                                <button v-if="e.livraison" type="button" :disabled="etat(route.id).retraitEnCours[e.id]"
-                                    @click="retirer(route, e.id, `${e.livraison.famille.prenom} ${e.livraison.famille.nom}`)"
-                                    class="min-h-[1.75rem] shrink-0 text-[11px] text-rose-600 px-2 disabled:opacity-60">
+                                <button
+                                    v-if="e.livraison"
+                                    type="button"
+                                    :disabled="etat(route.id).retraitEnCours[e.id]"
+                                    @click="
+                                        retirer(route, e.id, `${e.livraison.famille.prenom} ${e.livraison.famille.nom}`)
+                                    "
+                                    class="min-h-[1.75rem] shrink-0 text-[11px] text-rose-600 px-2 disabled:opacity-60"
+                                >
                                     retirer
                                 </button>
                             </td>
@@ -366,34 +396,52 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
 
                 <div class="border-t border-surface-border pt-3 space-y-3">
                     <div class="flex flex-col sm:flex-row gap-2">
-                        <select v-model="etat(route.id).idLivraisonAAjouter"
-                            class="flex-1 rounded-lg border border-surface-border px-2.5 py-1.5 text-[12.5px] min-h-[2.25rem]">
+                        <select
+                            v-model="etat(route.id).idLivraisonAAjouter"
+                            class="flex-1 rounded-lg border border-surface-border px-2.5 py-1.5 text-[12.5px] min-h-[2.25rem]"
+                        >
                             <option value="">Ajouter une livraison non couverte…</option>
                             <option v-for="l in nonCouvertes" :key="l.id" :value="l.id">
                                 {{ l.famille.prenom }} {{ l.famille.nom }}
                             </option>
                         </select>
-                        <button type="button" :disabled="!etat(route.id).idLivraisonAAjouter || etat(route.id).ajoutEnCours"
+                        <button
+                            type="button"
+                            :disabled="!etat(route.id).idLivraisonAAjouter || etat(route.id).ajoutEnCours"
                             @click="ajouter(route)"
-                            class="min-h-[2.25rem] shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60">
-                            {{ etat(route.id).ajoutEnCours ? 'Ajout…' : 'Ajouter' }}
+                            class="min-h-[2.25rem] shrink-0 text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60"
+                        >
+                            {{ etat(route.id).ajoutEnCours ? "Ajout…" : "Ajouter" }}
                         </button>
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 items-start">
                         <div class="sm:col-span-2">
-                            <PersonSelect role="benevole" avec-vehicule placeholder="Nouveau bénévole…" v-model="etat(route.id).benevoleReassigne" />
+                            <PersonSelect
+                                role="benevole"
+                                avec-vehicule
+                                placeholder="Nouveau bénévole…"
+                                v-model="etat(route.id).benevoleReassigne"
+                            />
                         </div>
-                        <button type="button" :disabled="etat(route.id).reassignationEnCours" @click="reassigner(route)"
-                            class="min-h-[2.25rem] text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60">
-                            {{ etat(route.id).reassignationEnCours ? 'Réassignation…' : 'Réassigner' }}
+                        <button
+                            type="button"
+                            :disabled="etat(route.id).reassignationEnCours"
+                            @click="reassigner(route)"
+                            class="min-h-[2.25rem] text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60"
+                        >
+                            {{ etat(route.id).reassignationEnCours ? "Réassignation…" : "Réassigner" }}
                         </button>
                     </div>
 
                     <div class="flex justify-end">
-                        <button type="button" :disabled="route.statut !== 'planifiee' || etat(route.id).suppressionEnCours" @click="supprimer(route)"
-                            class="min-h-[2rem] text-[11px] px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 disabled:opacity-40 disabled:cursor-not-allowed">
-                            {{ etat(route.id).suppressionEnCours ? 'Suppression…' : 'Supprimer' }}
+                        <button
+                            type="button"
+                            :disabled="route.statut !== 'planifiee' || etat(route.id).suppressionEnCours"
+                            @click="supprimer(route)"
+                            class="min-h-[2rem] text-[11px] px-2.5 py-1 rounded-lg border border-rose-200 text-rose-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {{ etat(route.id).suppressionEnCours ? "Suppression…" : "Supprimer" }}
                         </button>
                     </div>
                 </div>

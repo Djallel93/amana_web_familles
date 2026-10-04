@@ -19,7 +19,7 @@
     staff).
 -->
 <script setup lang="ts">
-import BenevoleForm from '../../components/benevole/BenevoleForm.vue';
+import BenevoleForm from "../../components/benevole/BenevoleForm.vue";
 
 interface Secteur {
     id: number;
@@ -33,7 +33,7 @@ interface OrganisationOption {
 }
 
 defineProps<{
-    langue: 'fr' | 'ar' | 'en';
+    langue: "fr" | "ar" | "en";
     storeUrl: string;
     refusUrl: string;
     secteurs: Secteur[];
@@ -42,6 +42,11 @@ defineProps<{
 </script>
 
 <template>
-    <BenevoleForm :langue="langue" :store-url="storeUrl" :refus-url="refusUrl" :secteurs="secteurs"
-        :organisations="organisations" />
+    <BenevoleForm
+        :langue="langue"
+        :store-url="storeUrl"
+        :refus-url="refusUrl"
+        :secteurs="secteurs"
+        :organisations="organisations"
+    />
 </template>

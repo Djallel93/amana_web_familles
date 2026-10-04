@@ -88,12 +88,7 @@ if (document.getElementById("app")) {
         resolve: async (name) => {
             const module = await resolvePageComponent<{
                 default: DefineComponent;
-            }>(
-                `./pages/${name}.vue`,
-                import.meta.glob<{ default: DefineComponent }>(
-                    "./pages/**/*.vue",
-                ),
-            );
+            }>(`./pages/${name}.vue`, import.meta.glob<{ default: DefineComponent }>("./pages/**/*.vue"));
             return module.default;
         },
         setup({ el, App, props, plugin }) {
@@ -104,10 +99,7 @@ if (document.getElementById("app")) {
     });
 }
 
-function mountIfPresent(
-    selector: string,
-    component: Parameters<typeof createApp>[0],
-): void {
+function mountIfPresent(selector: string, component: Parameters<typeof createApp>[0]): void {
     const el = document.getElementById(selector);
     if (el) createApp(component).mount(el);
 }

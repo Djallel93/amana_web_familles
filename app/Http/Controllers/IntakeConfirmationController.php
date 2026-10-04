@@ -11,6 +11,7 @@ use App\Models\Personne;
 use App\Notifications\NouvelleDemandeFamilleNotification;
 use App\Services\IntakeAttenteService;
 use App\Support\TokenHasher;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\View\View;
 
@@ -35,8 +36,7 @@ class IntakeConfirmationController extends Controller
 {
     public function __construct(
         private readonly IntakeAttenteService $attenteService,
-    ) {
-    }
+    ) {}
 
     public function show(string $token): View
     {
@@ -83,7 +83,7 @@ class IntakeConfirmationController extends Controller
                 Notification::send($destinataires, new NouvelleDemandeFamilleNotification($famille));
             }
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('[IntakeConfirmationController] Échec notification nouvelle demande', [
+            Log::error('[IntakeConfirmationController] Échec notification nouvelle demande', [
                 'id_famille' => $famille->id,
                 'message' => $e->getMessage(),
             ]);

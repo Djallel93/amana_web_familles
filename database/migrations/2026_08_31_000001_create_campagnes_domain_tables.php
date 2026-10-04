@@ -30,7 +30,8 @@ use Illuminate\Support\Facades\Schema;
  * ici, campagne_arrivees.id_campagne_journee et donations.id_campagne_journee
  * reçoivent désormais une vraie contrainte FK vers campagne_journees.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // Première table du domaine livraison (migration du 3ème et

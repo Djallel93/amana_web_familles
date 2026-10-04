@@ -43,8 +43,7 @@ class BenevoleSeeder extends Seeder
 
     public function __construct(
         private readonly RoleService $roleService,
-    ) {
-    }
+    ) {}
 
     public function run(): void
     {
@@ -53,6 +52,7 @@ class BenevoleSeeder extends Seeder
         if ($vehicules->isEmpty()) {
             $this->command->error('❌ ref_vehicules est vide — lancez d\'abord : php artisan db:seed '
                 . '--class="Amana\\Shared\\Database\\Seeders\\VehiculeTypesSeeder"');
+
             return;
         }
 
@@ -72,6 +72,7 @@ class BenevoleSeeder extends Seeder
             // (amana_web_familles), qui enregistre 'familles' automatiquement.
             $this->command->error('❌ Application "familles" introuvable dans ref_applications — vérifiez que '
                 . '`php artisan amana:migrate-shared` PUIS `php artisan migrate` ont bien été exécutés.');
+
             return;
         }
 

@@ -16,8 +16,8 @@
     Les compteurs se rafraîchissent avec le polling de LiveBoard.vue.
 -->
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import type { Livraison } from '../shared/types';
+import { computed, ref } from "vue";
+import type { Livraison } from "../shared/types";
 
 const props = defineProps<{
     livraisons: Livraison[];
@@ -36,22 +36,30 @@ const totalNonAssignees = computed(() => props.livraisons.length - totalSeDeplac
 
 <template>
     <div class="bg-surface border border-surface-border rounded-xl p-5">
-        <button type="button" class="w-full flex items-center justify-between gap-3 text-left"
-            :aria-expanded="ouvert" @click="ouvert = !ouvert">
+        <button
+            type="button"
+            class="w-full flex items-center justify-between gap-3 text-left"
+            :aria-expanded="ouvert"
+            @click="ouvert = !ouvert"
+        >
             <h2 class="text-[14px] font-medium text-ink">Livraisons confirmées jamais couvertes</h2>
             <span class="flex items-center gap-2 shrink-0">
                 <template v-if="!chargement && !erreur">
-                    <span class="text-[12px] px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-700"
-                        title="Familles qui viennent chercher leur colis au QG">
+                    <span
+                        class="text-[12px] px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-700"
+                        title="Familles qui viennent chercher leur colis au QG"
+                    >
                         Se déplace au QG : {{ totalSeDeplace }}
                     </span>
-                    <span class="text-[12px] px-2.5 py-0.5 rounded-full"
+                    <span
+                        class="text-[12px] px-2.5 py-0.5 rounded-full"
                         :class="totalNonAssignees > 0 ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-stone-600'"
-                        title="Livraisons confirmées sans tournée">
+                        title="Livraisons confirmées sans tournée"
+                    >
                         Non assignées : {{ totalNonAssignees }}
                     </span>
                 </template>
-                <span class="text-ink-muted text-[12px]" aria-hidden="true">{{ ouvert ? '▲' : '▼' }}</span>
+                <span class="text-ink-muted text-[12px]" aria-hidden="true">{{ ouvert ? "▲" : "▼" }}</span>
             </span>
         </button>
 

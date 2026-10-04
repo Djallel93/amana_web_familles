@@ -6,17 +6,27 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
-use App\Models\PersonneDesactivee;
+use Amana\Shared\Models\Secteur;
+use Amana\Shared\Models\Ville;
 use App\Http\Controllers\Concerns\HasDetailPanelProps;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CampagneResource;
 use App\Http\Resources\LivraisonQueueResource;
 use App\Models\Campagne;
+use App\Models\CampagneJournee;
 use App\Models\Famille;
 use App\Models\Livraison;
+use App\Models\Organisation;
+use App\Models\OrganismeAide;
+use App\Models\PersonneDesactivee;
+use App\Models\Quartier;
+use App\Models\SecteurActivite;
 use App\Services\FamilleConfirmationSyncService;
+use App\Services\RetraitHqSchedulingService;
+use App\Services\RouteMutationService;
 use App\Support\Creneau;
 use App\Support\FamilleFilters;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -46,10 +56,9 @@ class ContactTrackingController extends Controller
         private readonly FamilleConfirmationSyncService $syncService,
         // Ajoutés le 24/09/2026 (prompt de cette date §4/§5) — voir
         // mettreAJourSeDeplace() plus bas.
-        private readonly \App\Services\RouteMutationService $mutationService,
-        private readonly \App\Services\RetraitHqSchedulingService $retraitHqScheduling,
-    ) {
-    }
+        private readonly RouteMutationService $mutationService,
+        private readonly RetraitHqSchedulingService $retraitHqScheduling,
+    ) {}
 
     /**
      * Section E4 du refactor (16/09/2026, sixième chunk du domaine
@@ -79,14 +88,14 @@ class ContactTrackingController extends Controller
     public function index(): InertiaResponse
     {
         $campagnes = Campagne::orderByDesc('date_livraison')->with('journees')->get();
-        $secteursActivite = \App\Models\SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
-        $organismesAide = \App\Models\OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        $secteursActivite = SecteurActivite::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
+        $organismesAide = OrganismeAide::actifs()->get(['id', 'code', 'libelle_fr', 'libelle_ar', 'libelle_en']);
         // Référentiels du filtre partagé (05/09/2026, prompt §2.6) — mêmes
         // requêtes que CampagnesController::show()/FamillesController::index().
-        $villes = \Amana\Shared\Models\Ville::orderBy('nom')->get(['id', 'nom']);
-        $secteurs = \Amana\Shared\Models\Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
-        $quartiers = \App\Models\Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
-        $organisations = \App\Models\Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
+        $villes = Ville::orderBy('nom')->get(['id', 'nom']);
+        $secteurs = Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']);
+        $quartiers = Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']);
+        $organisations = Organisation::actifs()->orderBy('nom')->get(['id', 'nom']);
 
         return Inertia::render('Livraison/Contacts', [
             'campagnes' => CampagneResource::collection($campagnes),
@@ -178,7 +187,7 @@ class ContactTrackingController extends Controller
         // RawLaravelPaginator côté TS) — changer cette forme est un sujet à
         // part, volontairement pas traité ici.
         $paginateur = $query->paginate($request->integer('per_page') ?: 50)->withQueryString();
-        $paginateur->getCollection()->transform(fn ($livraison) => new LivraisonQueueResource($livraison));
+        $paginateur->getCollection()->transform(fn($livraison) => new LivraisonQueueResource($livraison));
 
         return response()->json($paginateur);
     }
@@ -216,7 +225,7 @@ class ContactTrackingController extends Controller
      * le 08/09/2026 pour éviter de dupliquer ces conditions entre les
      * deux (le prompt de cette date §3.2 ajoute le second appelant).
      */
-    private function queteBase(Request $request): \Illuminate\Database\Eloquent\Builder
+    private function queteBase(Request $request): Builder
     {
         $query = Livraison::query()
             ->join('familles', 'familles.id', '=', 'livraisons.id_famille');
@@ -260,7 +269,7 @@ class ContactTrackingController extends Controller
         }
 
         if ($this->requeteAUnFiltreFamille($request)) {
-            $idsFamilles = tap(Famille::query(), fn ($q) => FamilleFilters::appliquer($q, $request))->pluck('id');
+            $idsFamilles = tap(Famille::query(), fn($q) => FamilleFilters::appliquer($q, $request))->pluck('id');
             $query->whereIn('id_famille', $idsFamilles);
         }
 
@@ -508,7 +517,7 @@ class ContactTrackingController extends Controller
         }
 
         if ($livraison->id_campagne_journee !== null) {
-            $journee = \App\Models\CampagneJournee::find($livraison->id_campagne_journee);
+            $journee = CampagneJournee::find($livraison->id_campagne_journee);
             if ($journee) {
                 $this->retraitHqScheduling->planifierPour($livraison->campagne, $journee);
             }

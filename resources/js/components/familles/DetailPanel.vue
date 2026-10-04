@@ -21,16 +21,16 @@
     de recherche Google — un seul scroll aurait été peu praticable.
 -->
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
-import { definirPanneauOuvert } from './useDossierPanel';
-import { useHeartbeatVerrou } from './useHeartbeatVerrou';
-import BandeauVerrouPerdu from './BandeauVerrouPerdu.vue';
-import DocumentRows from './DocumentRows.vue';
-import type { DocumentRow } from './DocumentRows.vue';
-import { MAX_DOCUMENTS, TON_NEUTRE, TONS_PIECE, sansExtension } from './documentRowsSupport';
-import { Modal } from '@amana/shared-ui';
-import { useToast } from '@amana/shared-ui';
-import { useConfirm } from '@amana/shared-ui';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { definirPanneauOuvert } from "./useDossierPanel";
+import { useHeartbeatVerrou } from "./useHeartbeatVerrou";
+import BandeauVerrouPerdu from "./BandeauVerrouPerdu.vue";
+import DocumentRows from "./DocumentRows.vue";
+import type { DocumentRow } from "./DocumentRows.vue";
+import { MAX_DOCUMENTS, TON_NEUTRE, TONS_PIECE, sansExtension } from "./documentRowsSupport";
+import { Modal } from "@amana/shared-ui";
+import { useToast } from "@amana/shared-ui";
+import { useConfirm } from "@amana/shared-ui";
 
 declare global {
     interface Window {
@@ -46,7 +46,7 @@ interface Quartier {
 
 interface Document {
     id: number;
-    type: 'identity' | 'caf' | 'ame' | 'resource';
+    type: "identity" | "caf" | "ame" | "resource";
     original_name: string;
     mime_type: string;
     uploaded_at: string;
@@ -90,10 +90,10 @@ interface Famille {
     etat_dossier: string;
     commentaire_dossier: string | null;
     probleme_traitement: string | null;
-    type_hebergement: 'organisation' | 'proche' | 'non' | null;
+    type_hebergement: "organisation" | "proche" | "non" | null;
     hosted_by: string | null;
-    type_piece_identite: 'nationalite' | 'titre_sejour' | 'demande_asile' | 'autre' | null;
-    type_activite: 'temps_plein' | 'temps_partiel' | 'non' | null;
+    type_piece_identite: "nationalite" | "titre_sejour" | "demande_asile" | "autre" | null;
+    type_activite: "temps_plein" | "temps_partiel" | "non" | null;
     work_days: number | null;
     secteur_activite_autre: string | null;
     organisme_aide_autre: string | null;
@@ -105,14 +105,14 @@ interface Famille {
     documents: Document[];
 }
 
-type TabId = 'identite' | 'adresse' | 'situation' | 'decision' | 'documents';
+type TabId = "identite" | "adresse" | "situation" | "decision" | "documents";
 
 const TABS: { id: TabId; label: string; icon: string }[] = [
-    { id: 'identite', label: 'Identité', icon: '👤' },
-    { id: 'adresse', label: 'Adresse', icon: '📍' },
-    { id: 'situation', label: 'Situation', icon: '🗂️' },
-    { id: 'decision', label: 'Décision', icon: '🔒' },
-    { id: 'documents', label: 'Documents', icon: '📎' },
+    { id: "identite", label: "Identité", icon: "👤" },
+    { id: "adresse", label: "Adresse", icon: "📍" },
+    { id: "situation", label: "Situation", icon: "🗂️" },
+    { id: "decision", label: "Décision", icon: "🔒" },
+    { id: "documents", label: "Documents", icon: "📎" },
 ];
 
 // Champs → onglet, pour afficher un point rouge sur l'onglet contenant une
@@ -120,14 +120,14 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
 // amélioration du 12/08/2026, les erreurs étaient auparavant invisibles si
 // l'onglet correspondant n'était pas déjà affiché.
 const CHAMPS_PAR_ONGLET: Record<TabId, string[]> = {
-    identite: ['nom', 'prenom', 'telephone', 'telephone_bis', 'email'],
-    adresse: ['adresse', 'code_postal', 'ville_texte', 'type_hebergement', 'hosted_by'],
-    situation: ['type_activite', 'work_days', 'secteurs_activite', 'organismes_aide'],
+    identite: ["nom", "prenom", "telephone", "telephone_bis", "email"],
+    adresse: ["adresse", "code_postal", "ville_texte", "type_hebergement", "hosted_by"],
+    situation: ["type_activite", "work_days", "secteurs_activite", "organismes_aide"],
     // "Décision" : réservé au staff (statut du dossier, criticité, et le
     // reste des observations internes) — regroupé le 12/08/2026, jusqu'ici
     // dispersé entre "Identité" (Éligibilité) et "Situation" (le reste).
-    decision: ['criticite', 'etat_dossier'],
-    documents: ['type_piece_identite'],
+    decision: ["criticite", "etat_dossier"],
+    documents: ["type_piece_identite"],
 };
 
 // 'Recu' exclu : réservé aux nouvelles soumissions du formulaire public
@@ -139,43 +139,43 @@ const CHAMPS_PAR_ONGLET: Record<TabId, string[]> = {
 // le verrouillage d'édition à l'ouverture du panneau (voir show()) et
 // jamais un choix de workflow. Il reste sélectionnable comme FILTRE dans
 // la vue principale (index.blade.php) — seulement retiré d'ici.
-const ETATS = ['En attente', 'Validé', 'Rejeté', 'Archivé'];
+const ETATS = ["En attente", "Validé", "Rejeté", "Archivé"];
 // Couleurs de badge par statut — repère visuel rapide dans l'en-tête,
 // cohérent avec la teinte utilisée pour les mêmes statuts dans le tableau
 // principal (familles/index.blade.php).
 const COULEURS_ETAT: Record<string, string> = {
-    'En cours': 'bg-sky-100 text-sky-700',
-    'En attente': 'bg-amber-100 text-amber-700',
-    'Validé': 'bg-emerald-100 text-emerald-700',
-    'Rejeté': 'bg-rose-100 text-rose-700',
-    'Archivé': 'bg-surface-3 text-ink-muted',
+    "En cours": "bg-sky-100 text-sky-700",
+    "En attente": "bg-amber-100 text-amber-700",
+    Validé: "bg-emerald-100 text-emerald-700",
+    Rejeté: "bg-rose-100 text-rose-700",
+    Archivé: "bg-surface-3 text-ink-muted",
 };
 const LANGUES = [
-    { code: 'fr', label: 'Français' },
-    { code: 'ar', label: 'العربية' },
-    { code: 'en', label: 'English' },
+    { code: "fr", label: "Français" },
+    { code: "ar", label: "العربية" },
+    { code: "en", label: "English" },
 ];
 const TYPES_DOCUMENTS = [
-    { code: 'identity', label: "Pièce d'identité" },
-    { code: 'caf', label: 'Attestation CAF' },
-    { code: 'ame', label: "Aide médicale de l'État (AME)" },
-    { code: 'resource', label: 'Justificatif de ressources' },
+    { code: "identity", label: "Pièce d'identité" },
+    { code: "caf", label: "Attestation CAF" },
+    { code: "ame", label: "Aide médicale de l'État (AME)" },
+    { code: "resource", label: "Justificatif de ressources" },
 ];
 const TYPES_HEBERGEMENT = [
-    { code: 'organisation', label: 'Hébergé(e) par une organisation' },
-    { code: 'proche', label: 'Hébergé(e) par un proche' },
-    { code: 'non', label: 'Non hébergé(e)' },
+    { code: "organisation", label: "Hébergé(e) par une organisation" },
+    { code: "proche", label: "Hébergé(e) par un proche" },
+    { code: "non", label: "Non hébergé(e)" },
 ] as const;
 const TYPES_PIECE_IDENTITE = [
-    { code: 'nationalite', label: 'Pièce de nationalité' },
-    { code: 'titre_sejour', label: 'Titre de séjour' },
-    { code: 'demande_asile', label: "Demande d'asile" },
-    { code: 'autre', label: 'Autre' },
+    { code: "nationalite", label: "Pièce de nationalité" },
+    { code: "titre_sejour", label: "Titre de séjour" },
+    { code: "demande_asile", label: "Demande d'asile" },
+    { code: "autre", label: "Autre" },
 ] as const;
 const TYPES_ACTIVITE = [
-    { code: 'temps_plein', label: 'Temps plein' },
-    { code: 'temps_partiel', label: 'Temps partiel' },
-    { code: 'non', label: "N'exerce pas d'activité" },
+    { code: "temps_plein", label: "Temps plein" },
+    { code: "temps_partiel", label: "Temps partiel" },
+    { code: "non", label: "N'exerce pas d'activité" },
 ] as const;
 
 const toast = useToast();
@@ -194,7 +194,7 @@ watch(open, (ouvert) => definirPanneauOuvert(ouvert));
 // `verrouPerdu` qu'un autre utilisateur a repris le dossier — voir
 // useHeartbeatVerrou.ts pour le raisonnement complet et les garde-fous.
 const heartbeat = useHeartbeatVerrou({
-    urlPour: (id) => (urls.renouvelerVerrou ? urls.renouvelerVerrou.replace('__ID__', String(id)) : ''),
+    urlPour: (id) => (urls.renouvelerVerrou ? urls.renouvelerVerrou.replace("__ID__", String(id)) : ""),
     csrf: csrfToken,
 });
 const verrouPerdu = heartbeat.verrouPerdu;
@@ -203,13 +203,13 @@ onUnmounted(() => {
     definirPanneauOuvert(false);
     // Le listener était enregistré au montage (voir onMounted) et jamais retiré :
     // chaque montage de page laissait un écouteur de plus sur `window`.
-    window.removeEventListener('beforeunload', libererVerrouAuDechargement);
+    window.removeEventListener("beforeunload", libererVerrouAuDechargement);
 });
 const loading = ref(false);
 const saving = ref(false);
 const famille = ref<Famille | null>(null);
 const errors = ref<Record<string, string>>({});
-const activeTab = ref<TabId>('identite');
+const activeTab = ref<TabId>("identite");
 
 // Sélections multi (secteurs d'activité / organismes d'aide) : listes
 // d'identifiants distinctes de famille.value.secteurs_activite (qui contient
@@ -227,7 +227,8 @@ function libelle(option: ListeOption): string {
 
 function toggleInArray(arr: number[], id: number): void {
     const i = arr.indexOf(id);
-    if (i === -1) arr.push(id); else arr.splice(i, 1);
+    if (i === -1) arr.push(id);
+    else arr.splice(i, 1);
 }
 
 // Un geste sur les lignes de documents (ajout / modification / suppression)
@@ -242,17 +243,18 @@ const docErreurs = ref<Record<string, string>>({});
 // code d'avant le retrait du pont double-mode (Section E4, chunk
 // contacts du domaine livraison, 16/09/2026).
 let urls = {
-    show: '',
-    update: '',
-    deverrouiller: '',
-    renouvelerVerrou: '',
-    forcerDeverrouillage: '',
-    upload: '',
-    download: '',
-    deleteDoc: '',
+    show: "",
+    update: "",
+    updateDoc: "",
+    deverrouiller: "",
+    renouvelerVerrou: "",
+    forcerDeverrouillage: "",
+    upload: "",
+    download: "",
+    deleteDoc: "",
 };
-const googlePlacesKey = ref('');
-const googleEmbedKey = ref('');
+const googlePlacesKey = ref("");
+const googleEmbedKey = ref("");
 
 // Ex-pont double-mode — Section E4 du refactor : ce composant était
 // partagé par familles/index.blade.php, familles/nouvelles.blade.php et
@@ -285,7 +287,7 @@ const props = defineProps<{
 }>();
 
 function csrfToken(): string {
-    return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+    return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "";
 }
 
 async function openFamilleDetail(id: number): Promise<void> {
@@ -294,7 +296,7 @@ async function openFamilleDetail(id: number): Promise<void> {
     loading.value = true;
     errors.value = {};
     famille.value = null;
-    activeTab.value = 'identite';
+    activeTab.value = "identite";
     // Recherche Google repart toujours masquée à l'ouverture d'un dossier
     // existant : la famille a déjà une adresse enregistrée, la voir
     // directement en saisie manuelle évite de perdre le texte existant
@@ -303,7 +305,7 @@ async function openFamilleDetail(id: number): Promise<void> {
     autocompleteElement = null;
 
     try {
-        const res = await fetch(urls.show.replace('__ID__', String(id)));
+        const res = await fetch(urls.show.replace("__ID__", String(id)));
 
         // Verrouillage d'édition (décision du 15/08/2026) — un autre
         // membre du staff a déjà ce dossier ouvert : on n'ouvre pas le
@@ -311,7 +313,7 @@ async function openFamilleDetail(id: number): Promise<void> {
         // "!res.ok" générique ci-dessous (423 n'est évidemment pas "ok").
         if (res.status === 423) {
             const data = await res.json().catch(() => ({}));
-            const message = data.message ?? 'Ce dossier est en cours de modification par un autre utilisateur.';
+            const message = data.message ?? "Ce dossier est en cours de modification par un autre utilisateur.";
 
             // "Easy out" admin (décision du 15/08/2026) — un verrou resté
             // bloqué (crash navigateur avant sendBeacon, etc.) n'a pas à
@@ -320,20 +322,20 @@ async function openFamilleDetail(id: number): Promise<void> {
             // immédiatement et de rouvrir dans la foulée.
             if (data.peut_forcer) {
                 const forcer = await confirmDialog.ask({
-                    title: 'Dossier verrouillé',
+                    title: "Dossier verrouillé",
                     message: `${message} Forcer le déverrouillage et l'ouvrir maintenant ?`,
-                    confirmLabel: 'Forcer le déverrouillage',
+                    confirmLabel: "Forcer le déverrouillage",
                     danger: true,
                 });
 
                 if (forcer && urls.forcerDeverrouillage) {
                     try {
-                        await fetch(urls.forcerDeverrouillage.replace('__ID__', String(id)), {
-                            method: 'POST',
-                            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+                        await fetch(urls.forcerDeverrouillage.replace("__ID__", String(id)), {
+                            method: "POST",
+                            headers: { "X-CSRF-TOKEN": csrfToken(), Accept: "application/json" },
                         });
-                    } catch (e) {
-                        toast.error('Échec du déverrouillage forcé.');
+                    } catch {
+                        toast.error("Échec du déverrouillage forcé.");
                         open.value = false;
                         return;
                     }
@@ -350,7 +352,7 @@ async function openFamilleDetail(id: number): Promise<void> {
             return;
         }
 
-        if (!res.ok) throw new Error('Chargement impossible');
+        if (!res.ok) throw new Error("Chargement impossible");
         famille.value = await res.json();
         secteursSelectionnes.value = famille.value?.secteurs_activite?.map((s) => s.id) ?? [];
         organismesSelectionnes.value = famille.value?.organismes_aide?.map((o) => o.id) ?? [];
@@ -361,13 +363,13 @@ async function openFamilleDetail(id: number): Promise<void> {
         // avant tout enregistrement — le quartier stocké est encore celui
         // de l'ancienne adresse, la résolution ne se relance que côté
         // serveur après save()).
-        adresseInitiale.adresse = famille.value?.adresse ?? '';
-        adresseInitiale.code_postal = famille.value?.code_postal ?? '';
-        adresseInitiale.ville_texte = famille.value?.ville_texte ?? '';
+        adresseInitiale.adresse = famille.value?.adresse ?? "";
+        adresseInitiale.code_postal = famille.value?.code_postal ?? "";
+        adresseInitiale.ville_texte = famille.value?.ville_texte ?? "";
         // Le verrou vient d'être pris par show() : les battements démarrent.
         heartbeat.demarrer(id);
-    } catch (e) {
-        toast.error('Impossible de charger le dossier.');
+    } catch {
+        toast.error("Impossible de charger le dossier.");
         open.value = false;
     } finally {
         loading.value = false;
@@ -386,9 +388,9 @@ async function openFamilleDetail(id: number): Promise<void> {
 function libererVerrou(): void {
     if (!famille.value || !urls.deverrouiller) return;
 
-    fetch(urls.deverrouiller.replace('__ID__', String(famille.value.id)), {
-        method: 'POST',
-        headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+    fetch(urls.deverrouiller.replace("__ID__", String(famille.value.id)), {
+        method: "POST",
+        headers: { "X-CSRF-TOKEN": csrfToken(), Accept: "application/json" },
     }).catch(() => {});
 }
 
@@ -415,8 +417,8 @@ function libererVerrouAuDechargement(): void {
 
     heartbeat.pause();
     const corps = new URLSearchParams();
-    corps.set('_token', csrfToken());
-    navigator.sendBeacon(urls.deverrouiller.replace('__ID__', String(famille.value.id)), corps);
+    corps.set("_token", csrfToken());
+    navigator.sendBeacon(urls.deverrouiller.replace("__ID__", String(famille.value.id)), corps);
 }
 
 const nombreFoyer = computed(() => {
@@ -431,20 +433,20 @@ const nombreFoyer = computed(() => {
 // importer un module TS partagé) : garder les deux en synchronisation
 // manuelle si la palette change côté liste.
 const AVATAR_PALETTE = [
-    { bg: 'bg-sky-100', text: 'text-sky-700' },
-    { bg: 'bg-amber-100', text: 'text-amber-700' },
-    { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-    { bg: 'bg-violet-100', text: 'text-violet-700' },
-    { bg: 'bg-rose-100', text: 'text-rose-700' },
-    { bg: 'bg-cyan-100', text: 'text-cyan-700' },
+    { bg: "bg-sky-100", text: "text-sky-700" },
+    { bg: "bg-amber-100", text: "text-amber-700" },
+    { bg: "bg-emerald-100", text: "text-emerald-700" },
+    { bg: "bg-violet-100", text: "text-violet-700" },
+    { bg: "bg-rose-100", text: "text-rose-700" },
+    { bg: "bg-cyan-100", text: "text-cyan-700" },
 ];
 const avatarStyle = computed(() => {
     if (!famille.value) return AVATAR_PALETTE[0];
     return AVATAR_PALETTE[famille.value.id % AVATAR_PALETTE.length];
 });
 const initiales = computed(() => {
-    if (!famille.value) return '';
-    return ((famille.value.prenom?.[0] ?? '') + (famille.value.nom?.[0] ?? '')).toUpperCase();
+    if (!famille.value) return "";
+    return ((famille.value.prenom?.[0] ?? "") + (famille.value.nom?.[0] ?? "")).toUpperCase();
 });
 
 function ongletEnErreur(tab: TabId): boolean {
@@ -461,12 +463,12 @@ async function enregistrer(): Promise<void> {
     heartbeat.pause();
 
     try {
-        const res = await fetch(urls.update.replace('__ID__', String(famille.value.id)), {
-            method: 'PUT',
+        const res = await fetch(urls.update.replace("__ID__", String(famille.value.id)), {
+            method: "PUT",
             headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': csrfToken(),
-                Accept: 'application/json',
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": csrfToken(),
+                Accept: "application/json",
             },
             // secteurs_activite/organismes_aide écrasés explicitement :
             // famille.value contient les objets complets renvoyés par
@@ -490,24 +492,24 @@ async function enregistrer(): Promise<void> {
             // l'onglet Documents est affiché).
             const premierOngletEnErreur = TABS.find((t) => ongletEnErreur(t.id));
             if (premierOngletEnErreur) activeTab.value = premierOngletEnErreur.id;
-            toast.error('Merci de corriger les champs en erreur.');
+            toast.error("Merci de corriger les champs en erreur.");
             heartbeat.reprendre();
             return;
         }
 
-        if (!res.ok) throw new Error('Échec de l\'enregistrement');
+        if (!res.ok) throw new Error("Échec de l'enregistrement");
 
         famille.value = await res.json();
         secteursSelectionnes.value = famille.value?.secteurs_activite?.map((s) => s.id) ?? [];
         organismesSelectionnes.value = famille.value?.organismes_aide?.map((o) => o.id) ?? [];
-        toast.success('Dossier enregistré.');
+        toast.success("Dossier enregistré.");
 
         // Rafraîchit le tableau sous-jacent (statut/quartier/criticité
         // affichés en liste ont pu changer) — approche simple v1, à
         // remplacer par une mise à jour ciblée de la ligne si besoin.
         setTimeout(() => window.location.reload(), 600);
-    } catch (e) {
-        toast.error('Erreur réseau — le dossier n\'a pas été enregistré.');
+    } catch {
+        toast.error("Erreur réseau — le dossier n'a pas été enregistré.");
         heartbeat.reprendre();
     } finally {
         saving.value = false;
@@ -521,28 +523,31 @@ async function messageErreur(res: Response, defaut: string): Promise<string> {
     return data?.errors?.fichier?.[0] ?? data?.errors?.label?.[0] ?? data?.message ?? defaut;
 }
 
-async function ajouterDocument(type: Document['type'], file: File, label: string): Promise<void> {
+async function ajouterDocument(type: Document["type"], file: File, label: string): Promise<void> {
     if (!famille.value) return;
     docBusy.value = true;
-    docErreurs.value = { ...docErreurs.value, [type]: '' };
+    docErreurs.value = { ...docErreurs.value, [type]: "" };
 
     const formData = new FormData();
-    formData.append('type', type);
-    formData.append('fichier', file);
-    if (label) formData.append('label', label);
+    formData.append("type", type);
+    formData.append("fichier", file);
+    if (label) formData.append("label", label);
 
     try {
-        const res = await fetch(urls.upload.replace('__ID__', String(famille.value.id)), {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+        const res = await fetch(urls.upload.replace("__ID__", String(famille.value.id)), {
+            method: "POST",
+            headers: { "X-CSRF-TOKEN": csrfToken(), Accept: "application/json" },
             body: formData,
         });
         if (!res.ok) throw new Error(await messageErreur(res, "Échec de l'envoi du document."));
 
         famille.value.documents.push(await res.json());
-        toast.success('Document ajouté.');
+        toast.success("Document ajouté.");
     } catch (e) {
-        docErreurs.value = { ...docErreurs.value, [type]: e instanceof Error ? e.message : "Échec de l'envoi du document." };
+        docErreurs.value = {
+            ...docErreurs.value,
+            [type]: e instanceof Error ? e.message : "Échec de l'envoi du document.",
+        };
     } finally {
         docBusy.value = false;
     }
@@ -555,24 +560,27 @@ async function modifierDocument(key: string | number, label: string, file: File 
     if (!doc) return;
 
     docBusy.value = true;
-    docErreurs.value = { ...docErreurs.value, [doc.type]: '' };
+    docErreurs.value = { ...docErreurs.value, [doc.type]: "" };
 
     const formData = new FormData();
-    formData.append('label', label);
-    if (file) formData.append('fichier', file);
+    formData.append("label", label);
+    if (file) formData.append("fichier", file);
 
     try {
         const res = await fetch(
-            urls.updateDoc.replace('__ID__', String(famille.value.id)).replace('__DOC__', String(doc.id)),
-            { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' }, body: formData },
+            urls.updateDoc.replace("__ID__", String(famille.value.id)).replace("__DOC__", String(doc.id)),
+            { method: "POST", headers: { "X-CSRF-TOKEN": csrfToken(), Accept: "application/json" }, body: formData },
         );
-        if (!res.ok) throw new Error(await messageErreur(res, 'Échec de la modification du document.'));
+        if (!res.ok) throw new Error(await messageErreur(res, "Échec de la modification du document."));
 
         const maj: Document = await res.json();
         famille.value.documents = famille.value.documents.map((d) => (d.id === maj.id ? { ...d, ...maj } : d));
-        toast.success('Document modifié.');
+        toast.success("Document modifié.");
     } catch (e) {
-        docErreurs.value = { ...docErreurs.value, [doc.type]: e instanceof Error ? e.message : 'Échec de la modification du document.' };
+        docErreurs.value = {
+            ...docErreurs.value,
+            [doc.type]: e instanceof Error ? e.message : "Échec de la modification du document.",
+        };
     } finally {
         docBusy.value = false;
     }
@@ -589,18 +597,18 @@ async function supprimerDocument(doc: Document): Promise<void> {
 
     try {
         const res = await fetch(
-            urls.deleteDoc.replace('__ID__', String(famille.value.id)).replace('__DOC__', String(doc.id)),
+            urls.deleteDoc.replace("__ID__", String(famille.value.id)).replace("__DOC__", String(doc.id)),
             {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+                method: "DELETE",
+                headers: { "X-CSRF-TOKEN": csrfToken(), Accept: "application/json" },
             },
         );
         if (!res.ok) throw new Error();
 
         famille.value.documents = famille.value.documents.filter((d) => d.id !== doc.id);
-        toast.success('Document supprimé.');
-    } catch (e) {
-        toast.error('Échec de la suppression du document.');
+        toast.success("Document supprimé.");
+    } catch {
+        toast.error("Échec de la suppression du document.");
     }
 }
 
@@ -610,8 +618,8 @@ function supprimerDocumentParCle(key: string | number): void {
 }
 
 function urlTelechargement(doc: Document): string {
-    if (!famille.value) return '#';
-    return urls.download.replace('__ID__', String(famille.value.id)).replace('__DOC__', String(doc.id));
+    if (!famille.value) return "#";
+    return urls.download.replace("__ID__", String(famille.value.id)).replace("__DOC__", String(doc.id));
 }
 
 function documentsParType(type: string): Document[] {
@@ -623,9 +631,9 @@ function documentsParType(type: string): Document[] {
 // (nationalité/titre de séjour/demande d'asile → CAF, autre → AME) — voir
 // Famille::type_document_aide côté backend pour la même règle appliquée à
 // l'intake initial.
-const typeDocumentAide = computed<'caf' | 'ame' | null>(() => {
+const typeDocumentAide = computed<"caf" | "ame" | null>(() => {
     if (!famille.value?.type_piece_identite) return null;
-    return famille.value.type_piece_identite === 'autre' ? 'ame' : 'caf';
+    return famille.value.type_piece_identite === "autre" ? "ame" : "caf";
 });
 
 // Identité et Ressources sont toujours pertinents (indépendants du choix
@@ -636,7 +644,7 @@ const typeDocumentAide = computed<'caf' | 'ame' | null>(() => {
 // fichiers déjà présents quel que soit le réglage actuel.
 const typesDocumentsAffiches = computed(() => {
     return TYPES_DOCUMENTS.filter((t) => {
-        if (t.code === 'identity' || t.code === 'resource') return true;
+        if (t.code === "identity" || t.code === "resource") return true;
         if (t.code === typeDocumentAide.value) return true;
         return documentsParType(t.code).length > 0;
     });
@@ -656,11 +664,11 @@ function lignesDocuments(type: string): DocumentRow[] {
 }
 
 function tonDocuments(type: string) {
-    if (type === 'identity') {
+    if (type === "identity") {
         return famille.value?.type_piece_identite ? TONS_PIECE[famille.value.type_piece_identite].tone : TON_NEUTRE;
     }
-    if (type === 'caf') return TONS_PIECE.titre_sejour.tone;
-    if (type === 'ame') return TONS_PIECE.autre.tone;
+    if (type === "caf") return TONS_PIECE.titre_sejour.tone;
+    if (type === "ame") return TONS_PIECE.autre.tone;
     return TON_NEUTRE;
 }
 
@@ -683,25 +691,27 @@ const manualAdresseMode = ref(true);
 // n'est plus fiable, corrigé le 12/08/2026 après retour "le quartier
 // résolu affiché pointe encore vers l'ancienne adresse après une sélection
 // Google Places".
-const adresseInitiale = { adresse: '', code_postal: '', ville_texte: '' };
+const adresseInitiale = { adresse: "", code_postal: "", ville_texte: "" };
 const adresseModifieeDepuisChargement = computed<boolean>(() => {
     if (!famille.value) return false;
-    return famille.value.adresse !== adresseInitiale.adresse
-        || (famille.value.code_postal ?? '') !== adresseInitiale.code_postal
-        || (famille.value.ville_texte ?? '') !== adresseInitiale.ville_texte;
+    return (
+        famille.value.adresse !== adresseInitiale.adresse ||
+        (famille.value.code_postal ?? "") !== adresseInitiale.code_postal ||
+        (famille.value.ville_texte ?? "") !== adresseInitiale.ville_texte
+    );
 });
 
 function loadGoogleMapsScript(apiKey: string): Promise<void> {
     if (window.__googleMapsLoadPromise) return window.__googleMapsLoadPromise;
 
     window.__googleMapsLoadPromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
+        const script = document.createElement("script");
         // v=weekly : canal recommandé par Google pour importLibrary(), voir
         // https://developers.google.com/maps/documentation/javascript/versions
         script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&language=fr`;
         script.async = true;
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error('google_maps_load_failed'));
+        script.onerror = () => reject(new Error("google_maps_load_failed"));
         document.head.appendChild(script);
     });
 
@@ -710,7 +720,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
 
 function extraireComposant(place: any, type: string): string {
     const c = (place.addressComponents ?? []).find((c: any) => c.types.includes(type));
-    return c ? c.longText : '';
+    return c ? c.longText : "";
 }
 
 async function initAdresseAutocomplete(): Promise<void> {
@@ -718,36 +728,37 @@ async function initAdresseAutocomplete(): Promise<void> {
 
     try {
         await loadGoogleMapsScript(googlePlacesKey.value);
-        const { PlaceAutocompleteElement } = await window.google.maps.importLibrary('places');
+        const { PlaceAutocompleteElement } = await window.google.maps.importLibrary("places");
 
         autocompleteElement = new PlaceAutocompleteElement({
-            includedRegionCodes: ['fr'],
-            requestedLanguage: 'fr',
+            includedRegionCodes: ["fr"],
+            requestedLanguage: "fr",
         });
         // Sans ceci, le widget adopte le thème sombre du navigateur/OS et
         // s'affiche comme une barre noire illisible (même correctif que
         // IntakeForm.vue — voir commentaire là-bas pour la source
         // documentée du contournement).
-        autocompleteElement.style.width = '100%';
-        autocompleteElement.style.setProperty('color-scheme', 'light');
-        autocompleteElement.style.setProperty('background-color', '#ffffff');
-        autocompleteElement.style.setProperty('border', '1px solid #d6d3d1');
-        autocompleteElement.style.setProperty('border-radius', '6px');
+        autocompleteElement.style.width = "100%";
+        autocompleteElement.style.setProperty("color-scheme", "light");
+        autocompleteElement.style.setProperty("background-color", "#ffffff");
+        autocompleteElement.style.setProperty("border", "1px solid #d6d3d1");
+        autocompleteElement.style.setProperty("border-radius", "6px");
         placeAutocompleteContainerRef.value.appendChild(autocompleteElement);
 
-        autocompleteElement.addEventListener('gmp-select', async ({ placePrediction }: any) => {
+        autocompleteElement.addEventListener("gmp-select", async ({ placePrediction }: any) => {
             if (!famille.value) return;
             const place = placePrediction.toPlace();
-            await place.fetchFields({ fields: ['addressComponents', 'formattedAddress'] });
+            await place.fetchFields({ fields: ["addressComponents", "formattedAddress"] });
 
-            const numero = extraireComposant(place, 'street_number');
-            const rue = extraireComposant(place, 'route');
-            famille.value.adresse = [numero, rue].filter(Boolean).join(' ') || place.formattedAddress || famille.value.adresse;
+            const numero = extraireComposant(place, "street_number");
+            const rue = extraireComposant(place, "route");
+            famille.value.adresse =
+                [numero, rue].filter(Boolean).join(" ") || place.formattedAddress || famille.value.adresse;
 
-            const codePostal = extraireComposant(place, 'postal_code');
+            const codePostal = extraireComposant(place, "postal_code");
             if (codePostal) famille.value.code_postal = codePostal;
 
-            const ville = extraireComposant(place, 'locality') || extraireComposant(place, 'postal_town');
+            const ville = extraireComposant(place, "locality") || extraireComposant(place, "postal_town");
             if (ville) famille.value.ville_texte = ville;
 
             // Révèle le champ texte (pré-rempli) pour relecture/correction,
@@ -794,7 +805,7 @@ const mapEmbedUrl = computed<string | null>(() => {
 
     const adresseComplete = [famille.value.adresse, famille.value.code_postal, famille.value.ville_texte]
         .filter(Boolean)
-        .join(', ');
+        .join(", ");
     if (!adresseComplete.trim()) return null;
 
     return `https://www.google.com/maps/embed/v1/place?key=${encodeURIComponent(googleEmbedKey.value)}&q=${encodeURIComponent(adresseComplete)}`;
@@ -831,7 +842,7 @@ onMounted(() => {
         show: props.showUrlTemplate,
         update: props.updateUrlTemplate,
         deverrouiller: props.deverrouillerUrlTemplate,
-        renouvelerVerrou: props.renouvelerVerrouUrlTemplate ?? '',
+        renouvelerVerrou: props.renouvelerVerrouUrlTemplate ?? "",
         forcerDeverrouillage: props.forcerDeverrouillageUrlTemplate,
         upload: props.uploadUrlTemplate,
         download: props.downloadUrlTemplate,
@@ -851,7 +862,7 @@ onMounted(() => {
     // libererVerrouAuDechargement() ci-dessus. Jamais retiré (removeEventListener)
     // puisque ce composant est monté une seule fois pour la durée de vie
     // de la page, comme window.openFamilleDetail ci-dessus.
-    window.addEventListener('beforeunload', libererVerrouAuDechargement);
+    window.addEventListener("beforeunload", libererVerrouAuDechargement);
 });
 </script>
 
@@ -859,14 +870,23 @@ onMounted(() => {
     <Modal :open="open" max-width="max-w-2xl" @close="close">
         <template #header>
             <div v-if="famille" class="flex items-center gap-3">
-                <div class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0" :class="[avatarStyle.bg, avatarStyle.text]">
+                <div
+                    class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    :class="[avatarStyle.bg, avatarStyle.text]"
+                >
                     {{ initiales }}
                 </div>
                 <div>
-                    <h2 class="font-heading text-base font-semibold text-ink">{{ famille.prenom }} {{ famille.nom }}</h2>
+                    <h2 class="font-heading text-base font-semibold text-ink">
+                        {{ famille.prenom }} {{ famille.nom }}
+                    </h2>
                     <p class="text-[12px] text-ink-muted flex items-center gap-1.5">
-                        Dossier #{{ famille.id }} · {{ nombreFoyer }} personne{{ nombreFoyer !== 1 ? 's' : '' }} au foyer
-                        <span class="px-1.5 py-0.5 rounded text-[10.5px] font-semibold" :class="COULEURS_ETAT[famille.etat_dossier] ?? 'bg-surface-3 text-ink-muted'">
+                        Dossier #{{ famille.id }} · {{ nombreFoyer }} personne{{ nombreFoyer !== 1 ? "s" : "" }} au
+                        foyer
+                        <span
+                            class="px-1.5 py-0.5 rounded text-[10.5px] font-semibold"
+                            :class="COULEURS_ETAT[famille.etat_dossier] ?? 'bg-surface-3 text-ink-muted'"
+                        >
                             {{ famille.etat_dossier }}
                         </span>
                     </p>
@@ -878,7 +898,6 @@ onMounted(() => {
         <div v-if="loading" class="py-16 text-center text-ink-muted text-[13.5px]">Chargement du dossier…</div>
 
         <form v-else-if="famille" @submit.prevent="enregistrer" class="space-y-4">
-
             <!-- Un autre utilisateur a repris ce dossier pendant l'édition (battement
                  de cœur du verrou, voir useHeartbeatVerrou.ts) — informatif, l'enregistrement
                  reste possible. -->
@@ -890,28 +909,42 @@ onMounted(() => {
                  ligne. .btn-touch remplace min-h-[40px] (36px de trop pour
                  la cible tactile de 44px, voir amana_shared/docs/mobile-patterns.md). -->
             <div class="flex flex-wrap gap-1 border-b border-surface-3 -mt-1 mb-1" role="tablist">
-                <button v-for="tab in TABS" :key="tab.id" type="button" role="tab"
+                <button
+                    v-for="tab in TABS"
+                    :key="tab.id"
+                    type="button"
+                    role="tab"
                     :aria-selected="activeTab === tab.id"
                     @click="activeTab = tab.id"
                     class="btn-touch relative flex items-center gap-1.5 px-3 py-2.5 text-[12.5px] font-semibold rounded-t-md transition-colors cursor-pointer"
-                    :class="activeTab === tab.id
-                        ? 'text-accent border-b-2 border-accent -mb-px'
-                        : 'text-ink-muted hover:text-ink hover:bg-surface-2'">
+                    :class="
+                        activeTab === tab.id
+                            ? 'text-accent border-b-2 border-accent -mb-px'
+                            : 'text-ink-muted hover:text-ink hover:bg-surface-2'
+                    "
+                >
                     <span aria-hidden="true">{{ tab.icon }}</span>
                     {{ tab.label }}
-                    <span v-if="tab.id === 'documents' && famille.documents.length"
-                        class="px-1.5 py-0.5 rounded-full bg-surface-3 text-ink-muted text-[10px] font-bold">
+                    <span
+                        v-if="tab.id === 'documents' && famille.documents.length"
+                        class="px-1.5 py-0.5 rounded-full bg-surface-3 text-ink-muted text-[10px] font-bold"
+                    >
                         {{ famille.documents.length }}
                     </span>
-                    <span v-if="ongletEnErreur(tab.id)"
-                        class="absolute top-1.5 right-0.5 w-1.5 h-1.5 rounded-full bg-rose-500" aria-hidden="true"></span>
+                    <span
+                        v-if="ongletEnErreur(tab.id)"
+                        class="absolute top-1.5 right-0.5 w-1.5 h-1.5 rounded-full bg-rose-500"
+                        aria-hidden="true"
+                    ></span>
                 </button>
             </div>
 
             <!-- ── Onglet Identité ─────────────────────────────────────── -->
             <div v-show="activeTab === 'identite'" class="space-y-4">
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">👤</span> Identité &amp; contact
                     </h3>
                     <!-- grid-cols-1 sm:grid-cols-2 (04/09/2026, voir
@@ -921,51 +954,87 @@ onMounted(() => {
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Prénom</label>
-                            <input v-model="famille.prenom" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                            <input
+                                v-model="famille.prenom"
+                                type="text"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
                             <span v-if="errors.prenom" class="text-[11px] text-rose-600">{{ errors.prenom }}</span>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Nom</label>
-                            <input v-model="famille.nom" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                            <input
+                                v-model="famille.nom"
+                                type="text"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
                             <span v-if="errors.nom" class="text-[11px] text-rose-600">{{ errors.nom }}</span>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Téléphone</label>
-                            <input v-model="famille.telephone" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
-                            <span v-if="errors.telephone" class="text-[11px] text-rose-600">{{ errors.telephone }}</span>
+                            <input
+                                v-model="famille.telephone"
+                                type="text"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
+                            <span v-if="errors.telephone" class="text-[11px] text-rose-600">{{
+                                errors.telephone
+                            }}</span>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Téléphone (bis)</label>
-                            <input v-model="famille.telephone_bis" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                            <input
+                                v-model="famille.telephone_bis"
+                                type="text"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
                         </div>
                         <div class="col-span-2">
                             <label class="block text-xs font-semibold text-ink mb-1">Email</label>
-                            <input v-model="famille.email" type="email" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                            <input
+                                v-model="famille.email"
+                                type="email"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
                             <span v-if="errors.email" class="text-[11px] text-rose-600">{{ errors.email }}</span>
                         </div>
                     </div>
                 </section>
 
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">👨‍👩‍👧‍👦</span> Composition du foyer
                     </h3>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Adultes</label>
-                            <input v-model.number="famille.nombre_adulte" type="number" min="0" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                            <input
+                                v-model.number="famille.nombre_adulte"
+                                type="number"
+                                min="0"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Enfants</label>
-                            <input v-model.number="famille.nombre_enfant" type="number" min="0" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                            <input
+                                v-model.number="famille.nombre_enfant"
+                                type="number"
+                                min="0"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
                         </div>
                         <!-- sm:col-span-2 (04/09/2026) : col-span-2 seul
                              débordait de la grille passée à 1 colonne sous
                              sm (un span de 2 pistes dans une grille qui n'en
                              a qu'une force une piste implicite en trop). -->
-                        <label class="sm:col-span-2 flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                            :class="famille.etudiant ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                            <input v-model="famille.etudiant" type="checkbox" class="w-4 h-4 accent-accent">
+                        <label
+                            class="sm:col-span-2 flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
+                            :class="famille.etudiant ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'"
+                        >
+                            <input v-model="famille.etudiant" type="checkbox" class="w-4 h-4 accent-accent" />
                             🎓 Étudiant(e)
                         </label>
                     </div>
@@ -975,7 +1044,9 @@ onMounted(() => {
             <!-- ── Onglet Adresse ──────────────────────────────────────── -->
             <div v-show="activeTab === 'adresse'" class="space-y-4">
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">🏠</span> Adresse
                     </h3>
                     <div class="space-y-3">
@@ -985,16 +1056,32 @@ onMounted(() => {
                             <!-- Recherche Google : masquée par défaut (voir
                                  manualAdresseMode), ouverte via le bouton
                                  ci-dessous. -->
-                            <div v-if="googlePlacesKey && !manualAdresseMode" ref="placeAutocompleteContainerRef" class="mb-2"></div>
-                            <button v-if="googlePlacesKey && !manualAdresseMode" type="button" @click="manualAdresseMode = true"
-                                class="text-[12px] text-accent underline mb-2 cursor-pointer bg-transparent border-0">
+                            <div
+                                v-if="googlePlacesKey && !manualAdresseMode"
+                                ref="placeAutocompleteContainerRef"
+                                class="mb-2"
+                            ></div>
+                            <button
+                                v-if="googlePlacesKey && !manualAdresseMode"
+                                type="button"
+                                @click="manualAdresseMode = true"
+                                class="text-[12px] text-accent underline mb-2 cursor-pointer bg-transparent border-0"
+                            >
                                 Revenir à la saisie manuelle
                             </button>
 
-                            <textarea v-if="!googlePlacesKey || manualAdresseMode" v-model="famille.adresse" rows="2"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"></textarea>
-                            <button v-if="googlePlacesKey && manualAdresseMode" type="button" @click="ouvrirRechercheGoogle"
-                                class="text-[12px] text-accent underline mt-1 cursor-pointer bg-transparent border-0">
+                            <textarea
+                                v-if="!googlePlacesKey || manualAdresseMode"
+                                v-model="famille.adresse"
+                                rows="2"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                            ></textarea>
+                            <button
+                                v-if="googlePlacesKey && manualAdresseMode"
+                                type="button"
+                                @click="ouvrirRechercheGoogle"
+                                class="text-[12px] text-accent underline mt-1 cursor-pointer bg-transparent border-0"
+                            >
                                 🔍 Rechercher une nouvelle adresse via Google
                             </button>
                             <span v-if="errors.adresse" class="text-[11px] text-rose-600">{{ errors.adresse }}</span>
@@ -1002,11 +1089,19 @@ onMounted(() => {
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Code postal</label>
-                                <input v-model="famille.code_postal" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                                <input
+                                    v-model="famille.code_postal"
+                                    type="text"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                />
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Ville (saisie)</label>
-                                <input v-model="famille.ville_texte" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                                <input
+                                    v-model="famille.ville_texte"
+                                    type="text"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                />
                             </div>
                         </div>
 
@@ -1022,15 +1117,23 @@ onMounted(() => {
                         </p>
                         <p v-else-if="famille.quartier" class="text-[12px] text-ink-muted">
                             📍 Quartier résolu : <strong>{{ famille.quartier.nom }}</strong>
-                            <span class="text-ink-faint">(résolution géographique automatique, non modifiable ici)</span>
+                            <span class="text-ink-faint"
+                                >(résolution géographique automatique, non modifiable ici)</span
+                            >
                         </p>
                     </div>
                 </section>
 
-                <div v-if="famille.probleme_traitement" class="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-rose-50 border border-rose-200 text-[12.5px] text-rose-700">
+                <div
+                    v-if="famille.probleme_traitement"
+                    class="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-rose-50 border border-rose-200 text-[12.5px] text-rose-700"
+                >
                     <span>⚠️</span>
-                    <span>{{ famille.probleme_traitement }}
-                        <span class="block text-[11px] text-rose-500 mt-0.5">Corrigez l'adresse ci-dessus et enregistrez pour relancer la résolution automatique.</span>
+                    <span
+                        >{{ famille.probleme_traitement }}
+                        <span class="block text-[11px] text-rose-500 mt-0.5"
+                            >Corrigez l'adresse ci-dessus et enregistrez pour relancer la résolution automatique.</span
+                        >
                     </span>
                 </div>
 
@@ -1039,33 +1142,60 @@ onMounted(() => {
                      l'onglet Situation le 12/08/2026, plus cohérent avec
                      "Adresse" qu'avec le reste du suivi de dossier). -->
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">🛏️</span> Hébergement
                     </h3>
                     <div class="space-y-3">
                         <div class="grid grid-cols-1 gap-3">
-                            <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                                :class="famille.est_hotel ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                                <input v-model="famille.est_hotel" type="checkbox" class="w-4 h-4 accent-accent">
+                            <label
+                                class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
+                                :class="famille.est_hotel ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'"
+                            >
+                                <input v-model="famille.est_hotel" type="checkbox" class="w-4 h-4 accent-accent" />
                                 🏨 Hébergement en hôtel (urgence)
                             </label>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1.5">Type d'hébergement</label>
                             <div class="space-y-1.5">
-                                <label v-for="opt in TYPES_HEBERGEMENT" :key="opt.code"
+                                <label
+                                    v-for="opt in TYPES_HEBERGEMENT"
+                                    :key="opt.code"
                                     class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                                    :class="famille.type_hebergement === opt.code ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                                    <input type="radio" name="type_hebergement" :value="opt.code" v-model="famille.type_hebergement" class="w-4 h-4 accent-accent">
+                                    :class="
+                                        famille.type_hebergement === opt.code
+                                            ? 'border-accent bg-accent/5'
+                                            : 'border-ink-faint bg-surface'
+                                    "
+                                >
+                                    <input
+                                        type="radio"
+                                        name="type_hebergement"
+                                        :value="opt.code"
+                                        v-model="famille.type_hebergement"
+                                        class="w-4 h-4 accent-accent"
+                                    />
                                     {{ opt.label }}
                                 </label>
                             </div>
-                            <span v-if="errors.type_hebergement" class="text-[11px] text-rose-600">{{ errors.type_hebergement }}</span>
+                            <span v-if="errors.type_hebergement" class="text-[11px] text-rose-600">{{
+                                errors.type_hebergement
+                            }}</span>
                         </div>
                         <div v-if="famille.type_hebergement === 'organisation'">
-                            <label class="block text-xs font-semibold text-ink mb-1">Hébergé par (nom de l'organisation)</label>
-                            <input v-model="famille.hosted_by" type="text" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
-                            <span v-if="errors.hosted_by" class="text-[11px] text-rose-600">{{ errors.hosted_by }}</span>
+                            <label class="block text-xs font-semibold text-ink mb-1"
+                                >Hébergé par (nom de l'organisation)</label
+                            >
+                            <input
+                                v-model="famille.hosted_by"
+                                type="text"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
+                            <span v-if="errors.hosted_by" class="text-[11px] text-rose-600">{{
+                                errors.hosted_by
+                            }}</span>
                         </div>
                     </div>
                 </section>
@@ -1081,19 +1211,25 @@ onMounted(() => {
                      qui ne montrait qu'un centre de carte sans aucun repère
                      — voir le commentaire sur mapEmbedUrl). -->
                 <section v-if="mapEmbedUrl" class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">🗺️</span> Carte
-                        <span v-if="!famille.latitude || !famille.longitude" class="normal-case font-normal text-ink-faint">
+                        <span
+                            v-if="!famille.latitude || !famille.longitude"
+                            class="normal-case font-normal text-ink-faint"
+                        >
                             (approximative — adresse pas encore géolocalisée)
                         </span>
                     </h3>
                     <iframe
                         :src="mapEmbedUrl"
                         class="w-full h-56 rounded-lg border border-surface-border"
-                        style="border:0"
+                        style="border: 0"
                         loading="lazy"
                         referrerpolicy="no-referrer-when-downgrade"
-                        title="Carte de l'adresse de la famille">
+                        title="Carte de l'adresse de la famille"
+                    >
                     </iframe>
                 </section>
             </div>
@@ -1101,77 +1237,147 @@ onMounted(() => {
             <!-- ── Onglet Situation ────────────────────────────────────── -->
             <div v-show="activeTab === 'situation'" class="space-y-4">
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">📋</span> Suivi du dossier
                     </h3>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Langue</label>
-                            <select v-model="famille.langue" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                            <select
+                                v-model="famille.langue"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            >
                                 <option v-for="l in LANGUES" :key="l.code" :value="l.code">{{ l.label }}</option>
                             </select>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Circonstances</label>
-                            <textarea v-model="famille.circonstances" rows="2" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"></textarea>
+                            <textarea
+                                v-model="famille.circonstances"
+                                rows="2"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                            ></textarea>
                         </div>
                     </div>
                 </section>
 
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">💼</span> Activité professionnelle
                     </h3>
                     <div class="space-y-3">
                         <div class="space-y-1.5">
-                            <label v-for="opt in TYPES_ACTIVITE" :key="opt.code"
+                            <label
+                                v-for="opt in TYPES_ACTIVITE"
+                                :key="opt.code"
                                 class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                                :class="famille.type_activite === opt.code ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                                <input type="radio" name="type_activite" :value="opt.code" v-model="famille.type_activite" class="w-4 h-4 accent-accent">
+                                :class="
+                                    famille.type_activite === opt.code
+                                        ? 'border-accent bg-accent/5'
+                                        : 'border-ink-faint bg-surface'
+                                "
+                            >
+                                <input
+                                    type="radio"
+                                    name="type_activite"
+                                    :value="opt.code"
+                                    v-model="famille.type_activite"
+                                    class="w-4 h-4 accent-accent"
+                                />
                                 {{ opt.label }}
                             </label>
-                            <span v-if="errors.type_activite" class="block text-[11px] text-rose-600">{{ errors.type_activite }}</span>
+                            <span v-if="errors.type_activite" class="block text-[11px] text-rose-600">{{
+                                errors.type_activite
+                            }}</span>
                         </div>
 
                         <div v-if="famille.type_activite === 'temps_partiel'">
                             <label class="block text-xs font-semibold text-ink mb-1">Jours travaillés / semaine</label>
-                            <input v-model.number="famille.work_days" type="number" min="0" max="4" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
-                            <span v-if="errors.work_days" class="text-[11px] text-rose-600">{{ errors.work_days }}</span>
+                            <input
+                                v-model.number="famille.work_days"
+                                type="number"
+                                min="0"
+                                max="4"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                            />
+                            <span v-if="errors.work_days" class="text-[11px] text-rose-600">{{
+                                errors.work_days
+                            }}</span>
                         </div>
 
-                        <div v-if="famille.type_activite === 'temps_plein' || famille.type_activite === 'temps_partiel'">
+                        <div
+                            v-if="famille.type_activite === 'temps_plein' || famille.type_activite === 'temps_partiel'"
+                        >
                             <label class="block text-xs font-semibold text-ink mb-1.5">Secteur d'activité</label>
                             <div class="grid grid-cols-2 gap-1.5">
-                                <label v-for="secteur in secteursActiviteDisponibles" :key="secteur.id"
+                                <label
+                                    v-for="secteur in secteursActiviteDisponibles"
+                                    :key="secteur.id"
                                     class="flex items-center gap-2 px-2.5 py-1.5 border rounded-md text-[12.5px] text-ink cursor-pointer select-none transition-colors"
-                                    :class="secteursSelectionnes.includes(secteur.id) ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                                    <input type="checkbox" :checked="secteursSelectionnes.includes(secteur.id)"
-                                        @change="toggleInArray(secteursSelectionnes, secteur.id)" class="w-4 h-4 accent-accent">
+                                    :class="
+                                        secteursSelectionnes.includes(secteur.id)
+                                            ? 'border-accent bg-accent/5'
+                                            : 'border-ink-faint bg-surface'
+                                    "
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="secteursSelectionnes.includes(secteur.id)"
+                                        @change="toggleInArray(secteursSelectionnes, secteur.id)"
+                                        class="w-4 h-4 accent-accent"
+                                    />
                                     {{ libelle(secteur) }}
                                 </label>
                             </div>
-                            <input v-model="famille.secteur_activite_autre" type="text" placeholder="Autre secteur (préciser)"
-                                class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent transition-colors">
-                            <span v-if="errors.secteurs_activite" class="block text-[11px] text-rose-600">{{ errors.secteurs_activite }}</span>
+                            <input
+                                v-model="famille.secteur_activite_autre"
+                                type="text"
+                                placeholder="Autre secteur (préciser)"
+                                class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent transition-colors"
+                            />
+                            <span v-if="errors.secteurs_activite" class="block text-[11px] text-rose-600">{{
+                                errors.secteurs_activite
+                            }}</span>
                         </div>
                     </div>
                 </section>
 
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">🤝</span> Aides d'autres organismes
                     </h3>
                     <div class="grid grid-cols-2 gap-1.5">
-                        <label v-for="organisme in organismesAideDisponibles" :key="organisme.id"
+                        <label
+                            v-for="organisme in organismesAideDisponibles"
+                            :key="organisme.id"
                             class="flex items-center gap-2 px-2.5 py-1.5 border rounded-md text-[12.5px] text-ink cursor-pointer select-none transition-colors"
-                            :class="organismesSelectionnes.includes(organisme.id) ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                            <input type="checkbox" :checked="organismesSelectionnes.includes(organisme.id)"
-                                @change="toggleInArray(organismesSelectionnes, organisme.id)" class="w-4 h-4 accent-accent">
+                            :class="
+                                organismesSelectionnes.includes(organisme.id)
+                                    ? 'border-accent bg-accent/5'
+                                    : 'border-ink-faint bg-surface'
+                            "
+                        >
+                            <input
+                                type="checkbox"
+                                :checked="organismesSelectionnes.includes(organisme.id)"
+                                @change="toggleInArray(organismesSelectionnes, organisme.id)"
+                                class="w-4 h-4 accent-accent"
+                            />
                             {{ libelle(organisme) }}
                         </label>
                     </div>
-                    <input v-model="famille.organisme_aide_autre" type="text" placeholder="Autre organisme (préciser)"
-                        class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent transition-colors">
+                    <input
+                        v-model="famille.organisme_aide_autre"
+                        type="text"
+                        placeholder="Autre organisme (préciser)"
+                        class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent transition-colors"
+                    />
                 </section>
             </div>
 
@@ -1183,65 +1389,110 @@ onMounted(() => {
                  famille elle-même plutôt que l'appréciation du staff. -->
             <div v-show="activeTab === 'decision'" class="space-y-4">
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">🕌</span> Éligibilité
                     </h3>
                     <div class="grid grid-cols-2 gap-3">
-                        <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                            :class="famille.zakat_el_fitr ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                            <input v-model="famille.zakat_el_fitr" type="checkbox" class="w-4 h-4 accent-accent">
+                        <label
+                            class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
+                            :class="famille.zakat_el_fitr ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'"
+                        >
+                            <input v-model="famille.zakat_el_fitr" type="checkbox" class="w-4 h-4 accent-accent" />
                             Éligible Zakat El Fitr
                         </label>
-                        <label class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
-                            :class="famille.sadaqa ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'">
-                            <input v-model="famille.sadaqa" type="checkbox" class="w-4 h-4 accent-accent">
+                        <label
+                            class="flex items-center gap-2 px-3 py-2 border rounded-md text-[13px] text-ink cursor-pointer select-none transition-colors"
+                            :class="famille.sadaqa ? 'border-accent bg-accent/5' : 'border-ink-faint bg-surface'"
+                        >
+                            <input v-model="famille.sadaqa" type="checkbox" class="w-4 h-4 accent-accent" />
                             Éligible Sadaqa
                         </label>
                     </div>
                 </section>
 
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">🚦</span> Statut &amp; criticité
                     </h3>
                     <div class="space-y-3">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Criticité (0-5)</label>
-                                <input v-model.number="famille.criticite" type="number" min="0" max="5" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                                <input
+                                    v-model.number="famille.criticite"
+                                    type="number"
+                                    min="0"
+                                    max="5"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                />
                                 <div class="flex gap-1 mt-1.5" aria-hidden="true">
-                                    <span v-for="n in 5" :key="n" class="w-4 h-1.5 rounded-full"
-                                        :class="n <= famille.criticite ? (famille.criticite >= 4 ? 'bg-rose-500' : 'bg-amber-400') : 'bg-surface-3'"></span>
+                                    <span
+                                        v-for="n in 5"
+                                        :key="n"
+                                        class="w-4 h-1.5 rounded-full"
+                                        :class="
+                                            n <= famille.criticite
+                                                ? famille.criticite >= 4
+                                                    ? 'bg-rose-500'
+                                                    : 'bg-amber-400'
+                                                : 'bg-surface-3'
+                                        "
+                                    ></span>
                                 </div>
-                                <span v-if="errors.criticite" class="text-[11px] text-rose-600">{{ errors.criticite }}</span>
+                                <span v-if="errors.criticite" class="text-[11px] text-rose-600">{{
+                                    errors.criticite
+                                }}</span>
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-ink mb-1">Statut du dossier</label>
-                                <select v-model="famille.etat_dossier" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                                <select
+                                    v-model="famille.etat_dossier"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                >
                                     <option v-for="e in ETATS" :key="e" :value="e">{{ e }}</option>
                                 </select>
-                                <span v-if="errors.etat_dossier" class="text-[11px] text-rose-600">{{ errors.etat_dossier }}</span>
+                                <span v-if="errors.etat_dossier" class="text-[11px] text-rose-600">{{
+                                    errors.etat_dossier
+                                }}</span>
                             </div>
                         </div>
                     </div>
                 </section>
 
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">📝</span> Observations internes
                     </h3>
                     <div class="space-y-3">
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Ressenti</label>
-                            <textarea v-model="famille.ressentit" rows="2" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"></textarea>
+                            <textarea
+                                v-model="famille.ressentit"
+                                rows="2"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                            ></textarea>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Spécificités</label>
-                            <textarea v-model="famille.specificites" rows="2" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"></textarea>
+                            <textarea
+                                v-model="famille.specificites"
+                                rows="2"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                            ></textarea>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-ink mb-1">Commentaire (interne)</label>
-                            <textarea v-model="famille.commentaire_dossier" rows="2" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"></textarea>
+                            <textarea
+                                v-model="famille.commentaire_dossier"
+                                rows="2"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                            ></textarea>
                         </div>
                     </div>
                 </section>
@@ -1256,16 +1507,28 @@ onMounted(() => {
                      qu'au regard des documents à fournir, pas comme donnée
                      de suivi de dossier isolée. -->
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">🪪</span> Type de pièce d'identité
                     </h3>
-                    <select v-model="famille.type_piece_identite" class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors">
+                    <select
+                        v-model="famille.type_piece_identite"
+                        class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                    >
                         <option :value="null">—</option>
-                        <option v-for="opt in TYPES_PIECE_IDENTITE" :key="opt.code" :value="opt.code">{{ opt.label }}</option>
+                        <option v-for="opt in TYPES_PIECE_IDENTITE" :key="opt.code" :value="opt.code">
+                            {{ opt.label }}
+                        </option>
                     </select>
-                    <span v-if="errors.type_piece_identite" class="block text-[11px] text-rose-600 mt-1">{{ errors.type_piece_identite }}</span>
+                    <span v-if="errors.type_piece_identite" class="block text-[11px] text-rose-600 mt-1">{{
+                        errors.type_piece_identite
+                    }}</span>
                     <p v-if="typeDocumentAide" class="text-[11.5px] text-ink-muted mt-2">
-                        Justificatif requis en conséquence : <strong>{{ typeDocumentAide === 'ame' ? "Aide médicale de l'État (AME)" : 'Attestation CAF' }}</strong>
+                        Justificatif requis en conséquence :
+                        <strong>{{
+                            typeDocumentAide === "ame" ? "Aide médicale de l'État (AME)" : "Attestation CAF"
+                        }}</strong>
                     </p>
                     <p v-else class="text-[11.5px] text-ink-faint mt-2">
                         Sélectionnez un type ci-dessus pour voir quel justificatif (CAF ou AME) est requis.
@@ -1273,7 +1536,9 @@ onMounted(() => {
                 </section>
 
                 <section class="bg-surface-2 rounded-xl border border-surface-border p-4">
-                    <h3 class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3">
+                    <h3
+                        class="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted mb-3"
+                    >
                         <span aria-hidden="true">📎</span> Documents
                     </h3>
 
@@ -1286,27 +1551,43 @@ onMounted(() => {
                     <div v-for="t in typesDocumentsAffiches" :key="t.code" class="mb-3">
                         <p class="text-[12px] font-semibold text-ink-muted mb-1.5 flex items-center gap-1.5">
                             {{ t.label }}
-                            <span v-if="t.code === typeDocumentAide" class="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold">Requis</span>
+                            <span
+                                v-if="t.code === typeDocumentAide"
+                                class="px-1.5 py-0.5 rounded-full bg-accent/10 text-accent text-[10px] font-bold"
+                                >Requis</span
+                            >
                         </p>
-                        <DocumentRows :rows="lignesDocuments(t.code)" :max="MAX_DOCUMENTS" :tone="tonDocuments(t.code)"
-                            accept=".pdf,.jpg,.jpeg,.png" :busy="docBusy" :error="docErreurs[t.code] ?? ''"
+                        <DocumentRows
+                            :rows="lignesDocuments(t.code)"
+                            :max="MAX_DOCUMENTS"
+                            :tone="tonDocuments(t.code)"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            :busy="docBusy"
+                            :error="docErreurs[t.code] ?? ''"
                             @add="(f, l) => ajouterDocument(t.code as Document['type'], f, l)"
                             @update="modifierDocument"
-                            @remove="supprimerDocumentParCle" />
+                            @remove="supprimerDocumentParCle"
+                        />
                     </div>
                 </section>
             </div>
-
         </form>
 
         <template #footer>
-            <button type="button" @click="close"
-                class="px-4 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[13px] font-semibold rounded-lg transition-colors cursor-pointer">
+            <button
+                type="button"
+                @click="close"
+                class="px-4 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[13px] font-semibold rounded-lg transition-colors cursor-pointer"
+            >
                 Fermer
             </button>
-            <button type="button" @click="enregistrer" :disabled="saving || loading || !famille"
-                class="px-5 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer">
-                {{ saving ? 'Enregistrement…' : '💾 Enregistrer' }}
+            <button
+                type="button"
+                @click="enregistrer"
+                :disabled="saving || loading || !famille"
+                class="px-5 py-2 bg-accent hover:bg-accent-dark disabled:opacity-50 text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer"
+            >
+                {{ saving ? "Enregistrement…" : "💾 Enregistrer" }}
             </button>
         </template>
     </Modal>

@@ -54,7 +54,8 @@ use Illuminate\Support\Facades\DB;
  * contrainte d'unicité par personne) : rien à faire ici pour permettre le
  * cumul, déjà supporté par le schéma existant.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         $commun = DB::connection(config('amana-shared.connection', 'commun'));
@@ -155,7 +156,5 @@ return new class extends Migration {
      * FamillesApplicationSeeder (l'ancien seeder n'avait pas non plus de
      * mécanisme de suppression).
      */
-    public function down(): void
-    {
-    }
+    public function down(): void {}
 };

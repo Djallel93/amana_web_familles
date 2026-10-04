@@ -5,9 +5,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Amana\Shared\Models\Setting;
 use App\Models\Famille;
 use App\Models\Organisation;
-use Amana\Shared\Models\Setting;
 use Google\Client as GoogleClient;
 use Google\Service\PeopleService;
 use Google\Service\PeopleService\Address;
@@ -17,8 +17,8 @@ use Google\Service\PeopleService\EmailAddress;
 use Google\Service\PeopleService\Membership;
 use Google\Service\PeopleService\ModifyContactGroupMembersRequest;
 use Google\Service\PeopleService\Name;
-use Google\Service\PeopleService\PhoneNumber;
 use Google\Service\PeopleService\Person;
+use Google\Service\PeopleService\PhoneNumber;
 use Google\Service\PeopleService\UserDefined;
 use Illuminate\Support\Facades\Log;
 
@@ -63,6 +63,7 @@ use Illuminate\Support\Facades\Log;
 class GoogleContactsService
 {
     private const SETTING_KEY = 'google_contacts_refresh_token';
+
     private const SETTING_APP = 'familles';
 
     /**
@@ -93,6 +94,7 @@ class GoogleContactsService
      * écriture (buildPerson) et en lecture (ReverseSyncService::extraireDonneesContact).
      */
     public const CHAMP_ETUDIANT = 'Étudiant';
+
     public const CHAMP_HOTEL = 'Hôtel';
 
     /**
@@ -585,6 +587,7 @@ class GoogleContactsService
             if (str_starts_with($nom, self::PREFIXE_LABEL_ORGANISATION)) {
                 return true;
             }
+
             return (bool) preg_match('/^.+ - .+$/', $nom);
         };
 

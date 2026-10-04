@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Amana\Shared\Models\BenevoleProfil;
 use Amana\Shared\Models\Personne;
 use Amana\Shared\Models\VehiculeType;
 use Illuminate\Database\Eloquent\Model;
@@ -86,7 +87,7 @@ class BenevoleDisponibilite extends Model
      * Véhicule effectif pour cette journée : celui déclaré pour la
      * journée, sinon celui du profil bénévole.
      */
-    public function vehiculeEffectif(?\Amana\Shared\Models\BenevoleProfil $profil): ?VehiculeType
+    public function vehiculeEffectif(?BenevoleProfil $profil): ?VehiculeType
     {
         if ($this->aVehiculePropre()) {
             return VehiculeType::find($this->id_vehicule_type);

@@ -23,9 +23,7 @@ class MaRouteVueService
      */
     private const RANG_STATUT = ['en_cours' => 0, 'en_attente' => 0, 'ignoree' => 1, 'livree' => 2];
 
-    public function __construct(private readonly GeoCalculationService $geo)
-    {
-    }
+    public function __construct(private readonly GeoCalculationService $geo) {}
 
     /**
      * @return array{
@@ -42,7 +40,7 @@ class MaRouteVueService
         $route->loadMissing('campagne');
         $etapes = $route->etapes()
             ->whereNotNull('id_livraison')
-            ->with(['livraison' => fn ($q) => $q->withCount('colis'), 'livraison.famille:id,nom,prenom,adresse,telephone,telephone_bis,latitude,longitude'])
+            ->with(['livraison' => fn($q) => $q->withCount('colis'), 'livraison.famille:id,nom,prenom,adresse,telephone,telephone_bis,latitude,longitude'])
             ->orderBy('ordre')
             ->get();
 
@@ -72,16 +70,16 @@ class MaRouteVueService
                 'poids_kg' => (float) $etape->livraison->poids_kg,
             ];
         })->sortBy([
-            fn ($a, $b) => (self::RANG_STATUT[$a['statut']] ?? 0) <=> (self::RANG_STATUT[$b['statut']] ?? 0),
-            fn ($a, $b) => $a['ordre'] <=> $b['ordre'],
+            fn($a, $b) => (self::RANG_STATUT[$a['statut']] ?? 0) <=> (self::RANG_STATUT[$b['statut']] ?? 0),
+            fn($a, $b) => $a['ordre'] <=> $b['ordre'],
         ])->values()->all();
 
-        $ouvertes = fn (array $l) => in_array($l['statut'], ['en_attente', 'en_cours'], true);
+        $ouvertes = fn(array $l) => in_array($l['statut'], ['en_attente', 'en_cours'], true);
         $ouvert = array_filter($lignes, $ouvertes);
-        $livrees = array_filter($lignes, fn (array $l) => $l['statut'] === 'livree');
-        $ignorees = array_filter($lignes, fn (array $l) => $l['statut'] === 'ignoree');
-        $poids = fn (array $set) => round(array_sum(array_column($set, 'poids_kg')), 1);
-        $colis = fn (array $set) => (int) array_sum(array_column($set, 'nb_colis'));
+        $livrees = array_filter($lignes, fn(array $l) => $l['statut'] === 'livree');
+        $ignorees = array_filter($lignes, fn(array $l) => $l['statut'] === 'ignoree');
+        $poids = fn(array $set) => round(array_sum(array_column($set, 'poids_kg')), 1);
+        $colis = fn(array $set) => (int) array_sum(array_column($set, 'nb_colis'));
 
         $total = count($lignes);
         $stats = [
@@ -117,7 +115,7 @@ class MaRouteVueService
      */
     public function signature(RouteLivraison $route, array $lignes): string
     {
-        $parts = array_map(fn (array $l) => $l['id'] . ':' . $l['statut'], $lignes);
+        $parts = array_map(fn(array $l) => $l['id'] . ':' . $l['statut'], $lignes);
         sort($parts);
 
         return md5($route->statut . '|' . implode(',', $parts));

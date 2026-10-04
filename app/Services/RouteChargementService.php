@@ -35,8 +35,7 @@ class RouteChargementService
 {
     public function __construct(
         private readonly NotificationCenterService $notificationCenter,
-    ) {
-    }
+    ) {}
 
     /**
      * Vrai si la tournée a basculé en 'chargement' (et que l'équipe
@@ -58,7 +57,7 @@ class RouteChargementService
         }
 
         $toutesPretes = $route->etapes->every(
-            fn ($e) => $e->livraison === null || $e->livraison->statut_conditionnement === 'prete',
+            fn($e) => $e->livraison === null || $e->livraison->statut_conditionnement === 'prete',
         );
 
         if (!$toutesPretes) {

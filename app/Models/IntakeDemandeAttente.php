@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /**
  * Soumission du formulaire public d'intake en attente de confirmation par
@@ -19,8 +20,8 @@ use Illuminate\Database\Eloquent\Model;
  * @property array|null $secteurs_activite  IDs (belongsToMany, hors $donnees)
  * @property array|null $organismes_aide    IDs (belongsToMany, hors $donnees)
  * @property array|null $documents_meta     Métadonnées fichiers, indexées "slot:index"
- * @property \Illuminate\Support\Carbon $expires_at
- * @property \Illuminate\Support\Carbon|null $confirmed_at
+ * @property Carbon $expires_at
+ * @property Carbon|null $confirmed_at
  */
 class IntakeDemandeAttente extends Model
 {

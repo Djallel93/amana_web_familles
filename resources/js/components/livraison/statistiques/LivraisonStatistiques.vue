@@ -38,9 +38,9 @@
     page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
-import { useToast } from '@amana/shared-ui';
+import { ref, onMounted, onUnmounted, nextTick, computed } from "vue";
+import { router } from "@inertiajs/vue3";
+import { useToast } from "@amana/shared-ui";
 import {
     Chart,
     BarController,
@@ -50,9 +50,9 @@ import {
     Tooltip,
     Legend,
     type ChartConfiguration,
-} from 'chart.js';
-import { apiGet, apiPost } from '../shared/api';
-import type { Campagne, StatistiquesDonnees, StatistiquesParJournee } from '../shared/types';
+} from "chart.js";
+import { apiGet, apiPost } from "../shared/api";
+import type { Campagne, StatistiquesDonnees, StatistiquesParJournee } from "../shared/types";
 
 Chart.register(BarController, BarElement, LinearScale, CategoryScale, Tooltip, Legend);
 
@@ -67,15 +67,21 @@ const props = defineProps<{
 const toast = useToast();
 
 const LIBELLES_LIVRAISON: Record<string, string> = {
-    non_assignee: 'Non assignée', assignee: 'Assignée', en_cours: 'En cours',
-    livree: 'Livrée', ignoree: 'Ignorée',
+    non_assignee: "Non assignée",
+    assignee: "Assignée",
+    en_cours: "En cours",
+    livree: "Livrée",
+    ignoree: "Ignorée",
 };
 const LIBELLES_ROUTE: Record<string, string> = {
-    planifiee: 'Planifiée', chargement: 'Chargement', en_cours: 'En cours', terminee: 'Terminée',
+    planifiee: "Planifiée",
+    chargement: "Chargement",
+    en_cours: "En cours",
+    terminee: "Terminée",
 };
 
 function formatDateFr(iso: string): string {
-    const [annee, mois, jour] = iso.split('T')[0].split('-');
+    const [annee, mois, jour] = iso.split("T")[0].split("-");
     return `${jour}/${mois}/${annee}`;
 }
 
@@ -92,39 +98,39 @@ const ventilationParJournee = computed<Array<StatistiquesParJournee & { id: stri
 });
 
 function urlDonnees(id: string): string {
-    return props.donneesUrlTemplate.replace('__CAMPAGNE__', id);
+    return props.donneesUrlTemplate.replace("__CAMPAGNE__", id);
 }
 function urlSnapshot(id: string): string {
-    return props.snapshotUrlTemplate.replace('__CAMPAGNE__', id);
+    return props.snapshotUrlTemplate.replace("__CAMPAGNE__", id);
 }
 
-type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
-const loadState = ref<LoadState>('idle');
+type LoadState = "idle" | "loading" | "loaded" | "error";
+const loadState = ref<LoadState>("idle");
 // Présélectionnée (09/09/2026, prompt de cette date §1.3) quand on arrive
 // depuis le bouton "📊 Statistiques" de CampagneDetail.vue — voir
 // campagneSelectionneeId (prop, ex-data-campagne-id), même patron que
 // LiveBoard.vue.
-const campagneId = ref(props.campagneSelectionneeId ? String(props.campagneSelectionneeId) : '');
+const campagneId = ref(props.campagneSelectionneeId ? String(props.campagneSelectionneeId) : "");
 const donnees = ref<StatistiquesDonnees | null>(null);
 const snapshotEnCours = ref(false);
 
 async function charger() {
     if (!campagneId.value) {
         donnees.value = null;
-        loadState.value = 'idle';
+        loadState.value = "idle";
         return;
     }
 
-    loadState.value = 'loading';
+    loadState.value = "loading";
     const resultat = await apiGet<StatistiquesDonnees>(urlDonnees(campagneId.value));
 
     if (!resultat.ok) {
-        loadState.value = 'error';
+        loadState.value = "error";
         return;
     }
 
     donnees.value = resultat.data;
-    loadState.value = 'loaded';
+    loadState.value = "loaded";
     await nextTick();
     renderCharts();
 }
@@ -140,14 +146,14 @@ async function snapshotter() {
         return;
     }
 
-    toast.success('Instantané enregistré.');
+    toast.success("Instantané enregistré.");
     // Le tableau de comparaison historique vit désormais dans
     // Statistiques.vue comme prop de page (voir StatistiquesController::
     // index()) — un rechargement partiel Inertia de cette seule prop
     // suffit à l'actualiser, sans rechargement complet de page (voir le
     // docblock en tête de fichier pour le contexte de cette
     // substitution).
-    router.reload({ only: ['historique'] });
+    router.reload({ only: ["historique"] });
 }
 
 // ── Graphiques ────────────────────────────────────────────────────────────
@@ -156,10 +162,14 @@ const canvasRoutes = ref<HTMLCanvasElement | null>(null);
 let chartLivraisons: Chart | null = null;
 let chartRoutes: Chart | null = null;
 
-function graphiqueRepartition(libelles: Record<string, string>, donnees: Record<string, number>, couleur: string): ChartConfiguration<'bar'> {
+function graphiqueRepartition(
+    libelles: Record<string, string>,
+    donnees: Record<string, number>,
+    couleur: string,
+): ChartConfiguration<"bar"> {
     const cles = Object.keys(donnees);
     return {
-        type: 'bar',
+        type: "bar",
         data: {
             labels: cles.map((c) => libelles[c] ?? c),
             datasets: [{ data: cles.map((c) => donnees[c]), backgroundColor: couleur }],
@@ -180,10 +190,16 @@ function renderCharts(): void {
     chartRoutes?.destroy();
 
     if (canvasLivraisons.value) {
-        chartLivraisons = new Chart(canvasLivraisons.value, graphiqueRepartition(LIBELLES_LIVRAISON, donnees.value.livraisons_par_statut, '#b45309'));
+        chartLivraisons = new Chart(
+            canvasLivraisons.value,
+            graphiqueRepartition(LIBELLES_LIVRAISON, donnees.value.livraisons_par_statut, "#b45309"),
+        );
     }
     if (canvasRoutes.value) {
-        chartRoutes = new Chart(canvasRoutes.value, graphiqueRepartition(LIBELLES_ROUTE, donnees.value.routes_par_statut, '#0f766e'));
+        chartRoutes = new Chart(
+            canvasRoutes.value,
+            graphiqueRepartition(LIBELLES_ROUTE, donnees.value.routes_par_statut, "#0f766e"),
+        );
     }
 }
 
@@ -205,8 +221,11 @@ onUnmounted(() => {
 <template>
     <div class="flex flex-col gap-5">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-            <select v-model="campagneId" @change="charger"
-                class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
+            <select
+                v-model="campagneId"
+                @change="charger"
+                class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]"
+            >
                 <option value="">— Choisir une campagne —</option>
                 <option v-for="c in campagnes" :key="c.id" :value="String(c.id)">
                     {{ formatDateFr(c.date_livraison) }} — {{ c.type }}
@@ -223,23 +242,34 @@ onUnmounted(() => {
 
         <template v-else-if="loadState === 'loaded' && donnees">
             <div class="flex items-center justify-end">
-                <button v-if="peutSnapshotter" type="button" :disabled="snapshotEnCours" @click="snapshotter"
-                    class="min-h-[2.25rem] text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60">
-                    📸 {{ snapshotEnCours ? 'Enregistrement…' : 'Enregistrer un instantané' }}
+                <button
+                    v-if="peutSnapshotter"
+                    type="button"
+                    :disabled="snapshotEnCours"
+                    @click="snapshotter"
+                    class="min-h-[2.25rem] text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted disabled:opacity-60"
+                >
+                    📸 {{ snapshotEnCours ? "Enregistrement…" : "Enregistrer un instantané" }}
                 </button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm px-4 py-4">
-                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">Ménages (donateurs)</div>
+                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">
+                        Ménages (donateurs)
+                    </div>
                     <div class="text-xl font-heading font-semibold text-ink">{{ donnees.nombre_menages }}</div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm px-4 py-4">
-                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">Poids collecté</div>
+                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">
+                        Poids collecté
+                    </div>
                     <div class="text-xl font-heading font-semibold text-ink">{{ donnees.poids_collecte_kg }} kg</div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm px-4 py-4">
-                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">Poids livré</div>
+                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">
+                        Poids livré
+                    </div>
                     <div class="text-xl font-heading font-semibold text-ink">{{ donnees.poids_livre_kg }} kg</div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm px-4 py-4">
@@ -247,12 +277,20 @@ onUnmounted(() => {
                     <div class="text-xl font-heading font-semibold text-ink">{{ donnees.routes_total }}</div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm px-4 py-4">
-                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">Distance totale</div>
-                    <div class="text-xl font-heading font-semibold text-ink">{{ donnees.distance_totale_km.toFixed(1) }} km</div>
+                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">
+                        Distance totale
+                    </div>
+                    <div class="text-xl font-heading font-semibold text-ink">
+                        {{ donnees.distance_totale_km.toFixed(1) }} km
+                    </div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm px-4 py-4">
-                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">Taux de livraison</div>
-                    <div class="text-xl font-heading font-semibold text-ink">{{ Math.round(donnees.taux_livraison * 100) }}%</div>
+                    <div class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] mb-1">
+                        Taux de livraison
+                    </div>
+                    <div class="text-xl font-heading font-semibold text-ink">
+                        {{ Math.round(donnees.taux_livraison * 100) }}%
+                    </div>
                 </div>
             </div>
 
@@ -266,7 +304,9 @@ onUnmounted(() => {
                     </div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-                    <p class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.4px] mb-3">Tournées par statut</p>
+                    <p class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.4px] mb-3">
+                        Tournées par statut
+                    </p>
                     <div class="relative h-[220px]">
                         <canvas ref="canvasRoutes"></canvas>
                     </div>
@@ -280,8 +320,13 @@ onUnmounted(() => {
                 computed ventilationParJournee) ; en complément des
                 totaux ci-dessus, pas en remplacement.
             -->
-            <div v-if="ventilationParJournee.length > 1" class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 overflow-x-auto">
-                <p class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.4px] mb-3">Ventilation par journée</p>
+            <div
+                v-if="ventilationParJournee.length > 1"
+                class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 overflow-x-auto"
+            >
+                <p class="text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.4px] mb-3">
+                    Ventilation par journée
+                </p>
                 <table class="w-full text-[12.5px] text-ink">
                     <thead>
                         <tr class="text-left text-ink-muted border-b border-surface-border">
@@ -294,7 +339,11 @@ onUnmounted(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="j in ventilationParJournee" :key="j.id" class="border-b border-surface-border last:border-0">
+                        <tr
+                            v-for="j in ventilationParJournee"
+                            :key="j.id"
+                            class="border-b border-surface-border last:border-0"
+                        >
                             <td class="py-1.5 pr-3">{{ j.label ?? formatDateFr(j.date) }}</td>
                             <td class="py-1.5 pr-3">{{ j.livraisons_total }}</td>
                             <td class="py-1.5 pr-3">{{ j.poids_livre_kg }} kg</td>

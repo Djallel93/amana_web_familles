@@ -15,6 +15,4 @@ namespace App\Exceptions;
  * ResoudreAdresseFamille::handle() pour logger + auditer sans retry
  * (contrairement à GeocodingTransientException).
  */
-class GeocodingConfigException extends \RuntimeException
-{
-}
+class GeocodingConfigException extends \RuntimeException {}

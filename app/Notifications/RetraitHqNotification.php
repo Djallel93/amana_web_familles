@@ -51,8 +51,7 @@ class RetraitHqNotification extends Notification
         private readonly Livraison $livraison,
         private readonly Famille $famille,
         private readonly QrCodeService $qrCode,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -69,7 +68,7 @@ class RetraitHqNotification extends Notification
 
         $campagne = $this->livraison->campagne;
 
-        $message = $this->embedLogo(new MailMessage);
+        $message = $this->embedLogo(new MailMessage());
         $message = $this->embedQrCode($message, $svg, $this->livraison->id);
 
         return $message

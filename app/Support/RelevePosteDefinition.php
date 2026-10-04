@@ -54,8 +54,7 @@ final readonly class RelevePosteDefinition
         public string $regleValidation,
         public bool $estEntier,
         public string $role,
-    ) {
-    }
+    ) {}
 
     public static function pour(string $type): self
     {

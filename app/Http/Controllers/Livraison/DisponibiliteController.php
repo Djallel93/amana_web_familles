@@ -36,8 +36,7 @@ class DisponibiliteController extends Controller
 {
     public function __construct(
         private readonly BenevoleDisponibiliteService $disponibiliteService,
-    ) {
-    }
+    ) {}
 
     public function show(Campagne $campagne): View
     {
@@ -57,7 +56,7 @@ class DisponibiliteController extends Controller
             'journees' => $journees,
             'disponibilites' => $disponibilites,
             // État initial des blocs Véhicule/Couverture, par journée.
-            'etats' => $journees->mapWithKeys(fn ($j) => [
+            'etats' => $journees->mapWithKeys(fn($j) => [
                 $j->id => $this->disponibiliteService->etatFormulaire($disponibilites->get($j->id)),
             ]),
             'vehicules' => GeographiePicker::vehiculesAvecPermis(),

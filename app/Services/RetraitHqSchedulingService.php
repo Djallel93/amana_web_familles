@@ -8,7 +8,6 @@ namespace App\Services;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
 use App\Models\Livraison;
-use App\Support\Creneau;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 
@@ -65,7 +64,7 @@ class RetraitHqSchedulingService
             ->where('se_deplace', true)
             ->with('famille:id,criticite')
             ->get()
-            ->sortByDesc(fn (Livraison $l) => $l->famille->criticite ?? 0)
+            ->sortByDesc(fn(Livraison $l) => $l->famille->criticite ?? 0)
             ->values();
 
         if ($livraisons->isEmpty()) {

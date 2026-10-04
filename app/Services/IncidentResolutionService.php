@@ -31,8 +31,7 @@ class IncidentResolutionService
     public function __construct(
         private readonly RouteGenerationService $generationService,
         private readonly NotificationCenterService $notificationCenter,
-    ) {
-    }
+    ) {}
 
     /**
      * @return array<string, mixed> Résultat du re-clustering pour benevole_absent, [] sinon
@@ -81,7 +80,7 @@ class IncidentResolutionService
     public function forcerResolutionPourCampagne(Campagne $campagne): int
     {
         $incidents = RouteIncident::ouverts()
-            ->whereHas('route', fn ($q) => $q->where('id_campagne', $campagne->id))
+            ->whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
             ->get();
 
         foreach ($incidents as $incident) {

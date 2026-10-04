@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use Amana\Shared\Models\Personne;
 use App\Models\CampagneEquipeMembre;
 use Closure;
 use Illuminate\Http\Request;
@@ -52,7 +53,7 @@ class EnsureLivraisonRole
 {
     public function handle(Request $request, Closure $next, string $role): Response
     {
-        /** @var \Amana\Shared\Models\Personne $personne */
+        /** @var Personne $personne */
         $personne = Auth::user();
 
         $autorise = $personne->isAdmin()

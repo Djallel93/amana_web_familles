@@ -43,7 +43,7 @@ class VerificationsControllerTest extends TestCase
         // — Famille n'est pas Notifiable, voir FamilleVerificationNotification.
         Notification::assertSentOnDemand(
             FamilleVerificationNotification::class,
-            fn ($notification, $channels, $notifiable) => $notifiable->routes['mail'] === 'famille@example.fr',
+            fn($notification, $channels, $notifiable) => $notifiable->routes['mail'] === 'famille@example.fr',
         );
     }
 

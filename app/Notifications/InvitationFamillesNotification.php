@@ -21,8 +21,7 @@ class InvitationFamillesNotification extends Notification
 
     public function __construct(
         private readonly string $resetUrl
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -36,7 +35,7 @@ class InvitationFamillesNotification extends Notification
             'mailer' => config('mail.default'),
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('Bienvenue sur AMANA Familles — Créez votre mot de passe')
             ->view('emails.invitation-familles', [
                 'prenom' => $notifiable->prenom,

@@ -28,7 +28,7 @@
     consommateur de ce composant (vérifié par grep avant conversion).
 -->
 <script setup lang="ts">
-import { ref, nextTick } from 'vue';
+import { ref, nextTick } from "vue";
 
 declare global {
     interface Window {
@@ -52,11 +52,11 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
     if (window.__googleMapsLoadPromise) return window.__googleMapsLoadPromise;
 
     window.__googleMapsLoadPromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
+        const script = document.createElement("script");
         script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&language=fr`;
         script.async = true;
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error('google_maps_load_failed'));
+        script.onerror = () => reject(new Error("google_maps_load_failed"));
         document.head.appendChild(script);
     });
 
@@ -68,24 +68,24 @@ async function initAutocomplete(): Promise<void> {
 
     try {
         await loadGoogleMapsScript(googlePlacesKey.value);
-        const { PlaceAutocompleteElement } = await window.google.maps.importLibrary('places');
+        const { PlaceAutocompleteElement } = await window.google.maps.importLibrary("places");
 
         autocompleteElement = new PlaceAutocompleteElement({
-            includedRegionCodes: ['fr'],
-            requestedLanguage: 'fr',
+            includedRegionCodes: ["fr"],
+            requestedLanguage: "fr",
         });
         // Même correctif thème sombre que DetailPanel.vue/IntakeForm.vue —
         // voir commentaire détaillé là-bas.
-        autocompleteElement.style.width = '100%';
-        autocompleteElement.style.setProperty('color-scheme', 'light');
-        autocompleteElement.style.setProperty('background-color', '#ffffff');
-        autocompleteElement.style.setProperty('border', '1px solid #d6d3d1');
-        autocompleteElement.style.setProperty('border-radius', '6px');
+        autocompleteElement.style.width = "100%";
+        autocompleteElement.style.setProperty("color-scheme", "light");
+        autocompleteElement.style.setProperty("background-color", "#ffffff");
+        autocompleteElement.style.setProperty("border", "1px solid #d6d3d1");
+        autocompleteElement.style.setProperty("border-radius", "6px");
         containerRef.value.appendChild(autocompleteElement);
 
-        autocompleteElement.addEventListener('gmp-select', async ({ placePrediction }: any) => {
+        autocompleteElement.addEventListener("gmp-select", async ({ placePrediction }: any) => {
             const place = placePrediction.toPlace();
-            await place.fetchFields({ fields: ['formattedAddress', 'displayName', 'types'] });
+            await place.fetchFields({ fields: ["formattedAddress", "displayName", "types"] });
 
             // "establishment" (ou une sous-catégorie de lieu, ex. "lodging")
             // dans place.types signale un POI nommé plutôt qu'une simple
@@ -93,15 +93,16 @@ async function initAutocomplete(): Promise<void> {
             // l'établissement, pour ne pas obtenir "12 Rue X, 12 Rue X" sur
             // une adresse de rue ordinaire (displayName vaut alors la rue
             // elle-même côté API Google).
-            const estUnLieu = (place.types ?? []).includes('establishment');
-            const libelle = estUnLieu && place.displayName
-                ? `${place.displayName}, ${place.formattedAddress}`
-                : place.formattedAddress;
+            const estUnLieu = (place.types ?? []).includes("establishment");
+            const libelle =
+                estUnLieu && place.displayName
+                    ? `${place.displayName}, ${place.formattedAddress}`
+                    : place.formattedAddress;
 
             const cible = document.getElementById(targetInputId.value) as HTMLInputElement | null;
             if (cible && libelle) {
                 cible.value = libelle;
-                cible.dispatchEvent(new Event('input', { bubbles: true }));
+                cible.dispatchEvent(new Event("input", { bubbles: true }));
                 cible.focus();
             }
 
@@ -119,13 +120,16 @@ async function ouvrirRecherche(): Promise<void> {
     await nextTick();
     await initAutocomplete();
 }
-
 </script>
 
 <template>
     <div>
-        <button type="button" @click="ouvrirRecherche" v-if="!showSearch"
-            class="text-[11px] text-accent hover:text-accent-dark font-semibold transition-colors cursor-pointer bg-transparent border-0 p-0">
+        <button
+            type="button"
+            @click="ouvrirRecherche"
+            v-if="!showSearch"
+            class="text-[11px] text-accent hover:text-accent-dark font-semibold transition-colors cursor-pointer bg-transparent border-0 p-0"
+        >
             🔍 Rechercher via Google Maps
         </button>
         <div v-show="showSearch" ref="containerRef" class="mt-1.5"></div>

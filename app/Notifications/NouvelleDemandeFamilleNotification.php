@@ -30,8 +30,7 @@ class NouvelleDemandeFamilleNotification extends Notification
 
     public function __construct(
         private readonly Famille $famille,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -46,7 +45,7 @@ class NouvelleDemandeFamilleNotification extends Notification
             'mailer' => config('mail.default'),
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject("Nouvelle demande d'aide — {$this->famille->prenom} {$this->famille->nom}")
             ->view('emails.nouvelle-demande-famille', [
                 'destinatairePrenom' => $notifiable->prenom,

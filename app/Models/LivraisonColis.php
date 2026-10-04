@@ -8,6 +8,7 @@ namespace App\Models;
 use Amana\Shared\Models\Personne;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Un colis individuel (un par personne du foyer) d'une Livraison — voir
@@ -20,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int    $id_livraison
  * @property int    $numero          1 à nombre_personnes
  * @property string $statut          a_preparer|pret
- * @property \Illuminate\Support\Carbon|null $pret_le
+ * @property Carbon|null $pret_le
  * @property int|null $pret_par
  */
 class LivraisonColis extends Model

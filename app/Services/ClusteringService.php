@@ -33,8 +33,7 @@ class ClusteringService
 {
     public function __construct(
         private readonly GeoCalculationService $geo,
-    ) {
-    }
+    ) {}
 
     /**
      * Identifie les clusters géographiques — port de identifierClusters().
@@ -140,7 +139,7 @@ class ClusteringService
         }
 
         // Étape 3 : Trier par distance du QG (le plus loin en premier).
-        usort($clusters, fn ($a, $b) => $b['distance_hq'] <=> $a['distance_hq']);
+        usort($clusters, fn($a, $b) => $b['distance_hq'] <=> $a['distance_hq']);
 
         return $clusters;
     }
@@ -173,6 +172,7 @@ class ClusteringService
                     $livraison['latitude'], $livraison['longitude'],
                     $autre['latitude'], $autre['longitude'],
                 );
+
                 return $dist < $seuilKm;
             }));
 

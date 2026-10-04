@@ -94,7 +94,7 @@ class LivraisonGenerationServiceTest extends TestCase
 
     // ── genererPour() ────────────────────────────────────────────────────
 
-    public function test_genererPour_cree_une_livraison_par_famille_selectionnee(): void
+    public function test_generer_pour_cree_une_livraison_par_famille_selectionnee(): void
     {
         $campagne = $this->creerCampagne();
         $famille = Famille::factory()->create(['etat_dossier' => 'Validé', 'nombre_adulte' => 2, 'nombre_enfant' => 1, 'etudiant' => false, 'est_hotel' => false]);
@@ -111,7 +111,7 @@ class LivraisonGenerationServiceTest extends TestCase
         $this->assertSame('non_assignee', $livraison->statut);
     }
 
-    public function test_genererPour_saute_silencieusement_une_famille_deja_generee(): void
+    public function test_generer_pour_saute_silencieusement_une_famille_deja_generee(): void
     {
         $campagne = $this->creerCampagne();
         $famille = Famille::factory()->create(['etat_dossier' => 'Validé']);
@@ -131,7 +131,7 @@ class LivraisonGenerationServiceTest extends TestCase
      * est_hotel at once is excluded from generation and reported in
      * `conflits`, rather than a random rate being picked.
      */
-    public function test_genererPour_exclut_les_familles_etudiant_et_hotel_a_la_fois(): void
+    public function test_generer_pour_exclut_les_familles_etudiant_et_hotel_a_la_fois(): void
     {
         $campagne = $this->creerCampagne();
         $conflit = Famille::factory()->create(['etat_dossier' => 'Validé', 'etudiant' => true, 'est_hotel' => true]);
@@ -146,7 +146,7 @@ class LivraisonGenerationServiceTest extends TestCase
         $this->assertSame(0, Livraison::where('id_famille', $conflit->id)->count());
     }
 
-    public function test_genererPour_applique_le_taux_hotel_quand_est_hotel_seul(): void
+    public function test_generer_pour_applique_le_taux_hotel_quand_est_hotel_seul(): void
     {
         $campagne = $this->creerCampagne(['poids_moyen_kg' => 10.0, 'poids_moyen_hotel_kg' => 5.0]);
         $famille = Famille::factory()->create([
@@ -160,7 +160,7 @@ class LivraisonGenerationServiceTest extends TestCase
         $this->assertEqualsWithDelta(10.0, (float) $resultat['livraisons']->first()->poids_kg, 0.01);
     }
 
-    public function test_genererPour_cree_un_colis_par_personne(): void
+    public function test_generer_pour_cree_un_colis_par_personne(): void
     {
         $campagne = $this->creerCampagne();
         $famille = Famille::factory()->create(['etat_dossier' => 'Validé', 'nombre_adulte' => 2, 'nombre_enfant' => 2, 'etudiant' => false, 'est_hotel' => false]);
@@ -171,7 +171,7 @@ class LivraisonGenerationServiceTest extends TestCase
         $this->assertSame([1, 2, 3, 4], $resultat['livraisons']->first()->colis->pluck('numero')->sort()->values()->all());
     }
 
-    public function test_genererPour_snapshot_note_besoins_speciaux_depuis_specificites(): void
+    public function test_generer_pour_snapshot_note_besoins_speciaux_depuis_specificites(): void
     {
         $campagne = $this->creerCampagne();
         $famille = Famille::factory()->create(['etat_dossier' => 'Validé', 'specificites' => 'Allergie arachides', 'etudiant' => false, 'est_hotel' => false]);

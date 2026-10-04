@@ -5,8 +5,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use Amana\Shared\Models\VehiculeType;
+use App\Http\Controllers\Controller;
 use App\Models\BenevoleProfil;
 use App\Models\Personne;
 use App\Notifications\BenevoleCandidatureValideeDejaInscritNotification;
@@ -40,8 +40,7 @@ class BenevoleCandidaturesController extends Controller
 {
     public function __construct(
         private readonly RoleService $roleService,
-    ) {
-    }
+    ) {}
 
     public function index(Request $request): View
     {

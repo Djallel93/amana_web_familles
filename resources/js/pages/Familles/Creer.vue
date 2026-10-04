@@ -10,8 +10,8 @@
     bg-ink, cf. Livraison/Contacts.vue).
 -->
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
-import IntakeForm from '../../components/intake/IntakeForm.vue';
+import { Head } from "@inertiajs/vue3";
+import IntakeForm from "../../components/intake/IntakeForm.vue";
 
 interface ListeOption {
     id: number;
@@ -22,7 +22,7 @@ interface ListeOption {
 }
 
 defineProps<{
-    langue: 'fr' | 'ar' | 'en';
+    langue: "fr" | "ar" | "en";
     storeUrl: string;
     retourUrl: string;
     secteursActivite: ListeOption[];
@@ -36,15 +36,24 @@ defineProps<{
     <Head title="Créer une famille — AMANA Familles" />
 
     <div class="max-w-3xl mx-auto py-8">
-        <a :href="retourUrl"
-            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
+        <a
+            :href="retourUrl"
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90"
+        >
             ← Retour aux dossiers
         </a>
 
         <h1 class="font-heading text-xl font-semibold text-ink mb-6">Créer une famille</h1>
 
-        <IntakeForm :mode-staff="true" :langue="langue" :store-url="storeUrl" refus-url=""
-            :secteurs-activite="secteursActivite" :organismes-aide="organismesAide" :organisations="organisations"
-            :google-places-api-key="googlePlacesApiKey" />
+        <IntakeForm
+            :mode-staff="true"
+            :langue="langue"
+            :store-url="storeUrl"
+            refus-url=""
+            :secteurs-activite="secteursActivite"
+            :organismes-aide="organismesAide"
+            :organisations="organisations"
+            :google-places-api-key="googlePlacesApiKey"
+        />
     </div>
 </template>

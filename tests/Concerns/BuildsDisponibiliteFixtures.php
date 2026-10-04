@@ -22,7 +22,7 @@ trait BuildsDisponibiliteFixtures
     /** @return array{voiture: int, utilitaire: int, sans_permis: int, non_vehicule: int} */
     private function creerVehicules(): array
     {
-        $creer = fn (string $type, float $capacite, int $parts) => VehiculeType::create([
+        $creer = fn(string $type, float $capacite, int $parts) => VehiculeType::create([
             'type' => $type, 'capacite_kg' => $capacite, 'nombre_part_max' => $parts,
         ])->id;
 
@@ -44,11 +44,11 @@ trait BuildsDisponibiliteFixtures
         $connexion = config('amana-shared.connection', 'commun');
 
         // `boundary` : MULTIPOLYGON NOT NULL, forme sans importance ici.
-        $ville = fn (string $nom) => DB::connection($connexion)->table('villes')->insertGetId([
+        $ville = fn(string $nom) => DB::connection($connexion)->table('villes')->insertGetId([
             'nom' => $nom,
             'boundary' => DB::raw("ST_GeomFromText('MULTIPOLYGON(((0 0,0 1,1 1,1 0,0 0)))', 4326)"),
         ]);
-        $secteur = fn (string $nom, int $idVille) => DB::connection($connexion)->table('secteurs')->insertGetId([
+        $secteur = fn(string $nom, int $idVille) => DB::connection($connexion)->table('secteurs')->insertGetId([
             'nom' => $nom, 'id_ville' => $idVille,
         ]);
 

@@ -42,12 +42,12 @@
     consommateur sous cette forme.
 -->
 <script setup lang="ts">
-import { Head, usePage } from '@inertiajs/vue3';
-import { computed } from 'vue';
-import SettingsTabs from '../../components/admin/SettingsTabs.vue';
-import SettingsReglageRow, { type ReglageData } from '../../components/admin/SettingsReglageRow.vue';
-import HqCoordinatesAutocomplete from '../../components/admin/HqCoordinatesAutocomplete.vue';
-import HotelAddressAutocomplete from '../../components/admin/HotelAddressAutocomplete.vue';
+import { Head, usePage } from "@inertiajs/vue3";
+import { computed } from "vue";
+import SettingsTabs from "../../components/admin/SettingsTabs.vue";
+import SettingsReglageRow, { type ReglageData } from "../../components/admin/SettingsReglageRow.vue";
+import HqCoordinatesAutocomplete from "../../components/admin/HqCoordinatesAutocomplete.vue";
+import HotelAddressAutocomplete from "../../components/admin/HotelAddressAutocomplete.vue";
 
 interface Vehicule {
     id: number;
@@ -92,11 +92,11 @@ const page = usePage<{ errors: Record<string, string>; old: Record<string, any> 
 // portée telle quelle depuis $errors->keys() vers la prop 'errors'.
 const defaultTab = computed(() => {
     const cles = Object.keys(page.props.errors ?? {});
-    if (cles.some((cle) => cle.startsWith('settings.route_'))) return 'itineraires';
-    if (cles.includes('code') || cles.includes('nom')) return 'organisations';
-    if (cles.includes('adresse')) return 'hotels';
-    if (cles.some((cle) => cle.startsWith('vehicules.'))) return 'vehicules';
-    return 'general';
+    if (cles.some((cle) => cle.startsWith("settings.route_"))) return "itineraires";
+    if (cles.includes("code") || cles.includes("nom")) return "organisations";
+    if (cles.includes("adresse")) return "hotels";
+    if (cles.some((cle) => cle.startsWith("vehicules."))) return "vehicules";
+    return "general";
 });
 
 function erreur(cle: string): string | undefined {
@@ -107,7 +107,7 @@ function oldSettings(cle: string): unknown {
     return page.props.old?.settings?.[cle];
 }
 
-function oldVehicule(id: number, champ: 'capacite_kg' | 'nombre_part_max'): unknown {
+function oldVehicule(id: number, champ: "capacite_kg" | "nombre_part_max"): unknown {
     return page.props.old?.vehicules?.[String(id)]?.[champ];
 }
 
@@ -118,7 +118,7 @@ const oldAdresse = computed(() => page.props.old?.adresse as string | undefined)
 // Voir le docblock ci-dessus : les <form> de cette page restent des
 // soumissions natives, le jeton CSRF est lu comme partout ailleurs dans
 // l'app pour ce cas de figure (shared/api.ts, formulaires publics).
-const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "";
 </script>
 
 <template>
@@ -134,13 +134,19 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
     <SettingsTabs :default-tab="defaultTab" />
 
     <form :action="updateUrl" method="POST" class="max-w-2xl mb-8">
-        <input type="hidden" name="_token" :value="csrfToken">
+        <input type="hidden" name="_token" :value="csrfToken" />
 
         <div data-settings-tab="general">
             <div class="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border">
                 <template v-if="Object.keys(reglagesGeneraux).length">
-                    <SettingsReglageRow v-for="(data, cle) in reglagesGeneraux" :key="cle" :cle="cle" :data="data"
-                        :old-valeur="oldSettings(cle)" :erreur="erreur(`settings.${cle}`)" />
+                    <SettingsReglageRow
+                        v-for="(data, cle) in reglagesGeneraux"
+                        :key="cle"
+                        :cle="cle"
+                        :data="data"
+                        :old-valeur="oldSettings(cle)"
+                        :erreur="erreur(`settings.${cle}`)"
+                    />
                 </template>
                 <p v-else class="p-4 text-sm text-ink-muted">Aucun paramètre configuré pour cette application.</p>
             </div>
@@ -149,8 +155,14 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
         <div data-settings-tab="itineraires">
             <div class="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border">
                 <template v-if="Object.keys(reglagesItineraires).length">
-                    <SettingsReglageRow v-for="(data, cle) in reglagesItineraires" :key="cle" :cle="cle" :data="data"
-                        :old-valeur="oldSettings(cle)" :erreur="erreur(`settings.${cle}`)" />
+                    <SettingsReglageRow
+                        v-for="(data, cle) in reglagesItineraires"
+                        :key="cle"
+                        :cle="cle"
+                        :data="data"
+                        :old-valeur="oldSettings(cle)"
+                        :erreur="erreur(`settings.${cle}`)"
+                    />
                 </template>
                 <p v-else class="p-4 text-sm text-ink-muted">Aucun réglage d'itinéraire configuré.</p>
             </div>
@@ -159,34 +171,59 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                 <h3 class="font-heading text-base font-semibold text-ink tracking-tight mb-1">HQ par défaut</h3>
                 <p class="text-[13px] text-ink-muted mb-3">
                     Coordonnées du point de départ des tournées (local de l'association). Requises avant tout
-                    clustering. Recherchez une adresse pour remplir automatiquement les coordonnées, ou
-                    saisissez-les manuellement — seules les coordonnées sont conservées, pas l'adresse recherchée.
+                    clustering. Recherchez une adresse pour remplir automatiquement les coordonnées, ou saisissez-les
+                    manuellement — seules les coordonnées sont conservées, pas l'adresse recherchée.
                 </p>
 
-                <HqCoordinatesAutocomplete :google-places-key="googlePlacesKey" target-lat-id="setting-route_hq_latitude"
-                    target-lng-id="setting-route_hq_longitude" />
+                <HqCoordinatesAutocomplete
+                    :google-places-key="googlePlacesKey"
+                    target-lat-id="setting-route_hq_latitude"
+                    target-lng-id="setting-route_hq_longitude"
+                />
 
                 <div class="flex gap-3 max-w-md mt-3">
                     <div class="flex-1">
-                        <label for="setting-route_hq_latitude" class="block text-xs font-bold text-ink mb-1.5">Latitude</label>
-                        <input type="number" step="any" id="setting-route_hq_latitude" name="settings[route_hq_latitude]"
-                            :value="oldSettings('route_hq_latitude') ?? settings.route_hq_latitude?.valeur" readonly
-                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted">
+                        <label for="setting-route_hq_latitude" class="block text-xs font-bold text-ink mb-1.5"
+                            >Latitude</label
+                        >
+                        <input
+                            type="number"
+                            step="any"
+                            id="setting-route_hq_latitude"
+                            name="settings[route_hq_latitude]"
+                            :value="oldSettings('route_hq_latitude') ?? settings.route_hq_latitude?.valeur"
+                            readonly
+                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted"
+                        />
                     </div>
                     <div class="flex-1">
-                        <label for="setting-route_hq_longitude" class="block text-xs font-bold text-ink mb-1.5">Longitude</label>
-                        <input type="number" step="any" id="setting-route_hq_longitude" name="settings[route_hq_longitude]"
-                            :value="oldSettings('route_hq_longitude') ?? settings.route_hq_longitude?.valeur" readonly
-                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted">
+                        <label for="setting-route_hq_longitude" class="block text-xs font-bold text-ink mb-1.5"
+                            >Longitude</label
+                        >
+                        <input
+                            type="number"
+                            step="any"
+                            id="setting-route_hq_longitude"
+                            name="settings[route_hq_longitude]"
+                            :value="oldSettings('route_hq_longitude') ?? settings.route_hq_longitude?.valeur"
+                            readonly
+                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted"
+                        />
                     </div>
                 </div>
-                <span v-if="erreur('settings.route_hq_latitude')" class="block text-xs text-rose-600 mt-1">{{ erreur('settings.route_hq_latitude') }}</span>
-                <span v-if="erreur('settings.route_hq_longitude')" class="block text-xs text-rose-600 mt-1">{{ erreur('settings.route_hq_longitude') }}</span>
+                <span v-if="erreur('settings.route_hq_latitude')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("settings.route_hq_latitude")
+                }}</span>
+                <span v-if="erreur('settings.route_hq_longitude')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("settings.route_hq_longitude")
+                }}</span>
             </div>
         </div>
 
-        <button type="submit"
-            class="mt-5 px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer">
+        <button
+            type="submit"
+            class="mt-5 px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer"
+        >
             Enregistrer
         </button>
     </form>
@@ -194,44 +231,66 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
     <div class="max-w-2xl" data-settings-tab="vehicules">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Types de véhicule</h2>
         <p class="text-[13px] text-ink-muted mb-4">
-            Capacité de charge et nombre de colis transportables par type de véhicule — utilisés par le
-            formulaire de candidature bénévole et le futur moteur de répartition des livraisons.
-            Le libellé de chaque type n'est pas modifiable ici.
+            Capacité de charge et nombre de colis transportables par type de véhicule — utilisés par le formulaire de
+            candidature bénévole et le futur moteur de répartition des livraisons. Le libellé de chaque type n'est pas
+            modifiable ici.
         </p>
 
-        <form :action="vehiculesUpdateUrl" method="POST"
-            class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden">
-            <input type="hidden" name="_token" :value="csrfToken">
+        <form
+            :action="vehiculesUpdateUrl"
+            method="POST"
+            class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden"
+        >
+            <input type="hidden" name="_token" :value="csrfToken" />
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
                         <tr>
-                            <th v-for="col in ['Type', 'Capacité (kg)', 'Nb. colis max']" :key="col"
-                                class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap">
+                            <th
+                                v-for="col in ['Type', 'Capacité (kg)', 'Nb. colis max']"
+                                :key="col"
+                                class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap"
+                            >
                                 {{ col }}
                             </th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="vehicule in vehicules" :key="vehicule.id" class="border-b border-surface-3 last:border-0">
+                        <tr
+                            v-for="vehicule in vehicules"
+                            :key="vehicule.id"
+                            class="border-b border-surface-3 last:border-0"
+                        >
                             <td class="px-4 py-2.5 text-ink font-semibold">{{ vehicule.type }}</td>
                             <td class="px-4 py-2.5">
-                                <input type="number" step="0.01" min="0" :name="`vehicules[${vehicule.id}][capacite_kg]`"
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    :name="`vehicules[${vehicule.id}][capacite_kg]`"
                                     :value="oldVehicule(vehicule.id, 'capacite_kg') ?? vehicule.capacite_kg"
-                                    class="w-28 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
+                                    class="w-28 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
+                                />
                             </td>
                             <td class="px-4 py-2.5">
-                                <input type="number" step="1" min="0" :name="`vehicules[${vehicule.id}][nombre_part_max]`"
+                                <input
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    :name="`vehicules[${vehicule.id}][nombre_part_max]`"
                                     :value="oldVehicule(vehicule.id, 'nombre_part_max') ?? vehicule.nombre_part_max"
-                                    class="w-24 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
+                                    class="w-24 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
+                                />
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
             <div class="px-4 py-3 border-t border-surface-3">
-                <button type="submit"
-                    class="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer min-h-[44px]">
+                <button
+                    type="submit"
+                    class="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer min-h-[44px]"
+                >
                     Enregistrer
                 </button>
             </div>
@@ -250,37 +309,59 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
             <table class="w-full border-collapse text-[13px]">
                 <thead>
                     <tr>
-                        <th v-for="col in ['Code', 'Nom', 'Statut', '']" :key="col"
-                            class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap">
+                        <th
+                            v-for="col in ['Code', 'Nom', 'Statut', '']"
+                            :key="col"
+                            class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap"
+                        >
                             {{ col }}
                         </th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-for="organisation in organisations" :key="organisation.id" class="border-b border-surface-3 last:border-0">
-                        <form :action="organisationsUpdateUrlTemplate.replace('__ID__', String(organisation.id))"
-                            method="POST" class="contents">
-                            <input type="hidden" name="_token" :value="csrfToken">
-                            <input type="hidden" name="_method" value="PUT">
+                    <tr
+                        v-for="organisation in organisations"
+                        :key="organisation.id"
+                        class="border-b border-surface-3 last:border-0"
+                    >
+                        <form
+                            :action="organisationsUpdateUrlTemplate.replace('__ID__', String(organisation.id))"
+                            method="POST"
+                            class="contents"
+                        >
+                            <input type="hidden" name="_token" :value="csrfToken" />
+                            <input type="hidden" name="_method" value="PUT" />
                             <td class="px-4 py-2.5 text-ink-muted font-mono text-xs">
                                 {{ organisation.code }}
-                                <span v-if="organisation.est_principale"
-                                    class="ml-1.5 px-1.5 py-0.5 rounded bg-accent/10 text-accent text-[10px] font-bold uppercase tracking-wide">Principale</span>
+                                <span
+                                    v-if="organisation.est_principale"
+                                    class="ml-1.5 px-1.5 py-0.5 rounded bg-accent/10 text-accent text-[10px] font-bold uppercase tracking-wide"
+                                    >Principale</span
+                                >
                             </td>
                             <td class="px-4 py-2.5">
-                                <input type="text" name="nom" :value="oldNom ?? organisation.nom"
-                                    class="w-full px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
+                                <input
+                                    type="text"
+                                    name="nom"
+                                    :value="oldNom ?? organisation.nom"
+                                    class="w-full px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
+                                />
                             </td>
                             <td class="px-4 py-2.5">
-                                <select name="actif" :disabled="organisation.est_principale"
-                                    class="px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink disabled:opacity-60">
+                                <select
+                                    name="actif"
+                                    :disabled="organisation.est_principale"
+                                    class="px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink disabled:opacity-60"
+                                >
                                     <option value="1" :selected="organisation.actif">Active</option>
                                     <option value="0" :selected="!organisation.actif">Désactivée</option>
                                 </select>
                             </td>
                             <td class="px-4 py-2.5 text-right">
-                                <button type="submit"
-                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer">
+                                <button
+                                    type="submit"
+                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer"
+                                >
                                     Enregistrer
                                 </button>
                             </td>
@@ -290,23 +371,42 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
             </table>
         </div>
 
-        <form :action="organisationsStoreUrl" method="POST"
-            class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-end gap-3">
-            <input type="hidden" name="_token" :value="csrfToken">
+        <form
+            :action="organisationsStoreUrl"
+            method="POST"
+            class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-end gap-3"
+        >
+            <input type="hidden" name="_token" :value="csrfToken" />
             <div class="flex-1">
                 <label for="org-code" class="block text-xs font-bold text-ink mb-1.5">Code</label>
-                <input type="text" id="org-code" name="code" :value="oldCode" required placeholder="ex : secours-machin"
-                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
-                <span v-if="erreur('code')" class="block text-xs text-rose-600 mt-1">{{ erreur('code') }}</span>
+                <input
+                    type="text"
+                    id="org-code"
+                    name="code"
+                    :value="oldCode"
+                    required
+                    placeholder="ex : secours-machin"
+                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+                />
+                <span v-if="erreur('code')" class="block text-xs text-rose-600 mt-1">{{ erreur("code") }}</span>
             </div>
             <div class="flex-1">
                 <label for="org-nom" class="block text-xs font-bold text-ink mb-1.5">Nom</label>
-                <input type="text" id="org-nom" name="nom" :value="oldNom" required placeholder="ex : Secours Machin"
-                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
-                <span v-if="erreur('nom')" class="block text-xs text-rose-600 mt-1">{{ erreur('nom') }}</span>
+                <input
+                    type="text"
+                    id="org-nom"
+                    name="nom"
+                    :value="oldNom"
+                    required
+                    placeholder="ex : Secours Machin"
+                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+                />
+                <span v-if="erreur('nom')" class="block text-xs text-rose-600 mt-1">{{ erreur("nom") }}</span>
             </div>
-            <button type="submit"
-                class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer">
+            <button
+                type="submit"
+                class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer"
+            >
                 + Ajouter
             </button>
         </form>
@@ -315,17 +415,20 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
     <div class="max-w-2xl mt-10" data-settings-tab="hotels">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Adresses hôtel</h2>
         <p class="text-[13px] text-ink-muted mb-4">
-            Adresses d'hébergement d'urgence connues (hôtels, appart-hôtels). Quand l'adresse d'une famille
-            correspond à une entrée de cette liste, la case "hôtel" de son dossier est cochée automatiquement,
-            même si la famille ne l'a pas cochée elle-même. Un même établissement peut avoir plusieurs adresses.
+            Adresses d'hébergement d'urgence connues (hôtels, appart-hôtels). Quand l'adresse d'une famille correspond à
+            une entrée de cette liste, la case "hôtel" de son dossier est cochée automatiquement, même si la famille ne
+            l'a pas cochée elle-même. Un même établissement peut avoir plusieurs adresses.
         </p>
 
         <div class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden mb-4">
             <table class="w-full border-collapse text-[13px]">
                 <thead>
                     <tr>
-                        <th v-for="col in ['Adresse', '']" :key="col"
-                            class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap">
+                        <th
+                            v-for="col in ['Adresse', '']"
+                            :key="col"
+                            class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap"
+                        >
                             {{ col }}
                         </th>
                     </tr>
@@ -334,29 +437,51 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                     <tr v-if="hotelAddresses.length === 0">
                         <td colspan="2" class="px-4 py-4 text-ink-muted text-center">Aucune adresse enregistrée.</td>
                     </tr>
-                    <tr v-for="hotelAddress in hotelAddresses" :key="hotelAddress.id" class="border-b border-surface-3 last:border-0">
+                    <tr
+                        v-for="hotelAddress in hotelAddresses"
+                        :key="hotelAddress.id"
+                        class="border-b border-surface-3 last:border-0"
+                    >
                         <td class="px-4 py-2.5">
-                            <form :action="hotelAddressesUpdateUrlTemplate.replace('__ID__', String(hotelAddress.id))"
-                                method="POST" class="flex items-center gap-2">
-                                <input type="hidden" name="_token" :value="csrfToken">
-                                <input type="hidden" name="_method" value="PUT">
-                                <input type="text" name="adresse" :value="oldAdresse ?? hotelAddress.adresse" required
-                                    class="flex-1 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink">
-                                <button type="submit"
-                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap">
+                            <form
+                                :action="hotelAddressesUpdateUrlTemplate.replace('__ID__', String(hotelAddress.id))"
+                                method="POST"
+                                class="flex items-center gap-2"
+                            >
+                                <input type="hidden" name="_token" :value="csrfToken" />
+                                <input type="hidden" name="_method" value="PUT" />
+                                <input
+                                    type="text"
+                                    name="adresse"
+                                    :value="oldAdresse ?? hotelAddress.adresse"
+                                    required
+                                    class="flex-1 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
+                                />
+                                <button
+                                    type="submit"
+                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap"
+                                >
                                     Enregistrer
                                 </button>
                             </form>
                         </td>
                         <td class="px-1 py-2.5 text-right">
-                            <form :action="hotelAddressesDestroyUrlTemplate.replace('__ID__', String(hotelAddress.id))"
-                                method="POST" data-confirm="Supprimer cette adresse hôtel ? Les dossiers déjà marqués « hôtel » ne seront pas modifiés."
-                                data-confirm-danger data-confirm-label="Supprimer">
-                                <input type="hidden" name="_token" :value="csrfToken">
-                                <input type="hidden" name="_method" value="DELETE">
-                                <button type="submit"
+                            <form
+                                :action="hotelAddressesDestroyUrlTemplate.replace('__ID__', String(hotelAddress.id))"
+                                method="POST"
+                                data-confirm="Supprimer cette adresse hôtel ? Les dossiers déjà marqués « hôtel » ne seront pas modifiés."
+                                data-confirm-danger
+                                data-confirm-label="Supprimer"
+                            >
+                                <input type="hidden" name="_token" :value="csrfToken" />
+                                <input type="hidden" name="_method" value="DELETE" />
+                                <button
+                                    type="submit"
                                     class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
-                                    title="Supprimer">🗑️</button>
+                                    title="Supprimer"
+                                >
+                                    🗑️
+                                </button>
                             </form>
                         </td>
                     </tr>
@@ -364,25 +489,41 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
             </table>
         </div>
 
-        <form :action="hotelAddressesStoreUrl" method="POST"
-            class="bg-surface rounded-xl border border-surface-border shadow-sm p-4">
-            <input type="hidden" name="_token" :value="csrfToken">
+        <form
+            :action="hotelAddressesStoreUrl"
+            method="POST"
+            class="bg-surface rounded-xl border border-surface-border shadow-sm p-4"
+        >
+            <input type="hidden" name="_token" :value="csrfToken" />
             <label for="hotel-address-adresse" class="block text-xs font-bold text-ink mb-1.5">Nouvelle adresse</label>
             <div class="flex items-end gap-3">
                 <div class="flex-1">
-                    <input type="text" id="hotel-address-adresse" name="adresse" :value="oldAdresse" required
+                    <input
+                        type="text"
+                        id="hotel-address-adresse"
+                        name="adresse"
+                        :value="oldAdresse"
+                        required
                         placeholder="ex : 12 Rue de la Johardière, 44800 Saint-Herblain"
-                        class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
-                    <span v-if="erreur('adresse')" class="block text-xs text-rose-600 mt-1">{{ erreur('adresse') }}</span>
+                        class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+                    />
+                    <span v-if="erreur('adresse')" class="block text-xs text-rose-600 mt-1">{{
+                        erreur("adresse")
+                    }}</span>
                     <!-- Widget d'appoint : bouton "Rechercher via Google Maps" qui
                          remplit le champ ci-dessus au lieu de le remplacer — voir
                          HotelAddressAutocomplete.vue. La saisie manuelle reste
                          toujours possible sans JS. -->
-                    <HotelAddressAutocomplete :google-places-key="googlePlacesKey" target-input-id="hotel-address-adresse"
-                        class="mt-1.5" />
+                    <HotelAddressAutocomplete
+                        :google-places-key="googlePlacesKey"
+                        target-input-id="hotel-address-adresse"
+                        class="mt-1.5"
+                    />
                 </div>
-                <button type="submit"
-                    class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer">
+                <button
+                    type="submit"
+                    class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer"
+                >
                     + Ajouter
                 </button>
             </div>

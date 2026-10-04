@@ -7,6 +7,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int         $id
@@ -15,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null    $uploaded_by  ID de ref_personnes — pas de FK (table partagée, voir migration)
  * @property string      $status
  * @property int|null    $id_organisation
- * @property \Illuminate\Support\Carbon|null $rolled_back_at
+ * @property Carbon|null $rolled_back_at
  */
 class FamilleImport extends Model
 {

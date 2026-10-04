@@ -61,7 +61,7 @@ class CampagnesListeEtCreationTest extends TestCase
 
         $this->actingAs($this->creerPersonne(['gestionnaire']))->get(route('livraison.campagnes.index'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/Campagnes')
                 ->has('campagnes', 1)
                 ->where('creerUrl', route('livraison.campagnes.creer'))
@@ -81,7 +81,7 @@ class CampagnesListeEtCreationTest extends TestCase
     {
         $this->actingAs($this->creerPersonne(['gestionnaire']))->get(route('livraison.campagnes.creer'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn($page) => $page
                 ->component('Livraison/CampagneCreer')
                 ->where('storeUrl', route('livraison.campagnes.store'))
                 ->where('retourUrl', route('livraison.campagnes.index'))
@@ -98,7 +98,7 @@ class CampagnesListeEtCreationTest extends TestCase
         $this->actingAs($this->creerPersonne(['gestionnaire']))
             ->get('/livraison/campagnes/creer')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Livraison/CampagneCreer'));
+            ->assertInertia(fn($page) => $page->component('Livraison/CampagneCreer'));
     }
 
     public function test_un_membre_ne_voit_ni_la_liste_ni_la_creation_ni_les_stats(): void

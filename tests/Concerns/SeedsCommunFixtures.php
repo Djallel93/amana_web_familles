@@ -49,7 +49,7 @@ trait SeedsCommunFixtures
             ->table('ref_roles')
             ->where('id_application', $this->idApplicationFamilles)
             ->pluck('id', 'code')
-            ->map(fn ($id) => (int) $id)
+            ->map(fn($id) => (int) $id)
             ->all();
     }
 
@@ -74,7 +74,7 @@ trait SeedsCommunFixtures
         ], $attributs));
 
         foreach ($roles as $code) {
-            if (! isset($this->roleIds[$code])) {
+            if (!isset($this->roleIds[$code])) {
                 throw new \InvalidArgumentException("Rôle inconnu ou non chargé (appeler chargerRolesFamilles() d'abord) : {$code}");
             }
 

@@ -35,7 +35,7 @@ class VehicleAssignmentServiceTest extends TestCase
         return [
             'id' => $id,
             'centre' => ['lat' => 0.0, 'lng' => 0.0],
-            'livraisons' => array_map(fn (array $l) => array_merge([
+            'livraisons' => array_map(fn(array $l) => array_merge([
                 'latitude' => 0.0, 'longitude' => 0.0, 'nombre_personnes' => 1, 'poids_kg' => 10.0,
             ], $l), $livraisons),
             'quartier_id' => $quartierId,

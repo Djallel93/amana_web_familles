@@ -1,4 +1,7 @@
 <?php
+
+use App\Models\Personne;
+
 // config/auth.php
 
 return [
@@ -34,7 +37,7 @@ return [
     'providers' => [
         'personnes' => [
             'driver' => 'eloquent',
-            'model' => App\Models\Personne::class,
+            'model' => Personne::class,
         ],
     ],
 

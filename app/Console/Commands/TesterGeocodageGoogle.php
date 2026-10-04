@@ -52,6 +52,7 @@ class TesterGeocodageGoogle extends Command
     {
         if (!$geocodingService->isConfigured()) {
             $this->error('Clé API Google Maps Geocoding non configurée (GOOGLE_MAPS_GEOCODING_API_KEY manquante en .env).');
+
             return self::FAILURE;
         }
 
@@ -60,6 +61,7 @@ class TesterGeocodageGoogle extends Command
         if ($this->option('sync')) {
             if (!$idFamille) {
                 $this->error('--sync nécessite --famille=ID (le job lit l\'adresse depuis la base, pas depuis --adresse).');
+
                 return self::FAILURE;
             }
 
@@ -95,6 +97,7 @@ class TesterGeocodageGoogle extends Command
 
             if (!$famille) {
                 $this->error("Famille #{$idFamille} introuvable.");
+
                 return [null, null, null];
             }
 
@@ -111,6 +114,7 @@ class TesterGeocodageGoogle extends Command
 
         if (!$adresse || !$codePostal || !$ville) {
             $this->error('Fournir soit --famille=ID, soit --adresse ET --code-postal ET --ville.');
+
             return [null, null, null];
         }
 
@@ -134,14 +138,17 @@ class TesterGeocodageGoogle extends Command
             $resultat = $geocodingService->geocoder($adresse, $codePostal, $ville);
         } catch (GeocodingConfigException $e) {
             $this->error("Erreur de configuration (pas de retry en conditions réelles) : {$e->getMessage()}");
+
             return self::FAILURE;
         } catch (GeocodingTransientException $e) {
             $this->error("Échec transitoire (déclencherait un retry en conditions réelles) : {$e->getMessage()}");
+
             return self::FAILURE;
         }
 
         if (!$resultat->trouve) {
             $this->warn("Adresse non géocodable (statut Google : {$resultat->statutBrut}).");
+
             return self::SUCCESS;
         }
 
@@ -171,6 +178,7 @@ class TesterGeocodageGoogle extends Command
 
         if (!$famille) {
             $this->error("Famille #{$idFamille} introuvable.");
+
             return self::FAILURE;
         }
 

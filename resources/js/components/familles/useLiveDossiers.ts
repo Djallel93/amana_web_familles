@@ -61,9 +61,9 @@
 //    conservé volontairement ; au retour sur l'onglet, un rechargement
 //    immédiat (comme les autres pollers de l'application).
 
-import { router, usePoll } from '@inertiajs/vue3';
-import { onUnmounted, watch } from 'vue';
-import { useDossierPanel } from './useDossierPanel';
+import { router, usePoll } from "@inertiajs/vue3";
+import { onUnmounted, watch } from "vue";
+import { useDossierPanel } from "./useDossierPanel";
 
 export const LIVE_DOSSIERS_INTERVALLE_MS = 15000;
 const DELAI_MAX_VISITE_MS = 30000;
@@ -81,7 +81,7 @@ export function useLiveDossiers(intervalleMs: number = LIVE_DOSSIERS_INTERVALLE_
 
     function optionsRechargement() {
         return {
-            only: ['familles'],
+            only: ["familles"],
             async: true,
             // Renvoyer false annule ce tick (voir l'en-tête : pourquoi mode 'cancel').
             onBefore: () => !bloque(),
@@ -94,17 +94,17 @@ export function useLiveDossiers(intervalleMs: number = LIVE_DOSSIERS_INTERVALLE_
         };
     }
 
-    usePoll(intervalleMs, optionsRechargement, { mode: 'cancel' });
+    usePoll(intervalleMs, optionsRechargement, { mode: "cancel" });
 
     // Visites de l'UTILISATEUR (non async : tri, filtre, pagination, ouverture
     // ?ouvrir=…). Les rechargements de poll sont async et ne comptent pas.
     const desabonnements = [
-        router.on('start', (evenement) => {
+        router.on("start", (evenement) => {
             if (evenement.detail.visit.async) return;
             visiteUtilisateurDepuis = Date.now();
             annulerRechargement?.();
         }),
-        router.on('finish', (evenement) => {
+        router.on("finish", (evenement) => {
             if (!evenement.detail.visit.async) visiteUtilisateurDepuis = null;
         }),
     ];
@@ -118,10 +118,10 @@ export function useLiveDossiers(intervalleMs: number = LIVE_DOSSIERS_INTERVALLE_
         // panneau est ouvert ou si une visite utilisateur est en cours.
         if (!document.hidden) router.reload(optionsRechargement());
     }
-    document.addEventListener('visibilitychange', auChangementDeVisibilite);
+    document.addEventListener("visibilitychange", auChangementDeVisibilite);
 
     onUnmounted(() => {
         desabonnements.forEach((desabonner) => desabonner());
-        document.removeEventListener('visibilitychange', auChangementDeVisibilite);
+        document.removeEventListener("visibilitychange", auChangementDeVisibilite);
     });
 }

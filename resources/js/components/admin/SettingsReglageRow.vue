@@ -23,7 +23,7 @@
 -->
 <script setup lang="ts">
 export interface ReglageData {
-    type: 'boolean' | 'encrypted' | 'float' | 'integer' | 'string';
+    type: "boolean" | "encrypted" | "float" | "integer" | "string";
     libelle: string;
     description: string | null;
     valeur: unknown;
@@ -54,24 +54,53 @@ const valeurAffichee = props.oldValeur !== undefined ? props.oldValeur : props.d
                  toujours soumise même décochée (la checkbox l'écrase à '1' si
                  cochée, même name donc même clé dans settings[], le dernier gagne). -->
             <label v-if="data.type === 'boolean'" class="relative inline-flex items-center cursor-pointer">
-                <input type="hidden" :name="`settings[${cle}]`" value="0">
-                <input type="checkbox" :id="`setting-${cle}`" :name="`settings[${cle}]`" value="1"
-                    :checked="Boolean(valeurAffichee)" class="sr-only peer">
+                <input type="hidden" :name="`settings[${cle}]`" value="0" />
+                <input
+                    type="checkbox"
+                    :id="`setting-${cle}`"
+                    :name="`settings[${cle}]`"
+                    value="1"
+                    :checked="Boolean(valeurAffichee)"
+                    class="sr-only peer"
+                />
                 <div
-                    class="w-11 h-6 bg-ink-faint/40 rounded-full peer peer-checked:bg-accent transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5">
-                </div>
+                    class="w-11 h-6 bg-ink-faint/40 rounded-full peer peer-checked:bg-accent transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"
+                ></div>
             </label>
-            <textarea v-else-if="data.type === 'encrypted'" :id="`setting-${cle}`" :name="`settings[${cle}]`" rows="3"
+            <textarea
+                v-else-if="data.type === 'encrypted'"
+                :id="`setting-${cle}`"
+                :name="`settings[${cle}]`"
+                rows="3"
                 v-text="valeurAffichee"
-                class="w-full max-w-md px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-xs font-mono bg-surface-2 text-ink resize-y"></textarea>
-            <input v-else-if="data.type === 'float'" type="number" step="any" :id="`setting-${cle}`"
-                :name="`settings[${cle}]`" :value="valeurAffichee"
-                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
-            <input v-else-if="data.type === 'integer'" type="number" step="1" :id="`setting-${cle}`"
-                :name="`settings[${cle}]`" :value="valeurAffichee"
-                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
-            <input v-else type="text" :id="`setting-${cle}`" :name="`settings[${cle}]`" :value="valeurAffichee"
-                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink">
+                class="w-full max-w-md px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-xs font-mono bg-surface-2 text-ink resize-y"
+            ></textarea>
+            <input
+                v-else-if="data.type === 'float'"
+                type="number"
+                step="any"
+                :id="`setting-${cle}`"
+                :name="`settings[${cle}]`"
+                :value="valeurAffichee"
+                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+            />
+            <input
+                v-else-if="data.type === 'integer'"
+                type="number"
+                step="1"
+                :id="`setting-${cle}`"
+                :name="`settings[${cle}]`"
+                :value="valeurAffichee"
+                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+            />
+            <input
+                v-else
+                type="text"
+                :id="`setting-${cle}`"
+                :name="`settings[${cle}]`"
+                :value="valeurAffichee"
+                class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+            />
         </div>
         <span v-if="erreur" class="block w-full text-xs text-rose-600 mt-1">{{ erreur }}</span>
     </div>

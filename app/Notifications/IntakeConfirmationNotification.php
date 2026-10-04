@@ -41,8 +41,7 @@ class IntakeConfirmationNotification extends Notification
     public function __construct(
         private readonly IntakeDemandeAttente $demande,
         private readonly string $token,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -61,7 +60,7 @@ class IntakeConfirmationNotification extends Notification
             'id_demande' => $this->demande->id,
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject(self::SUJETS[$langue])
             ->view('emails.intake-confirmation', [
                 'prenom' => $this->demande->donnees['prenom'] ?? '',

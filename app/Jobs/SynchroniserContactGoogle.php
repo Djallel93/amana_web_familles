@@ -7,6 +7,7 @@ namespace App\Jobs;
 
 use App\Models\Famille;
 use App\Services\GoogleContactsService;
+use Google\Service\Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -50,12 +51,12 @@ class SynchroniserContactGoogle implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $backoff = 60;
 
     public function __construct(
         private readonly int $idFamille
-    ) {
-    }
+    ) {}
 
     public function handle(GoogleContactsService $googleContacts): void
     {
@@ -63,6 +64,7 @@ class SynchroniserContactGoogle implements ShouldQueue
 
         if (!$famille) {
             Log::warning('[SynchroniserContactGoogle] Famille introuvable', ['id' => $this->idFamille]);
+
             return;
         }
 
@@ -70,6 +72,7 @@ class SynchroniserContactGoogle implements ShouldQueue
             Log::warning('[SynchroniserContactGoogle] Google Contacts non configuré/autorisé — synchronisation ignorée', [
                 'id_famille' => $famille->id,
             ]);
+
             return;
         }
 
@@ -79,7 +82,7 @@ class SynchroniserContactGoogle implements ShouldQueue
             if ($action === 'update') {
                 try {
                     $googleContacts->updateContact($famille);
-                } catch (\Google\Service\Exception $e) {
+                } catch (Exception $e) {
                     if ($e->getCode() !== 404) {
                         throw $e;
                     }
@@ -111,6 +114,7 @@ class SynchroniserContactGoogle implements ShouldQueue
                 'erreur' => $e->getMessage(),
             ]);
             $this->fail($e);
+
             return;
         }
 

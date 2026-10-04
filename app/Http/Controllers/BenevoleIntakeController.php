@@ -44,8 +44,7 @@ class BenevoleIntakeController extends Controller
 
     public function __construct(
         private readonly BenevoleIntakeAttenteService $attenteService,
-    ) {
-    }
+    ) {}
 
     /**
      * Section E4 du refactor (16/09/2026) — page Inertia, remplace
@@ -102,7 +101,7 @@ class BenevoleIntakeController extends Controller
             ->rootView('app-public')
             ->withViewData([
                 'langue' => $langue,
-                'titre' => "AMANA Familles — Candidature bénévole",
+                'titre' => 'AMANA Familles — Candidature bénévole',
                 'tagline' => 'Candidature bénévole',
                 'langueSwitchRoute' => 'benevole.show',
             ]);

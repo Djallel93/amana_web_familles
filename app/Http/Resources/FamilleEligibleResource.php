@@ -49,7 +49,7 @@ class FamilleEligibleResource extends JsonResource
             'telephone' => $this->telephone,
             'telephone_bis' => $this->telephone_bis,
             'adresse' => $this->adresse,
-            'quartier' => $this->whenLoaded('quartier', fn () => $this->quartier ? new QuartierResource($this->quartier) : null),
+            'quartier' => $this->whenLoaded('quartier', fn() => $this->quartier ? new QuartierResource($this->quartier) : null),
             'criticite' => $this->criticite,
             'derniere_livraison_le' => $this->derniere_livraison_le,
             'id_livraison' => $this->when(isset($this->id_livraison), $this->id_livraison),

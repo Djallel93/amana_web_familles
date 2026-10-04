@@ -45,7 +45,7 @@ class ReleveResource extends JsonResource
             'id' => $this->id,
             $this->definition->champ => $this->{$this->definition->champ},
             'horodatage' => $this->horodatage,
-            'logge_par' => $this->whenLoaded('loggePar', fn () => $this->loggePar ? new PersonneResumeResource($this->loggePar) : $this->getAttribute('logge_par')),
+            'logge_par' => $this->whenLoaded('loggePar', fn() => $this->loggePar ? new PersonneResumeResource($this->loggePar) : $this->getAttribute('logge_par')),
         ];
     }
 }

@@ -26,8 +26,7 @@ class NouvelleCandidatureBenevoleNotification extends Notification
     public function __construct(
         private readonly BenevoleProfil $profil,
         private readonly Personne $candidat,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -41,7 +40,7 @@ class NouvelleCandidatureBenevoleNotification extends Notification
             'candidat_id' => $this->candidat->id,
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('Nouvelle candidature bénévole — ' . $this->candidat->prenom . ' ' . strtoupper($this->candidat->nom))
             ->view('emails.nouvelle-candidature-benevole', [
                 'adminPrenom' => $notifiable->prenom,

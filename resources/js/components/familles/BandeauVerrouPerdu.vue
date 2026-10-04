@@ -11,9 +11,12 @@ defineProps<{ par: string | null }>();
 </script>
 
 <template>
-    <div role="alert" data-bandeau-verrou-perdu
-        class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900">
-        <strong>⚠️ {{ par ?? 'Un autre utilisateur' }}</strong> a repris ce dossier pendant que vous l'éditiez.
-        Si vous enregistrez, vous écraserez ses modifications.
+    <div
+        role="alert"
+        data-bandeau-verrou-perdu
+        class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"
+    >
+        <strong>⚠️ {{ par ?? "Un autre utilisateur" }}</strong> a repris ce dossier pendant que vous l'éditiez. Si vous
+        enregistrez, vous écraserez ses modifications.
     </div>
 </template>

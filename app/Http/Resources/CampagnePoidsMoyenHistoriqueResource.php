@@ -40,7 +40,7 @@ class CampagnePoidsMoyenHistoriqueResource extends JsonResource
             'ancienne_valeur' => $this->ancienne_valeur,
             'nouvelle_valeur' => $this->nouvelle_valeur,
             'horodatage' => $this->horodatage,
-            'logge_par' => $this->whenLoaded('loggePar', fn () => $this->loggePar ? new PersonneResumeResource($this->loggePar) : null),
+            'logge_par' => $this->whenLoaded('loggePar', fn() => $this->loggePar ? new PersonneResumeResource($this->loggePar) : null),
         ];
     }
 }

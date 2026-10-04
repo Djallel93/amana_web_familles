@@ -77,6 +77,7 @@ class DatabaseSeeder extends Seeder
             $this->command->error('❌ Application "familles" introuvable dans ref_applications — vérifiez que '
                 . '`php artisan amana:migrate-shared` PUIS `php artisan migrate` ont bien été exécutés '
                 . '(cette dernière contient la migration qui enregistre familles automatiquement).');
+
             return;
         }
 

@@ -29,18 +29,18 @@ final class GeographiePicker
     public static function villesAvecSecteurs(): array
     {
         return Ville::query()
-            ->with(['secteurs' => fn ($q) => $q->select(['id', 'nom', 'id_ville'])->orderBy('nom')])
+            ->with(['secteurs' => fn($q) => $q->select(['id', 'nom', 'id_ville'])->orderBy('nom')])
             ->orderBy('nom')
             ->get(['id', 'nom'])
-            ->map(fn (Ville $ville) => [
+            ->map(fn(Ville $ville) => [
                 'id' => (int) $ville->id,
                 'nom' => (string) $ville->nom,
                 'secteurs' => $ville->secteurs
-                    ->map(fn ($secteur) => ['id' => (int) $secteur->id, 'nom' => (string) $secteur->nom])
+                    ->map(fn($secteur) => ['id' => (int) $secteur->id, 'nom' => (string) $secteur->nom])
                     ->values()
                     ->all(),
             ])
-            ->filter(fn (array $ville) => $ville['secteurs'] !== [])
+            ->filter(fn(array $ville) => $ville['secteurs'] !== [])
             ->values()
             ->all();
     }
@@ -59,7 +59,7 @@ final class GeographiePicker
             ->where('type', '!=', self::LIBELLE_SANS_PERMIS)
             ->orderBy('id')
             ->get(['id', 'type'])
-            ->map(fn (VehiculeType $v) => ['id' => (int) $v->id, 'type' => (string) $v->type])
+            ->map(fn(VehiculeType $v) => ['id' => (int) $v->id, 'type' => (string) $v->type])
             ->all();
     }
 }

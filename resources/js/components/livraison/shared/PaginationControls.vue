@@ -1,4 +1,4 @@
-<!-- resources/js/components/livraison/shared/Paginator.vue -->
+<!-- resources/js/components/livraison/shared/PaginationControls.vue -->
 <!--
     Pagination pour les listes chargées en JSON par les écrans livraison
     (checklist familles éligibles, file de contact) — jusqu'ici la seule
@@ -13,11 +13,11 @@
     fetch, cette pagination est juste l'affichage + les boutons.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { Paginated } from './types';
+import { computed } from "vue";
+import type { Paginated } from "./types";
 
 const props = defineProps<{
-    meta: Paginated<unknown>['meta'];
+    meta: Paginated<unknown>["meta"];
 }>();
 
 const emit = defineEmits<{
@@ -29,16 +29,16 @@ const surDernierePage = computed(() => props.meta.current_page >= props.meta.las
 
 function aller(page: number) {
     if (page < 1 || page > props.meta.last_page || page === props.meta.current_page) return;
-    emit('change', page);
+    emit("change", page);
 }
 </script>
 
 <template>
     <div v-if="meta.total > 0" class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <p class="text-[12px] text-ink-muted order-2 sm:order-1">
-            Affichage <strong class="text-ink">{{ meta.from }}–{{ meta.to }}</strong>
-            sur <strong class="text-ink">{{ meta.total }}</strong>
-            {{ meta.total > 1 ? 'résultats' : 'résultat' }}
+            Affichage <strong class="text-ink">{{ meta.from }}–{{ meta.to }}</strong> sur
+            <strong class="text-ink">{{ meta.total }}</strong>
+            {{ meta.total > 1 ? "résultats" : "résultat" }}
         </p>
 
         <div v-if="meta.last_page > 1" class="flex items-center gap-1 order-1 sm:order-2">
@@ -47,21 +47,33 @@ function aller(page: number) {
                  souris — ces boutons doivent rester utilisables au doigt sur
                  les écrans consultés depuis un téléphone (file de contact,
                  tableau de bord). -->
-            <button type="button" :disabled="surPremierePage" @click="aller(meta.current_page - 1)"
+            <button
+                type="button"
+                :disabled="surPremierePage"
+                @click="aller(meta.current_page - 1)"
                 class="min-h-[2.25rem] px-3 py-1.5 border border-surface-border rounded-md text-[12.5px] font-semibold transition-colors"
-                :class="surPremierePage
-                    ? 'text-ink-faint bg-surface-2 cursor-not-allowed'
-                    : 'text-ink bg-surface hover:bg-surface-2 active:scale-95'">
+                :class="
+                    surPremierePage
+                        ? 'text-ink-faint bg-surface-2 cursor-not-allowed'
+                        : 'text-ink bg-surface hover:bg-surface-2 active:scale-95'
+                "
+            >
                 ← Précédent
             </button>
             <span class="px-2 text-[12.5px] text-ink-muted whitespace-nowrap">
                 Page {{ meta.current_page }} / {{ meta.last_page }}
             </span>
-            <button type="button" :disabled="surDernierePage" @click="aller(meta.current_page + 1)"
+            <button
+                type="button"
+                :disabled="surDernierePage"
+                @click="aller(meta.current_page + 1)"
                 class="min-h-[2.25rem] px-3 py-1.5 border border-surface-border rounded-md text-[12.5px] font-semibold transition-colors"
-                :class="surDernierePage
-                    ? 'text-ink-faint bg-surface-2 cursor-not-allowed'
-                    : 'text-ink bg-surface hover:bg-surface-2 active:scale-95'">
+                :class="
+                    surDernierePage
+                        ? 'text-ink-faint bg-surface-2 cursor-not-allowed'
+                        : 'text-ink bg-surface hover:bg-surface-2 active:scale-95'
+                "
+            >
                 Suivant →
             </button>
         </div>

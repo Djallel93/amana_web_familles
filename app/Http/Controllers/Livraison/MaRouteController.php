@@ -11,10 +11,12 @@ use App\Models\BenevoleRetourQg;
 use App\Models\EtapeRoute;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use App\Notifications\DemandeNouvelleTourneeNotification;
 use App\Services\MaRouteVueService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
@@ -31,9 +33,7 @@ use Illuminate\Validation\ValidationException;
  */
 class MaRouteController extends Controller
 {
-    public function __construct(private readonly MaRouteVueService $vue)
-    {
-    }
+    public function __construct(private readonly MaRouteVueService $vue) {}
 
     public function show(): View
     {
@@ -67,7 +67,7 @@ class MaRouteController extends Controller
     }
 
     /**
-     * @param \Illuminate\Support\Collection<int, RouteLivraison> $routes
+     * @param Collection<int, RouteLivraison> $routes
      * @return array<string, mixed>
      */
     private function donneesVue($routes, bool $modeAdmin): array
@@ -124,7 +124,7 @@ class MaRouteController extends Controller
         $this->assertProprietaire($etape);
 
         if ($etape->statut !== 'ignoree') {
-            throw ValidationException::withMessages(['etape' => "Seul un arrêt ignoré peut être remis en cours."]);
+            throw ValidationException::withMessages(['etape' => 'Seul un arrêt ignoré peut être remis en cours.']);
         }
 
         if (!in_array($etape->route->statut, ['en_cours', 'livraisons_terminees'], true)) {
@@ -268,10 +268,10 @@ class MaRouteController extends Controller
         ]);
 
         $destinataires = Personne::adminsDe()->orWhere(
-            fn ($q) => $q->avecRole('gestionnaire'),
+            fn($q) => $q->avecRole('gestionnaire'),
         )->get();
 
-        Notification::send($destinataires, new \App\Notifications\DemandeNouvelleTourneeNotification($route));
+        Notification::send($destinataires, new DemandeNouvelleTourneeNotification($route));
 
         return response()->json(['success' => true]);
     }

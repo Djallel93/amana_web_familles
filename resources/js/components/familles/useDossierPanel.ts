@@ -15,7 +15,7 @@
 // qu'un panneau fermé par navigation ne laisse pas le polling de la page
 // suivante bloqué.
 
-import { readonly, ref } from 'vue';
+import { readonly, ref } from "vue";
 
 const panneauOuvert = ref(false);
 

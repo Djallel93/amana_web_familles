@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Amana\Shared\Models\Personne;
+use App\Notifications\RouteIncidentNotification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Notification;
@@ -41,6 +42,7 @@ class RouteIncident extends Model
      * tant que gestionnaire/admin n'a pas marqué l'incident résolu.
      */
     public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule'];
+
     public const STATUTS = ['ouvert', 'ignore', 'resolu'];
 
     public const LABELS_STATUT = [
@@ -134,10 +136,10 @@ class RouteIncident extends Model
     {
         static::created(function (RouteIncident $incident) {
             $destinataires = Personne::adminsDe()
-                ->orWhere(fn ($q) => $q->avecRole('gestionnaire'))
+                ->orWhere(fn($q) => $q->avecRole('gestionnaire'))
                 ->get();
 
-            Notification::send($destinataires, new \App\Notifications\RouteIncidentNotification($incident));
+            Notification::send($destinataires, new RouteIncidentNotification($incident));
         });
     }
 }

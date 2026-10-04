@@ -228,7 +228,41 @@ a test, or duplicating its logic) is worse.
 
 ---
 
-## 5. What's *not* covered, and why
+## 5. The quality gate (what CI runs besides the tests)
+
+`.github/workflows/tests.yaml` runs, in this order, on every push — all of
+them must pass, and on `main` / `develop` a failure blocks the deployment:
+
+| Step | Command | Fix locally |
+|---|---|---|
+| PHPUnit | `php artisan test` | — |
+| PHPStan (level 5, `phpstan.neon`) | `composer analyse` | fix the code |
+| Pint (PHP formatting, `pint.json`) | `composer format:check` | `composer format` |
+| Prettier (frontend, `.prettierrc.json`) | `npm run format:check` | `npm run format` |
+| ESLint | `npm run lint` | fix the code (`npx eslint --fix resources/js` for the trivial ones) |
+| vue-tsc | `npm run type-check` | fix the types |
+
+It runs the same way on any branch: a throwaway MySQL service container is
+created for every run, so there is no shared test database that could be
+missing on a given branch. PHPStan, ESLint and vue-tsc don't need a database
+at all.
+
+**PHPStan baseline.** `phpstan-baseline.neon` holds the findings that already
+existed when the gate was introduced. It may only shrink: after fixing some of
+them, run `composer analyse -- --generate-baseline` and commit the smaller
+file. Never add an entry by hand to make CI pass.
+
+**Vite in tests.** `Tests\TestCase::setUp()` calls `withoutVite()`: Inertia
+pages render `app.blade.php` (`@vite`), and CI has no `public/build`. Tests
+assert props and HTML, never compiled assets.
+
+**shared-ui.** `@amana/shared-ui` is pinned by tag in `package.json` and by
+commit in `package-lock.json`. After bumping the tag, run `npm install` so the
+lockfile follows, otherwise `npm ci` fails.
+
+---
+
+## 6. What's *not* covered, and why
 
 A few gaps are recorded rather than silently missing:
 

@@ -19,8 +19,8 @@ use Tests\TestCase;
  */
 class PersonnesIndexEtDisponibiliteTest extends TestCase
 {
-    use SeedsCommunFixtures;
     use BuildsDisponibiliteFixtures;
+    use SeedsCommunFixtures;
 
     protected function setUp(): void
     {
@@ -157,7 +157,7 @@ class PersonnesIndexEtDisponibiliteTest extends TestCase
         $this->assertSame($recente->id, $defaut->viewData('journeeSelectionnee'));
         $this->assertSame(
             [$recente->id, $ancienne->id],
-            collect($defaut->viewData('groupesJournees'))->flatMap(fn ($g) => collect($g['journees'])->pluck('id'))->all(),
+            collect($defaut->viewData('groupesJournees'))->flatMap(fn($g) => collect($g['journees'])->pluck('id'))->all(),
         );
 
         $demandee = $this->actingAs($gestionnaire)

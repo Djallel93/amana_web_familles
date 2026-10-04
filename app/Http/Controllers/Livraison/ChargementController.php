@@ -9,12 +9,14 @@ use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
+use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Notifications\RouteChargeeNotification;
 use App\Services\QrCodeService;
+use App\Support\Creneau;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,8 +44,7 @@ class ChargementController extends Controller
 
     public function __construct(
         private readonly QrCodeService $qrCode,
-    ) {
-    }
+    ) {}
 
     /**
      * Point d'entrée sans campagne — voir le prompt du 05/09/2026 §4.1,
@@ -167,11 +168,11 @@ class ChargementController extends Controller
             })
             ->sortBy([
                 // charge (déjà chargée) toujours en dernier — §7.2.
-                fn ($route) => $route->statut === 'charge' ? 1 : 0,
+                fn($route) => $route->statut === 'charge' ? 1 : 0,
                 // Puis famille-urgente avant bénévole-urgent avant le
                 // reste — §7.3 : "family-availability should weigh more
                 // since we can replace the driver".
-                fn ($route) => match ($route->urgence) {
+                fn($route) => match ($route->urgence) {
                     'famille' => 0,
                     'benevole' => 1,
                     default => 2,
@@ -249,7 +250,7 @@ class ChargementController extends Controller
 
         return [
             'routesJamaisGenerees' => !$routesExistent && $enAttente->isNotEmpty() && $nonPretes->isEmpty(),
-            'lignesPreparation' => $nonPretes->map(fn (Livraison $l) => [
+            'lignesPreparation' => $nonPretes->map(fn(Livraison $l) => [
                 'id' => $l->id,
                 'html' => trim(view('livraison.partials.chargement-preparation', ['livraison' => $l])->render()),
             ])->all(),
@@ -267,7 +268,7 @@ class ChargementController extends Controller
      */
     private function calculerUrgence(RouteLivraison $route): ?string
     {
-        $creneauActuel = \App\Support\Creneau::actuel();
+        $creneauActuel = Creneau::actuel();
         if ($creneauActuel === null) {
             return null;
         }
@@ -282,7 +283,7 @@ class ChargementController extends Controller
         }
 
         if ($route->id_benevole) {
-            $disponibilite = \App\Models\BenevoleDisponibilite::where('id_personne', $route->id_benevole)
+            $disponibilite = BenevoleDisponibilite::where('id_personne', $route->id_benevole)
                 ->where('id_campagne_journee', $route->id_campagne_journee)
                 ->with('creneaux')
                 ->first();

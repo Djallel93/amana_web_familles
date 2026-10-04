@@ -70,6 +70,7 @@ class ResetAdminPassword extends Command
 
             if (!$this->confirm('Voulez-vous créer ce compte administrateur ?', true)) {
                 $this->components->error('Opération annulée.');
+
                 return Command::FAILURE;
             }
 
@@ -99,6 +100,7 @@ class ResetAdminPassword extends Command
         // ── 3. Validation basique du mot de passe ──────────────────────────
         if (strlen($motDePasse) < 8) {
             $this->components->error('Le mot de passe doit contenir au moins 8 caractères.');
+
             return Command::FAILURE;
         }
 
@@ -115,6 +117,7 @@ class ResetAdminPassword extends Command
 
         if (!$this->confirm('Confirmer la réinitialisation ?', true)) {
             $this->components->error('Opération annulée.');
+
             return Command::FAILURE;
         }
 

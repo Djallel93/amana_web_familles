@@ -31,8 +31,7 @@ class BenevoleIntakeConfirmationController extends Controller
 {
     public function __construct(
         private readonly BenevoleIntakeAttenteService $attenteService,
-    ) {
-    }
+    ) {}
 
     public function show(string $token): View
     {

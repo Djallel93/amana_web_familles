@@ -33,8 +33,7 @@ class RouteMutationService
     public function __construct(
         private readonly TspOptimizationService $tsp,
         private readonly GeoCalculationService $geo,
-    ) {
-    }
+    ) {}
 
     /**
      * Ajoute une livraison à une tournée existante — ré-ordonne
@@ -46,7 +45,7 @@ class RouteMutationService
         $hq = $this->hqOuEchoue($route->campagne);
 
         $etapesActuelles = $route->etapes()->with('livraison.famille')->orderBy('ordre')->get();
-        $livraisonsArray = $etapesActuelles->map(fn (EtapeRoute $e) => $this->versArray($e->livraison))->all();
+        $livraisonsArray = $etapesActuelles->map(fn(EtapeRoute $e) => $this->versArray($e->livraison))->all();
         $livraisonsArray[] = $this->versArray($livraison);
 
         $ordonnees = $this->tsp->optimiser($livraisonsArray, $hq);
@@ -91,7 +90,7 @@ class RouteMutationService
         });
 
         $ordonnees = $route->etapes()->with('livraison.famille')->orderBy('ordre')->get()
-            ->map(fn (EtapeRoute $e) => $this->versArray($e->livraison))->all();
+            ->map(fn(EtapeRoute $e) => $this->versArray($e->livraison))->all();
         $this->recalculerMetriques($route, $ordonnees, $hq);
 
         $this->notifierBenevole($route, 'Une livraison a été retirée de votre tournée.');
@@ -194,8 +193,8 @@ class RouteMutationService
         });
 
         $premiereMoitieArray = $route->etapes()->with('livraison.famille')->orderBy('ordre')->get()
-            ->map(fn (EtapeRoute $e) => $this->versArray($e->livraison))->all();
-        $secondeMoitieArray = $secondeMoitie->map(fn (EtapeRoute $e) => $this->versArray($e->livraison))->all();
+            ->map(fn(EtapeRoute $e) => $this->versArray($e->livraison))->all();
+        $secondeMoitieArray = $secondeMoitie->map(fn(EtapeRoute $e) => $this->versArray($e->livraison))->all();
 
         $this->recalculerMetriques($route, $premiereMoitieArray, $hq);
         $this->recalculerMetriques($nouvelleRoute, $secondeMoitieArray, $hq);
@@ -232,7 +231,7 @@ class RouteMutationService
             throw new \RuntimeException('Aucune des livraisons sélectionnées n\'est disponible.');
         }
 
-        $livraisonsArray = $livraisons->map(fn (Livraison $l) => $this->versArray($l))->all();
+        $livraisonsArray = $livraisons->map(fn(Livraison $l) => $this->versArray($l))->all();
         $ordonnees = $this->tsp->optimiser($livraisonsArray, $hq);
 
         $route = DB::transaction(function () use ($campagne, $idBenevole, $idVehiculeType, $creneau, $ordonnees) {

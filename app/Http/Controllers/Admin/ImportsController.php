@@ -48,8 +48,7 @@ class ImportsController extends Controller
     public function __construct(
         private readonly FamilleImportService $importService,
         private readonly FamilleImportRollbackService $rollbackService,
-    ) {
-    }
+    ) {}
 
     public function index(): View
     {

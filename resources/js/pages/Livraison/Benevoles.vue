@@ -24,9 +24,9 @@
     16/09/2026, cinquième du domaine livraison).
 -->
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
-import BenevoleDisponibiliteQueue from '../../components/livraison/campagnes/BenevoleDisponibiliteQueue.vue';
-import type { Campagne } from '../../components/livraison/shared/types';
+import { Head, Link } from "@inertiajs/vue3";
+import BenevoleDisponibiliteQueue from "../../components/livraison/campagnes/BenevoleDisponibiliteQueue.vue";
+import type { Campagne } from "../../components/livraison/shared/types";
 
 defineProps<{
     campagne: Campagne;
@@ -42,13 +42,19 @@ defineProps<{
     <Head title="Suivi des bénévoles — AMANA Familles" />
 
     <div class="max-w-4xl mx-auto py-8">
-        <Link :href="retourUrl"
-            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
-        ← Retour à la campagne
+        <Link
+            :href="retourUrl"
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90"
+        >
+            ← Retour à la campagne
         </Link>
 
-        <BenevoleDisponibiliteQueue :campagne="campagne" :queue-url="queueUrl"
-            :mettre-a-jour-url-template="mettreAJourUrlTemplate" :notifier-benevoles-url="notifierBenevolesUrl"
-            :personne-edit-url-template="personneEditUrlTemplate" />
+        <BenevoleDisponibiliteQueue
+            :campagne="campagne"
+            :queue-url="queueUrl"
+            :mettre-a-jour-url-template="mettreAJourUrlTemplate"
+            :notifier-benevoles-url="notifierBenevolesUrl"
+            :personne-edit-url-template="personneEditUrlTemplate"
+        />
     </div>
 </template>

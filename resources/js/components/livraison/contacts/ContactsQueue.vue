@@ -37,19 +37,18 @@
     page Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
-import { useToast } from '@amana/shared-ui';
-import { apiGet, apiPost, buildQuery } from '../shared/api';
-import Paginator from '../shared/Paginator.vue';
-import PersonSelect from '../shared/PersonSelect.vue';
-import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
-import { useFormulaireCreneaux } from '../shared/useFormulaireCreneaux';
+import { ref, reactive, computed, onMounted } from "vue";
+import { useToast } from "@amana/shared-ui";
+import { apiGet, apiPost, buildQuery } from "../shared/api";
+import PaginationControls from "../shared/PaginationControls.vue";
+import PersonSelect from "../shared/PersonSelect.vue";
+import FamilleFilterPanel from "../shared/FamilleFilterPanel.vue";
+import { useFormulaireCreneaux } from "../shared/useFormulaireCreneaux";
 import {
     CRENEAUX_MATIN,
     CRENEAUX_APRES_MIDI,
     CRENEAU_LIBELLES,
     normalizePaginated,
-    STATUTS_CONTACT_POSTABLES,
     type Campagne,
     type CampagneJournee,
     type FamilleFiltres,
@@ -62,7 +61,7 @@ import {
     type Secteur,
     type StatutContactPostable,
     type Ville,
-} from '../shared/types';
+} from "../shared/types";
 
 declare global {
     interface Window {
@@ -103,24 +102,24 @@ const contacterManuelUrlTemplate = props.contacterManuelUrlTemplate;
 const seDeplaceUrlTemplate = props.seDeplaceUrlTemplate;
 
 const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
-    injoignable: 'Injoignable',
-    confirme: 'Confirmé',
-    rejetee: 'Rejetée',
-    archive: 'Archivé',
+    injoignable: "Injoignable",
+    confirme: "Confirmé",
+    rejetee: "Rejetée",
+    archive: "Archivé",
 };
 
 function urlAssigner(id: number): string {
-    return assignerUrlTemplate.replace('__ID__', String(id));
+    return assignerUrlTemplate.replace("__ID__", String(id));
 }
 function urlContacterManuel(id: number): string {
-    return contacterManuelUrlTemplate.replace('__ID__', String(id));
+    return contacterManuelUrlTemplate.replace("__ID__", String(id));
 }
 function urlSeDeplace(id: number): string {
-    return seDeplaceUrlTemplate.replace('__ID__', String(id));
+    return seDeplaceUrlTemplate.replace("__ID__", String(id));
 }
 
 function formatDateFr(iso: string): string {
-    const [annee, mois, jour] = iso.split('T')[0].split('-');
+    const [annee, mois, jour] = iso.split("T")[0].split("-");
     return `${jour}/${mois}/${annee}`;
 }
 
@@ -143,29 +142,31 @@ function basculerLigne(id: number) {
 // statut (a_contacter inclus : il n'avait pas de libellé et s'affichait
 // en clair, « a_contacter »).
 const LIBELLES_STATUT_AFFICHE: Record<string, string> = {
-    a_contacter: 'À contacter',
+    a_contacter: "À contacter",
     ...LIBELLES_STATUT_CONTACT,
 };
 const CLASSES_STATUT_CONTACT: Record<string, string> = {
-    a_contacter: 'bg-stone-100 text-ink-muted',
-    injoignable: 'bg-amber-100 text-amber-700',
-    confirme: 'bg-emerald-100 text-emerald-700',
-    archive: 'bg-gray-200 text-gray-600',
-    rejetee: 'bg-rose-100 text-rose-700',
+    a_contacter: "bg-stone-100 text-ink-muted",
+    injoignable: "bg-amber-100 text-amber-700",
+    confirme: "bg-emerald-100 text-emerald-700",
+    archive: "bg-gray-200 text-gray-600",
+    rejetee: "bg-rose-100 text-rose-700",
 };
 
 // ── Filtre + file ────────────────────────────────────────────────────────
 const paramsUrl = new URLSearchParams(window.location.search);
-const filtreCampagne = ref(paramsUrl.get('id_campagne') ?? '');
+const filtreCampagne = ref(paramsUrl.get("id_campagne") ?? "");
 const filtresFamille = ref<FamilleFiltres>({});
 const parPage = ref(50);
 
-const campagneSelectionnee = computed(() => campagnes.value.find((c) => String(c.id) === String(filtreCampagne.value)) ?? null);
+const campagneSelectionnee = computed(
+    () => campagnes.value.find((c) => String(c.id) === String(filtreCampagne.value)) ?? null,
+);
 const journeesCampagne = computed<CampagneJournee[]>(() => campagneSelectionnee.value?.journees ?? []);
-const idJourneeSelectionnee = ref<number | ''>('');
+const idJourneeSelectionnee = ref<number | "">("");
 
 const file = ref<Livraison[]>([]);
-const meta = ref<Paginated<Livraison>['meta'] | null>(null);
+const meta = ref<Paginated<Livraison>["meta"] | null>(null);
 const chargement = ref(true);
 const erreur = ref(false);
 
@@ -279,7 +280,7 @@ async function toutSelectionnerFiltre() {
     }
 
     chargementSelectionTout.value = true;
-    const resultat = await apiGet<{ ids: number[] }>(queueUrl + queryFiltres(1) + '&ids_only=1');
+    const resultat = await apiGet<{ ids: number[] }>(queueUrl + queryFiltres(1) + "&ids_only=1");
     chargementSelectionTout.value = false;
 
     if (!resultat.ok) {
@@ -349,7 +350,8 @@ async function assignerLot(personne: PersonneResume | null) {
  * L'état de requête (envoiEnCours/erreurs) reste local : forme propre à
  * cet écran, pas au patron d'expansion lui-même.
  */
-const { formulaire, basculerOuverture, toggleCreneau, groupeToutCoche, toggleGroupe, toggleTout } = useFormulaireCreneaux();
+const { formulaire, basculerOuverture, toggleCreneau, groupeToutCoche, toggleGroupe, toggleTout } =
+    useFormulaireCreneaux();
 
 interface EtatEnvoiConfirmation {
     envoiEnCours: boolean;
@@ -389,7 +391,7 @@ function seDeplaceValeur(id: number): boolean {
     return seDeplaceFormulaire[id] ?? false;
 }
 
-async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' | 'rejetee' | 'archive') {
+async function marquerStatutSimple(livraison: Livraison, statut: "injoignable" | "rejetee" | "archive") {
     statutSimpleEnCours[livraison.id] = true;
     const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), { statut_contact: statut });
     statutSimpleEnCours[livraison.id] = false;
@@ -399,7 +401,7 @@ async function marquerStatutSimple(livraison: Livraison, statut: 'injoignable' |
         return;
     }
 
-    toast.success('Statut mis à jour.');
+    toast.success("Statut mis à jour.");
     chargerFile(meta.value?.current_page ?? 1);
 }
 
@@ -427,7 +429,7 @@ async function basculerSeDeplace(livraison: Livraison) {
     }
 
     livraison.se_deplace = resultat.data.se_deplace;
-    toast.success('Se déplace mis à jour.');
+    toast.success("Se déplace mis à jour.");
 }
 
 async function enregistrerContact(livraison: Livraison) {
@@ -437,7 +439,7 @@ async function enregistrerContact(livraison: Livraison) {
     e.erreurs = {};
 
     const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), {
-        statut_contact: 'confirme',
+        statut_contact: "confirme",
         creneaux: f.creneaux,
         se_deplace: seDeplaceValeur(livraison.id),
     });
@@ -449,7 +451,7 @@ async function enregistrerContact(livraison: Livraison) {
         return;
     }
 
-    toast.success('Contact enregistré.');
+    toast.success("Contact enregistré.");
     chargerFile(meta.value?.current_page ?? 1);
 }
 
@@ -466,7 +468,7 @@ function modifierDossier(livraison: Livraison) {
 }
 
 function surChangementCampagne() {
-    idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? '';
+    idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? "";
     chargerFile(1);
 }
 function surChangementJournee() {
@@ -474,7 +476,7 @@ function surChangementJournee() {
 }
 
 onMounted(() => {
-    if (campagneSelectionnee.value) idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? '';
+    if (campagneSelectionnee.value) idJourneeSelectionnee.value = journeesCampagne.value[0]?.id ?? "";
     chargerFile(1);
 });
 </script>
@@ -484,8 +486,11 @@ onMounted(() => {
         <div class="flex flex-col sm:flex-row sm:items-end gap-3 mb-4">
             <div>
                 <label class="block text-[12px] text-ink-muted mb-1">Campagne</label>
-                <select v-model="filtreCampagne" @change="surChangementCampagne"
-                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
+                <select
+                    v-model="filtreCampagne"
+                    @change="surChangementCampagne"
+                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]"
+                >
                     <option value="">Toutes les campagnes</option>
                     <option v-for="c in campagnes" :key="c.id" :value="c.id">
                         {{ formatDateFr(c.date_livraison) }} — {{ c.type }}
@@ -494,9 +499,14 @@ onMounted(() => {
             </div>
             <div v-if="journeesCampagne.length > 1">
                 <label class="block text-[12px] text-ink-muted mb-1">Journée</label>
-                <select v-model="idJourneeSelectionnee" @change="surChangementJournee"
-                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
-                    <option v-for="j in journeesCampagne" :key="j.id" :value="j.id">{{ j.label ?? formatDateFr(j.date) }}</option>
+                <select
+                    v-model="idJourneeSelectionnee"
+                    @change="surChangementJournee"
+                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]"
+                >
+                    <option v-for="j in journeesCampagne" :key="j.id" :value="j.id">
+                        {{ j.label ?? formatDateFr(j.date) }}
+                    </option>
                 </select>
             </div>
         </div>
@@ -527,29 +537,50 @@ onMounted(() => {
             </div>
         </div>
 
-        <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
-            :model-value="filtresFamille" @update:model-value="filtresFamille = $event" @filtrer="chargerFile(1)" avec-se-deplace avec-assignation />
+        <FamilleFilterPanel
+            :villes="villes"
+            :secteurs="secteurs"
+            :quartiers="quartiers"
+            :organisations="organisations"
+            :model-value="filtresFamille"
+            @update:model-value="filtresFamille = $event"
+            @filtrer="chargerFile(1)"
+            avec-se-deplace
+            avec-assignation
+        />
 
         <p v-if="chargement" class="text-[14px] text-ink-muted">Chargement…</p>
         <p v-else-if="erreur" class="text-[14px] text-rose-600">Impossible de charger la file de contact.</p>
         <p v-else-if="file.length === 0" class="text-[14px] text-ink-muted">Aucune livraison en attente de contact.</p>
 
         <div v-else class="space-y-3">
-            <div class="flex flex-wrap items-center gap-3 bg-stone-50 border border-surface-border rounded-xl px-4 py-2.5">
+            <div
+                class="flex flex-wrap items-center gap-3 bg-stone-50 border border-surface-border rounded-xl px-4 py-2.5"
+            >
                 <label class="flex items-center gap-2 text-[12.5px] text-ink-muted min-h-[2rem]">
-                    <input type="checkbox" :disabled="chargementSelectionTout"
+                    <input
+                        type="checkbox"
+                        :disabled="chargementSelectionTout"
                         :checked="file.length > 0 && file.every((l) => selection.has(l.id))"
-                        @change="toutSelectionnerFiltre" class="w-4 h-4 accent-accent">
+                        @change="toutSelectionnerFiltre"
+                        class="w-4 h-4 accent-accent"
+                    />
                     Tout sélectionner (le filtre entier — {{ selection.size }})
                 </label>
-                <button type="button" @click="toutDeplier"
-                    class="min-h-[2rem] text-[12px] font-medium px-2.5 py-1 rounded-lg border border-surface-border text-ink-muted hover:bg-surface">
-                    {{ toutesOuvertes ? 'Tout replier' : 'Tout déplier' }}
+                <button
+                    type="button"
+                    @click="toutDeplier"
+                    class="min-h-[2rem] text-[12px] font-medium px-2.5 py-1 rounded-lg border border-surface-border text-ink-muted hover:bg-surface"
+                >
+                    {{ toutesOuvertes ? "Tout replier" : "Tout déplier" }}
                 </button>
                 <div v-if="selection.size > 0" class="max-w-xs">
-                    <PersonSelect role="gestionnaire" placeholder="Assigner la sélection à…"
+                    <PersonSelect
+                        role="gestionnaire"
+                        placeholder="Assigner la sélection à…"
                         :model-value="null"
-                        @update:model-value="assignerLot" />
+                        @update:model-value="assignerLot"
+                    />
                 </div>
                 <!-- Bouton clustering retiré d'ici (09/09/2026, prompt §2.2) —
                      déplacé sur CampagneDetail.vue (livraison/campagnes/{id}). -->
@@ -563,36 +594,64 @@ onMounted(() => {
                 confirmation) vit dans le corps déplié. Repliée par défaut —
                 voir ouvertes / basculerLigne() / toutDeplier().
             -->
-            <div v-for="livraison in file" :key="livraison.id"
+            <div
+                v-for="livraison in file"
+                :key="livraison.id"
                 class="bg-surface border border-surface-border rounded-xl shadow-sm overflow-hidden"
-                :class="selection.has(livraison.id) ? 'ring-2 ring-accent/40' : ''">
-                <div class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-2/60 transition-colors"
-                    role="button" tabindex="0" :aria-expanded="ligneOuverte(livraison.id)"
-                    @click="basculerLigne(livraison.id)" @keydown.enter.self.prevent="basculerLigne(livraison.id)"
-                    @keydown.space.self.prevent="basculerLigne(livraison.id)">
-                    <input type="checkbox" :checked="selection.has(livraison.id)" @click.stop
-                        @change="toggleSelection(livraison.id)" class="w-4 h-4 accent-accent shrink-0" aria-label="Sélectionner">
-                    <span class="text-ink-muted text-[12px] transition-transform duration-200 shrink-0"
-                        :class="ligneOuverte(livraison.id) ? 'rotate-90' : ''" aria-hidden="true">▶</span>
+                :class="selection.has(livraison.id) ? 'ring-2 ring-accent/40' : ''"
+            >
+                <div
+                    class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-2/60 transition-colors"
+                    role="button"
+                    tabindex="0"
+                    :aria-expanded="ligneOuverte(livraison.id)"
+                    @click="basculerLigne(livraison.id)"
+                    @keydown.enter.self.prevent="basculerLigne(livraison.id)"
+                    @keydown.space.self.prevent="basculerLigne(livraison.id)"
+                >
+                    <input
+                        type="checkbox"
+                        :checked="selection.has(livraison.id)"
+                        @click.stop
+                        @change="toggleSelection(livraison.id)"
+                        class="w-4 h-4 accent-accent shrink-0"
+                        aria-label="Sélectionner"
+                    />
+                    <span
+                        class="text-ink-muted text-[12px] transition-transform duration-200 shrink-0"
+                        :class="ligneOuverte(livraison.id) ? 'rotate-90' : ''"
+                        aria-hidden="true"
+                        >▶</span
+                    >
                     <div class="min-w-0 flex-1">
                         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span class="text-ink-muted text-[12.5px] font-medium shrink-0">#{{ livraison.famille.id }}</span>
-                            <span class="text-[15px] font-semibold text-ink truncate">{{ livraison.famille.prenom }} {{ livraison.famille.nom }}</span>
-                            <span v-if="livraison.personne_assignee"
-                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            <span class="text-ink-muted text-[12.5px] font-medium shrink-0"
+                                >#{{ livraison.famille.id }}</span
+                            >
+                            <span class="text-[15px] font-semibold text-ink truncate"
+                                >{{ livraison.famille.prenom }} {{ livraison.famille.nom }}</span
+                            >
+                            <span
+                                v-if="livraison.personne_assignee"
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200"
+                            >
                                 👤 {{ livraison.personne_assignee.prenom }} {{ livraison.personne_assignee.nom }}
                             </span>
-                            <span v-else
-                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-ink-muted border border-surface-border">
+                            <span
+                                v-else
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-stone-100 text-ink-muted border border-surface-border"
+                            >
                                 👤 Non assigné
                             </span>
-                            <span v-if="livraison.se_deplace"
-                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                            <span
+                                v-if="livraison.se_deplace"
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"
+                            >
                                 🚶 Se déplace
                             </span>
                         </div>
                         <p v-if="!ligneOuverte(livraison.id)" class="text-[12.5px] text-ink-muted mt-0.5 truncate">
-                            📞 {{ livraison.famille.telephone || '—' }}
+                            📞 {{ livraison.famille.telephone || "—" }}
                             <span v-if="livraison.famille.telephone_bis"> · {{ livraison.famille.telephone_bis }}</span>
                         </p>
                     </div>
@@ -602,31 +661,44 @@ onMounted(() => {
                         confirmé en avaient une, les autres retombaient sur
                         aucune classe).
                     -->
-                    <span class="text-[13px] font-medium px-2.5 py-1 rounded-full shrink-0"
-                        :class="CLASSES_STATUT_CONTACT[livraison.statut_contact] ?? 'bg-stone-100 text-ink-muted'">
+                    <span
+                        class="text-[13px] font-medium px-2.5 py-1 rounded-full shrink-0"
+                        :class="CLASSES_STATUT_CONTACT[livraison.statut_contact] ?? 'bg-stone-100 text-ink-muted'"
+                    >
                         {{ LIBELLES_STATUT_AFFICHE[livraison.statut_contact] ?? livraison.statut_contact }}
                     </span>
                 </div>
 
-                <div v-if="ligneOuverte(livraison.id)" class="border-t border-surface-border px-4 py-4 space-y-4 bg-surface">
+                <div
+                    v-if="ligneOuverte(livraison.id)"
+                    class="border-t border-surface-border px-4 py-4 space-y-4 bg-surface"
+                >
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <!-- Coordonnées — téléphone bis affiché (05/09/2026, prompt §2.5). -->
                         <div class="bg-stone-50 rounded-lg px-3 py-2.5 space-y-1">
                             <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wide">Coordonnées</p>
-                            <p class="text-[13px] text-ink">📞 {{ livraison.famille.telephone || '—' }}</p>
+                            <p class="text-[13px] text-ink">📞 {{ livraison.famille.telephone || "—" }}</p>
                             <p v-if="livraison.famille.telephone_bis" class="text-[13px] text-ink">
                                 📞 {{ livraison.famille.telephone_bis }} <span class="text-ink-muted">(bis)</span>
                             </p>
-                            <p class="text-[13px] text-ink break-all">✉️ {{ livraison.famille.email || "pas d'email" }}</p>
+                            <p class="text-[13px] text-ink break-all">
+                                ✉️ {{ livraison.famille.email || "pas d'email" }}
+                            </p>
                         </div>
                         <!-- Assignation + édition du dossier -->
                         <div class="bg-stone-50 rounded-lg px-3 py-2.5 space-y-2">
                             <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wide">Suivi</p>
-                            <PersonSelect role="gestionnaire" placeholder="Assigner à…"
+                            <PersonSelect
+                                role="gestionnaire"
+                                placeholder="Assigner à…"
                                 :model-value="livraison.personne_assignee"
-                                @update:model-value="(p) => assigner(livraison, p)" />
-                            <button type="button" @click="modifierDossier(livraison)"
-                                class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90">
+                                @update:model-value="(p) => assigner(livraison, p)"
+                            />
+                            <button
+                                type="button"
+                                @click="modifierDossier(livraison)"
+                                class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:opacity-90"
+                            >
                                 ✏️ Modifier le dossier
                             </button>
                         </div>
@@ -636,31 +708,50 @@ onMounted(() => {
                          (mettreAJourSeDeplace()), distincte des radios du formulaire
                          de confirmation (le choix initial). Seulement une fois
                          confirmé : avant, se_deplace vaut toujours false. -->
-                    <button v-if="livraison.statut_contact === 'confirme'" type="button" :disabled="seDeplaceEnCours[livraison.id]"
+                    <button
+                        v-if="livraison.statut_contact === 'confirme'"
+                        type="button"
+                        :disabled="seDeplaceEnCours[livraison.id]"
                         @click="basculerSeDeplace(livraison)"
                         class="inline-flex items-center gap-1.5 text-[12.5px] font-medium px-2.5 py-1 rounded-full disabled:opacity-60"
-                        :class="livraison.se_deplace ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-ink-muted'">
-                        🚶 Se déplace : {{ livraison.se_deplace ? 'Oui' : 'Non' }} · changer
+                        :class="livraison.se_deplace ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-ink-muted'"
+                    >
+                        🚶 Se déplace : {{ livraison.se_deplace ? "Oui" : "Non" }} · changer
                     </button>
 
                     <!-- Actions de statut : injoignable/rejetée/archivée n'ont
                          besoin d'aucun champ (un clic, voir marquerStatutSimple()) —
                          seule la confirmation ouvre un formulaire. -->
                     <div class="flex flex-wrap gap-2">
-                        <button type="button" @click="basculerOuverture(livraison.id)"
-                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90">
+                        <button
+                            type="button"
+                            @click="basculerOuverture(livraison.id)"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90"
+                        >
                             ✅ Confirmer
                         </button>
-                        <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'injoignable')"
-                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:opacity-90 disabled:opacity-60">
+                        <button
+                            type="button"
+                            :disabled="statutSimpleEnCours[livraison.id]"
+                            @click="marquerStatutSimple(livraison, 'injoignable')"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:opacity-90 disabled:opacity-60"
+                        >
                             Injoignable
                         </button>
-                        <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'rejetee')"
-                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:opacity-90 disabled:opacity-60">
+                        <button
+                            type="button"
+                            :disabled="statutSimpleEnCours[livraison.id]"
+                            @click="marquerStatutSimple(livraison, 'rejetee')"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:opacity-90 disabled:opacity-60"
+                        >
                             Rejetée
                         </button>
-                        <button type="button" :disabled="statutSimpleEnCours[livraison.id]" @click="marquerStatutSimple(livraison, 'archive')"
-                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-stone-500 text-white hover:opacity-90 disabled:opacity-60">
+                        <button
+                            type="button"
+                            :disabled="statutSimpleEnCours[livraison.id]"
+                            @click="marquerStatutSimple(livraison, 'archive')"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-stone-500 text-white hover:opacity-90 disabled:opacity-60"
+                        >
                             Archivée
                         </button>
                     </div>
@@ -680,8 +771,11 @@ onMounted(() => {
                                     était un simple lien texte à droite du
                                     label, difficile à repérer.
                                 -->
-                                <button type="button" @click="toggleTout(livraison.id)"
-                                    class="min-h-[1.875rem] text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5">
+                                <button
+                                    type="button"
+                                    @click="toggleTout(livraison.id)"
+                                    class="min-h-[1.875rem] text-[11.5px] font-medium px-2.5 py-1 rounded-lg border border-accent text-accent hover:bg-accent/5"
+                                >
                                     Tout / Rien
                                 </button>
                                 <label class="text-[11px] text-ink-muted">Créneaux</label>
@@ -689,36 +783,64 @@ onMounted(() => {
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div class="border border-ink-faint rounded-lg p-2">
                                     <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
-                                        <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_MATIN)"
-                                            @change="toggleGroupe(livraison.id, CRENEAUX_MATIN)" class="w-3.5 h-3.5 accent-accent">
+                                        <input
+                                            type="checkbox"
+                                            :checked="groupeToutCoche(livraison.id, CRENEAUX_MATIN)"
+                                            @change="toggleGroupe(livraison.id, CRENEAUX_MATIN)"
+                                            class="w-3.5 h-3.5 accent-accent"
+                                        />
                                         Matin
                                     </label>
                                     <div class="flex flex-wrap gap-1.5">
-                                        <label v-for="creneau in CRENEAUX_MATIN" :key="creneau"
-                                            class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
-                                            <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
-                                                @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                        <label
+                                            v-for="creneau in CRENEAUX_MATIN"
+                                            :key="creneau"
+                                            class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                :checked="formulaire(livraison.id).creneaux.includes(creneau)"
+                                                @change="toggleCreneau(livraison.id, creneau)"
+                                                class="w-3.5 h-3.5 accent-accent"
+                                            />
                                             {{ CRENEAU_LIBELLES[creneau] }}
                                         </label>
                                     </div>
                                 </div>
                                 <div class="border border-ink-faint rounded-lg p-2">
                                     <label class="flex items-center gap-1.5 text-[11.5px] font-medium text-ink mb-1.5">
-                                        <input type="checkbox" :checked="groupeToutCoche(livraison.id, CRENEAUX_APRES_MIDI)"
-                                            @change="toggleGroupe(livraison.id, CRENEAUX_APRES_MIDI)" class="w-3.5 h-3.5 accent-accent">
+                                        <input
+                                            type="checkbox"
+                                            :checked="groupeToutCoche(livraison.id, CRENEAUX_APRES_MIDI)"
+                                            @change="toggleGroupe(livraison.id, CRENEAUX_APRES_MIDI)"
+                                            class="w-3.5 h-3.5 accent-accent"
+                                        />
                                         Après-midi
                                     </label>
                                     <div class="flex flex-wrap gap-1.5">
-                                        <label v-for="creneau in CRENEAUX_APRES_MIDI" :key="creneau"
-                                            class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold">
-                                            <input type="checkbox" :checked="formulaire(livraison.id).creneaux.includes(creneau)"
-                                                @change="toggleCreneau(livraison.id, creneau)" class="w-3.5 h-3.5 accent-accent">
+                                        <label
+                                            v-for="creneau in CRENEAUX_APRES_MIDI"
+                                            :key="creneau"
+                                            class="flex items-center gap-1.5 px-2.5 py-2 border border-ink-faint rounded-md text-[11.5px] text-ink-muted cursor-pointer select-none transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5 has-[:checked]:text-ink has-[:checked]:font-semibold"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                :checked="formulaire(livraison.id).creneaux.includes(creneau)"
+                                                @change="toggleCreneau(livraison.id, creneau)"
+                                                class="w-3.5 h-3.5 accent-accent"
+                                            />
                                             {{ CRENEAU_LIBELLES[creneau] }}
                                         </label>
                                     </div>
                                 </div>
                             </div>
-                            <p v-for="e in etatEnvoi(livraison.id).erreurs.creneaux ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                            <p
+                                v-for="e in etatEnvoi(livraison.id).erreurs.creneaux ?? []"
+                                :key="e"
+                                class="text-[11px] text-rose-600 mt-1"
+                            >
+                                {{ e }}
+                            </p>
                         </div>
 
                         <!-- se_deplace (25/09/2026, prompt de cette date) :
@@ -726,23 +848,61 @@ onMounted(() => {
                              pas sur le formulaire public de confirmation —
                              décision produit actée avec l'utilisateur. -->
                         <div>
-                            <label class="block text-[11px] text-ink-muted mb-1.5">La famille se déplacera-t-elle au QG pour récupérer son colis ?</label>
+                            <label class="block text-[11px] text-ink-muted mb-1.5"
+                                >La famille se déplacera-t-elle au QG pour récupérer son colis ?</label
+                            >
                             <div class="flex gap-2 max-w-xs">
-                                <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
-                                    :class="seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
-                                    <input type="radio" :value="true" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Oui
+                                <label
+                                    class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                    :class="
+                                        seDeplaceValeur(livraison.id)
+                                            ? 'border-accent bg-accent/5 text-ink font-semibold'
+                                            : 'border-ink-faint text-ink-muted'
+                                    "
+                                >
+                                    <input
+                                        type="radio"
+                                        :value="true"
+                                        v-model="seDeplaceFormulaire[livraison.id]"
+                                        class="w-3.5 h-3.5 accent-accent"
+                                    />
+                                    Oui
                                 </label>
-                                <label class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
-                                    :class="!seDeplaceValeur(livraison.id) ? 'border-accent bg-accent/5 text-ink font-semibold' : 'border-ink-faint text-ink-muted'">
-                                    <input type="radio" :value="false" v-model="seDeplaceFormulaire[livraison.id]" class="w-3.5 h-3.5 accent-accent"> Non
+                                <label
+                                    class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                    :class="
+                                        !seDeplaceValeur(livraison.id)
+                                            ? 'border-accent bg-accent/5 text-ink font-semibold'
+                                            : 'border-ink-faint text-ink-muted'
+                                    "
+                                >
+                                    <input
+                                        type="radio"
+                                        :value="false"
+                                        v-model="seDeplaceFormulaire[livraison.id]"
+                                        class="w-3.5 h-3.5 accent-accent"
+                                    />
+                                    Non
                                 </label>
                             </div>
-                            <p v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
+                            <p
+                                v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []"
+                                :key="e"
+                                class="text-[11px] text-rose-600 mt-1"
+                            >
+                                {{ e }}
+                            </p>
                         </div>
 
-                        <button type="button" :disabled="etatEnvoi(livraison.id).envoiEnCours" @click="enregistrerContact(livraison)"
-                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60">
-                            {{ etatEnvoi(livraison.id).envoiEnCours ? 'Enregistrement…' : 'Enregistrer la confirmation' }}
+                        <button
+                            type="button"
+                            :disabled="etatEnvoi(livraison.id).envoiEnCours"
+                            @click="enregistrerContact(livraison)"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60"
+                        >
+                            {{
+                                etatEnvoi(livraison.id).envoiEnCours ? "Enregistrement…" : "Enregistrer la confirmation"
+                            }}
                         </button>
                     </div>
                 </div>
@@ -750,15 +910,18 @@ onMounted(() => {
         </div>
 
         <div v-if="meta" class="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <Paginator :meta="meta" @change="chargerFile" />
+            <PaginationControls :meta="meta" @change="chargerFile" />
             <!-- Déplacé en bas (07/09/2026, prompt §2.2) : à côté de la
                  pagination qu'il gouverne, plutôt qu'au-dessus des
                  filtres campagne/journée où il n'avait pas vraiment sa
                  place. -->
             <div>
                 <label class="block text-[12px] text-ink-muted mb-1">Par page</label>
-                <select v-model.number="parPage" @change="chargerFile(1)"
-                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]">
+                <select
+                    v-model.number="parPage"
+                    @change="chargerFile(1)"
+                    class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.5rem]"
+                >
                     <option :value="25">25</option>
                     <option :value="50">50</option>
                     <option :value="100">100</option>

@@ -29,8 +29,8 @@
     même).
 -->
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Modal } from '@amana/shared-ui';
+import { ref } from "vue";
+import { Modal } from "@amana/shared-ui";
 
 const isOpen = ref(false);
 
@@ -71,8 +71,12 @@ window.hideImportOverlay = hide;
 
 <style scoped>
 @keyframes import-sweep {
-    0%   { transform: translateX(-100%); }
-    100% { transform: translateX(300%); }
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(300%);
+    }
 }
 .animate-import-sweep {
     animation: import-sweep 1.1s ease-in-out infinite;

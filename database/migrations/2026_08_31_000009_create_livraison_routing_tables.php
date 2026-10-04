@@ -22,7 +22,8 @@ use Illuminate\Support\Facades\Schema;
  * livraisons imposées (id_benevole_impose) n'a pas de créneau unique qui
  * lui corresponde.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // Une tournée = un bénévole, un créneau, un ensemble ordonné

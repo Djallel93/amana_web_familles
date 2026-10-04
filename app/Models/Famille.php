@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Query\Expression;
 
 /**
  * Remplace la feuille "Famille" de l'ancien système Google Apps Script
@@ -108,6 +109,7 @@ class Famille extends Model
     ];
 
     public const ETATS = ['Recu', 'En cours', 'En attente', 'Validé', 'Rejeté', 'Archivé'];
+
     // 'Recu' est exclusif à la soumission du formulaire public (voir
     // IntakeController::store) — jamais sélectionnable manuellement par le
     // staff, qui travaille depuis "Nouvelles demandes" plutôt que d'y
@@ -136,10 +138,15 @@ class Famille extends Model
     // panneau, navigator.sendBeacon au beforeunload) n'a pas pu s'exécuter
     // (crash navigateur, perte réseau) — voir FamillesController::show().
     public const VERROU_TTL_MINUTES = 20;
+
     public const LANGUES = ['fr' => 'Français', 'ar' => 'العربية', 'en' => 'English'];
+
     public const TYPES_HEBERGEMENT = ['organisation', 'proche', 'non'];
+
     public const TYPES_PIECE_IDENTITE = ['nationalite', 'titre_sejour', 'demande_asile', 'autre'];
+
     public const TYPES_ACTIVITE = ['temps_plein', 'temps_partiel', 'non'];
+
     // Options du sélecteur "lignes par page" (familles/index.blade.php et
     // nouvelles.blade.php) — ajouté le 12/08/2026. Source unique, utilisée
     // à la fois pour peupler le <select> et pour valider la valeur reçue en
@@ -147,6 +154,7 @@ class Famille extends Model
     // retombe sur le défaut plutôt que d'accepter un per_page arbitraire —
     // évite qu'un paramètre trafiqué ne force une pagination à 100000).
     public const PAGINATION_PAR_PAGE = [10, 25, 50, 100];
+
     public const PAGINATION_PAR_PAGE_DEFAUT = 25;
 
     // ── Config tableau familles (partagée index/nouvelles) ──────────────────
@@ -185,12 +193,14 @@ class Famille extends Model
         'commentaire_dossier' => ['label' => 'Commentaire', 'triable' => false, 'defaut' => false],
         'created_at' => ['label' => 'Créé le', 'triable' => true, 'defaut' => false],
     ];
+
     public const TYPE_PIECE_IDENTITE_LABELS = [
         'nationalite' => 'Nationalité',
         'titre_sejour' => 'Titre de séjour',
         'demande_asile' => "Demande d'asile",
         'autre' => 'Autre',
     ];
+
     // Couleur du liseré de gauche de chaque ligne/carte (voir
     // <x-familles.tableau>). Classes Tailwind écrites en toutes lettres
     // (pas de concaténation dynamique bg-{{ }}) : le scanner JIT de
@@ -205,6 +215,7 @@ class Famille extends Model
         'Rejeté' => 'border-l-rose-400',
         'Archivé' => 'border-l-gray-400',
     ];
+
     // Badges de statut (texte + fond léger) — une seule source de vérité,
     // partagée avec le filtre Statut (pastilles colorées) qui reprend
     // exactement ces couleurs plutôt qu'une palette qui aurait pu diverger.
@@ -216,6 +227,7 @@ class Famille extends Model
         'Rejeté' => 'bg-rose-50 text-rose-700 border-rose-200',
         'Archivé' => 'bg-gray-100 text-gray-500 border-gray-300',
     ];
+
     // Palette d'avatars (initiales) — couleur choisie par id % taille de la
     // palette, simple et stable (même famille = même couleur d'une page à
     // l'autre) sans avoir besoin de stocker quoi que ce soit.
@@ -287,7 +299,7 @@ class Famille extends Model
             })
             ->toBase()
             ->update([
-                'etat_dossier' => new \Illuminate\Database\Query\Expression('COALESCE(etat_dossier_avant_verrouillage, etat_dossier)'),
+                'etat_dossier' => new Expression('COALESCE(etat_dossier_avant_verrouillage, etat_dossier)'),
                 'etat_dossier_avant_verrouillage' => null,
                 'locked_by' => null,
                 'locked_at' => null,

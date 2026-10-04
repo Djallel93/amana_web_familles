@@ -15,6 +15,7 @@ use App\Services\IntakeAttenteService;
 use App\Support\FamilleIntakeRules;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\View\View;
@@ -61,8 +62,7 @@ class IntakeController extends Controller
 
     public function __construct(
         private readonly IntakeAttenteService $attenteService,
-    ) {
-    }
+    ) {}
 
     /**
      * Section E4 du refactor (16/09/2026, dernier chunk public de la
@@ -209,7 +209,7 @@ class IntakeController extends Controller
             Notification::route('mail', $donnees['email'])
                 ->notify(new IntakeConfirmationNotification($demande, $tokenEnClair));
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('[IntakeController] Échec envoi email de confirmation', [
+            Log::error('[IntakeController] Échec envoi email de confirmation', [
                 'id_demande' => $demande->id,
                 'message' => $e->getMessage(),
             ]);

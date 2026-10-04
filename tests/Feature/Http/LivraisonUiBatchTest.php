@@ -288,7 +288,7 @@ class LivraisonUiBatchTest extends TestCase
         $campagne = $this->creerCampagne();
         $route = $this->creerRoute($campagne, $this->creerPersonne(['benevole'])->id, 'chargement');
 
-        $incident = RouteIncident::withoutEvents(fn () => RouteIncident::create([
+        $incident = RouteIncident::withoutEvents(fn() => RouteIncident::create([
             'id_route' => $route->id,
             'type' => 'capacite',
             'signale_par' => $admin->id,
@@ -313,7 +313,7 @@ class LivraisonUiBatchTest extends TestCase
         $campagne = $this->creerCampagne();
         $route = $this->creerRoute($campagne, $this->creerPersonne(['benevole'])->id, 'chargement');
 
-        $incident = RouteIncident::withoutEvents(fn () => RouteIncident::create([
+        $incident = RouteIncident::withoutEvents(fn() => RouteIncident::create([
             'id_route' => $route->id,
             'type' => 'capacite',
             'signale_par' => $admin->id,

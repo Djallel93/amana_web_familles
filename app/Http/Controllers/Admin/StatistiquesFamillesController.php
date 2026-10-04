@@ -22,8 +22,7 @@ class StatistiquesFamillesController extends Controller
 {
     public function __construct(
         private readonly FamilleStatistics $stats,
-    ) {
-    }
+    ) {}
 
     /**
      * Section E4 du refactor (16/09/2026) — page Inertia, remplace

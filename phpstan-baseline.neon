@@ -1,0 +1,1865 @@
+# Baseline PHPStan — générée par `composer analyse -- --generate-baseline`.
+#
+# Elle absorbe les signalements déjà présents dans app/ au moment où
+# l'analyse statique a été ajoutée à la porte de qualité (niveau 5, voir
+# phpstan.neon) : dette connue, pas des erreurs ignorées par principe. La
+# majorité vient de relations Eloquent typées `Model` (propriétés / méthodes
+# « introuvables » sur la classe de base) et d'arguments `Model` là où une
+# sous-classe est attendue.
+#
+# Règles d'usage :
+#   - le fichier ne doit que RÉTRÉCIR : en corrigeant du code, régénérer la
+#     baseline (`composer analyse -- --generate-baseline`) et committer la
+#     différence. Ne jamais y ajouter une entrée à la main pour « faire
+#     passer » la CI — corriger le code, ou à défaut justifier l'exception.
+#   - la baseline est calculée avec PHP 8.4 (celui de la CI).
+
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Strict comparison using \!\=\= between string and false will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Console/Commands/ReparerEncodageFamilles.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Google\\Service\\PeopleService\\PhoneNumber\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Console/Commands/TesterContactsGoogle.php
+
+		-
+			message: '#^Variable \$telephone on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/Console/Commands/TesterContactsGoogle.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FamilleImport\:\:\$rows_error_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/ImportsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\FamilleImport\:\:\$rows_success_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/ImportsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_famille\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/ImportsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/ImportsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Admin/Livraison/BenevoleDisponibiliteController.php
+
+		-
+			message: '#^Parameter \#2 \$journee of method App\\Services\\BenevoleDisponibiliteService\:\:confirmer\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/BenevoleDisponibiliteController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, statut\: string, benevole\: string\|null\}, Closure\(App\\Models\\RouteLivraison\)\: array\{id\: int, statut\: string, benevole\: string\|null\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
+
+		-
+			message: '#^Parameter \#1 \$famille of static method App\\Models\\Livraison\:\:calculerPoidsKg\(\) expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
+
+		-
+			message: '#^Parameter \#2 \$journee of method App\\Services\\RetraitHqSchedulingService\:\:planifierPour\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
+
+		-
+			message: '#^Parameter \#3 \$journee of method App\\Services\\LivraisonGenerationService\:\:genererPour\(\) expects App\\Models\\CampagneJournee\|null, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$route\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
+
+		-
+			message: '#^PHPDoc tag @return has invalid value \(JsonResponse\{total\: int, a_contacter\: int, confirme\: int, injoignable\: int\}\)\: Unexpected token "\{", expected TOKEN_HORIZONTAL_WS at offset 594 on line 11$#'
+			identifier: phpDoc.parseError
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
+
+		-
+			message: '#^Parameter \#1 \$campagne of method App\\Services\\RetraitHqSchedulingService\:\:planifierPour\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
+
+		-
+			message: '#^Parameter \#2 \$etape of method App\\Services\\RouteMutationService\:\:retirerLivraison\(\) expects App\\Models\\EtapeRoute, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$benevole\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$famille\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
+
+		-
+			message: '#^Parameter \#2 \$journee of method App\\Services\\LivraisonGenerationService\:\:nonCouvertesEligibles\(\) expects App\\Models\\CampagneJournee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
+
+		-
+			message: '#^Parameter \#2 \$journee of method App\\Services\\RetraitHqSchedulingService\:\:planifierPour\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
+
+		-
+			message: '#^Parameter \#2 \$journee of method App\\Services\\RouteGenerationService\:\:genererPourCampagne\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
+
+		-
+			message: '#^Parameter \#2 \$journee of method App\\Services\\RouteGenerationService\:\:livraisonsNonCouvertes\(\) expects App\\Models\\CampagneJournee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_vehicule_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/PickersController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$vehiculeType\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/PickersController.php
+
+		-
+			message: '#^Method Amana\\Shared\\Models\\Personne\:\:hasAtLeastRole\(\) invoked with 2 parameters, 1 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/PickersController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Amana\\Shared\\Models\\Personne\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/PickersController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date_livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/StatistiquesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/Livraison/StatistiquesController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Personne\:\:\$desactivee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/PersonnesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date_livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/PersonnesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Admin/PersonnesController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, Amana\\Shared\\Models\\BenevoleProfil\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Admin/PersonnesController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Admin/RattachementsController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Admin/RattachementsController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>nom" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/BenevoleIntakeController.php
+
+		-
+			message: '#^Negated boolean expression is always false\.$#'
+			identifier: booleanNot.alwaysFalse
+			count: 1
+			path: app/Http/Controllers/FamilleCreationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$secteur\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/FamillesController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>nom_complet" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/FamillesController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\RouteLivraison\:\:\$urgence\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Livraison/ChargementController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Livraison/ChargementController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$famille\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Livraison/ContactConfirmationController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:creneaux\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/Livraison/ContactConfirmationController.php
+
+		-
+			message: '#^Parameter \#1 \$livraison of method App\\Services\\FamilleConfirmationSyncService\:\:synchroniser\(\) expects App\\Models\\Livraison, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Livraison/ContactConfirmationController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Livraison/DisponibiliteController.php
+
+		-
+			message: '#^Parameter \#2 \$journee of method App\\Services\\BenevoleDisponibiliteService\:\:confirmer\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Livraison/DisponibiliteController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$statut\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Livraison/MaRouteController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:rouvrirEtape\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Livraison/MaRouteController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:toutesEtapesTraitees\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/Livraison/MaRouteController.php
+
+		-
+			message: '#^Parameter \#1 \$route of method App\\Http\\Controllers\\Livraison\\MaRouteController\:\:peutAgirSur\(\) expects App\\Models\\RouteLivraison, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Livraison/MaRouteController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Livraison\:\:\$urgente\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Livraison/PackagingController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$route\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Livraison/PackagingController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$statut_conditionnement\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Controllers/Livraison/PackagingController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:statutConditionnementDerive\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Livraison/PackagingController.php
+
+		-
+			message: '#^Parameter \#1 \$livraison of method App\\Http\\Controllers\\Livraison\\PackagingController\:\:finaliserConditionnement\(\) expects App\\Models\\Livraison, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Livraison/PackagingController.php
+
+		-
+			message: '#^Property App\\Http\\Controllers\\Livraison\\PackagingController\:\:\$qrCode is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Http/Controllers/Livraison/PackagingController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Livraison\:\:\$statutRetraitHqAffiche\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Controllers/Livraison/RetraitHqController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Livraison\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Http/Controllers/Livraison/RetraitHqController.php
+
+		-
+			message: '#^Return type \(Inertia\\Response\) of method App\\Http\\Controllers\\SettingsController\:\:index\(\) should be compatible with return type \(Illuminate\\View\\View\) of method Amana\\Shared\\Http\\Controllers\\SettingsControllerBase\:\:index\(\)$#'
+			identifier: method.childReturnType
+			count: 1
+			path: app/Http/Controllers/SettingsController.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneJourneeResource\:\:\$date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneJourneeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneJourneeResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneJourneeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneJourneeResource\:\:\$id_campagne\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneJourneeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneJourneeResource\:\:\$label\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneJourneeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneJourneeResource\:\:\$ordre\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneJourneeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagnePoidsMoyenHistoriqueResource\:\:\$ancienne_valeur\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagnePoidsMoyenHistoriqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagnePoidsMoyenHistoriqueResource\:\:\$horodatage\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagnePoidsMoyenHistoriqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagnePoidsMoyenHistoriqueResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagnePoidsMoyenHistoriqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagnePoidsMoyenHistoriqueResource\:\:\$loggePar\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagnePoidsMoyenHistoriqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagnePoidsMoyenHistoriqueResource\:\:\$nouvelle_valeur\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagnePoidsMoyenHistoriqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagnePoidsMoyenHistoriqueResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagnePoidsMoyenHistoriqueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$commentaire\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$date_livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$heure_debut_arrivee_hq\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$heure_fin_arrivee_hq\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$hq_adresse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$hq_confirmee_le\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$hq_latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$hq_longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$journees\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$livraisons_max_par_tournee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$poidsMoyenHistorique\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$poids_moyen_etudiant_kg\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$poids_moyen_hotel_kg\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$poids_moyen_kg\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$statut\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\CampagneResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/CampagneResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\EtapeRouteResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/EtapeRouteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\EtapeRouteResource\:\:\$livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/EtapeRouteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\EtapeRouteResource\:\:\$ordre\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/EtapeRouteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\EtapeRouteResource\:\:\$statut\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/EtapeRouteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$adresse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$circonstances\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$code_postal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$commentaire_dossier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$criticite\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$documents\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$est_hotel\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$etat_dossier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$etudiant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$hosted_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$langue\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$nombre_adulte\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$nombre_enfant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$organisme_aide_autre\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$organismesAide\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$probleme_traitement\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$quartier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$ressentit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$sadaqa\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$secteur_activite_autre\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$secteursActivite\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$specificites\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$telephone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$telephone_bis\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$type_activite\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$type_hebergement\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$type_piece_identite\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$ville_texte\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$work_days\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleDetailResource\:\:\$zakat_el_fitr\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleDetailResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$adresse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$criticite\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$derniere_livraison_le\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$id_livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$quartier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$telephone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleEligibleResource\:\:\$telephone_bis\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleEligibleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$adresse_complete\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$circonstances\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$commentaire_dossier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$criticite\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$est_hotel\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$etat_dossier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$etudiant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$langue\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$locked_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$locked_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$nombre_adulte\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$nombre_enfant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$nombre_foyer\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$organisationOrigine\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$organisations\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$probleme_traitement\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$quartier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$ressentit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$sadaqa\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$specificites\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$telephone_bis_formate\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$telephone_formate\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$type_piece_identite\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$verrouilleur\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$ville\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleListItemResource\:\:\$zakat_el_fitr\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\FamilleListItemResource\:\:verrouFrais\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/FamilleListItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleResumeResource\:\:\$adresse\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/FamilleResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleResumeResource\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/FamilleResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleResumeResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleResumeResource\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleResumeResource\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/FamilleResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleResumeResource\:\:\$telephone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/FamilleResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\FamilleResumeResource\:\:\$telephone_bis\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/FamilleResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$adresse_confirmee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$code_postal_confirme\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$creneaux\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$famille\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$id_campagne\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$id_campagne_journee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$id_personne_assignee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$nombre_adulte_confirme\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$nombre_enfant_confirme\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$personneAssignee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$se_deplace\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$statut\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$statut_contact\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\LivraisonQueueResource\:\:\$ville_confirmee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/LivraisonQueueResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonneResumeResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonneResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonneResumeResource\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonneResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\PersonneResumeResource\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/PersonneResumeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\QuartierResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/QuartierResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\QuartierResource\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/QuartierResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ReleveResource\:\:\$horodatage\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ReleveResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ReleveResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ReleveResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\ReleveResource\:\:\$loggePar\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/ReleveResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\ReleveResource\:\:getAttribute\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/ReleveResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteIncidentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteIncidentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteIncidentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$route\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteIncidentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$statut\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteIncidentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteIncidentResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$benevole\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteLivraisonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$creneau\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteLivraisonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$etapes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteLivraisonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteLivraisonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$id_campagne\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteLivraisonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$statut\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteLivraisonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$vehiculeType\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/RouteLivraisonResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\VehiculeTypeResource\:\:\$capacite_kg\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/VehiculeTypeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\VehiculeTypeResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/VehiculeTypeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\VehiculeTypeResource\:\:\$nombre_part_max\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/VehiculeTypeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\VehiculeTypeResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/VehiculeTypeResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Campagne.php
+
+		-
+			message: '#^Method App\\Models\\Campagne\:\:ajouterJournee\(\) should return App\\Models\\CampagneJournee but returns Illuminate\\Database\\Eloquent\\Model\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/Campagne.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$secteur\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Famille.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:ville\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/Famille.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:contains\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model\|int\|string, Closure\(App\\Models\\LivraisonColis\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Livraison.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:every\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model\|string, Closure\(App\\Models\\LivraisonColis\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Livraison.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$benevole\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/RouteIncident.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$famille\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/RouteIncident.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/RouteIncident.php
+
+		-
+			message: '#^Property App\\Notifications\\FamilleVerificationNotification\:\:\$verification is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Notifications/FamilleVerificationNotification.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$hq_adresse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Notifications/RetraitHqNotification.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Notifications/RoutePretePourChargementNotification.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Notifications/RouteTermineeNotification.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prenom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Notifications/RouteTermineeNotification.php
+
+		-
+			message: '#^Parameter \#2 \$campagne of method App\\Policies\\CampagneArriveePolicy\:\:autoriseEquipe\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Policies/CampagneArriveePolicy.php
+
+		-
+			message: '#^Parameter \#2 \$campagne of method App\\Policies\\DonationPolicy\:\:autoriseEquipe\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Policies/DonationPolicy.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$campagne\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Policies/LivraisonColisPolicy.php
+
+		-
+			message: '#^Parameter \#2 \$campagne of method App\\Policies\\LivraisonPolicy\:\:autoriseEquipe\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Policies/LivraisonPolicy.php
+
+		-
+			message: '#^Parameter \#2 \$campagne of method App\\Policies\\RouteLivraisonPolicy\:\:autoriseEquipe\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Policies/RouteLivraisonPolicy.php
+
+		-
+			message: '#^Method App\\Services\\BenevoleIntakeAttenteService\:\:confirmer\(\) should return array\{personne\: App\\Models\\Personne, profil\: App\\Models\\BenevoleProfil, personneExistante\: bool\} but returns array\{personne\: Amana\\Shared\\Models\\Personne, profil\: App\\Models\\BenevoleProfil, personneExistante\: bool\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/BenevoleIntakeAttenteService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_vehicule_type\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/BenevoleProfileExtension.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$langue_preferee\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/BenevoleProfileExtension.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$permis\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/BenevoleProfileExtension.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:secteurs\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Services/BenevoleProfileExtension.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>nom" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/BenevoleProfileExtension.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/CampagneStatsService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date_livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/CampagneStatsService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/CampagneStatsService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/CampagneStatsService.php
+
+		-
+			message: '#^Parameter \#2 \$famille of class App\\Notifications\\LivraisonConfirmationNotification constructor expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ContactTokenService.php
+
+		-
+			message: '#^Parameter \#1 \$famille of static method App\\Models\\Livraison\:\:calculerPoidsKg\(\) expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/CouvertureCollecteService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$adresse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleConfirmationSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code_postal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleConfirmationSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleConfirmationSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nombre_adulte\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleConfirmationSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nombre_enfant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleConfirmationSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ville_texte\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleConfirmationSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cree\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleImportRollbackService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$donnees_avant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleImportRollbackService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_famille\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/FamilleImportRollbackService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:organisations\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/FamilleOrganisationDemandeService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleStatistics.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$secteur\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/FamilleStatistics.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>nom" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/FamilleStatistics.php
+
+		-
+			message: '#^Offset ''adresse'' on non\-empty\-array on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/FamilleUpsertService.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:contains\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model\|int\|string, Closure\(App\\Models\\FamilleVerification\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/FamilleVerificationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$secteur\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/GoogleContactsService.php
+
+		-
+			message: '#^Parameter \#1 \$organisation of method App\\Services\\GoogleContactsService\:\:nomLabelOrganisation\(\) expects App\\Models\\Organisation, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/GoogleContactsService.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Google\\Service\\PeopleService\\ContactGroupMembership\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/GoogleContactsService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$campagne\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/IncidentResolutionService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_benevole\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/IncidentResolutionService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:etapes\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/IncidentResolutionService.php
+
+		-
+			message: '#^Negated boolean expression is always false\.$#'
+			identifier: booleanNot.alwaysFalse
+			count: 1
+			path: app/Services/IntakeAttenteService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/MaRouteVueService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/MaRouteVueService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ordre\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/MaRouteVueService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$statut\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/MaRouteVueService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Services/MaRouteVueService.php
+
+		-
+			message: '#^Parameter \#1 \$campagne of static method App\\Support\\RouteOptimizationConfig\:\:coordonneesHqPourCampagne\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/MaRouteVueService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Livraison\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PersonneActivationService.php
+
+		-
+			message: '#^Instanceof between Illuminate\\Support\\Carbon and Illuminate\\Support\\Carbon will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: app/Services/PersonneActivationService.php
+
+		-
+			message: '#^Ternary operator condition is always true\.$#'
+			identifier: ternary.alwaysTrue
+			count: 1
+			path: app/Services/PersonneActivationService.php
+
+		-
+			message: '#^Parameter \#2 \$famille of class App\\Notifications\\RetraitHqNotification constructor expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/RetraitHqNotificationService.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 5
+			path: app/Services/ReverseSyncService.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Google\\Service\\PeopleService\\ContactGroupMembership\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ReverseSyncService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteChargementService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:personnesAvecRole\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/RouteChargementService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_quartier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteGenerationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/RouteGenerationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Services/RouteGenerationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$route\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteGenerationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_quartier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array, Closure\(App\\Models\\EtapeRoute\)\: array given\.$#'
+			identifier: argument.type
+			count: 4
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Parameter \#1 \$campagne of method App\\Services\\RouteMutationService\:\:hqOuEchoue\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Parameter \#1 \$livraison of method App\\Services\\RouteMutationService\:\:versArray\(\) expects App\\Models\\Livraison, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 4
+			path: app/Services/RouteMutationService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:recherche\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/FamilleFilters.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:rechercheNom\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/FamilleFilters.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:rechercheTelephone\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Support/FamilleFilters.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Schema\\ForeignKeyDefinition\:\:comment\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: database/migrations/2026_08_28_000001_create_organisations_domain_tables.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Schema\\ForeignKeyDefinition\:\:comment\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: database/migrations/2026_08_31_000004_create_livraison_operations_tables.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Schema\\ForeignKeyDefinition\:\:comment\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: database/migrations/2026_08_31_000009_create_livraison_routing_tables.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Schema\\ForeignKeyDefinition\:\:comment\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: database/migrations/2026_09_07_000000_create_livraison_equipe_tables.php

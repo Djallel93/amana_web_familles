@@ -31,8 +31,7 @@ class CampagneDisponibiliteNotification extends Notification
     public function __construct(
         private readonly Campagne $campagne,
         private readonly BenevoleProfil $profil,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -45,7 +44,7 @@ class CampagneDisponibiliteNotification extends Notification
             ? $this->profil->langue_preferee
             : 'fr';
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('AMANA — Confirmez votre disponibilité pour la prochaine campagne')
             ->view('emails.campagne-disponibilite', [
                 'prenom' => $notifiable->prenom ?? '',

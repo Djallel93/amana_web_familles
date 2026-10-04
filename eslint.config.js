@@ -21,13 +21,14 @@
 //   - 4 espaces d'indentation partout (voir tsconfig.json, vite.config.ts,
 //     tous les composants) — la règle `indent` d'ESLint est notoirement
 //     fragile sur les templates Vue (faux positifs fréquents sur les
-//     attributs multi-lignes) ; laissée à un futur Prettier/formatage
-//     dédié plutôt qu'à ESLint, qui se concentre ici sur la correction
-//     plutôt que le style visuel.
+//     attributs multi-lignes) ; déléguée à Prettier (`npm run format`,
+//     voir .prettierrc.json) plutôt qu'à ESLint, qui se concentre ici sur
+//     la correction plutôt que le style visuel.
 import eslint from '@eslint/js';
 import eslintPluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
 import vueTsEslintConfig from '@vue/eslint-config-typescript';
+import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
 export default tseslint.config(
     { ignores: ['node_modules/**', 'public/build/**', 'vendor/**'] },
@@ -87,4 +88,10 @@ export default tseslint.config(
             'vue/multi-word-component-names': 'off',
         },
     },
+
+    // Toujours en DERNIER : coupe les règles ESLint de mise en forme qui
+    // entreraient en conflit avec Prettier (.prettierrc.json). La mise en
+    // forme est déléguée à Prettier (`npm run format`), ESLint ne garde que
+    // la correction du code — même arrangement que amana_web_planning.
+    eslintConfigPrettier,
 );

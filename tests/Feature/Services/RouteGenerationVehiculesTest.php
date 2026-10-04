@@ -20,8 +20,8 @@ use Tests\TestCase;
  */
 class RouteGenerationVehiculesTest extends TestCase
 {
-    use SeedsCommunFixtures;
     use BuildsDisponibiliteFixtures;
+    use SeedsCommunFixtures;
 
     private array $vehicules;
 

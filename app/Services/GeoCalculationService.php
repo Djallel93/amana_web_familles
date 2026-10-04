@@ -108,7 +108,7 @@ class GeoCalculationService
         $centreLng = array_sum(array_column($livraisons, 'longitude')) / count($livraisons);
 
         $distances = array_map(
-            fn (array $l) => $this->distanceHaversine($centreLat, $centreLng, $l['latitude'], $l['longitude']),
+            fn(array $l) => $this->distanceHaversine($centreLat, $centreLng, $l['latitude'], $l['longitude']),
             $livraisons,
         );
 
@@ -193,7 +193,7 @@ class GeoCalculationService
 
         $etapesIntermediaires = array_slice($livraisons, 0, -1);
         $waypoints = implode('|', array_map(
-            fn (array $l) => "{$l['latitude']},{$l['longitude']}",
+            fn(array $l) => "{$l['latitude']},{$l['longitude']}",
             $etapesIntermediaires,
         ));
 

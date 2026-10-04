@@ -24,6 +24,7 @@ use App\Models\RouteLivraison;
 use App\Services\BenevoleDisponibiliteService;
 use App\Services\IncidentResolutionService;
 use App\Services\LivraisonGenerationService;
+use App\Services\RetraitHqSchedulingService;
 use App\Support\RouteOptimizationConfig;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,8 +48,7 @@ class CampagnesController extends Controller
     public function __construct(
         private readonly LivraisonGenerationService $generationService,
         private readonly BenevoleDisponibiliteService $disponibiliteService,
-    ) {
-    }
+    ) {}
 
     /**
      * Section E4 du refactor (16/09/2026, troisième chunk du domaine
@@ -157,7 +157,7 @@ class CampagnesController extends Controller
                 'se_deplacent' => (clone $livraisons)->where('se_deplace', true)->count(),
             ],
             'contacts' => collect(Livraison::STATUTS_CONTACT)
-                ->mapWithKeys(fn (string $statut) => [$statut => (int) ($parContact[$statut] ?? 0)])->all(),
+                ->mapWithKeys(fn(string $statut) => [$statut => (int) ($parContact[$statut] ?? 0)])->all(),
             'benevoles' => [
                 'disponibles' => $disponibles->count(),
                 'en_attente' => $enAttente->count(),
@@ -169,8 +169,8 @@ class CampagnesController extends Controller
             'tournees' => [
                 'total' => (int) $parStatutRoute->sum(),
                 'par_statut' => collect(RouteLivraison::STATUTS)
-                    ->mapWithKeys(fn (string $statut) => [$statut => (int) ($parStatutRoute[$statut] ?? 0)])
-                    ->filter(fn (int $n) => $n > 0)->all(),
+                    ->mapWithKeys(fn(string $statut) => [$statut => (int) ($parStatutRoute[$statut] ?? 0)])
+                    ->filter(fn(int $n) => $n > 0)->all(),
             ],
             'packaging' => [
                 'pretes' => $nbPretes,
@@ -409,7 +409,7 @@ class CampagnesController extends Controller
         if ($fenetreModifiee) {
             $campagne = $campagne->fresh();
             foreach ($campagne->journees as $journee) {
-                app(\App\Services\RetraitHqSchedulingService::class)->planifierPour($campagne, $journee);
+                app(RetraitHqSchedulingService::class)->planifierPour($campagne, $journee);
             }
         }
 
@@ -664,7 +664,7 @@ class CampagnesController extends Controller
         // RawLaravelPaginator côté TS) — changer cette forme est un sujet à
         // part, volontairement pas traité ici.
         $paginateur = $query->paginate($request->integer('per_page') ?: 50)->withQueryString();
-        $paginateur->getCollection()->transform(fn ($famille) => new FamilleEligibleResource($famille));
+        $paginateur->getCollection()->transform(fn($famille) => new FamilleEligibleResource($famille));
 
         return response()->json($paginateur);
     }
@@ -700,7 +700,7 @@ class CampagnesController extends Controller
             'success' => true,
             'generees' => $resultat['livraisons']->count(),
             'deja_existantes' => $resultat['deja_existantes'],
-            'conflits' => $resultat['conflits']->map(fn ($f) => [
+            'conflits' => $resultat['conflits']->map(fn($f) => [
                 'id' => $f->id,
                 'nom' => "{$f->prenom} {$f->nom}",
                 'raison' => 'etudiant_et_est_hotel',
@@ -794,7 +794,7 @@ class CampagnesController extends Controller
     private function incidentsOuverts(Campagne $campagne): int
     {
         return RouteIncident::ouverts()
-            ->whereHas('route', fn ($q) => $q->where('id_campagne', $campagne->id))
+            ->whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
             ->count();
     }
 
@@ -812,7 +812,7 @@ class CampagnesController extends Controller
             ->with('benevole:id,nom,prenom')
             ->orderBy('id')
             ->get()
-            ->map(fn (RouteLivraison $r) => [
+            ->map(fn(RouteLivraison $r) => [
                 'id' => $r->id,
                 'statut' => $r->statut,
                 'benevole' => $r->benevole ? trim("{$r->benevole->prenom} {$r->benevole->nom}") : null,

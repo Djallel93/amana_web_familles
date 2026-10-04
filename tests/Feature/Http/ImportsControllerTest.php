@@ -57,7 +57,7 @@ class ImportsControllerTest extends TestCase
 
     // ── storeManuel() — pipeline commun ─────────────────────────────────
 
-    public function test_storeManuel_cree_un_import_avec_une_ligne_reussie_par_famille_creee(): void
+    public function test_store_manuel_cree_un_import_avec_une_ligne_reussie_par_famille_creee(): void
     {
         $admin = $this->creerPersonne(['admin']);
 
@@ -75,7 +75,7 @@ class ImportsControllerTest extends TestCase
         $this->assertDatabaseHas('familles', ['nom' => 'Dupont', 'prenom' => 'Fatima']);
     }
 
-    public function test_storeManuel_ignore_les_lignes_entierement_vides(): void
+    public function test_store_manuel_ignore_les_lignes_entierement_vides(): void
     {
         $admin = $this->creerPersonne(['admin']);
 
@@ -88,7 +88,7 @@ class ImportsControllerTest extends TestCase
         $this->assertSame('skipped', $import->rows[1]->status);
     }
 
-    public function test_storeManuel_refuse_une_ligne_sans_adresse_avec_un_message_clair(): void
+    public function test_store_manuel_refuse_une_ligne_sans_adresse_avec_un_message_clair(): void
     {
         $admin = $this->creerPersonne(['admin']);
         $avant = Famille::count();
@@ -106,7 +106,7 @@ class ImportsControllerTest extends TestCase
         $this->assertSame($avant, Famille::count());
     }
 
-    public function test_storeManuel_marque_une_ligne_invalide_en_erreur_sans_creer_de_famille(): void
+    public function test_store_manuel_marque_une_ligne_invalide_en_erreur_sans_creer_de_famille(): void
     {
         $admin = $this->creerPersonne(['admin']);
         $avant = Famille::count();
@@ -122,7 +122,7 @@ class ImportsControllerTest extends TestCase
         $this->assertSame($avant, Famille::count());
     }
 
-    public function test_storeManuel_deuxieme_ligne_meme_telephone_et_nom_est_traitee_comme_mise_a_jour_pas_creation(): void
+    public function test_store_manuel_deuxieme_ligne_meme_telephone_et_nom_est_traitee_comme_mise_a_jour_pas_creation(): void
     {
         $admin = $this->creerPersonne(['admin']);
 
@@ -256,7 +256,7 @@ class ImportsControllerTest extends TestCase
 
     // ── syncGoogleContacts() ─────────────────────────────────────────────
 
-    public function test_syncGoogleContacts_ne_dispatche_que_pour_les_lignes_reussies(): void
+    public function test_sync_google_contacts_ne_dispatche_que_pour_les_lignes_reussies(): void
     {
         $admin = $this->creerPersonne(['admin']);
         $this->actingAs($admin)->postJson(route('admin.imports.store-manuel'), [
@@ -272,7 +272,7 @@ class ImportsControllerTest extends TestCase
         Bus::assertDispatchedTimes(SynchroniserContactGoogle::class, 1);
     }
 
-    public function test_syncGoogleContacts_refuse_pour_un_import_annule(): void
+    public function test_sync_google_contacts_refuse_pour_un_import_annule(): void
     {
         $admin = $this->creerPersonne(['admin']);
         $this->actingAs($admin)->postJson(route('admin.imports.store-manuel'), ['lignes' => [$this->ligneValide()]])->assertOk();

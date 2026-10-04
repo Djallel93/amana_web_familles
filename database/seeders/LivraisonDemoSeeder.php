@@ -73,6 +73,7 @@ use Illuminate\Support\Str;
 class LivraisonDemoSeeder extends Seeder
 {
     private const HQ_LATITUDE_DEFAUT = 47.245919;
+
     private const HQ_LONGITUDE_DEFAUT = -1.604111;
 
     private const NOMBRE_CHAUFFEURS_PAR_SECTEUR = 2;
@@ -160,8 +161,7 @@ class LivraisonDemoSeeder extends Seeder
 
     public function __construct(
         private readonly RoleService $roleService,
-    ) {
-    }
+    ) {}
 
     public function run(): void
     {
@@ -184,11 +184,12 @@ class LivraisonDemoSeeder extends Seeder
      */
     private function secteursNantes(): ?array
     {
-        $secteurs = Secteur::whereHas('ville', fn ($q) => $q->where('nom', 'Nantes'))->pluck('id', 'nom');
+        $secteurs = Secteur::whereHas('ville', fn($q) => $q->where('nom', 'Nantes'))->pluck('id', 'nom');
 
         if ($secteurs->count() < 5) {
             $this->command->error('❌ Secteurs de Nantes introuvables (5 attendus : Nord/Est/Centre/Ouest/Sud) — '
                 . 'lancez d\'abord : php artisan db:seed --class="Amana\\Shared\\Database\\Seeders\\GeoSeeder"');
+
             return null;
         }
 
@@ -295,6 +296,7 @@ class LivraisonDemoSeeder extends Seeder
         if ($vehiculesAvecPermis->isEmpty()) {
             $this->command->error('❌ Aucun véhicule "avec permis" dans ref_vehicules — lancez d\'abord '
                 . 'VehiculeTypesSeeder.');
+
             return;
         }
 
@@ -302,6 +304,7 @@ class LivraisonDemoSeeder extends Seeder
             // Ne devrait plus arriver depuis le 27/08/2026 — voir
             // BenevoleSeeder, même garde-fou.
             $this->command->error('❌ Application "familles" introuvable dans ref_applications.');
+
             return;
         }
 

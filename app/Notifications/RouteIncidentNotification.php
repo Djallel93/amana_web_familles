@@ -46,7 +46,7 @@ class RouteIncidentNotification extends Notification
         // Gabarit stylé amana_shared (29/09/2026, prompt de cette date §5.3) —
         // remplace le MailMessage Laravel par défaut (->line()->action()),
         // même convention que RouteChargeeNotification.
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('AMANA Livraison — Incident : ' . $this->libelleType())
             ->view('emails.route-incident', [
                 'prenom' => $notifiable->prenom ?? '',

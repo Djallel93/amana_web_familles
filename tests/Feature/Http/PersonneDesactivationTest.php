@@ -7,6 +7,7 @@ namespace Tests\Feature\Http;
 
 use Amana\Shared\Models\Personne as SharedPersonne;
 use Amana\Shared\Models\VehiculeType;
+use App\Http\Middleware\EnsurePersonneActive;
 use App\Models\BenevoleProfil;
 use App\Models\Campagne;
 use App\Models\Famille;
@@ -82,7 +83,7 @@ class PersonneDesactivationTest extends TestCase
 
         $this->assertFalse(PersonneDesactivee::estDesactivee($personne->id));
         $this->assertSame('gestionnaire', app(RoleService::class)->currentRoleCode($personne));
-        $this->assertSame(2, $personne->roles()->whereHas('application', fn ($q) => $q->where('code', 'familles'))->count());
+        $this->assertSame(2, $personne->roles()->whereHas('application', fn($q) => $q->where('code', 'familles'))->count());
     }
 
     public function test_un_membre_ou_gestionnaire_ne_peut_pas_desactiver(): void
@@ -165,7 +166,7 @@ class PersonneDesactivationTest extends TestCase
 
         $this->get(route('familles.index'))
             ->assertRedirect(route('login'))
-            ->assertSessionHas('error', \App\Http\Middleware\EnsurePersonneActive::MESSAGE);
+            ->assertSessionHas('error', EnsurePersonneActive::MESSAGE);
         $this->assertGuest();
     }
 
@@ -176,7 +177,7 @@ class PersonneDesactivationTest extends TestCase
 
         $this->actingAs($personne)->getJson(route('livraison.personnes.recherche'))
             ->assertForbidden()
-            ->assertJsonPath('message', \App\Http\Middleware\EnsurePersonneActive::MESSAGE);
+            ->assertJsonPath('message', EnsurePersonneActive::MESSAGE);
     }
 
     // ── Liste ────────────────────────────────────────────────────────────

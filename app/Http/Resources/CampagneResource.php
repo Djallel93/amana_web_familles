@@ -56,8 +56,8 @@ class CampagneResource extends JsonResource
             'heure_debut_arrivee_hq' => $this->heure_debut_arrivee_hq,
             'heure_fin_arrivee_hq' => $this->heure_fin_arrivee_hq,
             'commentaire' => $this->commentaire,
-            'poids_moyen_historique' => $this->whenLoaded('poidsMoyenHistorique', fn () => CampagnePoidsMoyenHistoriqueResource::collection($this->poidsMoyenHistorique)),
-            'journees' => $this->whenLoaded('journees', fn () => CampagneJourneeResource::collection($this->journees)),
+            'poids_moyen_historique' => $this->whenLoaded('poidsMoyenHistorique', fn() => CampagnePoidsMoyenHistoriqueResource::collection($this->poidsMoyenHistorique)),
+            'journees' => $this->whenLoaded('journees', fn() => CampagneJourneeResource::collection($this->journees)),
         ];
     }
 }

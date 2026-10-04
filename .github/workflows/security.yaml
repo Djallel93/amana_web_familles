@@ -1,0 +1,61 @@
+name: Security audit
+
+# Weekly audit of dependencies against known vulnerabilities (CVE / GHSA).
+#
+# Deliberately SEPARATE from the quality gate (tests.yaml): a vulnerability
+# published tomorrow must not block the deployment of an unrelated change.
+# Here a failure means "a dependency has a known vulnerability": it is
+# reported by a failing workflow (GitHub e-mail) without touching deployments.
+#
+# Can also be run manually: Actions tab > Security audit > Run workflow.
+# The same commands run locally: see docs/security.md.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # every Monday, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  composer-audit:
+    name: composer audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          tools: composer:2
+          coverage: none
+
+      # --locked: audits composer.lock without installing anything (so no
+      # access to the amana/* repos is needed). Abandoned packages are
+      # reported without failing the job.
+      - name: composer audit
+        run: composer audit --locked --abandoned=report --no-interaction
+
+  npm-audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      # PRODUCTION dependencies: only these make the job fail.
+      - name: npm audit (production)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Development dependencies (build tooling, never deployed): shown for
+      # information, without failing the job.
+      - name: npm audit (development, informational)
+        continue-on-error: true
+        run: npm audit --audit-level=high

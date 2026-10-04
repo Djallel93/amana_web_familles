@@ -22,8 +22,7 @@ class RouteModifieeNotification extends Notification
 
     public function __construct(
         private readonly string $message,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -32,7 +31,7 @@ class RouteModifieeNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('AMANA Livraison — Votre tournée a été modifiée')
             ->line($this->message)
             ->action('Voir ma tournée', route('livraison.benevole.ma-route.show'));

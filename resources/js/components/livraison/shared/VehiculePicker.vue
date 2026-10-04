@@ -14,16 +14,16 @@
     module-level ci-dessous).
 -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { apiGet } from './api';
-import type { VehiculeType } from './types';
+import { ref, onMounted } from "vue";
+import { apiGet } from "./api";
+import type { VehiculeType } from "./types";
 
-const props = defineProps<{
+defineProps<{
     modelValue: number | null;
 }>();
 
 const emit = defineEmits<{
-    'update:modelValue': [id: number | null];
+    "update:modelValue": [id: number | null];
 }>();
 
 // Cache module-level : partagé entre toutes les instances de ce composant
@@ -45,7 +45,7 @@ onMounted(async () => {
     }
 
     if (!chargementEnCours) {
-        chargementEnCours = apiGet<VehiculeType[]>('/vehicules').then((resultat) => {
+        chargementEnCours = apiGet<VehiculeType[]>("/vehicules").then((resultat) => {
             if (!resultat.ok) throw new Error(resultat.message);
             vehiculesCache = resultat.data;
             return resultat.data;
@@ -66,14 +66,23 @@ onMounted(async () => {
 <template>
     <div>
         <p v-if="chargement" class="text-[12.5px] text-ink-muted px-1 py-1">Chargement des véhicules…</p>
-        <p v-else-if="erreur" class="text-[12.5px] text-rose-600 px-1 py-1">Liste des véhicules indisponible, réessayez.</p>
+        <p v-else-if="erreur" class="text-[12.5px] text-rose-600 px-1 py-1">
+            Liste des véhicules indisponible, réessayez.
+        </p>
         <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <label v-for="vehicule in vehicules" :key="vehicule.id"
+            <label
+                v-for="vehicule in vehicules"
+                :key="vehicule.id"
                 class="flex flex-col gap-0.5 px-3 py-2.5 border rounded-md text-[13px] text-ink cursor-pointer select-none min-h-[2.5rem]"
-                :class="modelValue === vehicule.id ? 'border-accent bg-accent/5' : 'border-ink-faint'">
+                :class="modelValue === vehicule.id ? 'border-accent bg-accent/5' : 'border-ink-faint'"
+            >
                 <span class="flex items-center gap-2">
-                    <input type="radio" :checked="modelValue === vehicule.id"
-                        @change="emit('update:modelValue', vehicule.id)" class="w-4 h-4 accent-accent">
+                    <input
+                        type="radio"
+                        :checked="modelValue === vehicule.id"
+                        @change="emit('update:modelValue', vehicule.id)"
+                        class="w-4 h-4 accent-accent"
+                    />
                     {{ vehicule.type }}
                 </span>
                 <span v-if="vehicule.capacite_kg > 0" class="text-[11px] text-ink-faint pl-6">

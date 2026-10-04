@@ -45,7 +45,7 @@ class FamilleFilters
             $query->whereIn('id_quartier', Quartier::where('id_secteur', $request->input('id_secteur'))->pluck('id'));
         }
         if ($request->filled('id_ville')) {
-            $query->whereIn('id_quartier', Quartier::whereHas('secteur', fn ($q) => $q->where('id_ville', $request->input('id_ville')))->pluck('id'));
+            $query->whereIn('id_quartier', Quartier::whereHas('secteur', fn($q) => $q->where('id_ville', $request->input('id_ville')))->pluck('id'));
         }
         if ($request->boolean('zakat_el_fitr')) {
             $query->where('zakat_el_fitr', true);
@@ -85,7 +85,7 @@ class FamilleFilters
             $query->where('id_organisation', $request->input('id_organisation_origine'));
         }
         if ($request->filled('id_organisation_rattachee')) {
-            $query->whereHas('organisations', fn ($q) => $q->where('organisations.id', $request->input('id_organisation_rattachee')));
+            $query->whereHas('organisations', fn($q) => $q->where('organisations.id', $request->input('id_organisation_rattachee')));
         }
     }
 }

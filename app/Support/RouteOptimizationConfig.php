@@ -35,18 +35,21 @@ final class RouteOptimizationConfig
     public static function sameBuildingThresholdKm(): float
     {
         $metres = Setting::get('route_same_building_threshold_m', 'familles') ?? 50;
+
         return $metres / 1000;
     }
 
     public static function quartierPreference(): bool
     {
         $valeur = Setting::get('route_quartier_preference', 'familles');
+
         return $valeur === null ? true : (bool) $valeur;
     }
 
     public static function allowCrossQuartier(): bool
     {
         $valeur = Setting::get('route_allow_cross_quartier', 'familles');
+
         return $valeur === null ? true : (bool) $valeur;
     }
 

@@ -46,6 +46,7 @@ class FamilleCsvParser
         $entetes = fgetcsv($handle, 0, ';') ?: fgetcsv($handle, 0, ',');
         if (!$entetes) {
             fclose($handle);
+
             return [];
         }
         // Détection automatique du séparateur (';' usage courant Excel FR, ',' sinon).
@@ -80,6 +81,7 @@ class FamilleCsvParser
         }
 
         fclose($handle);
+
         return $lignes;
     }
 

@@ -13,6 +13,7 @@ use App\Models\LivraisonColis;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Services\MaRouteVueService;
+use App\Services\RouteGenerationService;
 use App\Support\Creneau;
 use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -204,7 +205,7 @@ class MaRouteDemarrageTest extends TestCase
         $route = $this->creerRoute($campagne, $benevole->id, 'en_cours');
         $livraison = $this->creerLivraison($campagne, ['statut' => 'ignoree']);
         $etape = $this->creerEtape($route, $livraison, 1, 'ignoree');
-        $incident = RouteIncident::withoutEvents(fn () => RouteIncident::create([
+        $incident = RouteIncident::withoutEvents(fn() => RouteIncident::create([
             'id_route' => $route->id,
             'type' => 'livraison_ignoree',
             'id_livraison' => $livraison->id,
@@ -348,7 +349,7 @@ class MaRouteDemarrageTest extends TestCase
         $normale = $this->creerLivraison($campagne, ['statut' => 'non_assignee', 'se_deplace' => false]);
         $autreNormale = $this->creerLivraison($campagne, ['statut' => 'non_assignee', 'se_deplace' => false]);
 
-        $ids = app(\App\Services\RouteGenerationService::class)
+        $ids = app(RouteGenerationService::class)
             ->livraisonsNonCouvertes($campagne)->pluck('id')->all();
 
         $this->assertSame([$normale->id, $autreNormale->id, $seDeplace->id], $ids);

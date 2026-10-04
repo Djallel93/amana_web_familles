@@ -37,7 +37,8 @@ use Illuminate\Support\Facades\DB;
  * pour ces 5 réglages. route_quartier_preference et
  * route_allow_cross_quartier restent en 'boolean'.
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         $commun = DB::connection(config('amana-shared.connection', 'commun'));
@@ -171,7 +172,5 @@ return new class extends Migration {
         }
     }
 
-    public function down(): void
-    {
-    }
+    public function down(): void {}
 };

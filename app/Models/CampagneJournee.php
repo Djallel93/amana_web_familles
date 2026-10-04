@@ -8,6 +8,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 /**
  * Une journée de collecte/livraison au sein d'une campagne — voir
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  *
  * @property int         $id
  * @property int         $id_campagne
- * @property \Illuminate\Support\Carbon $date
+ * @property Carbon $date
  * @property string|null $label
  * @property int         $ordre
  */

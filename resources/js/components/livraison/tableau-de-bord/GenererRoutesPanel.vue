@@ -35,12 +35,15 @@ const idJourneeSelectionnee = ref<number | null>(props.journees[0]?.id ?? null);
 
 // La campagne affichée peut changer sans démonter ce panneau : on repart de
 // sa première journée.
-watch(() => props.campagneId, () => {
-    idJourneeSelectionnee.value = props.journees[0]?.id ?? null;
-    resultatRoutes.value = null;
-    erreurRoutes.value = "";
-    verifierGateClustering();
-});
+watch(
+    () => props.campagneId,
+    () => {
+        idJourneeSelectionnee.value = props.journees[0]?.id ?? null;
+        resultatRoutes.value = null;
+        erreurRoutes.value = "";
+        verifierGateClustering();
+    },
+);
 
 // ── Clustering / génération des routes (09/09/2026, prompt de cette date
 // §2.2 : déplacé ici depuis ContactsQueue.vue) ───────────────────────────
@@ -83,17 +86,11 @@ async function verifierGateClustering() {
                     ids_only: 1,
                 }),
         ),
-        apiGet<{ total: number }>(
-            props.urls.contactsStatistiques + buildQuery(filtresJournee),
-        ),
+        apiGet<{ total: number }>(props.urls.contactsStatistiques + buildQuery(filtresJournee)),
     ]);
     chargementVerifGate.value = false;
-    resteAContacter.value = resultatReste.ok
-        ? resultatReste.data.ids.length
-        : null;
-    aucuneLivraison.value = resultatTotal.ok
-        ? resultatTotal.data.total === 0
-        : null;
+    resteAContacter.value = resultatReste.ok ? resultatReste.data.ids.length : null;
+    aucuneLivraison.value = resultatTotal.ok ? resultatTotal.data.total === 0 : null;
 }
 
 const chargementRoutes = ref(false);
@@ -105,8 +102,7 @@ async function genererRoutes() {
 
     const confirmed = await confirmDialog.ask({
         title: "Lancer la génération des routes",
-        message:
-            "Le clustering et l'assignation des tournées vont être (re)calculés pour cette journée. Continuer ?",
+        message: "Le clustering et l'assignation des tournées vont être (re)calculés pour cette journée. Continuer ?",
         confirmLabel: "Lancer",
     });
     if (!confirmed) return;
@@ -131,7 +127,6 @@ async function genererRoutes() {
     emit("generated");
 }
 
-
 function surChangementJournee() {
     verifierGateClustering();
 }
@@ -150,26 +145,43 @@ onMounted(() => {
 });
 
 const peutGenerer = computed(
-    () => !(chargementRoutes.value || chargementVerifGate.value || (resteAContacter.value ?? 1) > 0 || aucuneLivraison.value !== false),
+    () =>
+        !(
+            chargementRoutes.value ||
+            chargementVerifGate.value ||
+            (resteAContacter.value ?? 1) > 0 ||
+            aucuneLivraison.value !== false
+        ),
 );
 </script>
 
 <template>
-    <div id="generer-routes" ref="racine" class="bg-surface border border-surface-border rounded-xl p-5 mb-6 scroll-mt-4">
+    <div
+        id="generer-routes"
+        ref="racine"
+        class="bg-surface border border-surface-border rounded-xl p-5 mb-6 scroll-mt-4"
+    >
         <h2 class="text-[14px] font-medium text-ink mb-3">Génération des routes</h2>
 
         <div v-if="journees.length > 1" class="mb-3">
             <label class="block text-[12.5px] font-medium text-ink-muted mb-1">Journée</label>
-            <select v-model.number="idJourneeSelectionnee" @change="surChangementJournee"
-                class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]">
+            <select
+                v-model.number="idJourneeSelectionnee"
+                @change="surChangementJournee"
+                class="rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]"
+            >
                 <option v-for="journee in journees" :key="journee.id" :value="journee.id">
                     {{ journee.label ?? formatDateFr(journee.date) }} — {{ formatDateFr(journee.date) }}
                 </option>
             </select>
         </div>
 
-        <button type="button" :disabled="!peutGenerer" @click="genererRoutes"
-            class="min-h-[2.25rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
+        <button
+            type="button"
+            :disabled="!peutGenerer"
+            @click="genererRoutes"
+            class="min-h-[2.25rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed"
+        >
             🚚 {{ chargementRoutes ? "Génération…" : "Génération des routes" }}
         </button>
         <p v-if="chargementVerifGate" class="text-[12.5px] text-ink-muted mt-2">Vérification…</p>

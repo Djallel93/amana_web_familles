@@ -22,8 +22,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Quality gate: build and deploy depend on it (defined in tests.yaml,
+  # shared with ci.yaml and the other deploy workflow).
   test:
-    name: Run tests
     uses: ./.github/workflows/tests.yaml
     secrets: inherit
 

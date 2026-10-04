@@ -119,7 +119,7 @@ class RetraitHqController extends Controller
             'pretes' => $livraisons->where('statutRetraitHqAffiche', 'prete')->count(),
             'delivrees' => $livraisons->where('statutRetraitHqAffiche', 'delivre')->count(),
             'non_delivrees' => $livraisons->where('statutRetraitHqAffiche', 'non_delivre')->count(),
-            'avec_email' => $livraisons->filter(fn (Livraison $l) => !empty($l->famille->email))->count(),
+            'avec_email' => $livraisons->filter(fn(Livraison $l) => !empty($l->famille->email))->count(),
         ];
 
         if (in_array($filtre, self::STATUTS_AFFICHES, true)) {

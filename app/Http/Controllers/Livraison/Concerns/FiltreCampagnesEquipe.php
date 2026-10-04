@@ -42,13 +42,13 @@ trait FiltreCampagnesEquipe
     private function campagnesPourEquipe(Personne $personne, string $role, bool $avecJournees): Collection
     {
         $requete = Campagne::whereIn('statut', ['preparation', 'en_cours'])
-            ->when($avecJournees, fn (Builder $q) => $q->with('journees'))
+            ->when($avecJournees, fn(Builder $q) => $q->with('journees'))
             ->orderByDesc('date_livraison');
 
         if ($personne->isAdmin() || $personne->isGestionnaire()) {
             return $requete->get();
         }
 
-        return $requete->get()->filter(fn (Campagne $campagne) => $campagne->aRole($personne->id, $role))->values();
+        return $requete->get()->filter(fn(Campagne $campagne) => $campagne->aRole($personne->id, $role))->values();
     }
 }

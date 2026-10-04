@@ -17,7 +17,7 @@
     côté serveur.
 -->
 <script setup lang="ts">
-import IntakeForm from '../../components/intake/IntakeForm.vue';
+import IntakeForm from "../../components/intake/IntakeForm.vue";
 
 interface ListeOption {
     id: number;
@@ -34,7 +34,7 @@ interface OrganisationOption {
 }
 
 defineProps<{
-    langue: 'fr' | 'ar' | 'en';
+    langue: "fr" | "ar" | "en";
     storeUrl: string;
     refusUrl: string;
     secteursActivite: ListeOption[];
@@ -45,6 +45,13 @@ defineProps<{
 </script>
 
 <template>
-    <IntakeForm :langue="langue" :store-url="storeUrl" :refus-url="refusUrl" :secteurs-activite="secteursActivite"
-        :organismes-aide="organismesAide" :organisations="organisations" :google-places-api-key="googlePlacesApiKey" />
+    <IntakeForm
+        :langue="langue"
+        :store-url="storeUrl"
+        :refus-url="refusUrl"
+        :secteurs-activite="secteursActivite"
+        :organismes-aide="organismesAide"
+        :organisations="organisations"
+        :google-places-api-key="googlePlacesApiKey"
+    />
 </template>

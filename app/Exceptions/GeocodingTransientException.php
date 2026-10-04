@@ -14,6 +14,4 @@ namespace App\Exceptions;
  * Levée par GoogleGeocodingService::geocoder(), attrapée par
  * ResoudreAdresseFamille::handle() pour déclencher $this->fail() (retry).
  */
-class GeocodingTransientException extends \RuntimeException
-{
-}
+class GeocodingTransientException extends \RuntimeException {}

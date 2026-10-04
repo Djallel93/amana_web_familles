@@ -49,7 +49,7 @@ class FamilleUpsertServiceTest extends TestCase
 
     // ── trouverDoublon() ─────────────────────────────────────────────────
 
-    public function test_trouverDoublon_priorise_lemail_meme_quand_telephone_et_nom_correspondent_a_un_autre_dossier(): void
+    public function test_trouver_doublon_priorise_lemail_meme_quand_telephone_et_nom_correspondent_a_un_autre_dossier(): void
     {
         $parEmail = Famille::factory()->create(['email' => 'fatima@example.fr', 'telephone' => '0611111111', 'nom' => 'Autre']);
         $parTelNom = Famille::factory()->create(['email' => null, 'telephone' => '0622222222', 'nom' => 'Dupont']);
@@ -64,7 +64,7 @@ class FamilleUpsertServiceTest extends TestCase
         $this->assertFalse($trouve->is($parTelNom));
     }
 
-    public function test_trouverDoublon_email_est_insensible_a_la_casse(): void
+    public function test_trouver_doublon_email_est_insensible_a_la_casse(): void
     {
         $famille = Famille::factory()->create(['email' => 'Fatima@Example.fr']);
 
@@ -73,7 +73,7 @@ class FamilleUpsertServiceTest extends TestCase
         $this->assertTrue($trouve->is($famille));
     }
 
-    public function test_trouverDoublon_par_telephone_et_nom_est_insensible_a_la_casse_du_nom(): void
+    public function test_trouver_doublon_par_telephone_et_nom_est_insensible_a_la_casse_du_nom(): void
     {
         $famille = Famille::factory()->create(['email' => null, 'telephone' => '0699999999', 'nom' => 'DUPONT']);
 
@@ -82,7 +82,7 @@ class FamilleUpsertServiceTest extends TestCase
         $this->assertTrue($trouve->is($famille));
     }
 
-    public function test_trouverDoublon_retourne_null_sans_correspondance(): void
+    public function test_trouver_doublon_retourne_null_sans_correspondance(): void
     {
         $this->assertNull($this->upsert->trouverDoublon($this->donnees(['email' => 'personne@nulle-part.fr'])));
     }

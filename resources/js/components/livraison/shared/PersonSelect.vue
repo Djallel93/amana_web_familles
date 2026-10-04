@@ -21,10 +21,10 @@
     que le remplacement soit transparent chez les appelants existants.
 -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { SearchableSelect, type SearchableSelectItem } from '@amana/shared-ui';
-import { apiGet, buildQuery } from './api';
-import type { PersonneResume } from './types';
+import { computed, onMounted, ref } from "vue";
+import { SearchableSelect, type SearchableSelectItem } from "@amana/shared-ui";
+import { apiGet, buildQuery } from "./api";
+import type { PersonneResume } from "./types";
 
 const props = defineProps<{
     /** Filtre de rôle minimum, ex. 'benevole' ou 'gestionnaire' (voir Personne::hasAtLeastRole()). */
@@ -37,7 +37,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    'update:modelValue': [personne: PersonneResume | null];
+    "update:modelValue": [personne: PersonneResume | null];
 }>();
 
 // Cache module : clé = paramètres de requête → la même Promise pour tous les
@@ -45,7 +45,8 @@ const emit = defineEmits<{
 const cache = new Map<string, Promise<PersonneResume[]>>();
 
 function charger(role: string | undefined, avecVehicule: boolean): Promise<PersonneResume[]> {
-    const url = '/livraison/personnes/recherche' + buildQuery({ tous: 1, role, avec_vehicule: avecVehicule || undefined });
+    const url =
+        "/livraison/personnes/recherche" + buildQuery({ tous: 1, role, avec_vehicule: avecVehicule || undefined });
 
     let promesse = cache.get(url);
     if (!promesse) {
@@ -89,23 +90,29 @@ const items = computed<SearchableSelectItem[]>(() => {
     return liste;
 });
 
-const valeur = computed(() => (props.modelValue ? String(props.modelValue.id) : ''));
+const valeur = computed(() => (props.modelValue ? String(props.modelValue.id) : ""));
 
 function onSelection(id: string | string[]) {
-    const identifiant = Array.isArray(id) ? (id[0] ?? '') : id;
+    const identifiant = Array.isArray(id) ? (id[0] ?? "") : id;
     const personne = personnes.value.find((p) => String(p.id) === identifiant) ?? null;
-    emit('update:modelValue', personne);
+    emit("update:modelValue", personne);
 }
 
 const messageVide = computed(() => {
-    if (chargement.value) return 'Chargement…';
-    if (erreur.value) return 'Liste indisponible, réessayez.';
-    return 'Aucune personne disponible.';
+    if (chargement.value) return "Chargement…";
+    if (erreur.value) return "Liste indisponible, réessayez.";
+    return "Aucune personne disponible.";
 });
 </script>
 
 <template>
-    <SearchableSelect :model-value="valeur" :items="items" match-mode="word-prefix"
-        :placeholder="placeholder ?? 'Sélectionner une personne…'" search-placeholder="Tapez le début d'un prénom ou d'un nom…"
-        :empty-message="messageVide" @update:model-value="onSelection" />
+    <SearchableSelect
+        :model-value="valeur"
+        :items="items"
+        match-mode="word-prefix"
+        :placeholder="placeholder ?? 'Sélectionner une personne…'"
+        search-placeholder="Tapez le début d'un prénom ou d'un nom…"
+        :empty-message="messageVide"
+        @update:model-value="onSelection"
+    />
 </template>

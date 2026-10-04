@@ -19,15 +19,22 @@ same deploy mechanism (SFTP/SSH to IONOS) — they just differ in which
 branch triggers them and which GitHub Environment they read secrets from.
 
 Both also start with a `test` job (`.github/workflows/tests.yaml`, a
-reusable `workflow_call` workflow shared by the two of them) that runs the
-full PHPUnit suite against a real MySQL service — `build` declares
-`needs: test`, so a failing test blocks that push from ever reaching
-IONOS. That MySQL service is a disposable container on GitHub's own
+reusable `workflow_call` workflow shared by the two of them and by
+`ci.yaml`) — the **Tests & quality gate**: PHPUnit against a real MySQL
+service, then PHPStan (`composer analyse`), Pint (`composer format:check`),
+Prettier (`npm run format:check`), ESLint (`npm run lint`) and vue-tsc
+(`npm run type-check`). `build` declares `needs: test` (and `deploy` needs
+`build`), so **any failing step blocks that push from ever reaching
+IONOS**. That MySQL service is a disposable container on GitHub's own
 runner, unrelated to IONOS and its shared-hosting database-quota limits
 (§6 below) — it's created fresh per run and torn down after, so creating
 a second database there is trivial and has no bearing on how the real
 deploy targets are provisioned. See `docs/TESTING.md` for how the suite
-itself works.
+and the gate work, and `docs/security.md` for the (non-blocking) weekly
+dependency audit.
+
+Pushes to any other branch run the same gate through `ci.yaml` (no build,
+no deploy).
 
 **familles** currently has no `main` branch at all — it's never been
 deployed to production yet, so its `deploy.yaml` is effectively dormant
@@ -235,9 +242,11 @@ physical schema. Two things to know before doing it:
 ```txt
 .github/
 ├── workflows/
-│   ├── deploy.yaml            # main → production
-│   ├── deploy-preprod.yaml    # develop → preprod
-│   └── tests.yaml             # reusable — called by both of the above
+│   ├── deploy.yaml            # main → production (gate first)
+│   ├── deploy-preprod.yaml    # develop → preprod (gate first)
+│   ├── ci.yaml                # every other branch → gate only, no deploy
+│   ├── tests.yaml             # reusable quality gate — called by the three above
+│   └── security.yaml          # weekly composer/npm audit (never blocks a deploy)
 └── deploy/
     ├── .env.production.template   # rendered via envsubst at deploy time
     ├── .env.preprod.template

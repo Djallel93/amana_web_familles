@@ -1,10 +1,24 @@
-name: Run tests
+name: Tests & quality gate
 
-# Reusable workflow (workflow_call) — called from deploy.yaml and
-# deploy-preprod.yaml's own `test:` job, so the MySQL service/two-database
-# setup lives in exactly one place instead of being copy-pasted into both
-# near-identical deploy workflows (see docs/DEPLOYMENT.md: "Both workflows
-# are near-identical copies of each other").
+# Reusable workflow (workflow_call) — the project's single quality gate,
+# called from:
+#   - ci.yaml              (push on any branch other than main / develop)
+#   - deploy.yaml          (production, push on main)
+#   - deploy-preprod.yaml  (preprod,    push on develop)
+# The calling job is named `test`, so the GitHub check shows up as
+# « test / Tests & quality gate ». In both deploy workflows `build` and
+# `deploy` depend on it (`needs: test`): ANY failing step below — tests,
+# PHPStan, Pint, Prettier, ESLint, vue-tsc — blocks the deployment.
+#
+# Same gate, same step order as amana_web_planning. Dependency-vulnerability
+# audits are deliberately NOT part of it (see security.yaml): a CVE published
+# tomorrow must not block the deployment of an unrelated change.
+#
+# The MySQL service/two-database setup lives here, in exactly one place,
+# instead of being copy-pasted into the near-identical deploy workflows (see
+# docs/DEPLOYMENT.md: "Both workflows are near-identical copies of each
+# other"). A throwaway MySQL container is provided on EVERY run, whatever the
+# branch — there is no shared test database that could be missing.
 #
 # The two-database split here matches PRODUCTION's topology (and local
 # dev's, see docker/mysql/init.sql) — not preprod's merged-single-database
@@ -20,7 +34,7 @@ on:
 
 jobs:
   test:
-    name: PHPUnit
+    name: Tests & quality gate
     runs-on: ubuntu-latest
 
     # Same two logical databases as local dev (docker/mysql/init.sql) and
@@ -76,6 +90,17 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --prefer-dist --no-interaction
 
+      # @amana/shared-ui is a private-repo npm dependency: the git URL
+      # rewrite above already authenticates `npm ci` too.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
       - name: Prepare .env
         run: |
           cp .env.example .env
@@ -90,7 +115,7 @@ jobs:
           mysql -h127.0.0.1 -P3306 -uroot -e \
             "CREATE DATABASE IF NOT EXISTS amana_commun_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
-      - name: Run test suite
+      - name: PHPUnit
         env:
           # phpunit.xml only overrides DB_CONNECTION/DB_DATABASE/DB_COMMUN_DATABASE
           # (see its own comment) — host/port/credentials still come from the
@@ -103,3 +128,18 @@ jobs:
           DB_COMMUN_USERNAME: root
           DB_COMMUN_PASSWORD:
         run: php artisan test
+
+      - name: PHPStan (level configured in phpstan.neon)
+        run: composer analyse
+
+      - name: Pint (PHP formatting)
+        run: composer format:check
+
+      - name: Prettier (frontend formatting)
+        run: npm run format:check
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Type-check (vue-tsc)
+        run: npm run type-check

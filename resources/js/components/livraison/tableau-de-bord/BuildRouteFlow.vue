@@ -18,12 +18,12 @@
         ids_only, backée par LiveBoardController::nonCouvertesTable().
 -->
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
-import { useToast } from '@amana/shared-ui';
-import { apiGet, apiPost, buildQuery } from '../shared/api';
-import Paginator from '../shared/Paginator.vue';
-import FamilleFilterPanel from '../shared/FamilleFilterPanel.vue';
-import PersonSelect from '../shared/PersonSelect.vue';
+import { ref, reactive, watch } from "vue";
+import { useToast } from "@amana/shared-ui";
+import { apiGet, apiPost, buildQuery } from "../shared/api";
+import PaginationControls from "../shared/PaginationControls.vue";
+import FamilleFilterPanel from "../shared/FamilleFilterPanel.vue";
+import PersonSelect from "../shared/PersonSelect.vue";
 import {
     CRENEAUX,
     CRENEAU_LIBELLES,
@@ -37,7 +37,7 @@ import {
     type RawLaravelPaginator,
     type Secteur,
     type Ville,
-} from '../shared/types';
+} from "../shared/types";
 
 const props = defineProps<{
     campagneId: string;
@@ -61,12 +61,12 @@ const emit = defineEmits<{ created: [] }>();
 const toast = useToast();
 
 function formatDateFr(iso: string): string {
-    const [annee, mois, jour] = iso.split('T')[0].split('-');
+    const [annee, mois, jour] = iso.split("T")[0].split("-");
     return `${jour}/${mois}/${annee}`;
 }
 
 const benevole = ref<PersonneResume | null>(null);
-const creneau = ref('');
+const creneau = ref("");
 const envoiEnCours = ref(false);
 const erreurs = ref<Record<string, string[]>>({});
 
@@ -75,9 +75,9 @@ const erreurs = ref<Record<string, string[]>>({});
 //    CampagneDetail.vue, sur LiveBoardController::nonCouvertesTable(). ──
 const filtres = ref<FamilleFiltres>({});
 const tri = ref<string | null>(null);
-const directionTri = ref<'asc' | 'desc'>('asc');
+const directionTri = ref<"asc" | "desc">("asc");
 const lignes = ref<FamilleEligible[]>([]);
-const metaLignes = ref<Paginated<FamilleEligible>['meta'] | null>(null);
+const metaLignes = ref<Paginated<FamilleEligible>["meta"] | null>(null);
 const chargementLignes = ref(true);
 const erreurLignes = ref(false);
 const chargementSelectionTout = ref(false);
@@ -88,10 +88,10 @@ const idsLivraisons = reactive<Set<number>>(new Set());
 
 function trierPar(colonne: string) {
     if (tri.value === colonne) {
-        directionTri.value = directionTri.value === 'asc' ? 'desc' : 'asc';
+        directionTri.value = directionTri.value === "asc" ? "desc" : "asc";
     } else {
         tri.value = colonne;
-        directionTri.value = 'asc';
+        directionTri.value = "asc";
     }
     chargerLignes(1);
 }
@@ -121,7 +121,9 @@ async function chargerLignes(page = 1) {
     chargementLignes.value = true;
     erreurLignes.value = false;
 
-    const resultat = await apiGet<RawLaravelPaginator<FamilleEligible>>(`${props.urlNonCouvertesTableau}${queryFiltres(page)}`);
+    const resultat = await apiGet<RawLaravelPaginator<FamilleEligible>>(
+        `${props.urlNonCouvertesTableau}${queryFiltres(page)}`,
+    );
     chargementLignes.value = false;
 
     if (!resultat.ok) {
@@ -165,15 +167,18 @@ if (props.urlNonCouvertesTableau) chargerLignes(1);
 
 // Rechargement à la demande du parent — même page, mêmes filtres : une
 // famille retirée d'une tournée y réapparaît sans rafraîchir la page.
-watch(() => props.versionRafraichissement, () => {
-    chargerLignes(metaLignes.value?.current_page ?? 1);
-});
+watch(
+    () => props.versionRafraichissement,
+    () => {
+        chargerLignes(metaLignes.value?.current_page ?? 1);
+    },
+);
 
 async function construire() {
     erreurs.value = {};
 
     if (!benevole.value?.id_vehicule_type || idsLivraisons.size === 0) {
-        toast.error('Choisissez un bénévole (avec véhicule déclaré) et au moins une livraison.');
+        toast.error("Choisissez un bénévole (avec véhicule déclaré) et au moins une livraison.");
         return;
     }
 
@@ -194,18 +199,20 @@ async function construire() {
         return;
     }
 
-    toast.success('Tournée créée.');
+    toast.success("Tournée créée.");
     benevole.value = null;
     idsLivraisons.clear();
-    creneau.value = '';
-    emit('created');
+    creneau.value = "";
+    emit("created");
     chargerLignes(metaLignes.value?.current_page ?? 1);
 }
 </script>
 
 <template>
     <details class="group mb-8 bg-surface border border-surface-border rounded-xl p-5">
-        <summary class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 mb-2 rounded-lg hover:bg-surface-2 transition-colors">
+        <summary
+            class="cursor-pointer list-none flex items-center justify-between select-none -mx-1 -my-1 px-1 py-1 mb-2 rounded-lg hover:bg-surface-2 transition-colors"
+        >
             <h2 class="text-[14px] font-medium text-ink">Construire une tournée personnalisée</h2>
             <span class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-180">▾</span>
         </summary>
@@ -217,7 +224,10 @@ async function construire() {
             </div>
             <div>
                 <label class="block text-[12px] text-ink-muted mb-1">Créneau (optionnel)</label>
-                <select v-model="creneau" class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]">
+                <select
+                    v-model="creneau"
+                    class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]"
+                >
                     <option value="">— Aucun —</option>
                     <option v-for="c in CRENEAUX" :key="c" :value="c">{{ CRENEAU_LIBELLES[c] }}</option>
                 </select>
@@ -226,74 +236,119 @@ async function construire() {
 
         <div class="mb-4">
             <label class="block text-[12px] text-ink-muted mb-1.5">
-                Livraisons à inclure ({{ idsLivraisons.size }} sélectionnée{{ idsLivraisons.size > 1 ? 's' : '' }})
+                Livraisons à inclure ({{ idsLivraisons.size }} sélectionnée{{ idsLivraisons.size > 1 ? "s" : "" }})
             </label>
 
-            <FamilleFilterPanel :villes="villes" :secteurs="secteurs" :quartiers="quartiers" :organisations="organisations"
-                :model-value="filtres" @update:model-value="filtres = $event" @filtrer="chargerLignes(1)" avec-se-deplace />
+            <FamilleFilterPanel
+                :villes="villes"
+                :secteurs="secteurs"
+                :quartiers="quartiers"
+                :organisations="organisations"
+                :model-value="filtres"
+                @update:model-value="filtres = $event"
+                @filtrer="chargerLignes(1)"
+                avec-se-deplace
+            />
 
             <div class="overflow-x-auto mb-2 border border-surface-border rounded-lg">
                 <table class="w-full text-[13px]">
                     <thead>
                         <tr class="text-left text-ink-muted border-b border-surface-border bg-stone-50">
                             <th class="px-3 py-2 font-medium">
-                                <input type="checkbox"
-                                    :checked="lignes.length > 0 && lignes.every((f) => idsLivraisons.has(f.id_livraison as number))"
+                                <input
+                                    type="checkbox"
+                                    :checked="
+                                        lignes.length > 0 &&
+                                        lignes.every((f) => idsLivraisons.has(f.id_livraison as number))
+                                    "
                                     :disabled="chargementSelectionTout"
-                                    @change="toutSelectionnerFiltre" class="w-4 h-4 accent-accent">
+                                    @change="toutSelectionnerFiltre"
+                                    class="w-4 h-4 accent-accent"
+                                />
                             </th>
                             <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('id')">
-                                ID <span v-if="tri === 'id'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                                ID <span v-if="tri === 'id'">{{ directionTri === "asc" ? "▲" : "▼" }}</span>
                             </th>
                             <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('nom')">
-                                Nom <span v-if="tri === 'nom'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                                Nom <span v-if="tri === 'nom'">{{ directionTri === "asc" ? "▲" : "▼" }}</span>
                             </th>
                             <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('telephone')">
-                                Contact <span v-if="tri === 'telephone'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                                Contact <span v-if="tri === 'telephone'">{{ directionTri === "asc" ? "▲" : "▼" }}</span>
                             </th>
                             <th class="px-3 py-2 font-medium">Adresse</th>
                             <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('criticite')">
-                                Criticité <span v-if="tri === 'criticite'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                                Criticité
+                                <span v-if="tri === 'criticite'">{{ directionTri === "asc" ? "▲" : "▼" }}</span>
                             </th>
-                            <th class="px-3 py-2 font-medium cursor-pointer select-none" @click="trierPar('derniere_livraison_le')">
-                                Dernière livraison <span v-if="tri === 'derniere_livraison_le'">{{ directionTri === 'asc' ? '▲' : '▼' }}</span>
+                            <th
+                                class="px-3 py-2 font-medium cursor-pointer select-none"
+                                @click="trierPar('derniere_livraison_le')"
+                            >
+                                Dernière livraison
+                                <span v-if="tri === 'derniere_livraison_le'">{{
+                                    directionTri === "asc" ? "▲" : "▼"
+                                }}</span>
                             </th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-if="chargementLignes"><td colspan="7" class="px-3 py-3 text-ink-muted">Chargement…</td></tr>
-                        <tr v-else-if="erreurLignes"><td colspan="7" class="px-3 py-3 text-rose-600">Impossible de charger les livraisons.</td></tr>
-                        <tr v-else-if="lignes.length === 0"><td colspan="7" class="px-3 py-3 text-ink-muted">Aucune livraison non couverte pour ces filtres.</td></tr>
-                        <tr v-for="famille in lignes" :key="famille.id_livraison ?? famille.id" class="border-b border-surface-border last:border-0 hover:bg-stone-50">
+                        <tr v-if="chargementLignes">
+                            <td colspan="7" class="px-3 py-3 text-ink-muted">Chargement…</td>
+                        </tr>
+                        <tr v-else-if="erreurLignes">
+                            <td colspan="7" class="px-3 py-3 text-rose-600">Impossible de charger les livraisons.</td>
+                        </tr>
+                        <tr v-else-if="lignes.length === 0">
+                            <td colspan="7" class="px-3 py-3 text-ink-muted">
+                                Aucune livraison non couverte pour ces filtres.
+                            </td>
+                        </tr>
+                        <tr
+                            v-for="famille in lignes"
+                            :key="famille.id_livraison ?? famille.id"
+                            class="border-b border-surface-border last:border-0 hover:bg-stone-50"
+                        >
                             <td class="px-3 py-2">
-                                <input type="checkbox" :checked="idsLivraisons.has(famille.id_livraison as number)" @change="toggleLivraison(famille.id_livraison)"
-                                    class="w-4 h-4 accent-accent">
+                                <input
+                                    type="checkbox"
+                                    :checked="idsLivraisons.has(famille.id_livraison as number)"
+                                    @change="toggleLivraison(famille.id_livraison)"
+                                    class="w-4 h-4 accent-accent"
+                                />
                             </td>
                             <td class="px-3 py-2 text-ink-muted">#{{ famille.id }}</td>
                             <td class="px-3 py-2 text-ink">{{ famille.prenom }} {{ famille.nom }}</td>
                             <td class="px-3 py-2 text-ink-muted">
-                                {{ famille.telephone || '—' }}
+                                {{ famille.telephone || "—" }}
                                 <span v-if="famille.telephone_bis"> / {{ famille.telephone_bis }}</span>
                             </td>
                             <td class="px-3 py-2 text-ink-muted">
-                                {{ famille.adresse || '—' }}
+                                {{ famille.adresse || "—" }}
                                 <span v-if="famille.quartier">— {{ famille.quartier.nom }}</span>
                             </td>
-                            <td class="px-3 py-2 text-ink-muted">{{ famille.criticite ?? '—' }}</td>
+                            <td class="px-3 py-2 text-ink-muted">{{ famille.criticite ?? "—" }}</td>
                             <td class="px-3 py-2 text-ink-muted">
-                                {{ famille.derniere_livraison_le ? formatDateFr(famille.derniere_livraison_le) : 'jamais livrée' }}
+                                {{
+                                    famille.derniere_livraison_le
+                                        ? formatDateFr(famille.derniere_livraison_le)
+                                        : "jamais livrée"
+                                }}
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-            <Paginator v-if="metaLignes" :meta="metaLignes" @change="chargerLignes" />
+            <PaginationControls v-if="metaLignes" :meta="metaLignes" @change="chargerLignes" />
             <p v-for="e in erreurs.ids_livraisons ?? []" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
         </div>
 
-        <button type="button" :disabled="envoiEnCours" @click="construire"
-            class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-60">
-            {{ envoiEnCours ? 'Création…' : 'Créer la tournée' }}
+        <button
+            type="button"
+            :disabled="envoiEnCours"
+            @click="construire"
+            class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-60"
+        >
+            {{ envoiEnCours ? "Création…" : "Créer la tournée" }}
         </button>
     </details>
 </template>

@@ -44,12 +44,12 @@
     Blade non migrée à faire coexister.
 -->
 <script setup lang="ts">
-import { reactive, computed } from 'vue';
-import { router } from '@inertiajs/vue3';
-import { useToast } from '@amana/shared-ui';
-import { apiPost, apiDelete } from '../shared/api';
-import PersonSelect from '../shared/PersonSelect.vue';
-import { EQUIPE_ROLES, type Campagne, type EquipeRole, type PersonneResume } from '../shared/types';
+import { reactive, computed } from "vue";
+import { router } from "@inertiajs/vue3";
+import { useToast } from "@amana/shared-ui";
+import { apiPost, apiDelete } from "../shared/api";
+import PersonSelect from "../shared/PersonSelect.vue";
+import { EQUIPE_ROLES, type Campagne, type EquipeRole, type PersonneResume } from "../shared/types";
 
 export interface LigneEquipe {
     id_personne: number;
@@ -68,7 +68,7 @@ const props = defineProps<{
 const toast = useToast();
 
 function urlRetirer(idPersonne: number, role: EquipeRole): string {
-    return props.retirerUrlTemplate.replace('__ID__', String(idPersonne)).replace('__ROLE__', role);
+    return props.retirerUrlTemplate.replace("__ID__", String(idPersonne)).replace("__ROLE__", role);
 }
 
 /**
@@ -78,7 +78,7 @@ function urlRetirer(idPersonne: number, role: EquipeRole): string {
  * endpoint `equipes/liste` disparaît avec son unique appelant.
  */
 function rechargerListe() {
-    router.reload({ only: ['lignes'] });
+    router.reload({ only: ["lignes"] });
 }
 
 // ── Formulaire d'ajout ───────────────────────────────────────────────
@@ -104,7 +104,7 @@ const membresParRole = computed(() => {
     for (const role of roles) {
         parRole[role] = props.lignes
             .filter((ligne) => ligne.roles.includes(role))
-            .sort((a, b) => a.nom.localeCompare(b.nom, 'fr') || a.prenom.localeCompare(b.prenom, 'fr'));
+            .sort((a, b) => a.nom.localeCompare(b.nom, "fr") || a.prenom.localeCompare(b.prenom, "fr"));
     }
     return parRole;
 });
@@ -147,12 +147,16 @@ async function retirer(ligne: LigneEquipe, role: EquipeRole) {
         <div>
             <h1 class="font-heading text-xl font-semibold text-ink">Équipes — {{ campagne.type }}</h1>
             <p class="text-[13px] text-ink-muted mt-1">
-                Affectez les membres du staff aux postes réception / pesée / packaging / chargement de cette campagne précisément
-                — indépendant du rôle global qu'ils peuvent avoir sur d'autres campagnes.
+                Affectez les membres du staff aux postes réception / pesée / packaging / chargement de cette campagne
+                précisément — indépendant du rôle global qu'ils peuvent avoir sur d'autres campagnes.
             </p>
         </div>
 
-        <section v-for="role in roles" :key="role" class="bg-surface border border-surface-border rounded-xl p-4 space-y-3">
+        <section
+            v-for="role in roles"
+            :key="role"
+            class="bg-surface border border-surface-border rounded-xl p-4 space-y-3"
+        >
             <div class="flex items-center justify-between gap-2">
                 <h2 class="text-[14px] font-semibold text-ink">{{ EQUIPE_ROLES[role] }}</h2>
                 <span class="text-[12px] text-ink-muted">{{ membresParRole[role].length }} membre(s)</span>
@@ -162,20 +166,33 @@ async function retirer(ligne: LigneEquipe, role: EquipeRole) {
                 <div class="flex-1">
                     <PersonSelect placeholder="Ajouter une personne…" v-model="personneChoisie[role]" />
                 </div>
-                <button type="button" :disabled="!personneChoisie[role] || ajoutEnCours[role]" @click="ajouter(role)"
-                    class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
-                    {{ ajoutEnCours[role] ? 'Ajout…' : 'Ajouter' }}
+                <button
+                    type="button"
+                    :disabled="!personneChoisie[role] || ajoutEnCours[role]"
+                    @click="ajouter(role)"
+                    class="min-h-[2.5rem] text-[13px] px-4 py-2 rounded-lg bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                >
+                    {{ ajoutEnCours[role] ? "Ajout…" : "Ajouter" }}
                 </button>
             </div>
 
-            <p v-if="membresParRole[role].length === 0" class="text-[13px] text-ink-muted">Personne n'est encore affecté à ce poste.</p>
+            <p v-if="membresParRole[role].length === 0" class="text-[13px] text-ink-muted">
+                Personne n'est encore affecté à ce poste.
+            </p>
 
             <div v-else class="space-y-2">
-                <div v-for="ligne in membresParRole[role]" :key="ligne.id_personne"
-                    class="flex items-center justify-between gap-3 bg-surface-2 border border-surface-border rounded-lg px-3 py-2">
+                <div
+                    v-for="ligne in membresParRole[role]"
+                    :key="ligne.id_personne"
+                    class="flex items-center justify-between gap-3 bg-surface-2 border border-surface-border rounded-lg px-3 py-2"
+                >
                     <span class="text-[14px] font-medium text-ink">{{ ligne.prenom }} {{ ligne.nom }}</span>
-                    <button type="button" @click="retirer(ligne, role)"
-                        class="text-[12px] text-ink-muted hover:text-rose-600 min-h-[2rem] px-2" :aria-label="`Retirer ${ligne.prenom} ${ligne.nom} — ${EQUIPE_ROLES[role]}`">
+                    <button
+                        type="button"
+                        @click="retirer(ligne, role)"
+                        class="text-[12px] text-ink-muted hover:text-rose-600 min-h-[2rem] px-2"
+                        :aria-label="`Retirer ${ligne.prenom} ${ligne.nom} — ${EQUIPE_ROLES[role]}`"
+                    >
                         Retirer
                     </button>
                 </div>

@@ -5,7 +5,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Policies;
 
-use App\Models\Campagne;
 use App\Policies\CampagnePolicy;
 use Tests\Concerns\BuildsCampagneEquipeFixtures;
 use Tests\Concerns\SeedsCommunFixtures;

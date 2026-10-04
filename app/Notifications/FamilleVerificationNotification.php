@@ -5,9 +5,9 @@ declare(strict_types=1);
 
 namespace App\Notifications;
 
+use Amana\Shared\Notifications\Concerns\EmbedsLogo;
 use App\Models\Famille;
 use App\Models\FamilleVerification;
-use Amana\Shared\Notifications\Concerns\EmbedsLogo;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
@@ -45,8 +45,7 @@ class FamilleVerificationNotification extends Notification
         private readonly FamilleVerification $verification,
         private readonly Famille $famille,
         private readonly string $token,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -64,7 +63,7 @@ class FamilleVerificationNotification extends Notification
             'id_famille' => $this->famille->id,
         ]);
 
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject(self::SUJETS[$langue])
             ->view('emails.verification-famille', [
                 'famille' => $this->famille,

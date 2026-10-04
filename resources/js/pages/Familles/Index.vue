@@ -20,14 +20,14 @@
     router.page).
 -->
 <script setup lang="ts">
-import { Head, Link, router } from '@inertiajs/vue3';
-import { computed, onMounted, watch } from 'vue';
-import FamilleFiltresBar from '../../components/familles/FamilleFiltresBar.vue';
-import FamillesTable, { type FamilleLigne } from '../../components/familles/FamillesTable.vue';
-import DetailPanel from '../../components/familles/DetailPanel.vue';
-import { useLiveDossiers } from '../../components/familles/useLiveDossiers';
-import ReverseSyncPanel from '../../components/familles/ReverseSyncPanel.vue';
-import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from '../../components/livraison/shared/types';
+import { Head, Link, router } from "@inertiajs/vue3";
+import { computed, onMounted, watch } from "vue";
+import FamilleFiltresBar from "../../components/familles/FamilleFiltresBar.vue";
+import FamillesTable, { type FamilleLigne } from "../../components/familles/FamillesTable.vue";
+import DetailPanel from "../../components/familles/DetailPanel.vue";
+import { useLiveDossiers } from "../../components/familles/useLiveDossiers";
+import ReverseSyncPanel from "../../components/familles/ReverseSyncPanel.vue";
+import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from "../../components/livraison/shared/types";
 
 interface ListeOption {
     id: number;
@@ -63,7 +63,7 @@ const props = defineProps<{
     organismesAide: ListeOption[];
     valeursFiltres: FamilleFiltres;
     triActuel: string | null;
-    directionActuelle: 'asc' | 'desc';
+    directionActuelle: "asc" | "desc";
     filtresActifs: boolean;
     puces: Puce[];
     reinitialiserUrl: string;
@@ -108,7 +108,7 @@ function ouvrirIdEtNettoyer(id: number) {
     // preserveState: true : pas une nouvelle entrée d'historique, pas de
     // refetch (rien d'autre n'a changé côté serveur).
     const params = new URLSearchParams(window.location.search);
-    params.delete('ouvrir');
+    params.delete("ouvrir");
     router.get(baseUrl, Object.fromEntries(params), { preserveState: true, preserveScroll: true, replace: true });
 }
 
@@ -120,9 +120,12 @@ onMounted(() => {
     if (props.ouvrirId) ouvrirIdEtNettoyer(props.ouvrirId);
 });
 
-watch(() => props.ouvrirId, (id) => {
-    if (id) ouvrirIdEtNettoyer(id);
-});
+watch(
+    () => props.ouvrirId,
+    (id) => {
+        if (id) ouvrirIdEtNettoyer(id);
+    },
+);
 
 function ouvrirSyncGoogleContacts() {
     window.openReverseSyncPanel?.();
@@ -136,16 +139,19 @@ function ouvrirSyncGoogleContacts() {
         <div>
             <h1 class="font-heading text-2xl font-semibold text-ink tracking-tight">Dossiers familles</h1>
             <p class="text-[13px] text-ink-muted mt-1">
-                {{ familles.total }} dossier{{ familles.total !== 1 ? 's' : '' }}
-                <template v-if="filtresActifs">(filtré{{ familles.total !== 1 ? 's' : '' }})</template>
+                {{ familles.total }} dossier{{ familles.total !== 1 ? "s" : "" }}
+                <template v-if="filtresActifs">(filtré{{ familles.total !== 1 ? "s" : "" }})</template>
             </p>
         </div>
         <!-- Création d'un dossier par le staff (03/10/2026) — voir
              FamilleCreationController. Ouvre le formulaire en mode staff
              (page dédiée) plutôt qu'un panneau : même assistant que le
              formulaire public, sans le consentement. -->
-        <Link v-if="peutCreerFamille" :href="creerFamilleUrl"
-            class="inline-flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors active:scale-95 no-underline">
+        <Link
+            v-if="peutCreerFamille"
+            :href="creerFamilleUrl"
+            class="inline-flex items-center gap-1.5 px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors active:scale-95 no-underline"
+        >
             ➕ Créer une famille
         </Link>
     </div>
@@ -168,14 +174,26 @@ function ouvrirSyncGoogleContacts() {
 
     <div class="flex flex-wrap items-start justify-between gap-2 mb-5">
         <div class="flex-1 min-w-0">
-            <div v-if="puces.length" class="flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-lg bg-accent/5 border border-accent/20 animate-fade-in-up">
-                <span class="text-[10.5px] text-accent-dark uppercase tracking-wide font-bold flex items-center gap-1">🔎 Filtres actifs</span>
-                <Link v-for="puce in puces" :key="puce.label" :href="puce.href"
-                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/15 text-accent-dark text-[11.5px] font-semibold no-underline hover:bg-accent/25 active:scale-95 transition-all">
+            <div
+                v-if="puces.length"
+                class="flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-lg bg-accent/5 border border-accent/20 animate-fade-in-up"
+            >
+                <span class="text-[10.5px] text-accent-dark uppercase tracking-wide font-bold flex items-center gap-1"
+                    >🔎 Filtres actifs</span
+                >
+                <Link
+                    v-for="puce in puces"
+                    :key="puce.label"
+                    :href="puce.href"
+                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent/15 text-accent-dark text-[11.5px] font-semibold no-underline hover:bg-accent/25 active:scale-95 transition-all"
+                >
                     {{ puce.label }}
                     <span class="text-[10px]">✕</span>
                 </Link>
-                <Link :href="reinitialiserUrl" class="ml-auto text-[11px] text-ink-muted hover:text-accent-dark font-semibold no-underline transition-colors">
+                <Link
+                    :href="reinitialiserUrl"
+                    class="ml-auto text-[11px] text-ink-muted hover:text-accent-dark font-semibold no-underline transition-colors"
+                >
                     Tout réinitialiser
                 </Link>
             </div>
@@ -185,12 +203,18 @@ function ouvrirSyncGoogleContacts() {
              qu'auparavant (auth()->user()->isAdmin()||isGestionnaire()),
              résolu côté serveur dans peutSyncGoogleContacts plutôt que
              réévalué ici. -->
-        <button v-if="peutSyncGoogleContacts" type="button" @click="ouvrirSyncGoogleContacts"
-            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 flex-shrink-0">
+        <button
+            v-if="peutSyncGoogleContacts"
+            type="button"
+            @click="ouvrirSyncGoogleContacts"
+            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 flex-shrink-0"
+        >
             🔄 Sync retour Google Contacts
         </button>
-        <a :href="exportUrl"
-            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 no-underline flex-shrink-0">
+        <a
+            :href="exportUrl"
+            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 no-underline flex-shrink-0"
+        >
             ⬇️ Exporter CSV
         </a>
     </div>
@@ -224,5 +248,9 @@ function ouvrirSyncGoogleContacts() {
         :initial-organismes-aide-disponibles="organismesAide"
     />
 
-    <ReverseSyncPanel v-if="peutSyncGoogleContacts" :scan-url="googleContactsScanUrl" :appliquer-url="googleContactsAppliquerUrl" />
+    <ReverseSyncPanel
+        v-if="peutSyncGoogleContacts"
+        :scan-url="googleContactsScanUrl"
+        :appliquer-url="googleContactsAppliquerUrl"
+    />
 </template>

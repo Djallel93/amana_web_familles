@@ -5,22 +5,22 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use Amana\Shared\Models\Secteur;
+use Amana\Shared\Models\Ville;
 use App\Http\Controllers\Concerns\HasDetailPanelProps;
 use App\Http\Resources\FamilleDetailResource;
 use App\Http\Resources\FamilleListItemResource;
 use App\Jobs\ResoudreAdresseFamille;
+use App\Jobs\SynchroniserContactGoogle;
 use App\Models\Famille;
 use App\Models\FamilleDocument;
 use App\Models\Organisation;
 use App\Models\OrganismeAide;
-use App\Support\FamilleFilters;
 use App\Models\Personne;
 use App\Models\Quartier;
 use App\Models\SecteurActivite;
-use Amana\Shared\Models\Secteur;
-use Amana\Shared\Models\Ville;
+use App\Support\FamilleFilters;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -96,7 +96,7 @@ class FamillesController extends Controller
         // technique que la Section E3 du refactor) : préserve la forme
         // JSON plate attendue par FamillesTable.vue (current_page/data/...
         // à la racine).
-        $familles->getCollection()->transform(fn ($famille) => new FamilleListItemResource($famille));
+        $familles->getCollection()->transform(fn($famille) => new FamilleListItemResource($famille));
 
         $listesFiltres = $this->listesFiltres();
         $villes = $listesFiltres['villes'];
@@ -188,7 +188,7 @@ class FamillesController extends Controller
         $this->appliquerTri($query, $request, colonneDefaut: 'created_at');
 
         $familles = $query->paginate($this->resoudrePerPage($request))->withQueryString();
-        $familles->getCollection()->transform(fn ($famille) => new FamilleListItemResource($famille));
+        $familles->getCollection()->transform(fn($famille) => new FamilleListItemResource($famille));
 
         // Mêmes listes géographiques/organisation que index() depuis le
         // 10/09/2026 (Section A3 du refactor) : cette vue monte désormais
@@ -342,7 +342,7 @@ class FamillesController extends Controller
             }
         }
         if ($request->filled('criticite')) {
-            $criticiteValeurs = collect((array) $request->input('criticite'))->map(fn ($v) => (int) $v)->sort()->values();
+            $criticiteValeurs = collect((array) $request->input('criticite'))->map(fn($v) => (int) $v)->sort()->values();
             if ($criticiteValeurs->isNotEmpty()) {
                 $puces[] = ['label' => 'Criticité : ' . $criticiteValeurs->implode(', '), 'href' => route($routeName, $parametresBase->except('criticite')->all())];
             }
@@ -992,7 +992,7 @@ class FamillesController extends Controller
         // via google_resource_name.
         $etatsDeclenchantSyncGoogle = ['Validé', 'Rejeté', 'Archivé'];
         if (in_array($famille->etat_dossier, $etatsDeclenchantSyncGoogle, true)) {
-            \App\Jobs\SynchroniserContactGoogle::dispatch($famille->id);
+            SynchroniserContactGoogle::dispatch($famille->id);
         }
 
         return response()->json(new FamilleDetailResource($famille->fresh(['quartier.secteur.ville', 'documents', 'secteursActivite', 'organismesAide'])));
@@ -1119,4 +1119,3 @@ class FamillesController extends Controller
         return response()->json(['deleted' => true]);
     }
 }
-

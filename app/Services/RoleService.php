@@ -6,8 +6,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Amana\Shared\Models\Application;
-use App\Models\Personne;
 use Amana\Shared\Models\Role;
+use App\Models\Personne;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 

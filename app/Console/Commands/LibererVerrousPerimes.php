@@ -20,6 +20,7 @@ use Illuminate\Console\Command;
 class LibererVerrousPerimes extends Command
 {
     protected $signature = 'familles:liberer-verrous-perimes';
+
     protected $description = "Libère les verrous d'édition de dossiers périmés et restaure leur statut d'origine";
 
     public function handle(): int

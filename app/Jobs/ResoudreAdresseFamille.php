@@ -55,12 +55,12 @@ class ResoudreAdresseFamille implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 3;
+
     public int $backoff = 60;
 
     public function __construct(
         private readonly int $idFamille
-    ) {
-    }
+    ) {}
 
     public function handle(GoogleGeocodingService $geocodingService): void
     {
@@ -68,6 +68,7 @@ class ResoudreAdresseFamille implements ShouldQueue
 
         if (!$famille) {
             Log::warning('[ResoudreAdresseFamille] Famille introuvable', ['id' => $this->idFamille]);
+
             return;
         }
 
@@ -75,6 +76,7 @@ class ResoudreAdresseFamille implements ShouldQueue
             Log::warning('[ResoudreAdresseFamille] Clé API Google Maps Geocoding non configurée — résolution ignorée', [
                 'id_famille' => $famille->id,
             ]);
+
             return;
         }
 
@@ -98,6 +100,7 @@ class ResoudreAdresseFamille implements ShouldQueue
                 'raison' => 'configuration',
                 'message' => $e->getMessage(),
             ]);
+
             return;
         } catch (GeocodingTransientException $e) {
             Log::error('[ResoudreAdresseFamille] Échec transitoire Google Maps Geocoding', [
@@ -105,6 +108,7 @@ class ResoudreAdresseFamille implements ShouldQueue
                 'message' => $e->getMessage(),
             ]);
             $this->fail($e);
+
             return;
         }
 
@@ -123,6 +127,7 @@ class ResoudreAdresseFamille implements ShouldQueue
             // intervention manuelle est nécessaire, pas seulement un log.
             $famille->probleme_traitement = "Adresse non localisée automatiquement par Google (aucun résultat) — vérifier/corriger l'adresse ou renseigner le quartier manuellement.";
             $famille->save();
+
             return;
         }
 

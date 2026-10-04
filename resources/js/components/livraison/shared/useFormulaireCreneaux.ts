@@ -20,8 +20,8 @@
 // ouvrir/enregistrer) et les mélanger ici aurait juste déplacé la
 // duplication plutôt que de la supprimer.
 
-import { reactive } from 'vue';
-import { CRENEAUX_APRES_MIDI, CRENEAUX_MATIN, type Creneau } from './types';
+import { reactive } from "vue";
+import { CRENEAUX_APRES_MIDI, CRENEAUX_MATIN, type Creneau } from "./types";
 
 interface EtatFormulaireCreneaux {
     ouvert: boolean;

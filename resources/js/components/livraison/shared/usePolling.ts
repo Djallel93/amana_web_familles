@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted } from "vue";
 
 /**
  * Rafraîchissement périodique « silencieux » d'un écran (01/10/2026) — même
@@ -11,10 +11,7 @@ import { onMounted, onUnmounted } from 'vue';
  * `false` pour signaler qu'un chargement plus récent est en cours (le tick est
  * alors simplement ignoré).
  */
-export function usePolling(
-    rafraichir: () => Promise<unknown> | unknown,
-    intervalleMs = 15_000,
-): void {
+export function usePolling(rafraichir: () => Promise<unknown> | unknown, intervalleMs = 15_000): void {
     let enCours = false;
     let minuterie: ReturnType<typeof setInterval> | undefined;
 
@@ -35,11 +32,11 @@ export function usePolling(
 
     onMounted(() => {
         minuterie = setInterval(tick, intervalleMs);
-        document.addEventListener('visibilitychange', auChangementDeVisibilite);
+        document.addEventListener("visibilitychange", auChangementDeVisibilite);
     });
 
     onUnmounted(() => {
         if (minuterie) clearInterval(minuterie);
-        document.removeEventListener('visibilitychange', auChangementDeVisibilite);
+        document.removeEventListener("visibilitychange", auChangementDeVisibilite);
     });
 }

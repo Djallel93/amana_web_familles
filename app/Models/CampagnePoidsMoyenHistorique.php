@@ -8,6 +8,7 @@ namespace App\Models;
 use Amana\Shared\Models\Personne;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Une modification de poids_moyen_kg/poids_moyen_hotel_kg/
@@ -20,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $type              normal|hotel|etudiant
  * @property float  $ancienne_valeur
  * @property float  $nouvelle_valeur
- * @property \Illuminate\Support\Carbon $horodatage
+ * @property Carbon $horodatage
  * @property int    $logge_par
  */
 class CampagnePoidsMoyenHistorique extends Model

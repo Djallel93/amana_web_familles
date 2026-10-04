@@ -26,6 +26,5 @@ final class GeocodingResultat
         public readonly ?float $longitude = null,
         public readonly ?string $formattedAddress = null,
         public readonly ?string $statutBrut = null,
-    ) {
-    }
+    ) {}
 }

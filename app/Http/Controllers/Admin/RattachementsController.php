@@ -29,8 +29,7 @@ class RattachementsController extends Controller
 {
     public function __construct(
         private readonly FamilleOrganisationDemandeService $demandeService,
-    ) {
-    }
+    ) {}
 
     public function index(): View
     {

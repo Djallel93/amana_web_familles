@@ -44,8 +44,7 @@ class FamilleCreationController extends Controller
 
     public function __construct(
         private readonly FamilleUpsertService $upsertService,
-    ) {
-    }
+    ) {}
 
     public function create(string $langue = 'fr'): InertiaResponse
     {

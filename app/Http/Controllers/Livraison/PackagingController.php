@@ -51,8 +51,7 @@ class PackagingController extends Controller
     public function __construct(
         private readonly QrCodeService $qrCode,
         private readonly RouteChargementService $routeChargement,
-    ) {
-    }
+    ) {}
 
     /**
      * File de priorité : livraisons en attente de conditionnement pour
@@ -184,8 +183,8 @@ class PackagingController extends Controller
                 // toujours en tête, avant même la criticité — §2.2 : "the
                 // packaging team sees this family at the top AND with the
                 // red border", indépendant de criticite.
-                fn (Livraison $l) => $l->urgente ? 0 : 1,
-                fn (Livraison $l) => -($l->famille->criticite ?? 0),
+                fn(Livraison $l) => $l->urgente ? 0 : 1,
+                fn(Livraison $l) => -($l->famille->criticite ?? 0),
             ])
             ->values();
 
@@ -233,7 +232,7 @@ class PackagingController extends Controller
         if ($livraison->statut_conditionnement === 'prete') {
             return response()->json([
                 'success' => false,
-                'message' => "Cette livraison est déjà conditionnée — décochez la case famille entière pour reprendre les colis.",
+                'message' => 'Cette livraison est déjà conditionnée — décochez la case famille entière pour reprendre les colis.',
             ], 422);
         }
 
@@ -386,7 +385,7 @@ class PackagingController extends Controller
         $livraisons = Livraison::where('id_campagne', $campagne->id)
             ->with('famille:id,nom,prenom,criticite,etudiant,est_hotel,nombre_adulte,nombre_enfant')
             ->get()
-            ->sortByDesc(fn (Livraison $l) => $l->famille->criticite ?? 0)
+            ->sortByDesc(fn(Livraison $l) => $l->famille->criticite ?? 0)
             ->values();
 
         return view('livraison.feuille-preparation', ['campagne' => $campagne, 'livraisons' => $livraisons]);

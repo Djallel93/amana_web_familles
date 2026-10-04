@@ -8,6 +8,7 @@ namespace App\Models;
 use Amana\Shared\Models\Personne;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Une tape "+1" au poste de comptage des donateurs (parking) — voir
@@ -19,7 +20,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int      $id_campagne
  * @property int|null $id_campagne_journee  Ajouté le 05/09/2026, voir migration — nullable, pas de FK (ordre des migrations)
  * @property int      $nombre_donateur
- * @property \Illuminate\Support\Carbon $horodatage
+ * @property Carbon $horodatage
  * @property int      $logge_par
  */
 class CampagneArrivee extends Model

@@ -7,6 +7,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * Jeton à usage unique du formulaire public de confirmation famille — voir
@@ -17,8 +18,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int      $id
  * @property int      $id_livraison
  * @property string   $token        haché au repos
- * @property \Illuminate\Support\Carbon $expires_at
- * @property \Illuminate\Support\Carbon|null $used_at
+ * @property Carbon $expires_at
+ * @property Carbon|null $used_at
  */
 class ContactToken extends Model
 {

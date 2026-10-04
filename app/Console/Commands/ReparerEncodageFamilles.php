@@ -32,7 +32,7 @@ class ReparerEncodageFamilles extends Command
                             {--appliquer : Écrit réellement les corrections (sinon, aperçu seul)}
                             {--diagnostiquer= : ID de famille — affiche les octets bruts et plusieurs décodages candidats sans rien écrire}';
 
-    protected $description = "Détecte et corrige les champs texte en encodage invalide (import CSV non-UTF-8) sur la table familles";
+    protected $description = 'Détecte et corrige les champs texte en encodage invalide (import CSV non-UTF-8) sur la table familles';
 
     private const CHAMPS_TEXTE = [
         'nom', 'prenom', 'email', 'telephone', 'telephone_bis',
@@ -87,6 +87,7 @@ class ReparerEncodageFamilles extends Command
 
         if ($nombreReparees === 0) {
             $this->info('Aucune famille avec un encodage invalide détectée.');
+
             return self::SUCCESS;
         }
 
@@ -114,6 +115,7 @@ class ReparerEncodageFamilles extends Command
 
         if (!$famille) {
             $this->error("Famille #{$id} introuvable.");
+
             return self::FAILURE;
         }
 
@@ -134,6 +136,7 @@ class ReparerEncodageFamilles extends Command
             foreach ($valeur as $cle => $sousValeur) {
                 $this->scannerRecursif($sousValeur, "{$chemin}.{$cle}", $trouve);
             }
+
             return;
         }
 

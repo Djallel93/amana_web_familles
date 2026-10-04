@@ -32,8 +32,7 @@ class DemandeNouvelleTourneeNotification extends Notification
 
     public function __construct(
         private readonly RouteLivraison $route,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -42,7 +41,7 @@ class DemandeNouvelleTourneeNotification extends Notification
 
     public function toMail(object $notifiable): MailMessage
     {
-        return $this->embedLogo(new MailMessage)
+        return $this->embedLogo(new MailMessage())
             ->subject('AMANA Livraison — Un bénévole est de retour au QG et disponible')
             ->line("Le bénévole de la tournée #{$this->route->id} (campagne #{$this->route->id_campagne}) est de retour au QG et disponible pour une nouvelle tournée.")
             ->action('Voir le suivi livraison', route('livraison.suivi-livraison.index'));

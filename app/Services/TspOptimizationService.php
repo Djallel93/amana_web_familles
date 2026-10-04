@@ -28,8 +28,7 @@ class TspOptimizationService
 
     public function __construct(
         private readonly GeoCalculationService $geo,
-    ) {
-    }
+    ) {}
 
     /**
      * Point d'entrée — port de optimizeDeliveryOrder().

@@ -5,17 +5,17 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin;
 
+use Amana\Shared\Models\BenevoleProfil;
 use Amana\Shared\Services\AccountChangeNotifier;
 use App\Http\Controllers\Controller;
-use Amana\Shared\Models\BenevoleProfil;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
 use App\Models\Organisation;
 use App\Models\Personne;
 use App\Models\PersonneDesactivee;
-use App\Notifications\InvitationFamillesNotification;
 use App\Notifications\InvitationFamillesDejaInscritNotification;
+use App\Notifications\InvitationFamillesNotification;
 use App\Services\BenevoleDisponibiliteService;
 use App\Services\PersonneActivationService;
 use App\Services\RoleService;
@@ -48,8 +48,7 @@ class PersonnesController extends Controller
         private readonly AccountChangeNotifier $notifier,
         private readonly BenevoleDisponibiliteService $disponibiliteService,
         private readonly PersonneActivationService $activationService,
-    ) {
-    }
+    ) {}
 
     /**
      * Liste du staff avec recherche, filtre par rôle et compteurs par rôle
@@ -90,6 +89,7 @@ class PersonnesController extends Controller
             $personne->setAttribute('desactivee', $desactivee);
             if ($desactivee) {
                 $nbDesactives++;
+
                 continue;
             }
             $compteurs[$code ?? 'aucun']++;

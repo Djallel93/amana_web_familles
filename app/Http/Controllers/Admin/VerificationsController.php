@@ -22,8 +22,7 @@ class VerificationsController extends Controller
 {
     public function __construct(
         private readonly FamilleVerificationService $verificationService,
-    ) {
-    }
+    ) {}
 
     public function index(): View
     {

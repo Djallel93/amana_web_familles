@@ -61,7 +61,8 @@ use Illuminate\Support\Facades\Schema;
  *    pouvoir ajouter des entrées sans changement de code — cf échange du
  *    09/08/2026).
  */
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         // ── Listes fermées (secteur d'activité, organismes d'aide) ───────

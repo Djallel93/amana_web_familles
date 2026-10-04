@@ -23,10 +23,10 @@
     rechargement).
 -->
 <script setup lang="ts">
-import { ref } from 'vue';
-import { router } from '@inertiajs/vue3';
-import FamilleFilterPanel from '../livraison/shared/FamilleFilterPanel.vue';
-import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from '../livraison/shared/types';
+import { ref } from "vue";
+import { router } from "@inertiajs/vue3";
+import FamilleFilterPanel from "../livraison/shared/FamilleFilterPanel.vue";
+import type { FamilleFiltres, Organisation, Quartier, Secteur, Ville } from "../livraison/shared/types";
 
 const props = defineProps<{
     villes: Ville[];
@@ -69,7 +69,7 @@ function naviguer() {
     // "Validé" côté serveur, voir FamillesController::appliquerFiltreStatut())
     // — voir reinitialiser() dans FamilleFilterPanel.vue.
     const { etat_dossier, ...reste } = filtres.value;
-    visiter({ ...reste, per_page: props.perPage, ...(props.avecStatut ? { etat_dossier: etat_dossier ?? '' } : {}) });
+    visiter({ ...reste, per_page: props.perPage, ...(props.avecStatut ? { etat_dossier: etat_dossier ?? "" } : {}) });
 }
 
 function ouvrirFiche(id: number) {
@@ -81,7 +81,12 @@ function ouvrirFiche(id: number) {
     // Familles/Index.vue) plutôt que par l'ancienne IIFE de sondage sur
     // window.location.search + window.openFamilleDetail.
     const { etat_dossier, ...reste } = filtres.value;
-    visiter({ ...reste, per_page: props.perPage, ouvrir: id, ...(props.avecStatut ? { etat_dossier: etat_dossier ?? '' } : {}) });
+    visiter({
+        ...reste,
+        per_page: props.perPage,
+        ouvrir: id,
+        ...(props.avecStatut ? { etat_dossier: etat_dossier ?? "" } : {}),
+    });
 }
 </script>
 

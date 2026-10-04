@@ -58,10 +58,10 @@ class HandleInertiaRequests extends Middleware
                 ] : null,
             ],
             'flash' => [
-                'success' => fn () => $request->session()->get('success'),
-                'error' => fn () => $request->session()->get('error'),
-                'warning' => fn () => $request->session()->get('warning'),
-                'info' => fn () => $request->session()->get('info'),
+                'success' => fn() => $request->session()->get('success'),
+                'error' => fn() => $request->session()->get('error'),
+                'warning' => fn() => $request->session()->get('warning'),
+                'info' => fn() => $request->session()->get('info'),
             ],
             // Ajouté le 16/09/2026 (Section E4, chunk settings) — voir le
             // docblock de classe. getOldInput() sans clé retourne
@@ -70,7 +70,7 @@ class HandleInertiaRequests extends Middleware
             // 'nom' => ..., 'adresse' => ...] selon quel formulaire a
             // échoué), jamais null — un tableau vide hors contexte
             // d'échec de validation.
-            'old' => fn () => $request->session()->getOldInput(),
+            'old' => fn() => $request->session()->getOldInput(),
         ];
     }
 }

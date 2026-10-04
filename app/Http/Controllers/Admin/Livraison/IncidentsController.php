@@ -28,11 +28,11 @@ class IncidentsController extends Controller
     public function index(Campagne $campagne): InertiaResponse
     {
         $incidents = RouteIncident::whereNotNull('statut')
-            ->whereHas('route', fn ($q) => $q->where('id_campagne', $campagne->id))
+            ->whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
             ->with(['route.benevole:id,nom,prenom', 'livraison.famille:id,nom,prenom', 'signalePar:id,nom,prenom'])
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (RouteIncident $i) => [
+            ->map(fn(RouteIncident $i) => [
                 'id' => $i->id,
                 'type' => $i->type,
                 'type_label' => RouteIncident::LABELS_TYPE[$i->type] ?? $i->type,

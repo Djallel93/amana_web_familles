@@ -50,16 +50,16 @@ class FamilleListItemResource extends JsonResource
             'telephone_formate' => $this->telephone_formate,
             'telephone_bis_formate' => $this->telephone_bis_formate,
             'adresse_complete' => $this->adresse_complete,
-            'quartier' => $this->whenLoaded('quartier', fn () => $this->quartier ? [
+            'quartier' => $this->whenLoaded('quartier', fn() => $this->quartier ? [
                 'id' => $this->quartier->id,
                 'nom' => $this->quartier->nom,
             ] : null),
             'ville' => $this->ville,
-            'organisation_origine' => $this->whenLoaded('organisationOrigine', fn () => $this->organisationOrigine ? [
+            'organisation_origine' => $this->whenLoaded('organisationOrigine', fn() => $this->organisationOrigine ? [
                 'id' => $this->organisationOrigine->id,
                 'nom' => $this->organisationOrigine->nom,
             ] : null),
-            'organisations' => $this->whenLoaded('organisations', fn () => $this->organisations->map(fn ($organisation) => [
+            'organisations' => $this->whenLoaded('organisations', fn() => $this->organisations->map(fn($organisation) => [
                 'id' => $organisation->id,
                 'nom' => $organisation->nom,
             ])),
@@ -87,7 +87,7 @@ class FamilleListItemResource extends JsonResource
             // la relation chargée est null — un verrou frais dont le
             // détenteur n'existe plus (personne supprimée) disparaîtrait du
             // tableau alors que show() refuse toujours l'ouverture.
-            'verrou' => $this->when($this->resource->relationLoaded('verrouilleur'), fn () => $this->verrouFrais() ? [
+            'verrou' => $this->when($this->resource->relationLoaded('verrouilleur'), fn() => $this->verrouFrais() ? [
                 'par' => $this->verrouilleur?->nom_complet,
                 'par_moi' => (int) $this->locked_by === (int) $request->user()?->id,
                 'depuis' => $this->locked_at->toISOString(),

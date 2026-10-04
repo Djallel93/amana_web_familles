@@ -6,10 +6,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
-use App\Models\PersonneDesactivee;
 use App\Http\Controllers\Controller;
 use App\Models\Campagne;
 use App\Models\CampagneEquipeMembre;
+use App\Models\PersonneDesactivee;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;

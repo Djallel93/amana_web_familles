@@ -33,8 +33,7 @@ class ClusterSplitService
 {
     public function __construct(
         private readonly GeoCalculationService $geo,
-    ) {
-    }
+    ) {}
 
     /**
      * @param array{livraisons: array<int, array{id_livraison: int, latitude: float, longitude: float, nombre_personnes: int, poids_kg: float}>} $cluster
@@ -76,7 +75,7 @@ class ClusterSplitService
                 $idsRetenus = array_column($meilleurSousEnsemble, 'id_livraison');
                 $reste = array_values(array_filter(
                     $livraisons,
-                    fn (array $l) => !in_array($l['id_livraison'], $idsRetenus, true),
+                    fn(array $l) => !in_array($l['id_livraison'], $idsRetenus, true),
                 ));
 
                 return ['retenu' => $meilleurSousEnsemble, 'reste' => $reste];
@@ -103,7 +102,7 @@ class ClusterSplitService
         $indices = range(0, $k - 1);
 
         while (true) {
-            yield array_map(fn (int $i) => $elements[$i], $indices);
+            yield array_map(fn(int $i) => $elements[$i], $indices);
 
             $i = $k - 1;
             while ($i >= 0 && $indices[$i] === $i + $n - $k) {

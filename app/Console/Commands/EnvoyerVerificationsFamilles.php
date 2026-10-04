@@ -18,7 +18,8 @@ use Illuminate\Console\Command;
 class EnvoyerVerificationsFamilles extends Command
 {
     protected $signature = 'familles:envoyer-verifications';
-    protected $description = "Envoie un email de vérification aux familles au dossier validé (décision 6.10)";
+
+    protected $description = 'Envoie un email de vérification aux familles au dossier validé (décision 6.10)';
 
     public function handle(FamilleVerificationService $service): int
     {

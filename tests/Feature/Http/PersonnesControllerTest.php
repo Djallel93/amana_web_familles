@@ -229,7 +229,7 @@ class PersonnesControllerTest extends TestCase
         $this->assertNotNull(Personne::find($personne->id), 'The shared ref_personnes account must survive');
         // Contrairement à l'ancien « Révoquer l'accès » : les rôles restent, pour une réactivation à l'identique.
         $this->assertSame('membre', app(RoleService::class)->currentRoleCode($personne));
-        $this->assertSame(2, $personne->roles()->whereHas('application', fn ($q) => $q->where('code', 'familles'))->count());
+        $this->assertSame(2, $personne->roles()->whereHas('application', fn($q) => $q->where('code', 'familles'))->count());
         $this->assertDatabaseHas('personnes_desactivees', ['id_personne' => $personne->id, 'desactivee_par' => $admin->id]);
     }
 
