@@ -27,6 +27,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // renvoient encore une View Blade classique.
         $middleware->web(append: [
             HandleInertiaRequests::class,
+            // Personne désactivée pour Familles (03/10/2026) — voir le
+            // docblock de la classe.
+            \App\Http\Middleware\EnsurePersonneActive::class,
         ]);
 
         // ── Middlewares d'authentification (amana/shared) ──────────────────

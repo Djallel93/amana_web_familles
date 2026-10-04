@@ -9,6 +9,7 @@ use Amana\Shared\Models\BenevoleProfil;
 use Amana\Shared\Models\VehiculeType;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
+use App\Models\PersonneDesactivee;
 use App\Models\CampagneJournee;
 use App\Notifications\CampagneDisponibiliteNotification;
 use App\Support\GeographiePicker;
@@ -34,7 +35,13 @@ class BenevoleDisponibiliteService
     {
         $resultats = ['envoyes' => 0, 'echecs' => 0];
 
-        $profils = BenevoleProfil::where('statut', 'Validé')->with('personne')->get();
+        // Hors personnes désactivées pour Familles (03/10/2026) : « pas
+        // disponible pour une future campagne » commence par ne pas être
+        // sollicité.
+        $profils = BenevoleProfil::where('statut', 'Validé')
+            ->whereNotIn('id_personne', PersonneDesactivee::ids())
+            ->with('personne')
+            ->get();
 
         foreach ($profils as $profil) {
             if (!$profil->personne) {

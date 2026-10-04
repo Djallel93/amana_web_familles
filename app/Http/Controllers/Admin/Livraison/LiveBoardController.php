@@ -20,6 +20,7 @@ use App\Models\Organisation;
 use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use App\Models\PersonneDesactivee;
 use App\Services\LivraisonGenerationService;
 use App\Services\RetraitHqNotificationService;
 use App\Services\RetraitHqSchedulingService;
@@ -475,10 +476,23 @@ class LiveBoardController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Règle de validation : le chauffeur ne doit pas être désactivé pour
+     * Familles (03/10/2026, voir PersonneActivationService).
+     */
+    private function regleChauffeurActif(): \Closure
+    {
+        return function (string $attribut, mixed $valeur, \Closure $echec): void {
+            if (PersonneDesactivee::estDesactivee((int) $valeur)) {
+                $echec('Ce bénévole est désactivé.');
+            }
+        };
+    }
+
     public function reassignerRoute(Request $request, RouteLivraison $route): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'id_benevole' => 'required|integer',
+            'id_benevole' => ['required', 'integer', $this->regleChauffeurActif()],
             'id_vehicule_type' => 'required|integer',
         ]);
         if ($validator->fails()) {
@@ -520,7 +534,7 @@ class LiveBoardController extends Controller
     public function construireRoutePersonnalisee(Request $request, Campagne $campagne): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'id_benevole' => 'required|integer',
+            'id_benevole' => ['required', 'integer', $this->regleChauffeurActif()],
             'id_vehicule_type' => 'required|integer',
             'ids_livraisons' => 'required|array|min:1',
             'ids_livraisons.*' => 'integer|exists:livraisons,id',

@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
+use App\Models\PersonneDesactivee;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CampagneResource;
 use App\Models\Campagne;
@@ -133,6 +134,15 @@ class EquipeMembresController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        // Personne désactivée pour Familles (03/10/2026) : pas d'ajout à une
+        // équipe — voir PersonneActivationService.
+        if (PersonneDesactivee::estDesactivee($request->integer('id_personne'))) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette personne est désactivée : réactivez-la avant de l\'ajouter à une équipe.',
+            ], 422);
         }
 
         $campagne->equipeMembres()->firstOrCreate([

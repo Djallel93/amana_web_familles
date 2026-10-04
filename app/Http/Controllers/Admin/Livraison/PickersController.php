@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
+use App\Models\PersonneDesactivee;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,7 +46,11 @@ class PickersController extends Controller
      */
     public function personnes(Request $request): JsonResponse
     {
+        // Personnes désactivées pour Familles (03/10/2026) : jamais proposées,
+        // ni pour une campagne ni pour une assignation — voir
+        // PersonneActivationService.
         $query = Personne::query()
+            ->whereNotIn('id', PersonneDesactivee::ids())
             ->whereHas('roles', function ($q) {
                 $q->whereHas('application', fn($q2) => $q2->where('code', 'familles'));
             });

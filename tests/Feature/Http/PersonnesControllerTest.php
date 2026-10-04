@@ -19,8 +19,8 @@ use Tests\TestCase;
  * management — covers the shared-`ref_personnes`-account dedup on store()
  * (the same email may already exist from another AMANA app), the
  * invitation-vs-direct-login email branch, role syncing via RoleService,
- * the gestionnaire_externe organisation requirement, and access
- * revocation on destroy() (never deletes the shared Personne row).
+ * the gestionnaire_externe organisation requirement, and deactivation on
+ * desactiver() (never deletes the shared Personne row nor its roles).
  */
 class PersonnesControllerTest extends TestCase
 {
@@ -215,30 +215,22 @@ class PersonnesControllerTest extends TestCase
         $this->assertNull(app(RoleService::class)->currentRoleCode($personne));
     }
 
-    // ── destroy() ────────────────────────────────────────────────────────
+    // ── desactiver() / reactiver() ───────────────────────────────────────
+    // (03/10/2026 — remplace l'ancien destroy() qui révoquait les rôles ;
+    // couverture détaillée dans PersonneDesactivationTest.)
 
-    public function test_destroy_revoque_le_role_familles_sans_supprimer_le_compte_partage(): void
-    {
-        $admin = $this->creerPersonne(['admin']);
-        $personne = $this->creerPersonne(['membre']);
-
-        $this->actingAs($admin)->delete(route('admin.personnes.destroy', $personne->id))->assertRedirect();
-
-        $this->assertNotNull(Personne::find($personne->id), 'The shared ref_personnes account must survive — only the role is revoked');
-        $roleService = app(RoleService::class);
-        $this->assertNull($roleService->currentRoleCode($personne));
-    }
-
-    public function test_destroy_revoque_aussi_les_roles_equipe(): void
+    public function test_desactiver_conserve_le_compte_partage_et_les_roles(): void
     {
         $admin = $this->creerPersonne(['admin']);
         $personne = $this->creerPersonne(['membre', 'equipe_pesee']);
 
-        $this->actingAs($admin)->delete(route('admin.personnes.destroy', $personne->id))->assertRedirect();
+        $this->actingAs($admin)->post(route('admin.personnes.desactiver', $personne->id))->assertRedirect();
 
-        // Contrairement à un simple changement de rôle, retirer l'accès à
-        // l'application retire TOUS ses rôles familles, equipe_* compris.
-        $this->assertSame(0, $personne->roles()->whereHas('application', fn ($q) => $q->where('code', 'familles'))->count());
+        $this->assertNotNull(Personne::find($personne->id), 'The shared ref_personnes account must survive');
+        // Contrairement à l'ancien « Révoquer l'accès » : les rôles restent, pour une réactivation à l'identique.
+        $this->assertSame('membre', app(RoleService::class)->currentRoleCode($personne));
+        $this->assertSame(2, $personne->roles()->whereHas('application', fn ($q) => $q->where('code', 'familles'))->count());
+        $this->assertDatabaseHas('personnes_desactivees', ['id_personne' => $personne->id, 'desactivee_par' => $admin->id]);
     }
 
     // ── accès ────────────────────────────────────────────────────────────

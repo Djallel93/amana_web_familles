@@ -200,10 +200,34 @@ return new class extends Migration {
 
             $table->unique(['id_campagne', 'id_personne', 'role']);
         });
+
+        // Désactivation d'un compte pour CETTE application uniquement
+        // (03/10/2026, remplace l'ancien « Révoquer l'accès » de
+        // /admin/personnes qui retirait les rôles) : la personne ne peut
+        // plus se connecter à Familles et n'est plus proposable pour une
+        // campagne (pickers, équipes, disponibilités, génération des
+        // routes), mais ses rôles et TOUT son historique (routes,
+        // disponibilités, contacts, incidents… — tous référencés par
+        // id_personne) restent intacts, et la réactivation la remet
+        // exactement dans son état d'avant. Volontairement PAS dans
+        // ref_personnes.statut (base commun, partagée avec
+        // amana_web_planning) : ce flag ne doit pas bloquer la personne
+        // dans les autres applications AMANA. Une ligne = une personne
+        // désactivée ; réactiver supprime la ligne (l'historique des
+        // changements est dans le journal d'audit).
+        Schema::create('personnes_desactivees', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedInteger('id_personne')->unique()
+                ->comment('ref_personnes.id — pas de FK, commun est une base séparée');
+            $table->unsignedInteger('desactivee_par')->nullable()
+                ->comment('ref_personnes.id de l\'admin qui a désactivé — pas de FK');
+            $table->timestamp('desactivee_at')->useCurrent();
+        });
     }
 
     public function down(): void
     {
+        Schema::dropIfExists('personnes_desactivees');
         Schema::dropIfExists('campagne_equipe_membres');
         Schema::dropIfExists('benevole_retours_qg');
         Schema::dropIfExists('benevole_disponibilite_secteurs');

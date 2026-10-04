@@ -14,7 +14,32 @@
             'gestionnaire_externe' => ['label' => 'Gestionnaire externe', 'bg' => 'bg-sky-50', 'text' => 'text-sky-700', 'border' => 'border-sky-200', 'icon' => '🏢'],
         ];
         $filtreActif = $recherche !== '' || $roleFiltre !== '';
+        // ?desactives=1 : affiche aussi les personnes désactivées (03/10/2026) —
+        // conservé par les liens/filtres ci-dessous.
+        $paramDesactives = $afficherDesactives ? 1 : null;
+        $bloquee = session('desactivation_bloquee');
     @endphp
+
+    {{-- Désactivation refusée : personne encore engagée sur une ou plusieurs
+         campagnes non terminées (PersonneActivationService). Liste TOUTES les
+         campagnes concernées, avec lien et raison. --}}
+    @if($bloquee)
+        <div class="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-[13.5px] text-amber-900" role="alert">
+            <p class="font-semibold">
+                ⚠️ {{ $bloquee['personne'] }} ne peut pas être désactivé(e) : encore engagé(e) sur
+                {{ count($bloquee['campagnes']) }} campagne{{ count($bloquee['campagnes']) > 1 ? 's' : '' }} en cours.
+            </p>
+            <p class="mt-1 text-[12.5px]">Retirez-la d'abord de ces campagnes (équipe, tournée, livraisons imposées), ou terminez la campagne, puis réessayez.</p>
+            <ul class="mt-2.5 space-y-1.5">
+                @foreach($bloquee['campagnes'] as $c)
+                    <li>
+                        <a href="{{ route('livraison.campagnes.show', $c['id']) }}" class="font-semibold underline">{{ $c['label'] }}</a>
+                        <span class="text-amber-800"> — {{ implode(', ', $c['raisons']) }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
 
     {{-- En-tête --}}
     <div class="flex flex-wrap items-center justify-between gap-4 mb-7">
@@ -42,7 +67,7 @@
             </div>
             <div class="flex flex-wrap items-center gap-1.5">
                 @foreach($roleMap as $code => $info)
-                    <a href="{{ route('admin.personnes.index', array_filter(['q' => $recherche, 'role' => $roleFiltre === $code ? null : $code])) }}"
+                    <a href="{{ route('admin.personnes.index', array_filter(['q' => $recherche, 'role' => $roleFiltre === $code ? null : $code, 'desactives' => $paramDesactives])) }}"
                         title="Filtrer : {{ $info['label'] }}"
                         class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold border no-underline
                                 {{ $info['bg'] }} {{ $info['text'] }} {{ $info['border'] }} {{ $roleFiltre === $code ? 'ring-2 ring-accent' : '' }}">
@@ -54,6 +79,13 @@
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold border bg-surface-2 text-ink-muted border-surface-border">
                         Aucun rôle <span class="font-bold">{{ $compteurs['aucun'] }}</span>
                     </span>
+                @endif
+                @if($nbDesactives > 0)
+                    <a href="{{ route('admin.personnes.index', array_filter(['q' => $recherche, 'role' => $roleFiltre, 'desactives' => $afficherDesactives ? null : 1])) }}"
+                        title="{{ $afficherDesactives ? 'Masquer les personnes désactivées' : 'Afficher les personnes désactivées' }}"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11.5px] font-semibold border no-underline bg-surface-2 text-ink-muted border-surface-border {{ $afficherDesactives ? 'ring-2 ring-accent' : '' }}">
+                        ⏸ Désactivées <span class="font-bold">{{ $nbDesactives }}</span>
+                    </a>
                 @endif
             </div>
         </div>
@@ -72,6 +104,9 @@
                 @endforeach
                 <option value="aucun" @selected($roleFiltre === 'aucun')>Aucun rôle</option>
             </select>
+            @if($afficherDesactives)
+                <input type="hidden" name="desactives" value="1">
+            @endif
             <button type="submit"
                 class="px-4 py-2 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg cursor-pointer">
                 Filtrer
@@ -126,7 +161,10 @@
                                         <div class="w-[30px] h-[30px] bg-accent rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
                                             {{ strtoupper(substr($personne->prenom, 0, 1)) }}
                                         </div>
-                                        <span class="font-semibold text-ink">{{ $personne->prenom }} {{ $personne->nom }}</span>
+                                        <span class="font-semibold text-ink {{ $personne->desactivee ? 'opacity-60' : '' }}">{{ $personne->prenom }} {{ $personne->nom }}</span>
+                                        @if($personne->desactivee)
+                                            <span class="inline-flex px-2 py-0.5 rounded-full text-[10.5px] font-semibold border bg-surface-2 text-ink-muted border-surface-border">⏸ Désactivée</span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-5 py-3">
@@ -146,14 +184,25 @@
                                         <a href="{{ route('admin.personnes.edit', $personne->id) }}"
                                             class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-surface-border bg-surface hover:bg-surface-2 text-sm transition-colors no-underline min-h-[44px] min-w-[44px]"
                                             title="Modifier">✏️</a>
-                                        <form action="{{ route('admin.personnes.destroy', $personne->id) }}" method="POST"
-                                            data-confirm="Révoquer l'accès Familles de {{ $personne->prenom }} {{ $personne->nom }} ? Son compte AMANA (autres apps) n'est pas supprimé."
-                                            data-confirm-danger data-confirm-label="Révoquer l'accès">
-                                            @csrf @method('DELETE')
-                                            <button type="submit"
-                                                class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
-                                                title="Révoquer l'accès">🗑️</button>
-                                        </form>
+                                        @if($personne->desactivee)
+                                            <form action="{{ route('admin.personnes.reactiver', $personne->id) }}" method="POST"
+                                                data-confirm="Réactiver {{ $personne->prenom }} {{ $personne->nom }} ? Elle retrouve son accès et ses rôles d'origine."
+                                                data-confirm-label="Réactiver">
+                                                @csrf
+                                                <button type="submit"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
+                                                    title="Réactiver">▶️</button>
+                                            </form>
+                                        @else
+                                            <form action="{{ route('admin.personnes.desactiver', $personne->id) }}" method="POST"
+                                                data-confirm="Désactiver {{ $personne->prenom }} {{ $personne->nom }} ? Elle ne pourra plus se connecter ni être proposée pour une campagne ; son historique et ses rôles sont conservés. Son compte AMANA (autres apps) n'est pas touché."
+                                                data-confirm-danger data-confirm-label="Désactiver">
+                                                @csrf
+                                                <button type="submit"
+                                                    class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
+                                                    title="Désactiver">⏸️</button>
+                                            </form>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>
@@ -175,7 +224,11 @@
                                     {{ strtoupper(substr($personne->prenom, 0, 1)) }}
                                 </div>
                                 <div>
-                                    <div class="font-semibold text-[13.5px] text-ink">{{ $personne->prenom }} {{ $personne->nom }}</div>
+                                    <div class="font-semibold text-[13.5px] text-ink {{ $personne->desactivee ? 'opacity-60' : '' }}">{{ $personne->prenom }} {{ $personne->nom }}
+                                        @if($personne->desactivee)
+                                            <span class="ml-1 inline-flex px-2 py-0.5 rounded-full text-[10.5px] font-semibold border bg-surface-2 text-ink-muted border-surface-border">⏸ Désactivée</span>
+                                        @endif
+                                    </div>
                                     <div class="text-[12px] text-ink-muted mt-px">{{ $personne->email }}</div>
                                 </div>
                             </div>
@@ -183,14 +236,25 @@
                                 <a href="{{ route('admin.personnes.edit', $personne->id) }}"
                                     class="inline-flex items-center justify-center w-9 h-9 rounded-md border border-surface-border bg-surface hover:bg-surface-2 text-sm transition-colors no-underline min-h-[44px] min-w-[44px]"
                                     title="Modifier">✏️</a>
-                                <form action="{{ route('admin.personnes.destroy', $personne->id) }}" method="POST"
-                                    data-confirm="Révoquer l'accès Familles de {{ $personne->prenom }} {{ $personne->nom }} ?"
-                                    data-confirm-danger data-confirm-label="Révoquer l'accès">
-                                    @csrf @method('DELETE')
-                                    <button type="submit"
-                                        class="inline-flex items-center justify-center w-9 h-9 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
-                                        title="Révoquer l'accès">🗑️</button>
-                                </form>
+                                @if($personne->desactivee)
+                                    <form action="{{ route('admin.personnes.reactiver', $personne->id) }}" method="POST"
+                                        data-confirm="Réactiver {{ $personne->prenom }} {{ $personne->nom }} ?"
+                                        data-confirm-label="Réactiver">
+                                        @csrf
+                                        <button type="submit"
+                                            class="inline-flex items-center justify-center w-9 h-9 rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
+                                            title="Réactiver">▶️</button>
+                                    </form>
+                                @else
+                                    <form action="{{ route('admin.personnes.desactiver', $personne->id) }}" method="POST"
+                                        data-confirm="Désactiver {{ $personne->prenom }} {{ $personne->nom }} ? Son historique est conservé."
+                                        data-confirm-danger data-confirm-label="Désactiver">
+                                        @csrf
+                                        <button type="submit"
+                                            class="inline-flex items-center justify-center w-9 h-9 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
+                                            title="Désactiver">⏸️</button>
+                                    </form>
+                                @endif
                             </div>
                         </div>
                         @if($roleInfo)

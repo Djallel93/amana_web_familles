@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use Amana\Shared\Models\Personne;
+use App\Models\PersonneDesactivee;
 use App\Http\Controllers\Concerns\HasDetailPanelProps;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CampagneResource;
@@ -307,6 +308,13 @@ class ContactTrackingController extends Controller
             ], 422);
         }
 
+        if (PersonneDesactivee::estDesactivee($personne->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette personne est désactivée.',
+            ], 422);
+        }
+
         $livraison->update(['id_personne_assignee' => $personne->id]);
 
         return response()->json(['success' => true]);
@@ -338,6 +346,13 @@ class ContactTrackingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Cette personne ne détient pas le rôle gestionnaire.',
+            ], 422);
+        }
+
+        if (PersonneDesactivee::estDesactivee($personne->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cette personne est désactivée.',
             ], 422);
         }
 

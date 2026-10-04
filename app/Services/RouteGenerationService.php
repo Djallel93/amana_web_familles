@@ -9,6 +9,7 @@ use Amana\Shared\Models\BenevoleProfil;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
+use App\Models\PersonneDesactivee;
 use App\Models\EtapeRoute;
 use App\Models\Livraison;
 use App\Models\RouteLivraison;
@@ -382,7 +383,11 @@ class RouteGenerationService
      */
     private function vehiculesDisponiblesPour(CampagneJournee $journee, string $creneau): array
     {
+        // Une personne désactivée pour Familles (03/10/2026) après avoir
+        // confirmé sa disponibilité n'est plus proposée comme chauffeur :
+        // sa disponibilité reste en base (historique) mais est ignorée ici.
         $disponibilites = BenevoleDisponibilite::where('id_campagne_journee', $journee->id)
+            ->whereNotIn('id_personne', PersonneDesactivee::ids())
             ->where('statut', 'confirme')
             ->whereHas('creneaux', fn ($q) => $q->where('creneau', $creneau))
             ->get();

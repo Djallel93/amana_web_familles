@@ -30,7 +30,10 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::post('/personnes/{id}/lien-reinitialisation', [PersonnesController::class, 'envoyerLienReinitialisation'])
         ->name('personnes.reset-link')
         ->middleware('throttle:5,1');
-    Route::delete('/personnes/{id}', [PersonnesController::class, 'destroy'])->name('personnes.destroy');
+    // Désactivation (03/10/2026) à la place de l'ancien DELETE « révoquer
+    // l'accès » — voir PersonnesController::desactiver().
+    Route::post('/personnes/{id}/desactiver', [PersonnesController::class, 'desactiver'])->name('personnes.desactiver');
+    Route::post('/personnes/{id}/reactiver', [PersonnesController::class, 'reactiver'])->name('personnes.reactiver');
 
     // ── Import/mise à jour en masse (décision 6.9) ───────────────────────
     Route::get('/imports', [\App\Http\Controllers\Admin\ImportsController::class, 'index'])->name('imports.index');

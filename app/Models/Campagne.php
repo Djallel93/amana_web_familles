@@ -189,7 +189,11 @@ class Campagne extends Model
     {
         $idsPersonne = $this->equipeMembres()->where('role', $role)->pluck('id_personne');
 
-        return Personne::whereIn('id', $idsPersonne)->get();
+        // Hors personnes désactivées (03/10/2026) : destinataires de
+        // notifications, jamais quelqu'un qui n'a plus accès à l'app.
+        return Personne::whereIn('id', $idsPersonne)
+            ->whereNotIn('id', PersonneDesactivee::ids())
+            ->get();
     }
 
     /**

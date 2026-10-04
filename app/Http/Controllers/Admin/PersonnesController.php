@@ -13,9 +13,11 @@ use App\Models\Campagne;
 use App\Models\CampagneJournee;
 use App\Models\Organisation;
 use App\Models\Personne;
+use App\Models\PersonneDesactivee;
 use App\Notifications\InvitationFamillesNotification;
 use App\Notifications\InvitationFamillesDejaInscritNotification;
 use App\Services\BenevoleDisponibiliteService;
+use App\Services\PersonneActivationService;
 use App\Services\RoleService;
 use App\Support\GeographiePicker;
 use Illuminate\Http\JsonResponse;
@@ -45,6 +47,7 @@ class PersonnesController extends Controller
         private readonly RoleService $roleService,
         private readonly AccountChangeNotifier $notifier,
         private readonly BenevoleDisponibiliteService $disponibiliteService,
+        private readonly PersonneActivationService $activationService,
     ) {
     }
 
@@ -59,6 +62,11 @@ class PersonnesController extends Controller
      * filtré en mémoire : le staff n'est pas paginé, et ça permet une
      * recherche insensible à la casse ET aux accents quelle que soit la
      * collation de la base.
+     *
+     * Personnes désactivées (03/10/2026, voir PersonneActivationService) :
+     * masquées par défaut et exclues des compteurs de rôle et du total ;
+     * ?desactives=1 les affiche (pastille « Désactivée » + bouton
+     * Réactiver). Leur nombre est toujours indiqué à part.
      */
     public function index(Request $request): View
     {
@@ -70,12 +78,24 @@ class PersonnesController extends Controller
         $compteurs = array_fill_keys(RoleService::ROLES_RANG, 0);
         $compteurs['aucun'] = 0;
 
+        $idsDesactives = array_flip(PersonneDesactivee::ids());
+        $nbDesactives = 0;
+
         foreach ($tous as $personne) {
             $role = $personne->roles->first(fn($r) => in_array($r->code, RoleService::ROLES_RANG, true));
             $code = $role?->code;
             $personne->setAttribute('role_code', $code);
+
+            $desactivee = isset($idsDesactives[$personne->id]);
+            $personne->setAttribute('desactivee', $desactivee);
+            if ($desactivee) {
+                $nbDesactives++;
+                continue;
+            }
             $compteurs[$code ?? 'aucun']++;
         }
+
+        $afficherDesactives = $request->boolean('desactives');
 
         $recherche = trim((string) $request->query('q', ''));
         $roleFiltre = (string) $request->query('role', '');
@@ -84,6 +104,7 @@ class PersonnesController extends Controller
         }
 
         $personnes = $tous
+            ->when(!$afficherDesactives, fn($c) => $c->reject(fn($p) => $p->desactivee))
             ->when($roleFiltre !== '', fn($c) => $c->filter(fn($p) => ($p->role_code ?? 'aucun') === $roleFiltre))
             ->when($recherche !== '', function ($c) use ($recherche) {
                 $mots = array_filter(explode(' ', $this->normaliserRecherche($recherche)));
@@ -103,8 +124,10 @@ class PersonnesController extends Controller
 
         return view('personnes.index', [
             'personnes' => $personnes,
-            'total' => $tous->count(),
+            'total' => $tous->count() - $nbDesactives,
             'compteurs' => $compteurs,
+            'nbDesactives' => $nbDesactives,
+            'afficherDesactives' => $afficherDesactives,
             'recherche' => $recherche,
             'roleFiltre' => $roleFiltre,
         ]);
@@ -482,20 +505,55 @@ class PersonnesController extends Controller
     }
 
     /**
-     * Révoque l'accès à Familles — ne supprime PAS le compte ref_personnes
-     * (partagé, peut avoir accès à d'autres apps AMANA), retire uniquement
-     * le rôle familles.
+     * Désactive la personne POUR Familles (03/10/2026, remplace l'ancien
+     * « Révoquer l'accès » qui supprimait ses rôles) : plus de connexion et
+     * plus proposable pour une campagne, mais rôles et historique intacts
+     * — voir PersonneActivationService et App\Models\PersonneDesactivee.
+     * Le compte ref_personnes partagé n'est jamais touché.
+     *
+     * Refusée si la personne est encore engagée sur une campagne non
+     * terminée : la page se rouvre avec la liste de TOUTES les campagnes
+     * concernées (session 'desactivation_bloquee', rendue en bandeau par
+     * personnes/index.blade.php). Refusée aussi pour soi-même (l'acteur est
+     * forcément un admin actif, il en reste donc toujours au moins un).
      */
-    public function destroy(int $id): RedirectResponse
+    public function desactiver(int $id): RedirectResponse
     {
         $personne = Personne::findOrFail($id);
-        $avant = $personne->toArray();
+        $nom = "{$personne->prenom} {$personne->nom}";
 
-        $this->roleService->revokeAccesFamilles($personne);
+        if ((int) auth()->id() === $personne->id) {
+            return redirect()->route('admin.personnes.index')
+                ->with('error', 'Vous ne pouvez pas désactiver votre propre compte.');
+        }
 
-        audit('delete', 'familles_personnes', $personne->id, $avant, null);
+        if (PersonneDesactivee::estDesactivee($personne->id)) {
+            return redirect()->route('admin.personnes.index')
+                ->with('warning', "{$nom} est déjà désactivé(e).");
+        }
+
+        $bloquantes = $this->activationService->desactiver($personne->id, (int) auth()->id());
+
+        if ($bloquantes !== []) {
+            return redirect()->route('admin.personnes.index')
+                ->with('desactivation_bloquee', ['personne' => $nom, 'campagnes' => $bloquantes]);
+        }
+
+        audit('update', 'familles_personnes', $personne->id, ['desactivee' => false], ['desactivee' => true]);
 
         return redirect()->route('admin.personnes.index')
-            ->with('success', "Accès de {$personne->prenom} {$personne->nom} à AMANA Familles révoqué.");
+            ->with('success', "{$nom} est désactivé(e) : plus d'accès à AMANA Familles ni de nouvelle campagne, son historique est conservé.");
+    }
+
+    public function reactiver(int $id): RedirectResponse
+    {
+        $personne = Personne::findOrFail($id);
+
+        $this->activationService->reactiver($personne->id);
+
+        audit('update', 'familles_personnes', $personne->id, ['desactivee' => true], ['desactivee' => false]);
+
+        return redirect()->route('admin.personnes.index', ['desactives' => 1])
+            ->with('success', "{$personne->prenom} {$personne->nom} est réactivé(e) avec ses rôles d'origine.");
     }
 }
