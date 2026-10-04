@@ -21,6 +21,7 @@ use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Models\PersonneDesactivee;
+use App\Services\IncidentResolutionService;
 use App\Services\LivraisonGenerationService;
 use App\Services\RetraitHqNotificationService;
 use App\Services\RetraitHqSchedulingService;
@@ -53,7 +54,6 @@ class LiveBoardController extends Controller
     public function __construct(
         private readonly RouteGenerationService $generationService,
         private readonly RouteMutationService $mutationService,
-        private readonly NotificationCenterService $notificationCenter,
         private readonly LivraisonGenerationService $livraisonGenerationService,
         // Ajoutés le 24/09/2026 (prompt de cette date §2/§Additional
         // points 1) — planification + notification des familles
@@ -61,6 +61,8 @@ class LiveBoardController extends Controller
         // genererRoutes() ci-dessous.
         private readonly RetraitHqSchedulingService $retraitHqScheduling,
         private readonly RetraitHqNotificationService $retraitHqNotification,
+        // Résolution/fermeture des incidents (03/10/2026).
+        private readonly IncidentResolutionService $incidentService,
     ) {
     }
 
@@ -90,7 +92,9 @@ class LiveBoardController extends Controller
      */
     public function index(?Campagne $campagne = null): InertiaResponse
     {
-        $campagnes = Campagne::orderByDesc('date_livraison')->get();
+        // journees chargées (03/10/2026) : le bloc « Génération des routes »,
+        // déplacé ici depuis la page campagne, choisit la journée à traiter.
+        $campagnes = Campagne::with('journees')->orderByDesc('date_livraison')->get();
 
         // quartiers/villes/secteurs/organisations (09/09/2026, prompt de
         // cette date §5.1.3) : mêmes référentiels que CampagnesController::
@@ -117,6 +121,13 @@ class LiveBoardController extends Controller
                 'etapeStatut' => route('livraison.routes.etapes.statut', ['route' => '__ID__', 'etape' => '__ETAPE__']),
                 'routesPersonnalisees' => route('livraison.routes.personnalisee', ['campagne' => '__CAMPAGNE__']),
                 'incidentResoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
+                'incidentIgnorer' => route('livraison.incidents.ignorer', ['incident' => '__ID__']),
+                // Bloc « Génération des routes » (03/10/2026) — voir
+                // GenererRoutesPanel.vue : la porte « plus aucune famille à
+                // contacter » interroge la file de contacts + ses stats.
+                'genererRoutes' => route('livraison.campagnes.generer-routes', ['campagne' => '__CAMPAGNE__']),
+                'contactsQueue' => route('livraison.contacts.queue'),
+                'contactsStatistiques' => route('livraison.contacts.statistiques'),
                 'routeAjouter' => route('livraison.routes.ajouter-livraison', ['route' => '__ID__']),
                 'routeRetirer' => route('livraison.routes.retirer-livraison', ['route' => '__ID__', 'etape' => '__ETAPE__']),
                 // Accès admin à l'écran chauffeur de chaque tournée (29/09/2026,
@@ -365,43 +376,23 @@ class LiveBoardController extends Controller
     }
 
     /**
-     * Résout un incident — pour benevole_absent, déclenche EN PLUS le
-     * re-clustering scopé au pool orphelin de la tournée concernée (voir
-     * le prompt §3.3 point 8 et
-     * RouteGenerationService::relancerPourLivraisonsOrphelines()) ; pour
-     * les autres types, marque simplement l'incident résolu (l'action de
-     * fond — ex : ajuster une capacité signalée — se fait ailleurs dans
-     * l'app, cet écran n'automatise que le cas benevole_absent qui a une
-     * action de suivi mécanique et sans ambiguïté).
+     * Résout un incident ouvert — logique dans IncidentResolutionService
+     * (partagée avec la page Incidents de la campagne et la clôture,
+     * 03/10/2026). Pour benevole_absent, relance d'abord le clustering des
+     * arrêts orphelins : la réponse porte alors le détail du re-clustering.
      */
     public function resoudreIncident(Request $request, RouteIncident $incident): JsonResponse
     {
-        if ($incident->type === 'benevole_absent') {
-            $idsLivraisonsOrphelines = $incident->route->etapes()
-                ->where('statut', 'en_attente')
-                ->pluck('id_livraison')
-                ->filter()
-                ->all();
+        return response()->json(['success' => true, ...$this->incidentService->resoudre($incident)]);
+    }
 
-            $campagne = $incident->route->campagne;
-
-            $resultat = $this->generationService->relancerPourLivraisonsOrphelines(
-                $campagne,
-                $idsLivraisonsOrphelines,
-                $incident->route->id_benevole,
-            );
-
-            $incident->update([
-                'statut' => 'resolu',
-                'notes' => trim(($incident->notes ?? '') . "\n[Re-cluster] " . json_encode($resultat)),
-            ]);
-            $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
-
-            return response()->json(['success' => true, ...$resultat]);
-        }
-
-        $incident->update(['statut' => 'resolu']);
-        $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
+    /**
+     * Ferme un incident SANS le traiter (statut 'ignore', « Fermé
+     * (ignoré) ») — 03/10/2026, voir IncidentResolutionService::ignorer().
+     */
+    public function ignorerIncident(Request $request, RouteIncident $incident): JsonResponse
+    {
+        $this->incidentService->ignorer($incident);
 
         return response()->json(['success' => true]);
     }

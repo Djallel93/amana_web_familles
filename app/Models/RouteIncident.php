@@ -41,7 +41,21 @@ class RouteIncident extends Model
      * tant que gestionnaire/admin n'a pas marqué l'incident résolu.
      */
     public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule'];
-    public const STATUTS = ['ouvert', 'resolu'];
+    public const STATUTS = ['ouvert', 'ignore', 'resolu'];
+
+    public const LABELS_STATUT = [
+        'ouvert' => 'Ouvert',
+        'ignore' => 'Fermé (ignoré)',
+        'resolu' => 'Résolu',
+    ];
+
+    public const LABELS_TYPE = [
+        'benevole_absent' => 'Bénévole absent',
+        'capacite' => 'Capacité dépassée',
+        'livraison_ignoree' => 'Livraison ignorée',
+        'packaging_annule' => 'Packaging annulé',
+        'chargement_termine' => 'Chargement terminé',
+    ];
 
     // Types pour lesquels `statut` est sans objet (jalon, pas alerte actionnable).
     public const TYPES_SANS_STATUT = ['chargement_termine'];
@@ -59,6 +73,48 @@ class RouteIncident extends Model
     public function signalePar(): BelongsTo
     {
         return $this->belongsTo(Personne::class, 'signale_par');
+    }
+
+    /**
+     * Texte d'explication affiché dans la fenêtre de détail d'un incident
+     * (page Incidents de la campagne, 03/10/2026). S'appuie sur les
+     * relations route.benevole, livraison.famille chargées par l'appelant.
+     * Le guide de résolution (quoi faire, étape par étape) viendra dans une
+     * évolution ultérieure — voir guide().
+     */
+    public function description(): string
+    {
+        $tournee = $this->route ? "tournée #{$this->route->id}" : 'une tournée';
+        $chauffeur = $this->route?->benevole
+            ? trim("{$this->route->benevole->prenom} {$this->route->benevole->nom}")
+            : 'le chauffeur';
+        $famille = $this->livraison?->famille
+            ? trim("{$this->livraison->famille->prenom} {$this->livraison->famille->nom}")
+            : 'une famille';
+
+        $texte = match ($this->type) {
+            'benevole_absent' => "{$chauffeur} est signalé(e) absent(e) pour la {$tournee}. "
+                . 'Résoudre cet incident relance le clustering : les arrêts restants sont replacés sur d\'autres tournées.',
+            'capacite' => "La {$tournee} de {$chauffeur} dépasse la capacité de son véhicule : "
+                . 'des livraisons doivent être retirées ou réparties sur une autre tournée.',
+            'livraison_ignoree' => "La livraison chez {$famille} a été ignorée par {$chauffeur} ({$tournee}). "
+                . 'La famille n\'a pas reçu son colis.',
+            'packaging_annule' => "Le packaging de {$famille} a été annulé après le chargement ({$tournee}) : "
+                . 'le colis repart en préparation. L\'incident se résout tout seul quand le colis est de nouveau prêt.',
+            default => 'Incident de tournée.',
+        };
+
+        return $texte;
+    }
+
+    /**
+     * Guide de résolution — volontairement vide pour l'instant : il sera
+     * enrichi dans une prochaine évolution (explications pas à pas pour
+     * guider l'utilisateur), l'interface réserve déjà l'emplacement.
+     */
+    public function guide(): ?string
+    {
+        return null;
     }
 
     public function scopeOuverts($query)

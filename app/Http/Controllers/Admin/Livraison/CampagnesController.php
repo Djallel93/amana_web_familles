@@ -19,8 +19,10 @@ use App\Models\Livraison;
 use App\Models\Organisation;
 use App\Models\PersonneDesactivee;
 use App\Models\Quartier;
+use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Services\BenevoleDisponibiliteService;
+use App\Services\IncidentResolutionService;
 use App\Services\LivraisonGenerationService;
 use App\Support\RouteOptimizationConfig;
 use Illuminate\Http\JsonResponse;
@@ -184,70 +186,89 @@ class CampagnesController extends Controller
     }
 
     /**
-     * Section E4 du refactor (16/09/2026, cinquième chunk du domaine
-     * livraison) — page Inertia, remplace resources/views/livraison/
-     * campagne-detail.blade.php (supprimée dans ce même chunk). Seule
-     * cette action change : store()/update()/eligibles()/
-     * genererLivraisons()/genererRoutes()/ajouterJournee()/
-     * mettreAJourPoidsMoyen()/recalculerPoids()/resumeSuppression()/
-     * destroy() restent des endpoints JSON classiques, consommés par
-     * CampagneDetail.vue (désormais enfant Vue normal de cette page,
-     * plus un îlot séparé) exactement comme avant — la sélection de
-     * familles éligibles est paginée/filtrée/triée côté serveur (voir
-     * eligibles() et queryFiltres() dans CampagneDetail.vue), pas un cas
-     * B comme l'a été la liste campagnes (chunk précédent) ou équipes
-     * (premier chunk).
-     *
-     * quartiers/villes/secteurs/organisations : référentiels passés en
-     * props exactement comme avant (l'ancienne Blade les sérialisait de
-     * la même façon via data-*), seule la source change.
-     *
-     * Neuf boutons de navigation (bénévoles/contacts/équipes/réception/
-     * pesée/packaging/chargement/suivi-livraison/statistiques) restent
-     * des <a href> classiques dans CampagneDetail.vue. Au moment de ce
-     * chunk (16/09/2026), trois de leurs neuf cibles étaient déjà des
-     * pages Inertia (bénévoles, équipes, statistiques) et six restaient
-     * en Blade (contacts, suivi-livraison, et les quatre écrans staff
-     * réception/pesée/packaging/chargement, hors périmètre de ce
-     * refactor) — décision du même jour : uniformité de la rangée
-     * plutôt qu'un mélange <Link>/<a>. Depuis la fin de ce même jour
-     * (chunks contacts et suivi-livraison, cinquième et septième du
-     * domaine livraison), sept des neuf cibles sont désormais Inertia ;
-     * seuls réception/pesée/packaging/chargement restent en Blade (et
-     * le resteront, hors périmètre). La rangée elle-même n'a pas été
-     * revue depuis — voir CampagneDetail.vue pour repasser ces liens en
-     * <Link> si souhaité, ce choix n'ayant pas été refait à la lumière
-     * de cet état.
+     * Hub de la campagne (03/10/2026) — page d'ensemble des processus en
+     * cours, plus une surface d'édition : cartes groupées par phase (avant
+     * la campagne / préparation / livraison) + incidents, boutons
+     * Statistiques, Paramètres et Terminer/Rouvrir en haut à droite.
+     * L'édition HQ/commentaire, l'ajout de journée et les équipes vivent
+     * sur la page Paramètres (parametres()), la sélection des familles sur
+     * sa page dédiée (familles()), la génération des routes sur Suivi
+     * livraison (LiveBoardController).
      */
     public function show(Campagne $campagne): InertiaResponse
     {
         return Inertia::render('Livraison/CampagneDetail', [
-            'campagne' => new CampagneResource($campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom'])),
+            'campagne' => new CampagneResource($campagne),
+            'retourUrl' => route('livraison.campagnes.index'),
+            'avancementUrl' => route('livraison.campagnes.avancement', $campagne),
+            'clotureUrl' => route('livraison.campagnes.cloture', $campagne),
+            'terminerUrl' => route('livraison.campagnes.terminer', $campagne),
+            'rouvrirUrl' => route('livraison.campagnes.rouvrir', $campagne),
+            'forcerIncidentsUrl' => route('livraison.campagnes.incidents.forcer-resolution', $campagne),
+            'urls' => [
+                'statistiques' => route('livraison.statistiques.index', $campagne),
+                'parametres' => route('livraison.campagnes.parametres', $campagne),
+                'familles' => route('livraison.familles-eligibles.index', $campagne),
+                'contacts' => route('livraison.contacts.index', ['id_campagne' => $campagne->id]),
+                'benevoles' => route('livraison.campagnes.benevoles.index', $campagne),
+                'reception' => route('livraison.reception.show', $campagne),
+                'pesee' => route('livraison.pesee.show', $campagne),
+                'packaging' => route('livraison.packaging.index', $campagne),
+                'chargement' => route('livraison.chargement.index', $campagne),
+                'retraitHq' => route('livraison.retrait-hq.index', $campagne),
+                'suiviLivraison' => route('livraison.suivi-livraison.index', $campagne),
+                'incidents' => route('livraison.campagnes.gestion-incidents', $campagne),
+            ],
+        ]);
+    }
+
+    /**
+     * Page dédiée « Sélection des familles éligibles » (03/10/2026) — sortie
+     * du hub, avec accès depuis la barre latérale (campagne optionnelle,
+     * même patron que Suivi livraison : sans campagne, la page propose d'en
+     * choisir une) et depuis la carte du hub.
+     */
+    public function familles(?Campagne $campagne = null): InertiaResponse
+    {
+        return Inertia::render('Livraison/CampagneFamilles', [
+            'campagne' => $campagne ? new CampagneResource($campagne->load('journees')) : null,
+            'campagnes' => CampagneResource::collection(Campagne::orderByDesc('date_livraison')->get()),
             'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
             'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
             'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
             'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+            'retourUrl' => $campagne
+                ? route('livraison.campagnes.show', $campagne)
+                : route('livraison.campagnes.index'),
+            'urlsCampagne' => $campagne ? [
+                'eligibles' => route('livraison.campagnes.eligibles', $campagne),
+                'genererLivraisons' => route('livraison.campagnes.generer-livraisons', $campagne),
+            ] : null,
+            'choisirUrlTemplate' => route('livraison.familles-eligibles.index', ['campagne' => '__CAMPAGNE__']),
+        ]);
+    }
+
+    /**
+     * Page Paramètres de la campagne (03/10/2026) : HQ & commentaire,
+     * ajout de journée, équipes — ce qui vivait sur l'ancienne page détail
+     * (et sur /equipes, désormais redirigée ici). ?onglet=hq|journees|equipes.
+     */
+    public function parametres(Request $request, Campagne $campagne, EquipeMembresController $equipes): InertiaResponse
+    {
+        $onglet = in_array($request->query('onglet'), ['hq', 'journees', 'equipes'], true)
+            ? $request->query('onglet')
+            : 'hq';
+
+        return Inertia::render('Livraison/CampagneParametres', [
+            'campagne' => new CampagneResource($campagne->load(['journees', 'poidsMoyenHistorique.loggePar:id,nom,prenom'])),
+            'onglet' => $onglet,
             'googlePlacesKey' => config('services.google.maps.places_api_key'),
-            'eligiblesUrl' => route('livraison.campagnes.eligibles', $campagne),
-            'genererLivraisonsUrl' => route('livraison.campagnes.generer-livraisons', $campagne),
-            'genererRoutesUrl' => route('livraison.campagnes.generer-routes', $campagne),
-            'queueUrl' => route('livraison.contacts.queue'),
-            'contactsStatistiquesUrl' => route('livraison.contacts.statistiques'),
-            'benevolesUrl' => route('livraison.campagnes.benevoles.index', $campagne),
-            'equipesUrl' => route('livraison.campagnes.equipes.index', $campagne),
-            'receptionUrl' => route('livraison.reception.show', $campagne),
-            'ajouterJourneeUrl' => route('livraison.campagnes.journees.store', $campagne),
-            'avancementUrl' => route('livraison.campagnes.avancement', $campagne),
             'updateUrl' => route('livraison.campagnes.update', $campagne),
-            'contactsUrl' => route('livraison.contacts.index', ['id_campagne' => $campagne->id]),
-            'peseeUrl' => route('livraison.pesee.show', $campagne),
-            'packagingUrl' => route('livraison.packaging.index', $campagne),
-            'chargementUrl' => route('livraison.chargement.index', $campagne),
-            // Ajouté le 24/09/2026 (prompt de cette date §2, dernier point).
-            'retraitHqUrl' => route('livraison.retrait-hq.index', $campagne),
-            'suiviLivraisonUrl' => route('livraison.suivi-livraison.index', $campagne),
-            'statistiquesUrl' => route('livraison.statistiques.index', $campagne),
-            'retourUrl' => route('livraison.campagnes.index'),
+            'ajouterJourneeUrl' => route('livraison.campagnes.journees.store', $campagne),
+            'lignesEquipe' => $equipes->lignesEquipe($campagne),
+            'ajouterEquipeUrl' => route('livraison.campagnes.equipes.ajouter', $campagne),
+            'retirerEquipeUrlTemplate' => route('livraison.campagnes.equipes.retirer', [$campagne, '__ID__', '__ROLE__']),
+            'retourUrl' => route('livraison.campagnes.show', $campagne),
         ]);
     }
 
@@ -762,7 +783,110 @@ class CampagnesController extends Controller
                 'livraisons_confirmees' => $livraisonsConfirmees,
                 'routes_total' => $routesTotal,
                 'routes_terminees' => $routesTerminees,
+                // Carte « Incidents » du hub (03/10/2026) : nombre d'incidents
+                // ouverts (statut null — jalon chargement_termine — exclu par
+                // le where).
+                'incidents_ouverts' => $this->incidentsOuverts($campagne),
             ],
         ]);
+    }
+
+    private function incidentsOuverts(Campagne $campagne): int
+    {
+        return RouteIncident::ouverts()
+            ->whereHas('route', fn ($q) => $q->where('id_campagne', $campagne->id))
+            ->count();
+    }
+
+    /**
+     * Pré-contrôle de la clôture (03/10/2026) — alimente la fenêtre
+     * « Terminer la campagne » du hub : tournées non terminées (BLOQUANT),
+     * incidents ouverts et livraisons confirmées pas encore livrées/ignorées
+     * (simples avertissements). « Non terminée » = ni 'terminee' ni
+     * 'annulee' (packaging_annule compte : sa tournée n'est pas finie).
+     */
+    public function cloture(Campagne $campagne): JsonResponse
+    {
+        $routes = $campagne->routes()
+            ->whereNotIn('statut', ['terminee', 'annulee'])
+            ->with('benevole:id,nom,prenom')
+            ->orderBy('id')
+            ->get()
+            ->map(fn (RouteLivraison $r) => [
+                'id' => $r->id,
+                'statut' => $r->statut,
+                'benevole' => $r->benevole ? trim("{$r->benevole->prenom} {$r->benevole->nom}") : null,
+            ])->all();
+
+        return response()->json([
+            'statut' => $campagne->statut,
+            'routes_non_terminees' => $routes,
+            'incidents_ouverts' => $this->incidentsOuverts($campagne),
+            'livraisons_en_attente' => $campagne->livraisons()
+                ->where('statut_contact', 'confirme')
+                ->whereIn('statut', ['non_assignee', 'assignee', 'en_cours'])
+                ->count(),
+        ]);
+    }
+
+    /**
+     * Marque la campagne terminée (03/10/2026). Refusée (422) tant qu'une
+     * tournée n'est pas terminée/annulée — revérifié ici, l'interface n'est
+     * pas la seule garde. Les incidents ouverts ne bloquent pas : la fenêtre
+     * propose de les résoudre de force (forcerResolutionIncidents()) mais
+     * c'est un choix de l'utilisateur. 'terminee' retire la campagne des
+     * listes « campagnes en cours » (équipes) et de la règle de verrou de
+     * désactivation d'une personne (PersonneActivationService).
+     */
+    public function terminer(Campagne $campagne): JsonResponse
+    {
+        if ($campagne->statut === 'terminee') {
+            return response()->json(['success' => false, 'message' => 'Cette campagne est déjà terminée.'], 422);
+        }
+
+        $routes = $campagne->routes()->whereNotIn('statut', ['terminee', 'annulee'])->count();
+        if ($routes > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "{$routes} tournée(s) ne sont pas terminées : terminez-les ou annulez-les avant de clôturer.",
+            ], 422);
+        }
+
+        $avant = $campagne->statut;
+        $campagne->update(['statut' => 'terminee']);
+        audit('update', 'campagnes', $campagne->id, ['statut' => $avant], ['statut' => 'terminee']);
+
+        return response()->json(['success' => true, 'campagne' => new CampagneResource($campagne->fresh())]);
+    }
+
+    /**
+     * Rouvre une campagne terminée (03/10/2026) — retour à 'preparation'
+     * (seul statut réellement posé par le code ; collecte/en_cours ne le
+     * sont jamais).
+     */
+    public function rouvrir(Campagne $campagne): JsonResponse
+    {
+        if ($campagne->statut !== 'terminee') {
+            return response()->json(['success' => false, 'message' => "Cette campagne n'est pas terminée."], 422);
+        }
+
+        $campagne->update(['statut' => 'preparation']);
+        audit('update', 'campagnes', $campagne->id, ['statut' => 'terminee'], ['statut' => 'preparation']);
+
+        return response()->json(['success' => true, 'campagne' => new CampagneResource($campagne->fresh())]);
+    }
+
+    /**
+     * « Tout résoudre de force » de la fenêtre de clôture : tous les
+     * incidents ouverts de la campagne passent à 'resolu', sans re-clustering.
+     */
+    public function forcerResolutionIncidents(Campagne $campagne, IncidentResolutionService $incidents): JsonResponse
+    {
+        $nombre = $incidents->forcerResolutionPourCampagne($campagne);
+        if ($nombre > 0) {
+            audit('update', 'route_incidents', null, null, ['campagne' => $campagne->id, 'resolus_de_force' => $nombre]);
+        }
+
+        return response()->json(['success' => true, 'resolus' => $nombre]);
     }
 }

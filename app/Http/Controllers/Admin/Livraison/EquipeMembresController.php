@@ -8,15 +8,13 @@ namespace App\Http\Controllers\Admin\Livraison;
 use Amana\Shared\Models\Personne;
 use App\Models\PersonneDesactivee;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\CampagneResource;
 use App\Models\Campagne;
 use App\Models\CampagneEquipeMembre;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
-use Inertia\Inertia;
-use Inertia\Response as InertiaResponse;
 
 /**
  * Écran d'admin pour peupler campagne_equipe_membres — voir le prompt du
@@ -51,34 +49,13 @@ use Inertia\Response as InertiaResponse;
 class EquipeMembresController extends Controller
 {
     /**
-     * Section E4 du refactor (16/09/2026) — première page livraison
-     * convertie à Inertia, remplace resources/views/livraison/
-     * equipe-membres.blade.php (supprimée dans ce même chunk).
-     *
-     * La liste est passée en prop de page plutôt que rechargée en XHR au
-     * montage : c'est un tableau non paginé que cette action produit déjà
-     * trivialement (même requête que l'ancien endpoint JSON `liste`, voir
-     * lignesEquipe() ci-dessous), donc le premier rendu n'a plus d'état
-     * "Chargement…". Après ajout/retrait, le composant demande un
-     * router.reload({ only: ['lignes'] }) — rechargement partiel Inertia,
-     * qui ré-exécute cette action et ne resérialise que cette prop. Les
-     * MUTATIONS, elles, restent en JSON (ajouter()/retirer() inchangées) :
-     * voir la décision du 16/09/2026 sur la profondeur de migration des
-     * écrans livraison, tous construits en îlots XHR.
-     *
-     * L'ancien endpoint `livraison.campagnes.equipes.liste` est supprimé
-     * avec sa route : son unique appelant était EquipeMembresQueue.vue
-     * (vérifié par grep avant suppression), qui lit désormais la prop.
+     * L'ancienne page « Équipes » vit désormais dans l'onglet Équipes de
+     * Paramètres (03/10/2026, CampagnesController::parametres()) : on garde
+     * l'URL pour les liens existants et on redirige.
      */
-    public function index(Campagne $campagne): InertiaResponse
+    public function index(Campagne $campagne): RedirectResponse
     {
-        return Inertia::render('Livraison/Equipes', [
-            'campagne' => new CampagneResource($campagne),
-            'lignes' => $this->lignesEquipe($campagne),
-            'retourUrl' => route('livraison.campagnes.show', $campagne),
-            'ajouterUrl' => route('livraison.campagnes.equipes.ajouter', $campagne),
-            'retirerUrlTemplate' => route('livraison.campagnes.equipes.retirer', [$campagne, '__ID__', '__ROLE__']),
-        ]);
+        return redirect()->route('livraison.campagnes.parametres', ['campagne' => $campagne, 'onglet' => 'equipes']);
     }
 
     /**
@@ -92,7 +69,7 @@ class EquipeMembresController extends Controller
      * Section E4) — seule l'enveloppe response()->json(['data' => ...]) a
      * disparu, la prop de page portant directement le tableau.
      */
-    private function lignesEquipe(Campagne $campagne): Collection
+    public function lignesEquipe(Campagne $campagne): Collection
     {
         $membres = $campagne->equipeMembres()->get();
 

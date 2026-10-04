@@ -41,6 +41,25 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.creer');
     Route::get('/campagnes/{campagne}', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'show'])
         ->name('campagnes.show');
+    // Hub de la campagne (03/10/2026) : paramètres, clôture, incidents.
+    Route::get('/campagnes/{campagne}/parametres', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'parametres'])
+        ->name('campagnes.parametres');
+    Route::get('/campagnes/{campagne}/cloture', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'cloture'])
+        ->name('campagnes.cloture');
+    Route::post('/campagnes/{campagne}/terminer', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'terminer'])
+        ->name('campagnes.terminer');
+    Route::post('/campagnes/{campagne}/rouvrir', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'rouvrir'])
+        ->name('campagnes.rouvrir');
+    Route::post('/campagnes/{campagne}/incidents/forcer-resolution', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'forcerResolutionIncidents'])
+        ->name('campagnes.incidents.forcer-resolution');
+    // Page Incidents (l'URL /campagnes/{campagne}/incidents existe déjà : c'est
+    // l'endpoint JSON des incidents OUVERTS consommé par Suivi livraison).
+    Route::get('/campagnes/{campagne}/gestion-incidents', [\App\Http\Controllers\Admin\Livraison\IncidentsController::class, 'index'])
+        ->name('campagnes.gestion-incidents');
+    // Sélection des familles éligibles : page dédiée, campagne optionnelle
+    // (barre latérale), même patron que suivi-livraison/{campagne?}.
+    Route::get('/familles-eligibles/{campagne?}', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'familles'])
+        ->name('familles-eligibles.index');
     // Stats de la ligne dépliée de la liste (03/10/2026).
     Route::get('/campagnes/{campagne}/apercu', [\App\Http\Controllers\Admin\Livraison\CampagnesController::class, 'apercu'])
         ->name('campagnes.apercu');
@@ -148,6 +167,9 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.incidents');
     Route::post('/incidents/{incident}/resoudre', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'resoudreIncident'])
         ->name('incidents.resoudre');
+    // Fermeture sans traitement, statut 'ignore' (03/10/2026).
+    Route::post('/incidents/{incident}/ignorer', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'ignorerIncident'])
+        ->name('incidents.ignorer');
     Route::post('/routes/{route}/ajouter-livraison', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'ajouterLivraison'])
         ->name('routes.ajouter-livraison');
     Route::delete('/routes/{route}/etapes/{etape}', [\App\Http\Controllers\Admin\Livraison\LiveBoardController::class, 'retirerLivraison'])

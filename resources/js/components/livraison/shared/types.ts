@@ -496,13 +496,14 @@ export interface RouteLivraison {
 // déclenche un re-cluster (voir LiveBoardController::resoudre() et
 // RouteIncident::TYPES_SANS_STATUT pour chargement_termine, qui est
 // informationnel et n'a pas d'état "résolu" au sens propre).
-export const TYPES_INCIDENT = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree'] as const;
+export const TYPES_INCIDENT = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule'] as const;
 export type TypeIncident = (typeof TYPES_INCIDENT)[number];
 
 export interface RouteIncident {
     id: number;
     type: TypeIncident;
-    statut: 'ouvert' | 'resolu';
+    // 'ignore' (03/10/2026) : fermé sans traitement, voir RouteIncident::STATUTS.
+    statut: 'ouvert' | 'ignore' | 'resolu';
     route: RouteLivraison | null;
     livraison: Livraison | null;
     created_at: string;
@@ -555,4 +556,46 @@ export interface SuiviLivraisonStatistiques {
     livraisons_livrees: number;
     livraisons_ignorees: number;
     avancement_pct: number;
+}
+
+/**
+ * Avancement d'une campagne (CampagnesController::avancement()) — alimente
+ * les badges des cartes du hub. Déplacé de CampagneProgressBar.vue (barre de
+ * progression retirée du hub le 03/10/2026).
+ */
+export interface AvancementCampagne {
+    livraisons_generees: boolean;
+    contacts_termines: boolean;
+    contacts_en_cours: boolean;
+    benevoles_notifies: boolean;
+    routes_generees: boolean;
+    reception_demarree: boolean;
+    pesee_demarree: boolean;
+    packaging_termine: boolean;
+    chargement_termine: boolean;
+    livraison_en_cours: boolean;
+    terminee: boolean;
+    compteurs: {
+        livraisons_total: number;
+        livraisons_confirmees: number;
+        routes_total: number;
+        routes_terminees: number;
+        incidents_ouverts: number;
+    };
+}
+
+/** Ligne de la page Incidents d'une campagne (IncidentsController::index()). */
+export interface LigneIncident {
+    id: number;
+    type: TypeIncident;
+    type_label: string;
+    statut: 'ouvert' | 'ignore' | 'resolu';
+    description: string;
+    guide: string | null;
+    notes: string | null;
+    id_route: number;
+    chauffeur: string | null;
+    famille: string | null;
+    signale_par: string | null;
+    created_at: string | null;
 }

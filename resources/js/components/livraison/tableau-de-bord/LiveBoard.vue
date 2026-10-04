@@ -68,6 +68,7 @@ import IncidentsPanel from './IncidentsPanel.vue';
 import RoutesPanel from './RoutesPanel.vue';
 import ShortfallPanel from './ShortfallPanel.vue';
 import BuildRouteFlow from './BuildRouteFlow.vue';
+import GenererRoutesPanel from './GenererRoutesPanel.vue';
 
 const props = defineProps<{
     campagnes: Campagne[];
@@ -113,6 +114,16 @@ const urlsCampagne = computed(() => {
         routesPersonnalisees: remplacer(urls.routesPersonnalisees ?? ''),
     };
 });
+
+// Bloc « Génération des routes » (03/10/2026) : déplacé ici depuis la page
+// campagne, qui est devenue un hub. Il a besoin des journées de la campagne
+// choisie (CampagneResource avec journees, voir LiveBoardController::index()).
+const campagneSelectionnee = computed(() => campagnes.value.find((c) => String(c.id) === campagneId.value) ?? null);
+const urlsGeneration = computed(() => ({
+    genererRoutes: (urls.genererRoutes ?? '').replace('__CAMPAGNE__', campagneId.value),
+    queue: urls.contactsQueue ?? '',
+    contactsStatistiques: urls.contactsStatistiques ?? '',
+}));
 
 const incidents = ref<RouteIncident[]>([]);
 const chargementIncidents = ref(false);
@@ -328,6 +339,9 @@ onUnmounted(() => {
                     <p class="text-[20px] font-semibold text-rose-700">{{ stats.livraisons_ignorees }}</p>
                 </div>
             </div>
+
+            <GenererRoutesPanel v-if="campagneSelectionnee" :key="campagneSelectionnee.id" :campagne-id="campagneSelectionnee.id"
+                :journees="campagneSelectionnee.journees ?? []" :urls="urlsGeneration" @generated="chargerTout" />
 
             <IncidentsPanel :incidents="incidents" :chargement="chargementIncidents" :erreur="erreurIncidents"
                 :url-resoudre="urls.incidentResoudre ?? ''" @changed="chargerTout" />

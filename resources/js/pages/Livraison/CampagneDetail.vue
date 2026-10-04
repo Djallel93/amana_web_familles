@@ -1,62 +1,40 @@
 <!-- resources/js/pages/Livraison/CampagneDetail.vue -->
 <!--
-    Page Inertia "Détail campagne" — Section E4 du refactor (16/09/2026,
-    cinquième chunk du domaine livraison), remplace resources/views/
-    livraison/campagne-detail.blade.php (supprimée dans ce même chunk,
-    plus aucun consommateur une fois CampagnesController::show()
-    converti en Inertia::render()).
+    Page Inertia « Campagne » — hub de la campagne depuis le 03/10/2026 (voir
+    CampagneDetail.vue et CampagnesController::show()). Historique : Section
+    E4 du refactor (16/09/2026) l'avait convertie depuis la Blade
+    campagne-detail ; elle ne porte toujours que le lien de retour, tout le
+    reste vit dans le composant.
 
-    Cette page ne porte que le lien de retour que portait la Blade ; tout
-    le reste (HQ/commentaire, journées, sélection des familles éligibles,
-    génération livraisons/routes, rangée de navigation) vit dans
-    CampagneDetail.vue, désormais enfant Vue normal plutôt qu'îlot monté
-    par app.ts.
-
-    Retour en <Link> (campagnes/index est déjà une page Inertia depuis le
-    chunk précédent). Les neuf boutons de navigation de CampagneDetail.vue
-    lui-même restent en <a href> classiques — sept de leurs neuf cibles
-    sont désormais Inertia, seuls réception/pesée/packaging/chargement
-    restent en Blade (hors périmètre de ce refactor) — voir le docblock
-    de CampagnesController::show() pour l'historique de cette décision.
+    Retour : même gabarit que les autres pages (lien plein bg-ink).
 -->
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
 import CampagneDetail from '../../components/livraison/campagnes/CampagneDetail.vue';
-import type {
-    Campagne,
-    Organisation,
-    Quartier,
-    Secteur,
-    Ville,
-} from '../../components/livraison/shared/types';
+import type { Campagne } from '../../components/livraison/shared/types';
 
 defineProps<{
     campagne: Campagne;
-    quartiers: Quartier[];
-    villes: Ville[];
-    secteurs: Secteur[];
-    organisations: Organisation[];
-    googlePlacesKey: string;
-    eligiblesUrl: string;
-    genererLivraisonsUrl: string;
-    genererRoutesUrl: string;
-    queueUrl: string;
-    contactsStatistiquesUrl: string;
-    benevolesUrl: string;
-    equipesUrl: string;
-    receptionUrl: string;
-    ajouterJourneeUrl: string;
-    avancementUrl: string;
-    updateUrl: string;
-    contactsUrl: string;
-    peseeUrl: string;
-    packagingUrl: string;
-    chargementUrl: string;
-    // Ajouté le 24/09/2026 (prompt de cette date §2, dernier point).
-    retraitHqUrl: string;
-    suiviLivraisonUrl: string;
-    statistiquesUrl: string;
     retourUrl: string;
+    avancementUrl: string;
+    clotureUrl: string;
+    terminerUrl: string;
+    rouvrirUrl: string;
+    forcerIncidentsUrl: string;
+    urls: {
+        statistiques: string;
+        parametres: string;
+        familles: string;
+        contacts: string;
+        benevoles: string;
+        reception: string;
+        pesee: string;
+        packaging: string;
+        chargement: string;
+        retraitHq: string;
+        suiviLivraison: string;
+        incidents: string;
+    };
 }>();
 </script>
 
@@ -65,18 +43,11 @@ defineProps<{
 
     <div class="max-w-4xl mx-auto py-8">
         <Link :href="retourUrl"
-            class="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink border border-surface-border rounded-lg px-3 py-1.5 mb-4 hover:bg-stone-50">
+            class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
         ← Retour aux campagnes
         </Link>
 
-        <CampagneDetail :campagne="campagne" :quartiers="quartiers" :villes="villes" :secteurs="secteurs"
-            :organisations="organisations" :google-places-key="googlePlacesKey" :eligibles-url="eligiblesUrl"
-            :generer-livraisons-url="genererLivraisonsUrl" :generer-routes-url="genererRoutesUrl"
-            :queue-url="queueUrl" :contacts-statistiques-url="contactsStatistiquesUrl" :benevoles-url="benevolesUrl"
-            :equipes-url="equipesUrl" :reception-url="receptionUrl" :ajouter-journee-url="ajouterJourneeUrl"
-            :avancement-url="avancementUrl" :update-url="updateUrl" :contacts-url="contactsUrl"
-            :pesee-url="peseeUrl" :packaging-url="packagingUrl" :chargement-url="chargementUrl"
-            :retrait-hq-url="retraitHqUrl"
-            :suivi-livraison-url="suiviLivraisonUrl" :statistiques-url="statistiquesUrl" />
+        <CampagneDetail :campagne="campagne" :avancement-url="avancementUrl" :cloture-url="clotureUrl"
+            :terminer-url="terminerUrl" :rouvrir-url="rouvrirUrl" :forcer-incidents-url="forcerIncidentsUrl" :urls="urls" />
     </div>
 </template>

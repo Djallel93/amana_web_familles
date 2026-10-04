@@ -34,6 +34,8 @@ const LABELS: Record<string, string> = {
     benevole_absent: 'Bénévole absent',
     capacite: 'Capacité dépassée',
     livraison_ignoree: 'Livraison ignorée',
+    // Manquait (03/10/2026) : packaging_annule s'affichait avec son code brut.
+    packaging_annule: 'Packaging annulé',
     chargement_termine: 'Chargement terminé',
 };
 

@@ -160,7 +160,11 @@ return new class extends Migration {
                 ->comment('Renseigné pour type = livraison_ignoree ou packaging_annule (identifie la famille concernée)');
             $table->unsignedInteger('signale_par')
                 ->comment('ref_personnes.id — pas de FK, commun est une base séparée');
-            $table->enum('statut', ['ouvert', 'resolu'])->nullable()
+            // 'ignore' (03/10/2026) : fermé SANS action — l'incident est
+            // reconnu mais volontairement pas traité (affiché « Fermé
+            // (ignoré) » sur la page Incidents de la campagne). Distinct de
+            // 'resolu' : aucun effet de bord (pas de re-clustering).
+            $table->enum('statut', ['ouvert', 'ignore', 'resolu'])->nullable()
                 ->comment('Sans objet (null) pour type = chargement_termine, jalon et non alerte actionnable');
             $table->text('notes')->nullable();
             $table->timestamps();

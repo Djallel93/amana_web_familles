@@ -99,6 +99,10 @@ return [
         // d'origine après Administration.
         ['section' => 'Livraison'],
         ['route' => 'livraison.campagnes.index', 'label' => 'Campagnes', 'icon' => '🎁', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.campagnes.*'],
+        // Sélection des familles éligibles (03/10/2026) : sortie de la page
+        // campagne, entrée de barre latérale avec campagne optionnelle (la
+        // page propose d'en choisir une), comme Suivi livraison.
+        ['route' => 'livraison.familles-eligibles.index', 'label' => 'Sélection des familles', 'icon' => '🧺', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.familles-eligibles.*'],
         ['route' => 'livraison.contacts.index', 'label' => 'Suivi des contacts', 'icon' => '📞', 'role' => 'gestionnaire', 'route_pattern' => 'livraison.contacts.*'],
         // Renommé depuis 'Tableau de bord' / 'livraison.tableau-de-bord.*'
         // (07/09/2026, prompt §6) : le nom générique ne reflétait pas ce
