@@ -49,6 +49,7 @@ const props = defineProps<{
     assignerLotUrl: string;
     contacterManuelUrlTemplate: string;
     seDeplaceUrlTemplate: string;
+    priseEnChargeUrlTemplate: string;
     retourUrl: string;
     showUrlTemplate: string;
     updateUrlTemplate: string;
@@ -101,6 +102,7 @@ onMounted(() => {
             :assigner-lot-url="assignerLotUrl"
             :contacter-manuel-url-template="contacterManuelUrlTemplate"
             :se-deplace-url-template="seDeplaceUrlTemplate"
+            :prise-en-charge-url-template="priseEnChargeUrlTemplate"
         />
     </div>
 

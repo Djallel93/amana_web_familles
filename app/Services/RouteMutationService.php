@@ -63,6 +63,13 @@ class RouteMutationService
             }
 
             $livraison->update(['statut' => 'assignee']);
+
+            // Une tournée « prête à charger » ne l'est plus si on lui ajoute
+            // une famille dont le colis n'est pas prêt (06/10/2026) : elle
+            // repasse en 'planifiee' et sera promue de nouveau au dernier colis.
+            if ($route->statut === 'chargement' && $livraison->statut_conditionnement !== 'prete') {
+                $route->update(['statut' => 'planifiee']);
+            }
         });
 
         $this->recalculerMetriques($route, $ordonnees, $hq);
@@ -211,6 +218,14 @@ class RouteMutationService
      * secteurs"). Pas de clustering/assignation (déjà fait manuellement
      * par le choix de l'admin) — seulement le TSP pour l'ordre des arrêts.
      *
+     * Depuis le 06/10/2026 (assistant « Génération des routes », mode
+     * personnalisé) : $idCampagneJournee est posé sur la tournée (il
+     * manquait — l'urgence chargement et les stats par journée en
+     * dépendent), les familles se_deplace (pickup QG) ne sont jamais
+     * routées, et les familles imposées à un autre chauffeur non plus —
+     * sauf $autoriserImposees, utilisé pour la tournée du chauffeur imposé
+     * lui-même (LivraisonChangementService).
+     *
      * @param int[] $idsLivraisons
      */
     public function construirePersonnalisee(
@@ -219,11 +234,15 @@ class RouteMutationService
         int $idVehiculeType,
         array $idsLivraisons,
         ?string $creneau,
+        ?int $idCampagneJournee = null,
+        bool $autoriserImposees = false,
     ): RouteLivraison {
         $hq = $this->hqOuEchoue($campagne);
 
         $livraisons = Livraison::whereIn('id', $idsLivraisons)
             ->where('statut', 'non_assignee')
+            ->where('se_deplace', false)
+            ->when(!$autoriserImposees, fn($q) => $q->whereNull('id_benevole_impose'))
             ->with('famille:id,latitude,longitude,id_quartier')
             ->get();
 
@@ -234,9 +253,10 @@ class RouteMutationService
         $livraisonsArray = $livraisons->map(fn(Livraison $l) => $this->versArray($l))->all();
         $ordonnees = $this->tsp->optimiser($livraisonsArray, $hq);
 
-        $route = DB::transaction(function () use ($campagne, $idBenevole, $idVehiculeType, $creneau, $ordonnees) {
+        $route = DB::transaction(function () use ($campagne, $idBenevole, $idVehiculeType, $creneau, $ordonnees, $idCampagneJournee) {
             $route = RouteLivraison::create([
                 'id_campagne' => $campagne->id,
+                'id_campagne_journee' => $idCampagneJournee,
                 'id_benevole' => $idBenevole,
                 'id_vehicule_type' => $idVehiculeType,
                 'creneau' => $creneau,

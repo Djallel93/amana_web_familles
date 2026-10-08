@@ -36,7 +36,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *
  * `id_livraison` : colonne virtuelle posée par selectSub() UNIQUEMENT dans
  * LivraisonGenerationService::nonCouvertesEligibles() (voir son docblock) —
- * absente de eligibles(), d'où le when() plutôt qu'un accès direct.
+ * absente de eligibles(), d'où le when() plutôt qu'un accès direct. Idem
+ * pour `poids_kg` (06/10/2026, poids du colis de cette livraison).
  */
 class FamilleEligibleResource extends JsonResource
 {
@@ -53,6 +54,7 @@ class FamilleEligibleResource extends JsonResource
             'criticite' => $this->criticite,
             'derniere_livraison_le' => $this->derniere_livraison_le,
             'id_livraison' => $this->when(isset($this->id_livraison), $this->id_livraison),
+            'poids_kg' => $this->when($this->resource->getAttribute('poids_kg') !== null, fn() => (float) $this->resource->getAttribute('poids_kg')),
         ];
     }
 }

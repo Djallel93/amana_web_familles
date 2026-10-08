@@ -6,15 +6,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Admin\Livraison;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\CampagneResource;
 use App\Models\Campagne;
 use App\Models\RouteIncident;
-use Inertia\Inertia;
-use Inertia\Response as InertiaResponse;
+use Illuminate\Http\JsonResponse;
 
 /**
- * Page « Incidents » d'une campagne (03/10/2026) — carte du hub : liste de
- * TOUS les incidents de la campagne avec leur statut (ouvert, fermé/ignoré,
+ * Section « Incidents » du hub d'une campagne (page dédiée du 03/10/2026
+ * remplacée le 06/10/2026 par une section repliable du hub, plus de page) :
+ * liste de TOUS les incidents de la campagne avec leur statut (ouvert, fermé/ignoré,
  * résolu), filtre par statut (défaut : ouverts) et tri par date côté client
  * (le volume d'une campagne reste de l'ordre de quelques dizaines), clic sur
  * une ligne pour le détail. Résoudre / ignorer passent par les endpoints
@@ -25,7 +24,7 @@ use Inertia\Response as InertiaResponse;
  */
 class IncidentsController extends Controller
 {
-    public function index(Campagne $campagne): InertiaResponse
+    public function liste(Campagne $campagne): JsonResponse
     {
         $incidents = RouteIncident::whereNotNull('statut')
             ->whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
@@ -48,12 +47,6 @@ class IncidentsController extends Controller
             ])
             ->values();
 
-        return Inertia::render('Livraison/CampagneIncidents', [
-            'campagne' => new CampagneResource($campagne),
-            'incidents' => $incidents,
-            'retourUrl' => route('livraison.campagnes.show', $campagne),
-            'resoudreUrlTemplate' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
-            'ignorerUrlTemplate' => route('livraison.incidents.ignorer', ['incident' => '__ID__']),
-        ]);
+        return response()->json($incidents);
     }
 }

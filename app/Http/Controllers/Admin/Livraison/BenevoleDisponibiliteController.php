@@ -146,7 +146,10 @@ class BenevoleDisponibiliteController extends Controller
         $validator = Validator::make($request->all(), [
             'id_campagne_journee' => 'required|integer',
             'statut' => 'required|in:' . implode(',', BenevoleDisponibilite::STATUTS),
-            'creneaux' => 'nullable|array',
+            // Au moins un créneau pour confirmer (06/10/2026) : une
+            // disponibilité confirmée sans créneau n'entrerait dans aucun
+            // pool de chauffeurs.
+            'creneaux' => 'required_if:statut,confirme|nullable|array|min:1',
             'creneaux.*' => 'in:' . implode(',', Creneau::TOUS),
         ]);
 

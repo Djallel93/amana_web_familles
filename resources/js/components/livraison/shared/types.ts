@@ -173,6 +173,8 @@ export interface FamilleEligible {
     // la Livraison (pas de la Famille) pour construire une tournée
     // personnalisée.
     id_livraison?: number;
+    /** Poids du colis de la livraison (kg) — nonCouvertesTable() seulement (06/10/2026). */
+    poids_kg?: number;
 }
 
 /**
@@ -390,6 +392,10 @@ export interface Livraison {
     // sérialisée (jamais optionnel, contrairement à l'ancien
     // se_deplace_override qui pouvait être null).
     se_deplace: boolean;
+    // Chauffeur imposé (06/10/2026, « Prendre en charge » sur Suivi des
+    // contacts) : livraisons.id_benevole_impose — tournée sans créneau.
+    id_benevole_impose?: number | null;
+    benevole_impose?: PersonneResume | null;
 }
 
 export interface VehiculeType {
@@ -579,6 +585,10 @@ export interface SuiviLivraisonStatistiques {
  * progression retirée du hub le 03/10/2026).
  */
 export interface AvancementCampagne {
+    /** Statut de la campagne (06/10/2026) — le hub bascule sans rechargement après « Démarrer ». */
+    statut: string;
+    /** Raison pour laquelle la campagne ne peut pas être démarrée, ou null. */
+    demarrage_bloque: string | null;
     livraisons_generees: boolean;
     contacts_termines: boolean;
     contacts_en_cours: boolean;
@@ -613,4 +623,43 @@ export interface LigneIncident {
     famille: string | null;
     signale_par: string | null;
     created_at: string | null;
+}
+
+// ── Assistant « Génération des routes » du hub (06/10/2026) ──────────────
+
+/** Ligne de LiveBoardController::chauffeursDisponibles(). */
+export interface ChauffeurDisponible {
+    id_personne: number;
+    nom: string;
+    prenom: string;
+    id_vehicule_type: number;
+    vehicule: string;
+    capacite_kg: number;
+    ids_secteurs: number[];
+    /** Déjà une tournée active sur ce créneau : affiché grisé, non sélectionnable. */
+    occupe: boolean;
+    id_route: number | null;
+}
+
+/** Réponse de LiveBoardController::apercuGeneration(). */
+export interface ApercuGeneration {
+    familles: number;
+    poids_kg: number;
+    capacite_kg: number;
+    sans_coordonnees: number;
+    chauffeurs: number;
+}
+
+export interface GenerationUrls {
+    chauffeurs: string;
+    apercu: string;
+    generer: string;
+    personnalisee: string;
+    nonCouvertesTableau: string;
+}
+
+export interface IncidentsUrls {
+    liste: string;
+    resoudre: string;
+    ignorer: string;
 }

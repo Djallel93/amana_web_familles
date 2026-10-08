@@ -144,6 +144,9 @@ return new class extends Migration
         // remise à `non_assignee` de toutes les etapes_route/livraisons
         // non livrées de la tournée concernée.
         //
+        // 'chargement_annule' (type, 06/10/2026) : levé quand l'équipe chargement
+        // annule un chargement confirmé par erreur (ChargementController::
+        // annulerChargement()). Actionnable (statut ouvert/resolu).
         // 'packaging_annule' (type) : levé quand l'équipe packaging annule
         // un conditionnement déjà marqué prêt sur une tournée déjà en
         // 'chargement' — avertit l'équipe chargement/chauffeur (mêmes
@@ -154,7 +157,7 @@ return new class extends Migration
         Schema::create('route_incidents', function (Blueprint $table) {
             $table->id();
             $table->foreignId('id_route')->constrained('routes')->cascadeOnDelete();
-            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule']);
+            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule']);
             $table->foreignId('id_livraison')->nullable()
                 ->constrained('livraisons')
                 ->nullOnDelete()

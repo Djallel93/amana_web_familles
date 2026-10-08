@@ -6,8 +6,10 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Livraison;
 
 use App\Http\Controllers\Controller;
+use App\Models\Livraison;
 use App\Services\ContactTokenService;
 use App\Services\FamilleConfirmationSyncService;
+use App\Services\LivraisonChangementService;
 use App\Support\Creneau;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -104,6 +106,15 @@ class ContactConfirmationController extends Controller
         }
 
         $contactToken->update(['used_at' => now()]);
+
+        // Confirmation tardive (campagne déjà démarrée, 06/10/2026) : une
+        // famille imposée rejoint la tournée de son chauffeur. Jamais bloquant
+        // pour la famille qui vient de confirmer.
+        try {
+            app(LivraisonChangementService::class)->apresConfirmation(Livraison::findOrFail($contactToken->id_livraison));
+        } catch (\RuntimeException $e) {
+            report($e);
+        }
 
         return view('livraison.confirmation', ['etat' => 'confirmee']);
     }

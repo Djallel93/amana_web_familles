@@ -35,6 +35,8 @@ use Illuminate\Support\Facades\Notification;
  * @property string|null $lien_maps
  * @property int|null    $locked_by
  * @property Carbon|null $locked_at
+ * @property string|null $urgence             Posée à la volée par ChargementController (famille|benevole|null), jamais persistée
+ * @property string|null $etat                Posé à la volée par ChargementController (voir App\Support\StatutChargement), jamais persisté
  */
 class RouteLivraison extends Model
 {

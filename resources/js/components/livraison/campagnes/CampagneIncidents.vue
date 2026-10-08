@@ -1,6 +1,8 @@
 <!-- resources/js/components/livraison/campagnes/CampagneIncidents.vue -->
 <!--
-    Incidents d'une campagne (03/10/2026) — carte « Incidents » du hub : tous
+    Incidents d'une campagne (03/10/2026) — listés dans la section repliable
+    « Incidents » du hub depuis le 06/10/2026 (CampagneIncidentsSection.vue ;
+    plus de page dédiée) : tous
     les incidents avec leur statut, filtre par statut (DÉFAUT : ouverts) et
     tri par date (récents d'abord, inversable). Clic sur une ligne : fenêtre
     avec la description et, tant que l'incident est ouvert, « Résoudre » et
@@ -14,7 +16,7 @@
     l'emplacement est déjà réservé dans la fenêtre.
 -->
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { Modal, useConfirm, useToast } from "@amana/shared-ui";
 import { apiPost } from "../shared/api";
 import type { LigneIncident, ResoudreIncidentResultat } from "../shared/types";
@@ -25,10 +27,27 @@ const props = defineProps<{
     ignorerUrlTemplate: string;
 }>();
 
+const emit = defineEmits<{
+    /** Un incident a été résolu/ignoré : le hub rafraîchit son compteur. */
+    change: [];
+}>();
+
 const toast = useToast();
 const confirmDialog = useConfirm();
 
 const lignes = ref<LigneIncident[]>([...props.incidents]);
+
+// La liste est rechargée par le parent (polling) pendant que la section est ouverte.
+watch(
+    () => props.incidents,
+    (nouvelles) => {
+        lignes.value = [...nouvelles];
+        if (selection.value) {
+            const maj = nouvelles.find((l) => l.id === selection.value?.id);
+            if (maj) selection.value = maj;
+        }
+    },
+);
 
 type Filtre = "ouvert" | "ignore" | "resolu" | "tous";
 
@@ -114,6 +133,7 @@ async function resoudre(incident: LigneIncident) {
     }
 
     majStatut(incident.id, "resolu");
+    emit("change");
     toast.success(
         resultat.data.routes_creees !== undefined
             ? `Résolu. ${resultat.data.routes_creees} nouvelle(s) tournée(s), ${resultat.data.non_couvertes} non couverte(s).`
@@ -141,6 +161,7 @@ async function ignorer(incident: LigneIncident) {
     }
 
     majStatut(incident.id, "ignore");
+    emit("change");
     toast.success("Incident fermé (ignoré).");
 }
 </script>

@@ -182,8 +182,15 @@ function ouvrirEdition(ligne: LigneBenevole) {
     ouvrirFormulaire(ligne.id_personne, ligne.creneaux);
 }
 
+function aDesCreneaux(idPersonne: number): boolean {
+    return formulaire(idPersonne).creneaux.length > 0;
+}
+
 async function enregistrerConfirme(ligne: LigneBenevole) {
     const f = formulaire(ligne.id_personne);
+    if (f.creneaux.length === 0) {
+        return;
+    }
     enregistrementEnCours[ligne.id_personne] = true;
 
     const resultat = await apiPost<{ success: boolean }>(urlMettreAJour(ligne.id_personne), {
@@ -465,14 +472,23 @@ usePolling(() => chargerFile(true), 15_000);
                             </div>
                         </div>
                     </div>
-                    <button
-                        type="button"
-                        :disabled="enregistrementEnCours[ligne.id_personne]"
-                        @click="enregistrerConfirme(ligne)"
-                        class="min-h-[2rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60"
-                    >
-                        Enregistrer
-                    </button>
+                    <!-- Enregistrer interdit tant qu'aucun créneau n'est coché
+                         (06/10/2026) : une disponibilité confirmée sans créneau
+                         n'entrerait dans aucun pool de chauffeurs. Le serveur
+                         applique la même règle. -->
+                    <div class="flex items-center gap-3">
+                        <button
+                            type="button"
+                            :disabled="enregistrementEnCours[ligne.id_personne] || !aDesCreneaux(ligne.id_personne)"
+                            @click="enregistrerConfirme(ligne)"
+                            class="min-h-[2rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            Enregistrer
+                        </button>
+                        <span v-if="!aDesCreneaux(ligne.id_personne)" class="text-[11.5px] text-ink-muted"
+                            >Cochez au moins un créneau.</span
+                        >
+                    </div>
                 </div>
             </div>
         </div>

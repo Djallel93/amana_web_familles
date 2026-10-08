@@ -108,11 +108,22 @@ class LivraisonGenerationService
      * une sous-requête scalaire évite un with() + accès imbriqué côté
      * front pour une seule valeur.
      */
-    public function nonCouvertesEligibles(Campagne $campagne, ?CampagneJournee $journee = null, ?bool $seDeplace = null): Builder
-    {
-        $livraisonMatch = function ($q) use ($campagne, $journee, $seDeplace) {
+    public function nonCouvertesEligibles(
+        Campagne $campagne,
+        ?CampagneJournee $journee = null,
+        ?bool $seDeplace = null,
+        ?string $creneau = null,
+        bool $sansImposees = false,
+    ): Builder {
+        $livraisonMatch = function ($q) use ($campagne, $journee, $seDeplace, $creneau, $sansImposees) {
             $q->where('id_campagne', $campagne->id)
                 ->when($journee !== null, fn($qq) => $qq->where('id_campagne_journee', $journee->id))
+                // Mode personnalisé de l'assistant « Génération des routes »
+                // (06/10/2026) : familles confirmées pour le créneau choisi,
+                // et jamais les familles imposées à un chauffeur (leur
+                // tournée est celle de ce chauffeur, sans créneau).
+                ->when($creneau !== null, fn($qq) => $qq->whereHas('creneaux', fn($c) => $c->where('creneau', $creneau)))
+                ->when($sansImposees, fn($qq) => $qq->whereNull('id_benevole_impose'))
                 ->where('statut', 'non_assignee')
                 ->where('statut_contact', 'confirme')
                 // se_deplace (25/09/2026, prompt de cette date) : propriété
@@ -129,10 +140,16 @@ class LivraisonGenerationService
         $sousRequeteIdLivraison = Livraison::query()->whereColumn('livraisons.id_famille', 'familles.id')->select('id');
         $livraisonMatch($sousRequeteIdLivraison);
 
+        // Poids du colis (06/10/2026) : l'assistant de génération, mode
+        // personnalisé, le compare à la capacité du véhicule du chauffeur.
+        $sousRequetePoids = Livraison::query()->whereColumn('livraisons.id_famille', 'familles.id')->select('poids_kg');
+        $livraisonMatch($sousRequetePoids);
+
         return Famille::query()
             ->select('familles.*')
             ->selectSub($this->dateDerniereLivraisonSql(), 'derniere_livraison_le')
             ->selectSub($sousRequeteIdLivraison, 'id_livraison')
+            ->selectSub($sousRequetePoids, 'poids_kg')
             ->whereHas('livraisons', $livraisonMatch);
     }
 

@@ -11,7 +11,15 @@
 <script setup lang="ts">
 import { Head, Link } from "@inertiajs/vue3";
 import CampagneDetail from "../../components/livraison/campagnes/CampagneDetail.vue";
-import type { Campagne } from "../../components/livraison/shared/types";
+import type {
+    Campagne,
+    GenerationUrls,
+    IncidentsUrls,
+    Organisation,
+    Quartier,
+    Secteur,
+    Ville,
+} from "../../components/livraison/shared/types";
 
 defineProps<{
     campagne: Campagne;
@@ -21,6 +29,13 @@ defineProps<{
     terminerUrl: string;
     rouvrirUrl: string;
     forcerIncidentsUrl: string;
+    demarrerUrl: string;
+    generationUrls: GenerationUrls;
+    incidentsUrls: IncidentsUrls;
+    villes: Ville[];
+    secteurs: Secteur[];
+    quartiers: Quartier[];
+    organisations: Organisation[];
     urls: {
         statistiques: string;
         parametres: string;
@@ -33,7 +48,6 @@ defineProps<{
         chargement: string;
         retraitHq: string;
         suiviLivraison: string;
-        incidents: string;
     };
 }>();
 </script>
@@ -56,6 +70,13 @@ defineProps<{
             :terminer-url="terminerUrl"
             :rouvrir-url="rouvrirUrl"
             :forcer-incidents-url="forcerIncidentsUrl"
+            :demarrer-url="demarrerUrl"
+            :generation-urls="generationUrls"
+            :incidents-urls="incidentsUrls"
+            :villes="villes"
+            :secteurs="secteurs"
+            :quartiers="quartiers"
+            :organisations="organisations"
             :urls="urls"
         />
     </div>

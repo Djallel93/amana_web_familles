@@ -34,16 +34,15 @@ use Illuminate\Support\Carbon;
  * planning déjà posé (voir le prompt §4 : "recompute both routes and
  * handouts if flag changes for current campagne").
  *
- * Appelée depuis 2 endroits :
- *   - LiveBoardController::genererRoutes() (nominal — au moment où les
- *     tournées sont générées pour une journée, voir le prompt §Additional
- *     points 1 : "When all families are confirmed and route generation is
- *     triggered, send emails to all families with where and when to
- *     come");
- *   - App\Http\Controllers\Admin\Livraison\ContactTrackingController::
- *     mettreAJourSeDeplace() (un changement de se_deplace en cours de
- *     campagne doit ré-étaler TOUTE la journée, pas seulement la
- *     livraison modifiée).
+ * Appelée depuis (06/10/2026 — la génération des routes n'y touche plus,
+ * sinon chaque génération par créneau renverrait l'email à toutes ces
+ * familles) :
+ *   - App\Services\CampagneDemarrageService::demarrer() (nominal — au
+ *     démarrage de la campagne : rendez-vous + UN email « où/quand venir ») ;
+ *   - App\Services\LivraisonChangementService (un changement de se_deplace
+ *     ou une confirmation tardive en cours de campagne doit ré-étaler TOUTE
+ *     la journée, pas seulement la livraison modifiée, et prévenir les
+ *     familles dont l'heure change).
  */
 class RetraitHqSchedulingService
 {

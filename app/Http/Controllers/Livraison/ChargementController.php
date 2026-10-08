@@ -17,6 +17,7 @@ use App\Models\RouteLivraison;
 use App\Notifications\RouteChargeeNotification;
 use App\Services\QrCodeService;
 use App\Support\Creneau;
+use App\Support\StatutChargement;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -95,19 +96,16 @@ class ChargementController extends Controller
             'lignes' => $lignes,
             'stats' => $stats,
             'filtreChargement' => $filtreChargement,
+            // Familles pas encore dans une tournée + rappel « générez les
+            // routes » (06/10/2026) : désormais polled comme les tournées,
+            // et affichés indépendamment du conditionnement.
+            'familles' => $this->construireFamillesSansTournee($campagne, $filtreChargement),
+            'rappelHtml' => $this->rappelRoutes($campagne),
             // Retour visible (07/09/2026, prompt §4.2) — même règle que
             // Packaging/Pesee/Réception : équipe_chargement n'a pas accès
             // à livraison.campagnes.show, repli sur le point d'entrée
             // "choisir" — voir UrlRetourEquipe (Section B du refactor).
             'urlRetour' => $this->urlRetourEquipe($campagne, 'livraison.chargement.choisir'),
-            // Ajouté le 24/09/2026 (prompt de cette date §1.2) : ne
-            // calculé QUE quand $lignes est vide, sinon toujours null —
-            // pas de polling dessus (contrairement à $lignes/$stats),
-            // simplification délibérée : ce message concerne un état
-            // transitoire ("l'admin a oublié de lancer la génération"),
-            // pas une donnée qui a besoin d'être temps réel à la seconde
-            // près comme les tournées elles-mêmes.
-            'etatSansTournee' => $lignes === [] ? $this->etatSansTournee($campagne) : null,
         ]);
     }
 
@@ -118,7 +116,10 @@ class ChargementController extends Controller
      * chargement de la page (mêmes lignes, même tri, mêmes stats, même
      * filtre_chargement transmis en query string) sous forme de HTML de
      * carte par tournée + une signature (md5 du HTML) que le client compare
-     * pour ne remplacer que les cartes réellement modifiées.
+     * pour ne remplacer que les cartes réellement modifiées. Depuis le
+     * 06/10/2026 le même appel couvre aussi les familles pas encore dans une
+     * tournée et le rappel « générez les routes », dont le statut dépend du
+     * packaging.
      *
      * Pas de logique métier nouvelle ici : lecture seule, même autorisation
      * (can:equipeChargement) que index().
@@ -127,10 +128,13 @@ class ChargementController extends Controller
     {
         $filtreChargement = $this->filtreDepuisRequete($request);
         ['lignes' => $lignes, 'stats' => $stats] = $this->construireListe($campagne, $filtreChargement);
+        $rappelHtml = $this->rappelRoutes($campagne);
 
         return response()->json([
             'stats' => $stats,
             'routes' => $lignes,
+            'familles' => $this->construireFamillesSansTournee($campagne, $filtreChargement),
+            'rappel' => ['html' => $rappelHtml, 'sig' => md5($rappelHtml)],
         ]);
     }
 
@@ -148,27 +152,40 @@ class ChargementController extends Controller
 
     /**
      * Requête + tri + stats + filtre + rendu des cartes, partagés par
-     * index() et liste() — le corps de l'ancien index() (voir son
-     * docblock ci-dessus pour le raisonnement statuts/tri/filtre, inchangé),
-     * déplacé tel quel ici. Les stats sont calculées sur l'ensemble AVANT
-     * application du filtre, comme avant.
+     * index() et liste().
      *
-     * @return array{lignes: list<array{id: int, statut: string, sig: string, html: string}>, stats: array{chargees: int, restantes: int}}
+     * 06/10/2026 : TOUTES les tournées non démarrées sont listées, y compris
+     * celles dont les colis ne sont pas prêts (statut routes 'planifiee',
+     * jusque-là masquées jusqu'à ce que tous les colis soient prêts). Le
+     * statut affiché est dérivé du conditionnement — voir StatutChargement :
+     * Restante → En préparation (au moins un colis prêt) → Prête (tous
+     * prêts, bouton « Chargement confirmé ») → Chargée. packaging_annule
+     * reste affiché tel quel et compte avec les restantes.
+     *
+     * Tri : chargée en dernier (§7.2), puis les plus urgentes en tête
+     * (§7.3), puis les prêtes avant les autres (ce sont les seules
+     * actionnables). Les stats sont calculées sur l'ensemble AVANT
+     * application du filtre.
+     *
+     * @return array{lignes: list<array{id: int, statut: string, etat: string, sig: string, html: string}>, stats: array{chargees: int, restantes: int, en_preparation: int, pretes: int}}
      */
     private function construireListe(Campagne $campagne, string $filtreChargement): array
     {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)
-            ->whereIn('statut', ['chargement', 'charge', 'packaging_annule'])
+            ->whereIn('statut', ['planifiee', 'chargement', 'charge', 'packaging_annule'])
             ->with(['benevole', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux'])
             ->get()
+            // Une tournée vidée de tous ses arrêts n'a rien à charger.
+            ->filter(fn(RouteLivraison $route) => $route->etapes->isNotEmpty())
             ->map(function (RouteLivraison $route) {
                 $route->urgence = $this->calculerUrgence($route);
+                $route->etat = StatutChargement::pourRoute($route);
 
                 return $route;
             })
             ->sortBy([
                 // charge (déjà chargée) toujours en dernier — §7.2.
-                fn($route) => $route->statut === 'charge' ? 1 : 0,
+                fn($route) => $route->etat === StatutChargement::CHARGEE ? 1 : 0,
                 // Puis famille-urgente avant bénévole-urgent avant le
                 // reste — §7.3 : "family-availability should weigh more
                 // since we can replace the driver".
@@ -177,25 +194,24 @@ class ChargementController extends Controller
                     'benevole' => 1,
                     default => 2,
                 },
+                // Puis les tournées prêtes à charger avant les autres.
+                fn($route) => $route->etat === StatutChargement::PRETE ? 0 : 1,
             ])
             ->values();
 
-        // Stats + filtre (09/09/2026, prompt de cette date §4) — mêmes
-        // stats/filtres que Packaging (voir PackagingController::index())
-        // : "Toutes"/"Restantes"/"Chargée" plutôt que "Terminées", cet
-        // écran n'a que deux statuts pertinents (packaging_annule compté
-        // avec 'chargement' dans "Restantes", comme dans le tri
-        // ci-dessus) — voir hors scope les tournées 'en_cours', pas
-        // récupérées par la requête au-dessus.
         $stats = [
-            'chargees' => $routes->where('statut', 'charge')->count(),
-            'restantes' => $routes->whereIn('statut', ['chargement', 'packaging_annule'])->count(),
+            'chargees' => $routes->where('etat', StatutChargement::CHARGEE)->count(),
+            'restantes' => $routes->whereIn('etat', [StatutChargement::RESTANTE, StatutChargement::PACKAGING_ANNULE])->count(),
+            'en_preparation' => $routes->where('etat', StatutChargement::EN_PREPARATION)->count(),
+            'pretes' => $routes->where('etat', StatutChargement::PRETE)->count(),
         ];
 
-        if ($filtreChargement === 'restantes') {
-            $routes = $routes->whereIn('statut', ['chargement', 'packaging_annule'])->values();
-        } elseif ($filtreChargement === 'chargees') {
-            $routes = $routes->where('statut', 'charge')->values();
+        if (isset(StatutChargement::FILTRES[$filtreChargement])) {
+            $cible = StatutChargement::FILTRES[$filtreChargement];
+            $etats = $cible === StatutChargement::RESTANTE
+                ? [StatutChargement::RESTANTE, StatutChargement::PACKAGING_ANNULE]
+                : [$cible];
+            $routes = $routes->whereIn('etat', $etats)->values();
         }
 
         $lignes = $routes->map(function (RouteLivraison $route) {
@@ -204,6 +220,7 @@ class ChargementController extends Controller
             return [
                 'id' => $route->id,
                 'statut' => $route->statut,
+                'etat' => $route->etat,
                 'sig' => md5($html),
                 'html' => $html,
             ];
@@ -213,48 +230,80 @@ class ChargementController extends Controller
     }
 
     /**
-     * État affiché à la place de "Aucune tournée prête à charger" quand
-     * la liste est vide — ajouté le 24/09/2026 (prompt de cette date
-     * §1.2) : distingue 2 cas jusque-là indiscernables pour l'équipe
-     * chargement (aucun bouton pour lancer la génération, donc simple
-     * spectatrice de cet écran) :
-     *   - le conditionnement n'est pas terminé → les livraisons
-     *     concernées restent affichées, statut "En préparation" (§1.2 :
-     *     "when packaging is not done yet show the rows as 'en
-     *     preparation'"), plutôt que disparaître totalement de l'écran ;
-     *   - le conditionnement EST terminé mais aucune tournée n'a encore
-     *     été générée pour cette campagne (l'admin a probablement oublié
-     *     de lancer la génération, voir LiveBoardController::genererRoutes())
-     *     → message dédié, avec un lien direct vers l'écran de
-     *     génération pour un admin/gestionnaire (§1.2 : "it will be
-     *     easier for admin").
+     * Familles confirmées (hors se_deplace : retrait QG, pas de tournée)
+     * qui ne sont dans aucune tournée — avant la génération, ou famille
+     * confirmée après coup. Statut affiché = leur conditionnement (06/10/2026
+     * ; auparavant « En préparation » en dur et seulement tant qu'aucune
+     * tournée n'existait). Lecture seule : cet écran n'a aucune action sur le
+     * conditionnement, seulement Packaging.
      *
-     * Scopée aux livraisons non se_deplace (livraisons.se_deplace = false) :
-     * une famille se_deplace n'a jamais de tournée à charger, l'absence de
-     * RouteLivraison la concernant n'a rien d'un oubli — elle vit sur
-     * livraison/retrait-hq, pas ici.
+     * Suivent le filtre de l'écran comme les tournées : « Chargées » n'en
+     * montre aucune (une famille sans tournée n'est pas chargée), les autres
+     * filtres retiennent le même statut de conditionnement.
      *
-     * @return array{routesJamaisGenerees: bool, lignesPreparation: list<array{id: int, html: string}>}
+     * @return list<array{id: int, etat: string, sig: string, html: string}>
      */
-    private function etatSansTournee(Campagne $campagne): array
+    private function construireFamillesSansTournee(Campagne $campagne, string $filtreChargement = 'toutes'): array
     {
-        $enAttente = Livraison::where('id_campagne', $campagne->id)
+        if ($filtreChargement === 'chargees') {
+            return [];
+        }
+
+        $etatVoulu = StatutChargement::FILTRES[$filtreChargement] ?? null;
+
+        return Livraison::where('id_campagne', $campagne->id)
             ->where('statut_contact', 'confirme')
             ->where('se_deplace', false)
+            ->where('statut', 'non_assignee')
             ->with('famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant')
-            ->get();
+            ->orderBy('id')
+            ->get()
+            ->filter(fn(Livraison $livraison) => $etatVoulu === null || StatutChargement::pourFamille($livraison) === $etatVoulu)
+            ->values()
+            ->map(function (Livraison $livraison) {
+                $html = trim(view('livraison.partials.chargement-famille', ['livraison' => $livraison])->render());
 
-        $nonPretes = $enAttente->where('statut_conditionnement', '!=', 'prete')->values();
+                return [
+                    'id' => $livraison->id,
+                    'etat' => StatutChargement::pourFamille($livraison),
+                    'sig' => md5($html),
+                    'html' => $html,
+                ];
+            })
+            ->all();
+    }
 
-        $routesExistent = RouteLivraison::where('id_campagne', $campagne->id)->exists();
+    /**
+     * Rappel « générez les routes » (reprise du 24/09/2026 §1.2, refait le
+     * 06/10/2026) : HTML du bandeau, ou chaîne vide. Affiché dès qu'il y a
+     * des familles confirmées à livrer et AUCUNE tournée (hors annulées) —
+     * indépendamment du conditionnement, qui n'a pas à être terminé pour
+     * générer. Deux variantes : campagne pas encore démarrée (le bouton mène
+     * au hub, qui propose « Démarrer la campagne ») ou démarrée (le bouton
+     * ouvre l'assistant de génération).
+     */
+    private function rappelRoutes(Campagne $campagne): string
+    {
+        $afaire = Livraison::where('id_campagne', $campagne->id)
+            ->where('statut_contact', 'confirme')
+            ->where('se_deplace', false)
+            ->exists();
 
-        return [
-            'routesJamaisGenerees' => !$routesExistent && $enAttente->isNotEmpty() && $nonPretes->isEmpty(),
-            'lignesPreparation' => $nonPretes->map(fn(Livraison $l) => [
-                'id' => $l->id,
-                'html' => trim(view('livraison.partials.chargement-preparation', ['livraison' => $l])->render()),
-            ])->all(),
-        ];
+        $routesExistent = RouteLivraison::where('id_campagne', $campagne->id)
+            ->where('statut', '!=', 'annulee')
+            ->exists();
+
+        if (!$afaire || $routesExistent) {
+            return '';
+        }
+
+        $utilisateur = auth()->user();
+
+        return trim(view('livraison.partials.chargement-rappel', [
+            'campagne' => $campagne,
+            'demarree' => in_array($campagne->statut, ['en_cours', 'terminee'], true),
+            'peutGenerer' => (bool) ($utilisateur?->isAdmin() || $utilisateur?->isGestionnaire()),
+        ])->render());
     }
 
     /**
@@ -351,6 +400,13 @@ class ChargementController extends Controller
      */
     public function confirmer(RouteLivraison $route): JsonResponse
     {
+        // Seule une tournée « prête à charger » (tous les colis prêts) se
+        // charge — le double-clic ou un onglet périmé ne doivent pas
+        // renotifier le chauffeur (06/10/2026).
+        if ($route->statut !== 'chargement') {
+            return response()->json(['success' => false, 'message' => "Cette tournée n'est pas (ou plus) prête à charger."], 422);
+        }
+
         $route->update(['statut' => 'charge']);
 
         RouteIncident::create([
@@ -368,6 +424,37 @@ class ChargementController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Annule un chargement confirmé par erreur (06/10/2026) : la tournée
+     * repasse de 'charge' à 'chargement' (prête à charger) et un incident
+     * 'chargement_annule' est ouvert pour l'admin/gestionnaire. Refusé dès que
+     * le chauffeur a démarré sa tournée (statut 'en_cours' et suivants) :
+     * seule une tournée encore 'charge' peut être annulée. Pas de
+     * notification au chauffeur à ce stade (volontairement minimal).
+     */
+    public function annulerChargement(RouteLivraison $route): JsonResponse
+    {
+        if ($route->statut !== 'charge') {
+            return response()->json([
+                'success' => false,
+                'message' => $route->statut === 'chargement'
+                    ? "Cette tournée n'est pas chargée."
+                    : 'Le chauffeur a déjà démarré sa tournée : le chargement ne peut plus être annulé.',
+            ], 422);
+        }
+
+        $route->update(['statut' => 'chargement']);
+
+        $incident = RouteIncident::create([
+            'id_route' => $route->id,
+            'type' => 'chargement_annule',
+            'signale_par' => auth()->id(),
+            'statut' => 'ouvert',
+        ]);
+
+        return response()->json(['success' => true, 'id_incident' => $incident->id]);
     }
 
     /**

@@ -46,6 +46,9 @@ class MaRouteVueService
 
         $hq = $route->campagne ? RouteOptimizationConfig::coordonneesHqPourCampagne($route->campagne) : null;
 
+        // Type posé à la main : le contenu de ces lignes dépend de relations typées `Model`
+        // (voir la baseline), ce qui rendait le tri ci-dessous « unresolvable » pour PHPStan.
+        /** @var list<array<string, mixed>> $lignes */
         $lignes = $etapes->map(function ($etape) use ($hq) {
             $famille = $etape->livraison->famille;
             $distance = null;
@@ -69,10 +72,12 @@ class MaRouteVueService
                 'nb_colis' => (int) $etape->livraison->colis_count,
                 'poids_kg' => (float) $etape->livraison->poids_kg,
             ];
-        })->sortBy([
-            fn($a, $b) => (self::RANG_STATUT[$a['statut']] ?? 0) <=> (self::RANG_STATUT[$b['statut']] ?? 0),
-            fn($a, $b) => $a['ordre'] <=> $b['ordre'],
-        ])->values()->all();
+        })->all();
+
+        // Statut d'abord (voir RANG_STATUT), puis ordre de passage. usort() (stable
+        // depuis PHP 8) plutôt que sortBy([...closures]) : PHPStan ne sait pas
+        // typer un tableau de closures passé à Collection::sortBy().
+        usort($lignes, fn(array $a, array $b) => [self::RANG_STATUT[$a['statut']] ?? 0, $a['ordre']] <=> [self::RANG_STATUT[$b['statut']] ?? 0, $b['ordre']]);
 
         $ouvertes = fn(array $l) => in_array($l['statut'], ['en_attente', 'en_cours'], true);
         $ouvert = array_filter($lignes, $ouvertes);

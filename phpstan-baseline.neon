@@ -107,26 +107,8 @@ parameters:
 			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$route\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
-
-		-
 			message: '#^PHPDoc tag @return has invalid value \(JsonResponse\{total\: int, a_contacter\: int, confirme\: int, injoignable\: int\}\)\: Unexpected token "\{", expected TOKEN_HORIZONTAL_WS at offset 594 on line 11$#'
 			identifier: phpDoc.parseError
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
-
-		-
-			message: '#^Parameter \#1 \$campagne of method App\\Services\\RetraitHqSchedulingService\:\:planifierPour\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
-
-		-
-			message: '#^Parameter \#2 \$etape of method App\\Services\\RouteMutationService\:\:retirerLivraison\(\) expects App\\Models\\EtapeRoute, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
 
@@ -155,25 +137,7 @@ parameters:
 			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
-
-		-
 			message: '#^Parameter \#2 \$journee of method App\\Services\\LivraisonGenerationService\:\:nonCouvertesEligibles\(\) expects App\\Models\\CampagneJournee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
-
-		-
-			message: '#^Parameter \#2 \$journee of method App\\Services\\RetraitHqSchedulingService\:\:planifierPour\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
-
-		-
-			message: '#^Parameter \#2 \$journee of method App\\Services\\RouteGenerationService\:\:genererPourCampagne\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
@@ -279,12 +243,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Controllers/FamillesController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RouteLivraison\:\:\$urgence\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Livraison/ChargementController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
@@ -1719,12 +1677,6 @@ parameters:
 			identifier: ternary.alwaysTrue
 			count: 1
 			path: app/Services/PersonneActivationService.php
-
-		-
-			message: '#^Parameter \#2 \$famille of class App\\Notifications\\RetraitHqNotification constructor expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/RetraitHqNotificationService.php
 
 		-
 			message: '#^Expression on left side of \?\? is not nullable\.$#'

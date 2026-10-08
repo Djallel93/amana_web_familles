@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Notification;
  *
  * @property int      $id
  * @property int      $id_route
- * @property string   $type            benevole_absent|capacite|chargement_termine|livraison_ignoree|packaging_annule
+ * @property string   $type            benevole_absent|capacite|chargement_annule|chargement_termine|livraison_ignoree|packaging_annule
  * @property int|null $id_livraison    renseigné pour type = livraison_ignoree ou packaging_annule
  * @property int      $signale_par
  * @property string|null $statut       ouvert|resolu — null pour type = chargement_termine
@@ -41,7 +41,7 @@ class RouteIncident extends Model
      * l'équipe chargement doit savoir que ce colis n'est plus disponible
      * tant que gestionnaire/admin n'a pas marqué l'incident résolu.
      */
-    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule'];
+    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule'];
 
     public const STATUTS = ['ouvert', 'ignore', 'resolu'];
 
@@ -57,6 +57,9 @@ class RouteIncident extends Model
         'livraison_ignoree' => 'Livraison ignorée',
         'packaging_annule' => 'Packaging annulé',
         'chargement_termine' => 'Chargement terminé',
+        // 06/10/2026 : chargement confirmé par erreur puis annulé par
+        // l'équipe chargement — voir ChargementController::annulerChargement().
+        'chargement_annule' => 'Chargement annulé',
     ];
 
     // Types pour lesquels `statut` est sans objet (jalon, pas alerte actionnable).
@@ -79,7 +82,7 @@ class RouteIncident extends Model
 
     /**
      * Texte d'explication affiché dans la fenêtre de détail d'un incident
-     * (page Incidents de la campagne, 03/10/2026). S'appuie sur les
+     * (section Incidents du hub de la campagne, 06/10/2026). S'appuie sur les
      * relations route.benevole, livraison.famille chargées par l'appelant.
      * Le guide de résolution (quoi faire, étape par étape) viendra dans une
      * évolution ultérieure — voir guide().
@@ -103,6 +106,8 @@ class RouteIncident extends Model
                 . 'La famille n\'a pas reçu son colis.',
             'packaging_annule' => "Le packaging de {$famille} a été annulé après le chargement ({$tournee}) : "
                 . 'le colis repart en préparation. L\'incident se résout tout seul quand le colis est de nouveau prêt.',
+            'chargement_annule' => "Le chargement de la {$tournee} de {$chauffeur} a été annulé par l'équipe chargement "
+                . '(confirmé par erreur). La tournée est de nouveau « prête à charger » : vérifier que le chauffeur n\'est pas déjà parti.',
             default => 'Incident de tournée.',
         };
 

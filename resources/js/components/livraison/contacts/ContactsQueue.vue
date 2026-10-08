@@ -87,6 +87,10 @@ const props = defineProps<{
     // se_deplace après coup, indépendamment du reste du contact (voir
     // basculerSeDeplace() plus bas).
     seDeplaceUrlTemplate: string;
+    // priseEnChargeUrlTemplate (06/10/2026) : « Prendre en charge » — un
+    // chauffeur s'engage à livrer cette famille (livraison imposée), voir
+    // ContactTrackingController::prendreEnCharge().
+    priseEnChargeUrlTemplate: string;
 }>();
 
 const campagnes = ref<Campagne[]>(props.campagnes);
@@ -100,6 +104,7 @@ const assignerUrlTemplate = props.assignerUrlTemplate;
 const assignerLotUrl = props.assignerLotUrl;
 const contacterManuelUrlTemplate = props.contacterManuelUrlTemplate;
 const seDeplaceUrlTemplate = props.seDeplaceUrlTemplate;
+const priseEnChargeUrlTemplate = props.priseEnChargeUrlTemplate;
 
 const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
     injoignable: "Injoignable",
@@ -116,6 +121,9 @@ function urlContacterManuel(id: number): string {
 }
 function urlSeDeplace(id: number): string {
     return seDeplaceUrlTemplate.replace("__ID__", String(id));
+}
+function urlPriseEnCharge(id: number): string {
+    return priseEnChargeUrlTemplate.replace("__ID__", String(id));
 }
 
 function formatDateFr(iso: string): string {
@@ -379,16 +387,32 @@ const statutSimpleEnCours = reactive<Record<number, boolean>>({});
  * se_deplace (25/09/2026, prompt de cette date) : seul moment où la
  * famille peut elle-même indiquer, via l'appel téléphonique staff, si
  * elle se déplacera au QG pour CETTE campagne — décision produit actée :
- * pas ajouté au formulaire public de confirmation. false par défaut (même
- * défaut que la colonne livraisons.se_deplace), local à cet écran comme
+ * pas ajouté au formulaire public de confirmation. Local à cet écran comme
  * `formulaire`/`etatEnvoi` ci-dessus — pas dans useFormulaireCreneaux(),
  * partagé avec BenevoleDisponibiliteQueue.vue qui n'a rien à voir avec
  * se_deplace.
+ *
+ * AUCUNE valeur par défaut depuis le 06/10/2026 (avant : « Non » présélectionné,
+ * donc jamais réellement choisi) : tant que le gestionnaire n'a pas répondu
+ * Oui ou Non, « Enregistrer la confirmation » reste grisé — voir
+ * confirmationIncomplete().
  */
-const seDeplaceFormulaire = reactive<Record<number, boolean>>({});
+const seDeplaceFormulaire = reactive<Record<number, boolean | undefined>>({});
 
-function seDeplaceValeur(id: number): boolean {
-    return seDeplaceFormulaire[id] ?? false;
+function seDeplaceValeur(id: number): boolean | undefined {
+    return seDeplaceFormulaire[id];
+}
+
+/**
+ * Ce qu'il manque pour enregistrer la confirmation (06/10/2026) : au moins un
+ * créneau ET une réponse Oui/Non à « se déplacera-t-elle au QG ? ». Le serveur
+ * applique les mêmes règles (ContactTrackingController::contacterManuel()).
+ */
+function confirmationIncomplete(id: number): string[] {
+    const manque: string[] = [];
+    if (formulaire(id).creneaux.length === 0) manque.push("au moins un créneau");
+    if (seDeplaceValeur(id) === undefined) manque.push("« se déplace au QG » : oui ou non");
+    return manque;
 }
 
 async function marquerStatutSimple(livraison: Livraison, statut: "injoignable" | "rejetee" | "archive") {
@@ -432,8 +456,40 @@ async function basculerSeDeplace(livraison: Livraison) {
     toast.success("Se déplace mis à jour.");
 }
 
+/**
+ * « Prendre en charge » (06/10/2026) : un chauffeur s'engage à livrer cette
+ * famille quand il veut (tournée imposée, sans créneau). `null` retire
+ * l'imposition. Le serveur refuse si la famille est déjà dans une tournée
+ * chargée/en cours, déjà livrée ou se déplace au QG — le message s'affiche tel quel.
+ */
+const priseEnChargeEnCours = reactive<Record<number, boolean>>({});
+
+async function prendreEnCharge(livraison: Livraison, personne: PersonneResume | null) {
+    priseEnChargeEnCours[livraison.id] = true;
+    const resultat = await apiPost<{
+        success: boolean;
+        id_benevole_impose: number | null;
+        benevole_impose: PersonneResume | null;
+    }>(urlPriseEnCharge(livraison.id), { id_benevole: personne?.id ?? null });
+    priseEnChargeEnCours[livraison.id] = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        // La sélection affichée revient à la valeur serveur.
+        chargerFile(meta.value?.current_page ?? 1);
+        return;
+    }
+
+    livraison.id_benevole_impose = resultat.data.id_benevole_impose;
+    livraison.benevole_impose = resultat.data.benevole_impose;
+    toast.success(personne ? "Livraison confiée à ce bénévole." : "Imposition retirée.");
+}
+
 async function enregistrerContact(livraison: Livraison) {
     const f = formulaire(livraison.id);
+    const seDeplace = seDeplaceValeur(livraison.id);
+    if (seDeplace === undefined || f.creneaux.length === 0) return;
+
     const e = etatEnvoi(livraison.id);
     e.envoiEnCours = true;
     e.erreurs = {};
@@ -441,7 +497,7 @@ async function enregistrerContact(livraison: Livraison) {
     const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), {
         statut_contact: "confirme",
         creneaux: f.creneaux,
-        se_deplace: seDeplaceValeur(livraison.id),
+        se_deplace: seDeplace,
     });
     e.envoiEnCours = false;
 
@@ -719,6 +775,32 @@ onMounted(() => {
                         🚶 Se déplace : {{ livraison.se_deplace ? "Oui" : "Non" }} · changer
                     </button>
 
+                    <!-- « Prendre en charge » (06/10/2026) : un chauffeur s'engage à
+                         livrer cette famille (livraison imposée). Seulement une
+                         fois confirmée ; impossible pour une famille qui se
+                         déplace au QG (le serveur refuse aussi). -->
+                    <div
+                        v-if="livraison.statut_contact === 'confirme'"
+                        class="max-w-xs"
+                        :class="
+                            priseEnChargeEnCours[livraison.id] || livraison.se_deplace
+                                ? 'pointer-events-none opacity-60'
+                                : ''
+                        "
+                    >
+                        <label class="block text-[11px] text-ink-muted mb-1">Prise en charge par un chauffeur</label>
+                        <PersonSelect
+                            role="benevole"
+                            avec-vehicule
+                            placeholder="Aucun — choisir un chauffeur…"
+                            :model-value="livraison.benevole_impose ?? null"
+                            @update:model-value="(p) => prendreEnCharge(livraison, p)"
+                        />
+                        <p v-if="livraison.se_deplace" class="text-[11px] text-ink-muted mt-1">
+                            Cette famille vient au QG : pas de prise en charge possible.
+                        </p>
+                    </div>
+
                     <!-- Actions de statut : injoignable/rejetée/archivée n'ont
                          besoin d'aucun champ (un clic, voir marquerStatutSimple()) —
                          seule la confirmation ouvre un formulaire. -->
@@ -855,7 +937,7 @@ onMounted(() => {
                                 <label
                                     class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
                                     :class="
-                                        seDeplaceValeur(livraison.id)
+                                        seDeplaceValeur(livraison.id) === true
                                             ? 'border-accent bg-accent/5 text-ink font-semibold'
                                             : 'border-ink-faint text-ink-muted'
                                     "
@@ -871,7 +953,7 @@ onMounted(() => {
                                 <label
                                     class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
                                     :class="
-                                        !seDeplaceValeur(livraison.id)
+                                        seDeplaceValeur(livraison.id) === false
                                             ? 'border-accent bg-accent/5 text-ink font-semibold'
                                             : 'border-ink-faint text-ink-muted'
                                     "
@@ -894,16 +976,31 @@ onMounted(() => {
                             </p>
                         </div>
 
-                        <button
-                            type="button"
-                            :disabled="etatEnvoi(livraison.id).envoiEnCours"
-                            @click="enregistrerContact(livraison)"
-                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60"
-                        >
-                            {{
-                                etatEnvoi(livraison.id).envoiEnCours ? "Enregistrement…" : "Enregistrer la confirmation"
-                            }}
-                        </button>
+                        <!-- Interdit tant que créneaux ET se_deplace ne sont pas
+                             renseignés (06/10/2026) — le serveur applique la même règle. -->
+                        <div class="flex flex-wrap items-center gap-3">
+                            <button
+                                type="button"
+                                :disabled="
+                                    etatEnvoi(livraison.id).envoiEnCours ||
+                                    confirmationIncomplete(livraison.id).length > 0
+                                "
+                                @click="enregistrerContact(livraison)"
+                                class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-accent text-white disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {{
+                                    etatEnvoi(livraison.id).envoiEnCours
+                                        ? "Enregistrement…"
+                                        : "Enregistrer la confirmation"
+                                }}
+                            </button>
+                            <span
+                                v-if="confirmationIncomplete(livraison.id).length > 0"
+                                class="text-[11.5px] text-ink-muted"
+                            >
+                                À renseigner : {{ confirmationIncomplete(livraison.id).join(" · ") }}.
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>

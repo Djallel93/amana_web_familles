@@ -8,7 +8,7 @@
 
     Cette page ne porte que le lien de retour que portait la Blade ; tout
     le reste (sélecteur de campagne, cartes statistiques, incidents,
-    tournées, non-couvertes, construction de tournée personnalisée) vit
+    tournées, non-couvertes) vit
     dans LiveBoard.vue et ses quatre panneaux, désormais enfants Vue
     normaux plutôt qu'un îlot monté par app.ts.
 
@@ -19,15 +19,11 @@
 <script setup lang="ts">
 import { Head, Link } from "@inertiajs/vue3";
 import LiveBoard from "../../components/livraison/tableau-de-bord/LiveBoard.vue";
-import type { Campagne, Organisation, Quartier, Secteur, Ville } from "../../components/livraison/shared/types";
+import type { Campagne } from "../../components/livraison/shared/types";
 
 defineProps<{
     campagnes: Campagne[];
     campagneSelectionneeId: number | null;
-    quartiers: Quartier[];
-    villes: Ville[];
-    secteurs: Secteur[];
-    organisations: Organisation[];
     retourUrl: string;
     urls: Record<string, string>;
 }>();
@@ -46,14 +42,6 @@ defineProps<{
 
         <h1 class="font-heading text-xl font-semibold text-ink mb-6">Suivi livraison</h1>
 
-        <LiveBoard
-            :campagnes="campagnes"
-            :campagne-selectionnee-id="campagneSelectionneeId"
-            :quartiers="quartiers"
-            :villes="villes"
-            :secteurs="secteurs"
-            :organisations="organisations"
-            :urls="urls"
-        />
+        <LiveBoard :campagnes="campagnes" :campagne-selectionnee-id="campagneSelectionneeId" :urls="urls" />
     </div>
 </template>

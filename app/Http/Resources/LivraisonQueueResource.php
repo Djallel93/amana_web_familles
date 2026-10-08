@@ -40,6 +40,9 @@ class LivraisonQueueResource extends JsonResource
             'statut_contact' => $this->statut_contact,
             'id_personne_assignee' => $this->id_personne_assignee,
             'personne_assignee' => $this->whenLoaded('personneAssignee', fn() => $this->personneAssignee ? new PersonneResumeResource($this->personneAssignee) : null),
+            // Chauffeur imposé (06/10/2026, « Prendre en charge »).
+            'id_benevole_impose' => $this->resource->getAttribute('id_benevole_impose'),
+            'benevole_impose' => $this->whenLoaded('benevoleImpose', fn() => $this->resource->getRelation('benevoleImpose') ? new PersonneResumeResource($this->resource->getRelation('benevoleImpose')) : null),
             'famille' => $this->whenLoaded('famille', fn() => new FamilleResumeResource($this->famille)),
             'adresse_confirmee' => $this->adresse_confirmee,
             'code_postal_confirme' => $this->code_postal_confirme,

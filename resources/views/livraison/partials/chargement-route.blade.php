@@ -4,7 +4,8 @@
     (polling, Scénario 1) pour être rendue à l'identique par la page initiale ET
     par ChargementController::liste() (endpoint de polling) — une seule source
     de vérité pour le balisage, voir ChargementController::lignes().
-    Attend : $route (RouteLivraison avec ->urgence déjà calculée).
+    Attend : $route (RouteLivraison avec ->urgence et ->etat déjà calculés,
+    voir ChargementController::construireListe() et StatutChargement).
 --}}
 {{--
     Urgence + statut affichés en permanence (08/09/2026,
@@ -27,8 +28,8 @@
         'benevole' => 'border-amber-400 border-2 bg-amber-50',
         default => 'border-surface-border',
     } }}
-    {{ $route->statut === 'charge' ? 'opacity-60' : '' }}"
-    id="route-{{ $route->id }}" data-statut="{{ $route->statut }}">
+    {{ $route->etat === 'chargee' ? 'opacity-60' : '' }}"
+    id="route-{{ $route->id }}" data-statut="{{ $route->statut }}" data-etat="{{ $route->etat }}">
     <div class="flex items-center justify-between mb-2">
         <span class="text-[14px] font-medium text-ink">
             {{ $route->benevole->prenom ?? '' }} {{ $route->benevole->nom ?? '' }}
@@ -40,27 +41,23 @@
             @elseif($route->urgence === 'benevole')
                 <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-600 text-white">🟠 Urgent — chauffeur</span>
             @endif
-            {{-- Couleurs alignées sur STYLES_STATUT_ROUTE (shared/types.ts, 29/09/2026 §6.1) --}}
-            <span class="statut-route text-[11px] font-medium px-2 py-0.5 rounded-full
-                {{ match($route->statut) {
-                    'charge' => 'bg-indigo-100 text-indigo-700',
-                    'packaging_annule' => 'bg-orange-100 text-orange-700',
-                    default => 'bg-stone-100 text-ink-muted',
-                } }}">
-                {{ match($route->statut) {
-                    'charge' => 'Chargée',
-                    'packaging_annule' => 'Packaging annulé',
-                    default => 'Prête à charger',
-                } }}
+            {{-- Statut affiché dérivé du conditionnement (06/10/2026) : Restante /
+                 En préparation / Prête / Chargée — voir StatutChargement. --}}
+            <span class="statut-route text-[11px] font-medium px-2 py-0.5 rounded-full {{ \App\Support\StatutChargement::STYLES[$route->etat] }}">
+                {{ \App\Support\StatutChargement::LIBELLES[$route->etat] }}
             </span>
             <span class="text-[12px] text-ink-muted">{{ $route->creneau ? \App\Support\Creneau::libelle($route->creneau) : 'Imposée' }}</span>
         </div>
     </div>
 
+    {{-- « Famille #{id} » comme Packaging (06/10/2026) : plus de nom complet,
+         et une pastille de conditionnement par famille. --}}
     <ul class="text-[12px] text-ink-muted space-y-1 mb-3">
         @foreach($route->etapes as $etape)
-            <li>
-                {{ $etape->livraison->famille->prenom }} {{ $etape->livraison->famille->nom }}
+            @php($etatFamille = \App\Support\StatutChargement::pourFamille($etape->livraison))
+            <li class="flex items-center gap-1.5 flex-wrap">
+                <span>Famille #{{ $etape->livraison->famille->id }}</span>
+                <span class="text-[10.5px] font-medium px-1.5 py-0.5 rounded-full {{ \App\Support\StatutChargement::STYLES[$etatFamille] }}">{{ \App\Support\StatutChargement::LIBELLES[$etatFamille] }}</span>
                 @if($etape->livraison->famille->etudiant)<span class="text-sky-600">· étudiant</span>@endif
                 @if($etape->livraison->famille->est_hotel)<span class="text-amber-600">· hôtel</span>@endif
                 @if($etape->livraison->famille->nombre_enfant > 0)<span class="text-violet-600">· {{ $etape->livraison->famille->nombre_enfant }} enfant(s)</span>@endif
@@ -68,12 +65,18 @@
         @endforeach
     </ul>
 
-    <div class="flex gap-2" @if($route->statut !== 'chargement') style="display:none" @endif>
+    {{-- Actions : « prête » (statut routes 'chargement') → chargement confirmé ;
+         « chargée » → annulation en cas d'erreur (06/10/2026, ouvre un incident). --}}
+    <div class="flex gap-2 actions-prete" @if($route->statut !== 'chargement') style="display:none" @endif>
         <button type="button" onclick="confirmerChargement({{ $route->id }})"
             class="text-[12px] px-3 py-1.5 rounded-lg bg-accent text-white">Chargement confirmé</button>
         <button type="button" onclick="signalerAbsent({{ $route->id }})"
             class="text-[12px] px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600">Bénévole absent</button>
         <button type="button" onclick="signalerCapacite({{ $route->id }})"
             class="text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted">Problème de capacité</button>
+    </div>
+    <div class="flex gap-2 actions-chargee" @if($route->statut !== 'charge') style="display:none" @endif>
+        <button type="button" onclick="annulerChargement({{ $route->id }})"
+            class="text-[12px] px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600">Annuler le chargement</button>
     </div>
 </div>

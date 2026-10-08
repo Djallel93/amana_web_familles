@@ -14,9 +14,14 @@
 
     Révisé le 09/09/2026 (prompt de cette date §5.2.4) : cartes
     statistiques ajoutées en haut, même patron que ContactsQueue.vue/
-    packaging.blade.php ; quartiers/villes/secteurs/organisations chargés
-    ici (même référentiel que CampagneDetail.vue) pour le
-    FamilleFilterPanel de BuildRouteFlow.vue (§5.1.3).
+    packaging.blade.php.
+
+    06/10/2026 : plus de génération de routes ni de « tournée personnalisée »
+    ici — les deux vivent dans l'assistant « Génération des routes » du hub de
+    la campagne (GenererRoutesWizard.vue). Cet écran ne sert plus qu'à SUIVRE
+    et corriger les tournées (retirer/ajouter une famille, réassigner,
+    scinder, statut des arrêts) ; quartiers/villes/secteurs/organisations n'y
+    sont donc plus chargés.
 
     Section E4 du refactor (16/09/2026, septième et dernier chunk du
     domaine livraison) : ce composant n'est plus un îlot monté par
@@ -27,7 +32,7 @@
     repris tel quel comme prop plutôt qu'éclaté en une prop par URL (voir
     le docblock de LiveBoardController::index()). Tout le reste
     (incidents/routes/non-couvertes/statistiques, RoutesPanel/
-    IncidentsPanel/ShortfallPanel/BuildRouteFlow) reste des endpoints
+    IncidentsPanel/ShortfallPanel) reste des endpoints
     JSON classiques, inchangés — cet écran n'est PAS un cas B.
 
     Aucun repli dataset conservé : cet écran est le seul consommateur de
@@ -63,38 +68,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { apiGet } from "../shared/api";
-import type {
-    Campagne,
-    Livraison,
-    Organisation,
-    Quartier,
-    RouteIncident,
-    RouteLivraison,
-    Secteur,
-    SuiviLivraisonStatistiques,
-    Ville,
-} from "../shared/types";
+import type { Campagne, Livraison, RouteIncident, RouteLivraison, SuiviLivraisonStatistiques } from "../shared/types";
 import IncidentsPanel from "./IncidentsPanel.vue";
 import RoutesPanel from "./RoutesPanel.vue";
 import ShortfallPanel from "./ShortfallPanel.vue";
-import BuildRouteFlow from "./BuildRouteFlow.vue";
-import GenererRoutesPanel from "./GenererRoutesPanel.vue";
 
 const props = defineProps<{
     campagnes: Campagne[];
     campagneSelectionneeId: number | null;
-    quartiers: Quartier[];
-    villes: Ville[];
-    secteurs: Secteur[];
-    organisations: Organisation[];
     urls: Record<string, string>;
 }>();
 
 const campagnes = ref<Campagne[]>(props.campagnes);
-const quartiers = ref<Quartier[]>(props.quartiers);
-const villes = ref<Ville[]>(props.villes);
-const secteurs = ref<Secteur[]>(props.secteurs);
-const organisations = ref<Organisation[]>(props.organisations);
 const urls = props.urls;
 
 function formatDateFr(iso: string): string {
@@ -119,21 +104,9 @@ const urlsCampagne = computed(() => {
         incidents: remplacer(urls.incidents ?? ""),
         routes: remplacer(urls.routes ?? ""),
         nonCouvertes: remplacer(urls.nonCouvertes ?? ""),
-        nonCouvertesTableau: remplacer(urls.nonCouvertesTableau ?? ""),
         statistiques: remplacer(urls.statistiques ?? ""),
-        routesPersonnalisees: remplacer(urls.routesPersonnalisees ?? ""),
     };
 });
-
-// Bloc « Génération des routes » (03/10/2026) : déplacé ici depuis la page
-// campagne, qui est devenue un hub. Il a besoin des journées de la campagne
-// choisie (CampagneResource avec journees, voir LiveBoardController::index()).
-const campagneSelectionnee = computed(() => campagnes.value.find((c) => String(c.id) === campagneId.value) ?? null);
-const urlsGeneration = computed(() => ({
-    genererRoutes: (urls.genererRoutes ?? "").replace("__CAMPAGNE__", campagneId.value),
-    queue: urls.contactsQueue ?? "",
-    contactsStatistiques: urls.contactsStatistiques ?? "",
-}));
 
 const incidents = ref<RouteIncident[]>([]);
 const chargementIncidents = ref(false);
@@ -228,18 +201,8 @@ async function chargerStatistiques(silencieux = false) {
     if (!silencieux || !memeContenu(stats.value, resultat.data)) stats.value = resultat.data;
 }
 
-// Incrémenté après une modification de tournée (retirer/ajouter/scinder/
-// réassigner/supprimer/statut) pour que « Construire une tournée
-// personnalisée » (BuildRouteFlow.vue, qui garde sa propre table paginée)
-// se recharge aussi — 29/09/2026, prompt §6.4 : une famille retirée d'une
-// tournée apparaissait dans « Livraisons confirmées jamais couvertes »
-// (nonCouvertes, rechargée par chargerTout) mais pas dans cette table
-// avant un rafraîchissement de la page.
-const versionTableauNonCouvertes = ref(0);
-
 function apresChangementTournee() {
     chargerTout();
-    versionTableauNonCouvertes.value++;
 }
 
 function chargerTout() {
@@ -311,21 +274,6 @@ onUnmounted(() => {
 
         <div v-if="campagneId">
             <!--
-                Génération des routes EN PREMIER (03/10/2026) : début de la
-                phase livraison, et cible de l'ancre #generer-routes du rappel
-                de la page Chargement — rien d'asynchrone au-dessus, donc le
-                défilement vers l'ancre ne bouge plus quand les stats arrivent.
-            -->
-            <GenererRoutesPanel
-                v-if="campagneSelectionnee"
-                :key="campagneSelectionnee.id"
-                :campagne-id="campagneSelectionnee.id"
-                :journees="campagneSelectionnee.journees ?? []"
-                :urls="urlsGeneration"
-                @generated="chargerTout"
-            />
-
-            <!--
                 Cartes statistiques (09/09/2026, prompt §5.2.4 : "Add
                 statistique cards at the top like the rest of the pages")
                 — même patron que ContactsQueue.vue/packaging.blade.php.
@@ -371,18 +319,6 @@ onUnmounted(() => {
                 :erreur="erreurIncidents"
                 :url-resoudre="urls.incidentResoudre ?? ''"
                 @changed="chargerTout"
-            />
-
-            <BuildRouteFlow
-                :campagne-id="campagneId"
-                :villes="villes"
-                :secteurs="secteurs"
-                :quartiers="quartiers"
-                :organisations="organisations"
-                :url="urlsCampagne.routesPersonnalisees"
-                :url-non-couvertes-tableau="urlsCampagne.nonCouvertesTableau"
-                :version-rafraichissement="versionTableauNonCouvertes"
-                @created="chargerTout"
             />
 
             <h2 class="text-[14px] font-medium text-ink mb-3">Tournées</h2>

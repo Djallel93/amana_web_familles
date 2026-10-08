@@ -76,6 +76,8 @@ class RouteIncidentNotification extends Notification
             'capacite' => 'Problème de capacité',
             'chargement_termine' => 'Chargement terminé',
             'livraison_ignoree' => 'Livraison ignorée',
+            'packaging_annule' => 'Packaging annulé',
+            'chargement_annule' => 'Chargement annulé',
             default => $this->incident->type,
         };
     }

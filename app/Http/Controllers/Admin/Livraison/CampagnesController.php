@@ -22,6 +22,7 @@ use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Services\BenevoleDisponibiliteService;
+use App\Services\CampagneDemarrageService;
 use App\Services\IncidentResolutionService;
 use App\Services\LivraisonGenerationService;
 use App\Services\RetraitHqSchedulingService;
@@ -198,9 +199,34 @@ class CampagnesController extends Controller
     public function show(Campagne $campagne): InertiaResponse
     {
         return Inertia::render('Livraison/CampagneDetail', [
-            'campagne' => new CampagneResource($campagne),
+            // journees chargées (06/10/2026) : l'assistant « Génération des
+            // routes » choisit la journée à traiter.
+            'campagne' => new CampagneResource($campagne->load('journees')),
             'retourUrl' => route('livraison.campagnes.index'),
             'avancementUrl' => route('livraison.campagnes.avancement', $campagne),
+            // « Démarrer la campagne » (06/10/2026) — voir CampagneDemarrageService.
+            'demarrerUrl' => route('livraison.campagnes.demarrer', $campagne),
+            // Référentiels du tableau de familles du mode personnalisé de
+            // l'assistant (mêmes que l'ancien constructeur de tournée de
+            // Suivi livraison, dont c'est désormais le seul emplacement).
+            'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
+            'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
+            'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+            'generationUrls' => [
+                'chauffeurs' => route('livraison.campagnes.chauffeurs-disponibles', $campagne),
+                'apercu' => route('livraison.campagnes.apercu-generation', $campagne),
+                'generer' => route('livraison.campagnes.generer-routes', $campagne),
+                'personnalisee' => route('livraison.routes.personnalisee', $campagne),
+                'nonCouvertesTableau' => route('livraison.campagnes.non-couvertes-tableau', $campagne),
+            ],
+            // Section Incidents repliable du hub (06/10/2026) — remplace la
+            // page dédiée.
+            'incidentsUrls' => [
+                'liste' => route('livraison.campagnes.incidents-liste', $campagne),
+                'resoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
+                'ignorer' => route('livraison.incidents.ignorer', ['incident' => '__ID__']),
+            ],
             'clotureUrl' => route('livraison.campagnes.cloture', $campagne),
             'terminerUrl' => route('livraison.campagnes.terminer', $campagne),
             'rouvrirUrl' => route('livraison.campagnes.rouvrir', $campagne),
@@ -217,7 +243,6 @@ class CampagnesController extends Controller
                 'chargement' => route('livraison.chargement.index', $campagne),
                 'retraitHq' => route('livraison.retrait-hq.index', $campagne),
                 'suiviLivraison' => route('livraison.suivi-livraison.index', $campagne),
-                'incidents' => route('livraison.campagnes.gestion-incidents', $campagne),
             ],
         ]);
     }
@@ -740,7 +765,7 @@ class CampagnesController extends Controller
      * plusieurs endpoints déjà existants (eligibles/non-couvertes...) qui
      * ne portent chacun qu'un fragment de l'image d'ensemble.
      */
-    public function avancement(Campagne $campagne): JsonResponse
+    public function avancement(Campagne $campagne, CampagneDemarrageService $demarrage): JsonResponse
     {
         $livraisons = Livraison::where('id_campagne', $campagne->id)
             ->select('statut_contact', 'statut_conditionnement')
@@ -763,6 +788,11 @@ class CampagnesController extends Controller
         $routesTerminees = $routes->where('statut', 'terminee')->count();
 
         return response()->json([
+            // statut + demarrage_bloque (06/10/2026) : le hub bascule du
+            // bouton « Démarrer la campagne » à « Génération des routes »
+            // sans rechargement, et grise le bouton avec la raison du refus.
+            'statut' => $campagne->statut,
+            'demarrage_bloque' => $demarrage->raisonDeRefus($campagne),
             'livraisons_generees' => $livraisonsTotal > 0,
             'contacts_termines' => $livraisonsTotal > 0 && $livraisonsAConfirmer === 0,
             'contacts_en_cours' => $livraisonsTotal > 0 && $livraisonsAConfirmer > 0 && $livraisonsAConfirmer < $livraisonsTotal,
@@ -860,9 +890,28 @@ class CampagnesController extends Controller
     }
 
     /**
-     * Rouvre une campagne terminée (03/10/2026) — retour à 'preparation'
-     * (seul statut réellement posé par le code ; collecte/en_cours ne le
-     * sont jamais).
+     * « Démarrer la campagne » (06/10/2026) — voir CampagneDemarrageService :
+     * statut 'en_cours', tournées imposées, rendez-vous et emails de retrait
+     * QG. Refus en 422 avec un message prêt à afficher.
+     */
+    public function demarrer(Campagne $campagne, CampagneDemarrageService $demarrage): JsonResponse
+    {
+        try {
+            $resultat = $demarrage->demarrer($campagne);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success' => true,
+            ...$resultat,
+            'campagne' => new CampagneResource($campagne->fresh()->load('journees')),
+        ]);
+    }
+
+    /**
+     * Rouvre une campagne terminée (03/10/2026) — retour à 'en_cours' si elle
+     * avait des tournées (06/10/2026, voir ci-dessous), sinon 'preparation'.
      */
     public function rouvrir(Campagne $campagne): JsonResponse
     {
@@ -870,8 +919,12 @@ class CampagnesController extends Controller
             return response()->json(['success' => false, 'message' => "Cette campagne n'est pas terminée."], 422);
         }
 
-        $campagne->update(['statut' => 'preparation']);
-        audit('update', 'campagnes', $campagne->id, ['statut' => 'terminee'], ['statut' => 'preparation']);
+        // Retour à 'en_cours' dès que la campagne a des tournées (elle avait
+        // démarré) : repasser en 'preparation' ferait réapparaître « Démarrer
+        // la campagne » et renverrait les emails de retrait QG (06/10/2026).
+        $statut = $campagne->routes()->exists() ? 'en_cours' : 'preparation';
+        $campagne->update(['statut' => $statut]);
+        audit('update', 'campagnes', $campagne->id, ['statut' => 'terminee'], ['statut' => $statut]);
 
         return response()->json(['success' => true, 'campagne' => new CampagneResource($campagne->fresh())]);
     }

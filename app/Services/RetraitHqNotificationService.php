@@ -5,7 +5,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Famille;
 use App\Models\Livraison;
+use App\Notifications\RetraitHqAnnuleNotification;
 use App\Notifications\RetraitHqNotification;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
@@ -32,9 +34,9 @@ class RetraitHqNotificationService
 
     public function notifierPour(Livraison $livraison): bool
     {
-        $famille = $livraison->famille;
+        $famille = $this->familleAvecEmail($livraison);
 
-        if (empty($famille->email) || $livraison->heure_arrivee_prevue_hq === null) {
+        if ($famille === null || empty($famille->email) || $livraison->heure_arrivee_prevue_hq === null) {
             return false;
         }
 
@@ -51,5 +53,45 @@ class RetraitHqNotificationService
 
             return false;
         }
+    }
+
+    /**
+     * « Vous n'avez plus à venir au QG » (06/10/2026) : la famille avait un
+     * rendez-vous de retrait et repasse en livraison (voir
+     * LivraisonChangementService::changerSeDeplace()). Même garde-fou que
+     * notifierPour() (pas d'email = no-op silencieux).
+     */
+    public function notifierAnnulation(Livraison $livraison): bool
+    {
+        $famille = $this->familleAvecEmail($livraison);
+
+        if ($famille === null || empty($famille->email)) {
+            return false;
+        }
+
+        try {
+            Notification::route('mail', $famille->email)
+                ->notify(new RetraitHqAnnuleNotification($famille));
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('[RetraitHqNotificationService] Échec envoi email d\'annulation de retrait QG', [
+                'id_livraison' => $livraison->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * RetraitHqSchedulingService::planifierPour() charge la famille avec
+     * `famille:id,criticite` seulement : sans email, donc aucun email ne
+     * partait. On relit la famille complète (requête typée plutôt que la
+     * relation, typée `Model` par l'analyse statique).
+     */
+    private function familleAvecEmail(Livraison $livraison): ?Famille
+    {
+        return Famille::find($livraison->id_famille);
     }
 }

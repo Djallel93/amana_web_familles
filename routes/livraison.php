@@ -67,10 +67,14 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('campagnes.rouvrir');
     Route::post('/campagnes/{campagne}/incidents/forcer-resolution', [CampagnesController::class, 'forcerResolutionIncidents'])
         ->name('campagnes.incidents.forcer-resolution');
-    // Page Incidents (l'URL /campagnes/{campagne}/incidents existe déjà : c'est
-    // l'endpoint JSON des incidents OUVERTS consommé par Suivi livraison).
-    Route::get('/campagnes/{campagne}/gestion-incidents', [IncidentsController::class, 'index'])
-        ->name('campagnes.gestion-incidents');
+    // Liste complète des incidents de la campagne (section repliable du hub,
+    // 06/10/2026 — plus de page dédiée). L'URL /campagnes/{campagne}/incidents
+    // existe déjà : c'est l'endpoint JSON des incidents OUVERTS de Suivi livraison.
+    Route::get('/campagnes/{campagne}/incidents/liste', [IncidentsController::class, 'liste'])
+        ->name('campagnes.incidents-liste');
+    // « Démarrer la campagne » (06/10/2026) — voir CampagneDemarrageService.
+    Route::post('/campagnes/{campagne}/demarrer', [CampagnesController::class, 'demarrer'])
+        ->name('campagnes.demarrer');
     // Sélection des familles éligibles : page dédiée, campagne optionnelle
     // (barre latérale), même patron que suivi-livraison/{campagne?}.
     Route::get('/familles-eligibles/{campagne?}', [CampagnesController::class, 'familles'])
@@ -155,6 +159,10 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // supplémentaire nécessaire ici.
     Route::post('/contacts/{livraison}/se-deplace', [ContactTrackingController::class, 'mettreAJourSeDeplace'])
         ->name('contacts.se-deplace');
+    // « Prendre en charge » (06/10/2026) : chauffeur imposé, voir
+    // ContactTrackingController::prendreEnCharge().
+    Route::post('/contacts/{livraison}/prise-en-charge', [ContactTrackingController::class, 'prendreEnCharge'])
+        ->name('contacts.prise-en-charge');
 
     // Renommé depuis 'tableau-de-bord' (07/09/2026, prompt §6) — voir
     // config/amana-shared.php. {campagne?} optionnel ajouté au même
@@ -167,6 +175,11 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('suivi-livraison.index');
     Route::post('/campagnes/{campagne}/generer-routes', [LiveBoardController::class, 'genererRoutes'])
         ->name('campagnes.generer-routes');
+    // Étapes de l'assistant « Génération des routes » du hub (06/10/2026).
+    Route::get('/campagnes/{campagne}/chauffeurs-disponibles', [LiveBoardController::class, 'chauffeursDisponibles'])
+        ->name('campagnes.chauffeurs-disponibles');
+    Route::get('/campagnes/{campagne}/apercu-generation', [LiveBoardController::class, 'apercuGeneration'])
+        ->name('campagnes.apercu-generation');
     Route::get('/campagnes/{campagne}/routes', [LiveBoardController::class, 'routes'])
         ->name('campagnes.routes');
     Route::get('/campagnes/{campagne}/non-couvertes', [LiveBoardController::class, 'nonCouvertes'])
@@ -373,6 +386,10 @@ Route::middleware('auth')->prefix('livraison/chargement')->name('livraison.charg
         ->middleware('can:equipeChargement,campagne')->name('liste');
     Route::post('/routes/{route}/confirmer', [ChargementController::class, 'confirmer'])
         ->middleware('can:gerer,route')->name('confirmer');
+    // Annulation d'un chargement confirmé par erreur (06/10/2026) — ouvre un
+    // incident, voir ChargementController::annulerChargement().
+    Route::post('/routes/{route}/annuler-chargement', [ChargementController::class, 'annulerChargement'])
+        ->middleware('can:gerer,route')->name('annuler-chargement');
     Route::post('/routes/{route}/benevole-absent', [ChargementController::class, 'signalerBenevoleAbsent'])
         ->middleware('can:gerer,route')->name('benevole-absent');
     Route::post('/routes/{route}/capacite', [ChargementController::class, 'signalerCapacite'])

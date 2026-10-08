@@ -5,25 +5,20 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Admin\Livraison;
 
-use Amana\Shared\Models\Secteur;
-use Amana\Shared\Models\Ville;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CampagneResource;
 use App\Http\Resources\FamilleEligibleResource;
 use App\Http\Resources\RouteIncidentResource;
 use App\Http\Resources\RouteLivraisonResource;
 use App\Models\Campagne;
+use App\Models\CampagneJournee;
 use App\Models\EtapeRoute;
 use App\Models\Livraison;
-use App\Models\Organisation;
 use App\Models\PersonneDesactivee;
-use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Services\IncidentResolutionService;
 use App\Services\LivraisonGenerationService;
-use App\Services\RetraitHqNotificationService;
-use App\Services\RetraitHqSchedulingService;
 use App\Services\RouteGenerationService;
 use App\Services\RouteMutationService;
 use App\Support\Creneau;
@@ -55,12 +50,6 @@ class LiveBoardController extends Controller
         private readonly RouteGenerationService $generationService,
         private readonly RouteMutationService $mutationService,
         private readonly LivraisonGenerationService $livraisonGenerationService,
-        // Ajoutés le 24/09/2026 (prompt de cette date §2/§Additional
-        // points 1) — planification + notification des familles
-        // se_deplace, déclenchées ici juste après le clustering, voir
-        // genererRoutes() ci-dessous.
-        private readonly RetraitHqSchedulingService $retraitHqScheduling,
-        private readonly RetraitHqNotificationService $retraitHqNotification,
         // Résolution/fermeture des incidents (03/10/2026).
         private readonly IncidentResolutionService $incidentService,
     ) {}
@@ -91,22 +80,16 @@ class LiveBoardController extends Controller
      */
     public function index(?Campagne $campagne = null): InertiaResponse
     {
-        // journees chargées (03/10/2026) : le bloc « Génération des routes »,
-        // déplacé ici depuis la page campagne, choisit la journée à traiter.
-        $campagnes = Campagne::with('journees')->orderByDesc('date_livraison')->get();
+        // 06/10/2026 : la génération des routes et la tournée personnalisée
+        // ont quitté cet écran pour l'assistant du hub de la campagne (voir
+        // genererRoutes()/construireRoutePersonnalisee() et
+        // GenererRoutesWizard.vue) — plus de journées ni de référentiels
+        // familles (quartiers/villes/secteurs/organisations) à charger ici.
+        $campagnes = Campagne::orderByDesc('date_livraison')->get();
 
-        // quartiers/villes/secteurs/organisations (09/09/2026, prompt de
-        // cette date §5.1.3) : mêmes référentiels que CampagnesController::
-        // show(), nécessaires ici pour FamilleFilterPanel.vue dans
-        // BuildRouteFlow.vue (table "Livraisons à inclure" désormais
-        // filtrable comme les familles éligibles).
         return Inertia::render('Livraison/SuiviLivraison', [
             'campagnes' => CampagneResource::collection($campagnes),
             'campagneSelectionneeId' => $campagne?->id,
-            'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
-            'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
-            'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
-            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
             'retourUrl' => $campagne
                 ? route('livraison.campagnes.show', $campagne)
                 : route('livraison.campagnes.index'),
@@ -114,19 +97,11 @@ class LiveBoardController extends Controller
                 'incidents' => route('livraison.campagnes.incidents', ['campagne' => '__CAMPAGNE__']),
                 'routes' => route('livraison.campagnes.routes', ['campagne' => '__CAMPAGNE__']),
                 'nonCouvertes' => route('livraison.campagnes.non-couvertes', ['campagne' => '__CAMPAGNE__']),
-                'nonCouvertesTableau' => route('livraison.campagnes.non-couvertes-tableau', ['campagne' => '__CAMPAGNE__']),
                 'statistiques' => route('livraison.campagnes.suivi-livraison-statistiques', ['campagne' => '__CAMPAGNE__']),
                 'routeSupprimer' => route('livraison.routes.supprimer', ['route' => '__ID__']),
                 'etapeStatut' => route('livraison.routes.etapes.statut', ['route' => '__ID__', 'etape' => '__ETAPE__']),
-                'routesPersonnalisees' => route('livraison.routes.personnalisee', ['campagne' => '__CAMPAGNE__']),
                 'incidentResoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
                 'incidentIgnorer' => route('livraison.incidents.ignorer', ['incident' => '__ID__']),
-                // Bloc « Génération des routes » (03/10/2026) — voir
-                // GenererRoutesPanel.vue : la porte « plus aucune famille à
-                // contacter » interroge la file de contacts + ses stats.
-                'genererRoutes' => route('livraison.campagnes.generer-routes', ['campagne' => '__CAMPAGNE__']),
-                'contactsQueue' => route('livraison.contacts.queue'),
-                'contactsStatistiques' => route('livraison.contacts.statistiques'),
                 'routeAjouter' => route('livraison.routes.ajouter-livraison', ['route' => '__ID__']),
                 'routeRetirer' => route('livraison.routes.retirer-livraison', ['route' => '__ID__', 'etape' => '__ETAPE__']),
                 // Accès admin à l'écran chauffeur de chaque tournée (29/09/2026,
@@ -139,90 +114,114 @@ class LiveBoardController extends Controller
     }
 
     /**
-     * Déclenche le cycle complet clustering→assignation→TSP pour UNE
-     * journée d'une campagne — voir
-     * RouteGenerationService::genererPourCampagne(). Idempotent au sens
-     * où seules les livraisons encore non_assignee sont considérées à
-     * chaque appel (relancer après une confirmation tardive ne recrée pas
-     * les tournées déjà générées).
+     * Assistant « Génération des routes » du hub (06/10/2026), mode
+     * automatique : cycle clustering→assignation→TSP pour UN créneau d'UNE
+     * journée, avec les chauffeurs choisis — voir
+     * RouteGenerationService::genererPourCreneauEtBenevoles(). Idempotent au
+     * sens où seules les livraisons encore non_assignee sont considérées :
+     * relancer après une confirmation tardive ne recrée pas les tournées
+     * déjà générées.
      *
-     * id_campagne_journee requis depuis le 05/09/2026 (voir
-     * RouteGenerationService) — la campagne a toujours au moins une
-     * journée (CampagnesController::store()), le sélecteur de
-     * CampagneDetail.vue l'envoie toujours, y compris pour une campagne
-     * mono-jour (une seule option, choisie silencieusement côté Vue).
+     * Conditions (revalidées ici, le bouton grisé côté Vue ne doit pas être
+     * la seule protection) : campagne démarrée, au moins une famille
+     * confirmée en attente de tournée pour ce créneau, au moins un des
+     * chauffeurs choisis réellement disponible. La règle historique « plus
+     * aucune famille à contacter » est remplacée par « au moins une famille
+     * confirmée » (06/10/2026). Les rendez-vous de retrait QG et les
+     * tournées imposées ne sont plus gérés ici : voir
+     * CampagneDemarrageService.
      */
     public function genererRoutes(Request $request, Campagne $campagne): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'id_campagne_journee' => 'required|integer',
+            'creneau' => 'required|in:' . implode(',', Creneau::TOUS),
+            'ids_benevoles' => 'required|array|min:1',
+            'ids_benevoles.*' => 'integer',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $journee = $campagne->journees()->findOrFail($request->integer('id_campagne_journee'));
+        if ($campagne->statut !== 'en_cours') {
+            return response()->json(['success' => false, 'message' => 'Démarrez la campagne avant de générer les routes.'], 422);
+        }
 
-        // Ajouté le 09/09/2026 (prompt de cette date §1.5) : distinct de la
-        // vérification "reste à contacter" ci-dessous — sans lui, une
-        // journée sans AUCUNE famille ajoutée passait ce test par le vide
-        // (aucune ligne 'a_contacter' puisqu'aucune ligne du tout) et
-        // laissait genererPourCampagne() tourner pour rien
-        // ("0 livraison créé", inoffensif mais confus — voir le prompt).
-        // Revalidé ici côté serveur pour la même raison que le test
-        // suivant : le bouton grisé côté Vue (CampagneDetail.vue) ne doit
-        // pas être la seule protection.
-        $aucuneLivraison = !Livraison::where('id_campagne_journee', $journee->id)->exists();
-        if ($aucuneLivraison) {
+        $journee = $this->journeeDe($campagne, $request->integer('id_campagne_journee'));
+        $creneau = $request->input('creneau');
+        $idsBenevoles = array_map('intval', $request->input('ids_benevoles'));
+
+        $apercu = $this->generationService->apercuCreneau($campagne, $journee, $creneau, $idsBenevoles);
+        if ($apercu['familles'] + $apercu['sans_coordonnees'] === 0) {
             return response()->json([
                 'success' => false,
-                'message' => "Aucune famille n'a été ajoutée pour cette journée.",
+                'message' => 'Aucune famille confirmée en attente de tournée pour ce créneau.',
             ], 422);
         }
 
-        // Voir le prompt du 05/09/2026 §1.5 : le bouton de lancement a été
-        // déplacé sur l'écran Suivi des contacts, avec pour condition que
-        // plus aucune famille de CETTE journée ne soit encore à
-        // statut_contact = 'a_contacter'. Revalidé ici côté serveur (pas
-        // seulement le bouton grisé côté Vue) : un appel direct à cet
-        // endpoint ne doit pas pouvoir contourner la règle.
-        $resteAContacter = Livraison::where('id_campagne_journee', $journee->id)
-            ->where('statut_contact', 'a_contacter')
-            ->exists();
-        if ($resteAContacter) {
+        if ($apercu['chauffeurs'] === 0) {
             return response()->json([
                 'success' => false,
-                'message' => "Certaines familles de cette journée n'ont pas encore été contactées.",
+                'message' => "Aucun des chauffeurs choisis n'est disponible sur ce créneau (absent, sans véhicule ou déjà en tournée).",
             ], 422);
         }
 
         try {
-            $resultat = $this->generationService->genererPourCampagne($campagne, $journee);
+            $resultat = $this->generationService->genererPourCreneauEtBenevoles($campagne, $journee, $creneau, $idsBenevoles);
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        // Familles se_deplace de cette journée (24/09/2026, prompt de
-        // cette date §Additional points 1 : "When all families are
-        // confirmed and route generation is triggered send emails to all
-        // families with where and when to come") : exclues du clustering
-        // ci-dessus (voir RouteGenerationService), elles reçoivent ici
-        // leur propre créneau QG puis, immédiatement, l'email
-        // correspondant — même déclencheur que la génération des
-        // tournées plutôt qu'un déclencheur séparé, pour que "toutes les
-        // familles confirmées" (livrées ou se_deplace) soient notifiées
-        // au même instant.
-        $familleSeDeplace = $this->retraitHqScheduling->planifierPour($campagne, $journee);
-        foreach ($familleSeDeplace as $livraisonSeDeplace) {
-            $this->retraitHqNotification->notifierPour($livraisonSeDeplace);
+        return response()->json(['success' => true, ...$resultat]);
+    }
+
+    /**
+     * Étape « chauffeurs » de l'assistant : bénévoles confirmés pour la
+     * journée et le créneau choisis, avec véhicule/capacité et le drapeau
+     * `occupe` (déjà en tournée sur ce créneau — grisé côté Vue).
+     */
+    public function chauffeursDisponibles(Request $request, Campagne $campagne): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_campagne_journee' => 'required|integer',
+            'creneau' => 'required|in:' . implode(',', Creneau::TOUS),
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        return response()->json([
-            'success' => true,
-            ...$resultat,
-            'retrait_hq_planifiees' => $familleSeDeplace->count(),
+        $journee = $this->journeeDe($campagne, $request->integer('id_campagne_journee'));
+
+        return response()->json($this->generationService->chauffeursDisponibles($journee, $request->input('creneau')));
+    }
+
+    /**
+     * Récapitulatif avant confirmation (mode automatique) : familles
+     * éligibles et leur poids face à la capacité des chauffeurs choisis.
+     */
+    public function apercuGeneration(Request $request, Campagne $campagne): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_campagne_journee' => 'required|integer',
+            'creneau' => 'required|in:' . implode(',', Creneau::TOUS),
+            'ids_benevoles' => 'required|array|min:1',
+            'ids_benevoles.*' => 'integer',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $journee = $this->journeeDe($campagne, $request->integer('id_campagne_journee'));
+
+        return response()->json($this->generationService->apercuCreneau(
+            $campagne,
+            $journee,
+            $request->input('creneau'),
+            array_map('intval', $request->input('ids_benevoles')),
+        ));
     }
 
     /**
@@ -324,7 +323,10 @@ class LiveBoardController extends Controller
         // CampagnesController::eligibles() (même forme de ligne, seul
         // id_livraison distingue les deux).
         $seDeplace = $request->filled('se_deplace') ? $request->boolean('se_deplace') : null;
-        $query = $this->livraisonGenerationService->nonCouvertesEligibles($campagne, $journee, $seDeplace)->with('quartier');
+        $creneau = in_array($request->input('creneau'), Creneau::TOUS, true) ? $request->input('creneau') : null;
+        $query = $this->livraisonGenerationService
+            ->nonCouvertesEligibles($campagne, $journee, $seDeplace, $creneau, $request->boolean('sans_imposees'))
+            ->with('quartier');
         FamilleFilters::appliquer($query, $request);
 
         $colonne = $request->input('tri');
@@ -521,31 +523,72 @@ class LiveBoardController extends Controller
         return response()->json(['success' => true]);
     }
 
+    /**
+     * Assistant « Génération des routes », mode personnalisé (06/10/2026) :
+     * UN chauffeur et une ou plusieurs familles choisies à la main, sans
+     * clustering (l'ordre des arrêts reste optimisé par TSP). Le chauffeur
+     * doit être disponible sur le créneau et pas déjà en tournée dessus —
+     * pour ajouter une famille à une tournée existante, voir
+     * ajouterLivraison(). Le véhicule est celui qui ressort de sa
+     * disponibilité (journée) ou de son profil.
+     */
     public function construireRoutePersonnalisee(Request $request, Campagne $campagne): JsonResponse
     {
         $validator = Validator::make($request->all(), [
+            'id_campagne_journee' => 'required|integer',
+            'creneau' => 'required|in:' . implode(',', Creneau::TOUS),
             'id_benevole' => ['required', 'integer', $this->regleChauffeurActif()],
-            'id_vehicule_type' => 'required|integer',
             'ids_livraisons' => 'required|array|min:1',
             'ids_livraisons.*' => 'integer|exists:livraisons,id',
-            'creneau' => 'nullable|in:' . implode(',', Creneau::TOUS),
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
+        if ($campagne->statut !== 'en_cours') {
+            return response()->json(['success' => false, 'message' => 'Démarrez la campagne avant de créer des tournées.'], 422);
+        }
+
+        $journee = $this->journeeDe($campagne, $request->integer('id_campagne_journee'));
+        $creneau = $request->input('creneau');
+        $idBenevole = $request->integer('id_benevole');
+
+        $chauffeur = collect($this->generationService->chauffeursDisponibles($journee, $creneau))
+            ->firstWhere('id_personne', $idBenevole);
+
+        if ($chauffeur === null) {
+            return response()->json(['success' => false, 'message' => "Ce chauffeur n'est pas disponible sur ce créneau."], 422);
+        }
+
+        if ($chauffeur['occupe']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce chauffeur a déjà une tournée sur ce créneau : ajoutez-lui des familles depuis Suivi livraison.',
+            ], 422);
+        }
+
         try {
-            $this->mutationService->construirePersonnalisee(
+            $route = $this->mutationService->construirePersonnalisee(
                 $campagne,
-                $request->input('id_benevole'),
-                $request->input('id_vehicule_type'),
+                $idBenevole,
+                $chauffeur['id_vehicule_type'],
                 $request->input('ids_livraisons'),
-                $request->input('creneau'),
+                $creneau,
+                $journee->id,
             );
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'id_route' => $route->id]);
+    }
+
+    /**
+     * Journée de CETTE campagne (404 sinon) — requête typée plutôt que
+     * `$campagne->journees()->findOrFail()`, que l'analyse statique type `Model`.
+     */
+    private function journeeDe(Campagne $campagne, int $idJournee): CampagneJournee
+    {
+        return CampagneJournee::where('id_campagne', $campagne->id)->findOrFail($idJournee);
     }
 }

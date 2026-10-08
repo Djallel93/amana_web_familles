@@ -10,6 +10,7 @@ use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Support\Creneau;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Route;
 use Tests\Concerns\SeedsCommunFixtures;
 use Tests\TestCase;
 
@@ -78,14 +79,24 @@ class CampagneHubTest extends TestCase
                 ->component('Livraison/CampagneDetail')
                 ->where('urls.parametres', route('livraison.campagnes.parametres', $campagne))
                 ->where('urls.familles', route('livraison.familles-eligibles.index', $campagne))
-                ->where('urls.incidents', route('livraison.campagnes.gestion-incidents', $campagne))
+                // La carte Incidents a laissé place à une section repliable : plus d'URL de page dédiée.
+                ->missing('urls.incidents')
+                ->where('incidentsUrls.liste', route('livraison.campagnes.incidents-liste', $campagne))
+                ->where('incidentsUrls.resoudre', route('livraison.incidents.resoudre', ['incident' => '__ID__']))
+                ->where('incidentsUrls.ignorer', route('livraison.incidents.ignorer', ['incident' => '__ID__']))
+                // Démarrage + assistant « Génération des routes » (06/10/2026).
+                ->where('demarrerUrl', route('livraison.campagnes.demarrer', $campagne))
+                ->where('generationUrls.chauffeurs', route('livraison.campagnes.chauffeurs-disponibles', $campagne))
+                ->where('generationUrls.apercu', route('livraison.campagnes.apercu-generation', $campagne))
+                ->where('generationUrls.generer', route('livraison.campagnes.generer-routes', $campagne))
+                ->where('generationUrls.personnalisee', route('livraison.routes.personnalisee', $campagne))
+                ->has('quartiers')
                 ->where('urls.statistiques', route('livraison.statistiques.index', $campagne))
                 ->where('terminerUrl', route('livraison.campagnes.terminer', $campagne))
                 ->where('rouvrirUrl', route('livraison.campagnes.rouvrir', $campagne))
                 // Plus portés par le hub : sélection des familles, HQ/journées/équipes, génération des routes.
                 ->missing('eligiblesUrl')
                 ->missing('genererRoutesUrl')
-                ->missing('quartiers')
                 ->missing('updateUrl'));
     }
 
@@ -179,9 +190,9 @@ class CampagneHubTest extends TestCase
             ->assertRedirect(route('livraison.campagnes.parametres', ['campagne' => $campagne, 'onglet' => 'equipes']));
     }
 
-    // ── Page Incidents ───────────────────────────────────────────────────
+    // ── Section Incidents (liste JSON, 06/10/2026) ───────────────────────
 
-    public function test_la_page_incidents_liste_tout_sauf_le_jalon_et_les_autres_campagnes(): void
+    public function test_la_liste_des_incidents_contient_tout_sauf_le_jalon_et_les_autres_campagnes(): void
     {
         $campagne = $this->creerCampagne();
         $route = $this->creerRoute($campagne);
@@ -191,15 +202,19 @@ class CampagneHubTest extends TestCase
         $this->creerIncident($route, 'chargement_termine', null);
         $this->creerIncident($this->creerRoute($this->creerCampagne(['date_livraison' => '2026-12-01'])), 'capacite', 'ouvert');
 
-        $this->actingAs($this->gestionnaire())->get(route('livraison.campagnes.gestion-incidents', $campagne))
+        $reponse = $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.incidents-liste', $campagne))
             ->assertOk()
-            ->assertInertia(fn($page) => $page
-                ->component('Livraison/CampagneIncidents')
-                ->has('incidents', 3)
-                ->where('resoudreUrlTemplate', route('livraison.incidents.resoudre', ['incident' => '__ID__']))
-                ->where('ignorerUrlTemplate', route('livraison.incidents.ignorer', ['incident' => '__ID__']))
-                ->where('incidents', fn($lignes) => collect($lignes)->pluck('id')->sort()->values()->all()
-                    === collect([$ouvert->id, $ignore->id, $resolu->id])->sort()->values()->all()));
+            ->assertJsonCount(3);
+
+        $this->assertSame(
+            collect([$ouvert->id, $ignore->id, $resolu->id])->sort()->values()->all(),
+            collect($reponse->json())->pluck('id')->sort()->values()->all(),
+        );
+    }
+
+    public function test_la_page_incidents_dediee_nexiste_plus(): void
+    {
+        $this->assertFalse(Route::has('livraison.campagnes.gestion-incidents'));
     }
 
     public function test_une_ligne_dincident_porte_libelles_description_et_guide_vide(): void
@@ -207,13 +222,12 @@ class CampagneHubTest extends TestCase
         $campagne = $this->creerCampagne();
         $incident = $this->creerIncident($this->creerRoute($campagne), 'packaging_annule', 'ouvert');
 
-        $this->actingAs($this->gestionnaire())->get(route('livraison.campagnes.gestion-incidents', $campagne))
-            ->assertInertia(fn($page) => $page
-                ->where('incidents.0.id', $incident->id)
-                ->where('incidents.0.type_label', 'Packaging annulé')
-                ->where('incidents.0.statut', 'ouvert')
-                ->where('incidents.0.guide', null)
-                ->where('incidents.0.description', fn($d) => str_contains($d, 'annulé')));
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.incidents-liste', $campagne))
+            ->assertJsonPath('0.id', $incident->id)
+            ->assertJsonPath('0.type_label', 'Packaging annulé')
+            ->assertJsonPath('0.statut', 'ouvert')
+            ->assertJsonPath('0.guide', null)
+            ->assertJson(fn($json) => $json->has('0.description')->etc());
     }
 
     public function test_ignorer_ferme_lincident_sans_effet_de_bord(): void
@@ -347,13 +361,13 @@ class CampagneHubTest extends TestCase
         // EnsureRole redirige vers l'accueil avec un message d'erreur (jamais de 403).
         $accueil = route(config('amana-shared.home_route'));
         $this->actingAs($membre)->postJson(route('livraison.campagnes.terminer', $campagne))->assertRedirect($accueil);
-        $this->actingAs($membre)->get(route('livraison.campagnes.gestion-incidents', $campagne))->assertRedirect($accueil)->assertSessionHas('error');
+        $this->actingAs($membre)->get(route('livraison.campagnes.incidents-liste', $campagne))->assertRedirect($accueil)->assertSessionHas('error');
         $this->assertSame('preparation', $campagne->fresh()->statut);
     }
 
-    // ── Suivi livraison : génération des routes ──────────────────────────
+    // ── Suivi livraison : plus de génération des routes (06/10/2026) ─────
 
-    public function test_suivi_livraison_porte_la_generation_des_routes_et_les_journees(): void
+    public function test_suivi_livraison_ne_porte_plus_la_generation_des_routes(): void
     {
         $campagne = $this->creerCampagne();
         $campagne->ajouterJournee('2026-11-10');
@@ -362,10 +376,15 @@ class CampagneHubTest extends TestCase
             ->assertOk()
             ->assertInertia(fn($page) => $page
                 ->component('Livraison/SuiviLivraison')
-                ->where('urls.genererRoutes', route('livraison.campagnes.generer-routes', ['campagne' => '__CAMPAGNE__']))
-                ->where('urls.contactsQueue', route('livraison.contacts.queue'))
-                ->where('urls.contactsStatistiques', route('livraison.contacts.statistiques'))
+                // La génération et la tournée personnalisée vivent dans l'assistant du hub.
+                ->missing('urls.genererRoutes')
+                ->missing('urls.routesPersonnalisees')
+                ->missing('urls.nonCouvertesTableau')
+                ->missing('quartiers')
+                // Ces deux URLs ne servaient qu'au contrôle « familles à contacter » du bloc de génération.
+                ->missing('urls.contactsQueue')
+                ->missing('urls.contactsStatistiques')
                 ->where('urls.incidentIgnorer', route('livraison.incidents.ignorer', ['incident' => '__ID__']))
-                ->has('campagnes.0.journees', 1));
+                ->has('campagnes', 1));
     }
 }

@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Amana\Shared\Models\BenevoleProfil;
+use Amana\Shared\Models\Personne;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
@@ -13,7 +14,6 @@ use App\Models\EtapeRoute;
 use App\Models\Livraison;
 use App\Models\PersonneDesactivee;
 use App\Models\RouteLivraison;
-use App\Support\Creneau;
 use App\Support\RouteOptimizationConfig;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
@@ -54,7 +54,7 @@ use Illuminate\Support\Facades\DB;
  * déjà vidé, jamais en concurrence avec la capacité d'une tournée créneau.
  *
  * SCOPING PAR JOURNÉE (05/09/2026, suivi du patch multi-jours du
- * 03/09/2026) : genererPourCampagne() prend désormais une CampagneJournee
+ * 03/09/2026) : genererPourCreneau() (ex-genererPourCampagne()) prend désormais une CampagneJournee
  * explicite et obligatoire — un appel génère les tournées d'UNE journée
  * à la fois (l'appelant répète l'appel par journée pour une campagne
  * multi-jours, voir CampagneDetail.vue). Ce n'est plus un cas "optionnel"
@@ -73,6 +73,19 @@ use Illuminate\Support\Facades\DB;
  * seulement (voir creerRoute()) — cette route n'entre alors dans aucun
  * bucket de CampagneStatsService::calculer()['par_journee'], seulement
  * dans les totaux globaux.
+ *
+ * REFONTE DU 06/10/2026 (assistant de génération du hub campagne) :
+ *   - la génération se fait désormais pour UN créneau d'UNE journée avec
+ *     des chauffeurs CHOISIS (genererPourCreneauEtBenevoles()) au lieu
+ *     d'enchaîner tous les créneaux d'une journée ;
+ *   - les livraisons imposées sortent de ce cycle : leurs tournées (sans
+ *     créneau, sans fenêtre horaire — le chauffeur les fait quand il veut)
+ *     sont créées au démarrage de la campagne (genererRoutesImposees(),
+ *     appelée par CampagneDemarrageService), puis alimentées au fil de
+ *     l'eau (LivraisonChangementService) ;
+ *   - un chauffeur qui a déjà une tournée active sur ce créneau n'est plus
+ *     proposé (occupe) : pour lui ajouter une famille, on passe par
+ *     « ajouter une livraison » sur Suivi livraison.
  */
 class RouteGenerationService
 {
@@ -84,47 +97,165 @@ class RouteGenerationService
     ) {}
 
     /**
-     * Génère les tournées d'UNE journée de campagne : livraisons imposées
-     * d'abord (hors créneau, transverses à toute la campagne — voir
-     * docblock de classe), puis un cycle clustering→assignation→TSP par
-     * créneau SCOPÉ à cette journée, dans l'ordre chronologique de
-     * Creneau::TOUS — voir §3.3.
+     * Crée les tournées des livraisons imposées (id_benevole_impose) —
+     * appelée au démarrage de la campagne et à chaque ajout tardif. Une
+     * tournée SANS créneau par chauffeur, transverse à toutes les journées
+     * (voir docblock de classe) : le chauffeur la réalise quand il veut.
      *
-     * $journee requise depuis le 05/09/2026 (voir docblock de classe) :
-     * l'appelant (LiveBoardController::genererRoutes()) précise toujours
-     * quelle journée générer, y compris pour une campagne mono-jour (qui
-     * n'a jamais qu'une seule journée à passer).
-     *
-     * @return array{routes_creees: int, imposees: int, par_creneau: array<string, array{routes_creees: int, non_couvertes: int}>}
+     * @return RouteLivraison[]
      */
-    public function genererPourCampagne(Campagne $campagne, CampagneJournee $journee): array
+    public function genererRoutesImposees(Campagne $campagne): array
     {
-        // Voir le prompt du 05/09/2026 §1.2 : HQ propre à cette campagne
-        // s'il est renseigné, sinon réglage global (voir
-        // RouteOptimizationConfig::coordonneesHqPourCampagne()).
+        // Aucune imposée à router : pas besoin du QG (une campagne sans
+        // famille imposée doit pouvoir démarrer même avant sa configuration).
+        $aRouter = Livraison::where('id_campagne', $campagne->id)
+            ->where('statut', 'non_assignee')
+            ->where('statut_contact', 'confirme')
+            ->whereNotNull('id_benevole_impose')
+            ->where('se_deplace', false)
+            ->exists();
+
+        if (!$aRouter) {
+            return [];
+        }
+
         $hq = RouteOptimizationConfig::coordonneesHqPourCampagne($campagne);
 
         if ($hq === null) {
             throw new \RuntimeException('Coordonnées QG non configurées — voir Paramètres avant de lancer un clustering.');
         }
 
-        // Transverse à toute la campagne (pas scopée à $journee) — voir
-        // docblock de classe. Idempotent d'un appel à l'autre : une fois
-        // résolues (statut != non_assignee), les imposées ne sont plus
-        // resélectionnées par un genererPourCampagne() ultérieur sur une
-        // autre journée de la même campagne.
-        $routesImposees = $this->resoudreLivraisonsImposees($campagne, $hq);
+        return $this->resoudreLivraisonsImposees($campagne, $hq);
+    }
 
-        $parCreneau = [];
-        foreach (Creneau::TOUS as $creneau) {
-            $parCreneau[$creneau] = $this->genererPourCreneau($campagne, $journee, $creneau, $hq);
+    /**
+     * Génère les tournées d'UN créneau d'UNE journée avec les chauffeurs
+     * choisis (assistant « Génération des routes », mode automatique) :
+     * clustering → assignation → TSP, scopé à ce créneau et à ces chauffeurs.
+     * Les chauffeurs non sélectionnés, non disponibles ou déjà occupés sur
+     * ce créneau sont ignorés (voir vehiculesDisponiblesPour()).
+     *
+     * @param int[] $idsBenevoles
+     * @return array{routes_creees: int, non_couvertes: int}
+     */
+    public function genererPourCreneauEtBenevoles(Campagne $campagne, CampagneJournee $journee, string $creneau, array $idsBenevoles): array
+    {
+        $hq = RouteOptimizationConfig::coordonneesHqPourCampagne($campagne);
+
+        if ($hq === null) {
+            throw new \RuntimeException('Coordonnées QG non configurées — voir Paramètres avant de lancer un clustering.');
         }
 
+        return $this->genererPourCreneau($campagne, $journee, $creneau, $hq, $idsBenevoles);
+    }
+
+    /**
+     * Aperçu (sans rien écrire) affiché avant de confirmer la génération :
+     * familles éligibles pour ce créneau, leur poids, la capacité des
+     * chauffeurs choisis et les familles sans coordonnées (exclues du
+     * clustering, voir genererPourCreneau()).
+     *
+     * @param int[] $idsBenevoles
+     * @return array{familles: int, poids_kg: float, capacite_kg: float, sans_coordonnees: int, chauffeurs: int}
+     */
+    public function apercuCreneau(Campagne $campagne, CampagneJournee $journee, string $creneau, array $idsBenevoles): array
+    {
+        $pool = $this->poolPour($campagne, $journee, $creneau);
+        $geocodees = $this->geocodees($pool);
+        $vehicules = $this->vehiculesDisponiblesPour($journee, $creneau, $idsBenevoles);
+
         return [
-            'routes_creees' => count($routesImposees) + array_sum(array_column($parCreneau, 'routes_creees')),
-            'imposees' => count($routesImposees),
-            'par_creneau' => $parCreneau,
+            'familles' => $geocodees->count(),
+            'poids_kg' => round((float) $geocodees->sum('poids_kg'), 1),
+            'capacite_kg' => round((float) array_sum(array_column($vehicules, 'capacite_kg')), 1),
+            'sans_coordonnees' => $pool->count() - $geocodees->count(),
+            'chauffeurs' => count($vehicules),
         ];
+    }
+
+    /**
+     * Chauffeurs confirmés pour cette journée et ce créneau, avec leur
+     * véhicule, et un drapeau `occupe` (déjà une tournée active sur ce
+     * créneau). Source de la liste de l'assistant (modes automatique et
+     * personnalisé) — mêmes règles que vehiculesDisponiblesPour().
+     *
+     * @return array<int, array{id_personne: int, nom: string, prenom: string, id_vehicule_type: int, vehicule: string, capacite_kg: float, ids_secteurs: int[], occupe: bool, id_route: int|null}>
+     */
+    public function chauffeursDisponibles(CampagneJournee $journee, string $creneau): array
+    {
+        $occupes = $this->routesActivesParChauffeur($journee, $creneau);
+
+        $liste = [];
+        foreach ($this->candidatsPour($journee, $creneau) as $candidat) {
+            $liste[] = [
+                'id_personne' => $candidat['id_benevole'],
+                'nom' => (string) ($candidat['nom'] ?? ''),
+                'prenom' => (string) ($candidat['prenom'] ?? ''),
+                'id_vehicule_type' => $candidat['id_vehicule_type'],
+                'vehicule' => $candidat['vehicule_libelle'],
+                'capacite_kg' => $candidat['capacite_kg'],
+                'ids_secteurs' => $candidat['ids_secteurs'],
+                'occupe' => isset($occupes[$candidat['id_benevole']]),
+                'id_route' => $occupes[$candidat['id_benevole']] ?? null,
+            ];
+        }
+
+        usort($liste, fn($a, $b) => [$a['occupe'], $a['nom'], $a['prenom']] <=> [$b['occupe'], $b['nom'], $b['prenom']]);
+
+        return $liste;
+    }
+
+    /**
+     * Livraisons de la journée candidates à ce créneau : confirmées, non
+     * assignées, non se_deplace, sans chauffeur imposé, et dont ce créneau
+     * fait partie des créneaux confirmés. Coordonnées PAS filtrées ici
+     * (voir apercuCreneau() / genererPourCreneau()).
+     *
+     * @return Collection<int, Livraison>
+     */
+    private function poolPour(Campagne $campagne, CampagneJournee $journee, string $creneau): Collection
+    {
+        return Livraison::where('id_campagne', $campagne->id)
+            ->where('id_campagne_journee', $journee->id)
+            ->where('statut', 'non_assignee')
+            ->where('statut_contact', 'confirme')
+            ->whereNull('id_benevole_impose')
+            ->whereHas('creneaux', fn($q) => $q->where('creneau', $creneau))
+            // Familles se_deplace : viennent chercher leur colis au QG,
+            // jamais livrées — voir RetraitHqSchedulingService pour leur
+            // propre planification (rendez-vous, PAS un RouteLivraison).
+            ->where('se_deplace', false)
+            ->with(['famille:id,latitude,longitude,id_quartier', 'creneaux'])
+            ->get();
+    }
+
+    /**
+     * Livraisons dont la famille a des coordonnées résolues — les autres sont
+     * exclues du clustering (voir genererPourCreneau()) et comptées à part par
+     * apercuCreneau().
+     *
+     * @param Collection<int, Livraison> $pool
+     * @return Collection<int, Livraison>
+     */
+    private function geocodees(Collection $pool): Collection
+    {
+        return $pool->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)->values();
+    }
+
+    /**
+     * Chauffeurs ayant déjà une tournée non annulée sur ce créneau de cette
+     * journée : id_benevole => id de la tournée.
+     *
+     * @return array<int, int>
+     */
+    private function routesActivesParChauffeur(CampagneJournee $journee, string $creneau): array
+    {
+        return RouteLivraison::where('id_campagne_journee', $journee->id)
+            ->where('creneau', $creneau)
+            ->where('statut', '!=', 'annulee')
+            ->whereNotNull('id_benevole')
+            ->pluck('id', 'id_benevole')
+            ->all();
     }
 
     /**
@@ -257,6 +388,10 @@ class RouteGenerationService
         $livraisonsImposees = Livraison::where('id_campagne', $campagne->id)
             ->where('statut', 'non_assignee')
             ->whereNotNull('id_benevole_impose')
+            // Confirmées seulement (06/10/2026) : une imposée encore à
+            // contacter rejoint la tournée du chauffeur à sa confirmation
+            // (LivraisonChangementService::apresConfirmation()).
+            ->where('statut_contact', 'confirme')
             // Voir la même exclusion sur genererPourCreneau() ci-dessous —
             // une famille se_deplace n'a rien à faire dans une tournée,
             // imposée ou non.
@@ -295,26 +430,9 @@ class RouteGenerationService
     /**
      * @return array{routes_creees: int, non_couvertes: int}
      */
-    private function genererPourCreneau(Campagne $campagne, CampagneJournee $journee, string $creneau, array $hq): array
+    private function genererPourCreneau(Campagne $campagne, CampagneJournee $journee, string $creneau, array $hq, ?array $idsBenevoles = null): array
     {
-        $pool = Livraison::where('id_campagne', $campagne->id)
-            ->where('id_campagne_journee', $journee->id)
-            ->where('statut', 'non_assignee')
-            ->where('statut_contact', 'confirme')
-            ->whereNull('id_benevole_impose')
-            ->whereHas('creneaux', fn($q) => $q->where('creneau', $creneau))
-            // Familles se_deplace (24/09/2026, prompt de cette date §2) :
-            // viennent chercher leur colis au QG, jamais livrées — exclues
-            // du pool de clustering, voir RetraitHqSchedulingService pour
-            // leur propre planification (créneau QG, PAS un RouteLivraison).
-            // se_deplace vit directement sur cette ligne depuis le
-            // 25/09/2026 (propriété pure de la campagne, plus d'override à
-            // résoudre — voir le prompt de cette date).
-            ->where('se_deplace', false)
-            ->with(['famille:id,latitude,longitude,id_quartier', 'creneaux'])
-            ->get()
-            ->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
-            ->values();
+        $pool = $this->geocodees($this->poolPour($campagne, $journee, $creneau));
         // Familles sans coordonnées résolues (géocodage en attente/échoué,
         // voir App\Jobs\ResoudreAdresseFamille) exclues du clustering plutôt
         // que routées vers (0, 0) — restent non_assignee, remontent dans
@@ -323,7 +441,7 @@ class RouteGenerationService
         // niveau, l'admin voit l'adresse et peut déclencher un
         // re-géocodage depuis l'écran famille).
 
-        $vehicules = $this->vehiculesDisponiblesPour($journee, $creneau);
+        $vehicules = $this->vehiculesDisponiblesPour($journee, $creneau, $idsBenevoles);
 
         if ($pool->isEmpty() || empty($vehicules)) {
             return ['routes_creees' => 0, 'non_couvertes' => $pool->count()];
@@ -380,7 +498,45 @@ class RouteGenerationService
      * BenevoleDisponibilite, rescopée le même jour — un bénévole confirme
      * désormais séparément pour chaque journée.
      */
-    private function vehiculesDisponiblesPour(CampagneJournee $journee, string $creneau): array
+    private function vehiculesDisponiblesPour(CampagneJournee $journee, string $creneau, ?array $idsBenevoles = null): array
+    {
+        $occupes = $this->routesActivesParChauffeur($journee, $creneau);
+        $vehicules = [];
+
+        foreach ($this->candidatsPour($journee, $creneau) as $candidat) {
+            // Chauffeur déjà en tournée sur ce créneau : jamais une seconde
+            // tournée au même moment (06/10/2026).
+            if (isset($occupes[$candidat['id_benevole']])) {
+                continue;
+            }
+
+            // Sélection explicite de l'assistant : seuls les chauffeurs
+            // cochés comptent (null = tous, comportement historique).
+            if ($idsBenevoles !== null && !in_array($candidat['id_benevole'], $idsBenevoles, true)) {
+                continue;
+            }
+
+            $vehicules[] = [
+                'id_benevole' => $candidat['id_benevole'],
+                'id_vehicule_type' => $candidat['id_vehicule_type'],
+                'capacite_kg' => $candidat['capacite_kg'],
+                'nombre_part_max' => $candidat['nombre_part_max'],
+            ];
+        }
+
+        return $vehicules;
+    }
+
+    /**
+     * Chauffeurs confirmés pour cette journée et ce créneau, avec leur
+     * véhicule effectif — AVANT filtrage « occupé »/sélection. Une
+     * personne désactivée pour Familles (03/10/2026) n'est jamais
+     * candidate ; capacité nulle (« Sans permis », « Non véhiculé ») :
+     * jamais proposé, il alimenterait le pool avec un véhicule de 0 kg.
+     *
+     * @return array<int, array{id_benevole: int, nom: string|null, prenom: string|null, id_vehicule_type: int, vehicule_libelle: string, capacite_kg: float, nombre_part_max: int, ids_secteurs: int[]}>
+     */
+    private function candidatsPour(CampagneJournee $journee, string $creneau): array
     {
         // Une personne désactivée pour Familles (03/10/2026) après avoir
         // confirmé sa disponibilité n'est plus proposée comme chauffeur :
@@ -389,9 +545,16 @@ class RouteGenerationService
             ->whereNotIn('id_personne', PersonneDesactivee::ids())
             ->where('statut', 'confirme')
             ->whereHas('creneaux', fn($q) => $q->where('creneau', $creneau))
+            ->with('secteurs')
             ->get();
 
-        $vehicules = [];
+        // Noms lus par une requête typée plutôt que par la relation `personne`
+        // (typée `Model` par l'analyse statique).
+        $personnes = Personne::whereIn('id', $disponibilites->pluck('id_personne')->all())
+            ->get(['id', 'nom', 'prenom'])
+            ->keyBy('id');
+
+        $candidats = [];
 
         foreach ($disponibilites as $dispo) {
             $profil = BenevoleProfil::where('id_personne', $dispo->id_personne)->with('vehiculeType')->first();
@@ -400,23 +563,23 @@ class RouteGenerationService
             // déclaré pour cette journée, sinon celui de son profil.
             $vehiculeType = $dispo->vehiculeEffectif($profil);
 
-            // Capacité nulle (« Sans permis », « Non véhiculé ») : le
-            // bénévole ne peut porter aucun colis, il ne doit jamais être
-            // proposé comme véhicule — sinon il alimenterait le pool avec
-            // un véhicule de 0 kg.
             if (!$vehiculeType || (float) $vehiculeType->capacite_kg <= 0) {
                 continue;
             }
 
-            $vehicules[] = [
+            $candidats[] = [
                 'id_benevole' => $dispo->id_personne,
+                'nom' => $personnes->get($dispo->id_personne)?->nom,
+                'prenom' => $personnes->get($dispo->id_personne)?->prenom,
                 'id_vehicule_type' => $vehiculeType->id,
+                'vehicule_libelle' => (string) $vehiculeType->type,
                 'capacite_kg' => (float) $vehiculeType->capacite_kg,
                 'nombre_part_max' => (int) $vehiculeType->nombre_part_max,
+                'ids_secteurs' => $dispo->secteurs->pluck('id_secteur')->map(fn($id) => (int) $id)->all(),
             ];
         }
 
-        return $vehicules;
+        return $candidats;
     }
 
     /**

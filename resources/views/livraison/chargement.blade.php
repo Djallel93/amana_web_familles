@@ -43,28 +43,34 @@
         <form id="csrf-holder">@csrf</form>
 
         {{--
-            Cartes statistiques + filtre restantes/chargée (09/09/2026,
-            prompt de cette date §4) — même principe que Packaging (voir
-            packaging.blade.php/PackagingController::index()), adapté aux
-            deux seuls statuts pertinents ici : "Chargée" (statut =
-            'charge') et "Restantes" (chargement/packaging_annule) — pas
-            de "Terminées" sur cet écran, une tournée quitte ce périmètre
-            dès que le bénévole démarre réellement sa tournée (statut
-            'en_cours', voir MaRouteController), ça ne concerne plus
-            l'équipe chargement.
+            Cartes statistiques + filtres (09/09/2026, refaits le 06/10/2026) :
+            statuts DÉRIVÉS du conditionnement des familles de chaque tournée
+            (voir App\Support\StatutChargement) — Restantes (aucun colis prêt,
+            packaging annulé compris), En préparation (au moins un colis prêt),
+            Prêtes (tous les colis prêts, à charger), Chargées. Une tournée
+            quitte ce périmètre dès que le bénévole démarre réellement sa
+            tournée (statut 'en_cours', voir MaRouteController).
         --}}
-        <div class="grid grid-cols-2 gap-3 mb-4">
-            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
-                <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Chargée(s)</p>
-                <p id="stat-chargees" class="text-[20px] font-semibold text-emerald-700">{{ $stats['chargees'] }}</p>
-            </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
                 <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restantes</p>
                 <p id="stat-restantes" class="text-[20px] font-semibold text-ink">{{ $stats['restantes'] }}</p>
             </div>
+            <div class="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                <p class="text-[11px] text-amber-700 uppercase tracking-wide">En préparation</p>
+                <p id="stat-en-preparation" class="text-[20px] font-semibold text-amber-700">{{ $stats['en_preparation'] }}</p>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Prête(s)</p>
+                <p id="stat-pretes" class="text-[20px] font-semibold text-emerald-700">{{ $stats['pretes'] }}</p>
+            </div>
+            <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                <p class="text-[11px] text-indigo-700 uppercase tracking-wide">Chargée(s)</p>
+                <p id="stat-chargees" class="text-[20px] font-semibold text-indigo-700">{{ $stats['chargees'] }}</p>
+            </div>
         </div>
-        <div class="flex gap-2 mb-6" id="filtre-chargement">
-            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'chargees' => 'Chargée'] as $valeur => $libelle)
+        <div class="flex flex-wrap gap-2 mb-6" id="filtre-chargement">
+            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'en_preparation' => 'En préparation', 'pretes' => 'Prêtes', 'chargees' => 'Chargées'] as $valeur => $libelle)
                 <button type="button" data-valeur="{{ $valeur }}"
                     onclick="appliquerFiltreChargement('{{ $valeur }}')"
                     class="text-[12.5px] px-3 py-1.5 rounded-lg border {{ $filtreChargement === $valeur ? 'bg-accent text-white border-accent' : 'border-surface-border text-ink-muted' }}">
@@ -72,6 +78,14 @@
                 </button>
             @endforeach
         </div>
+
+        {{--
+            Rappel « générez les routes » (refait le 06/10/2026) : affiché dès
+            qu'il y a des familles confirmées et aucune tournée, sans attendre
+            la fin du packaging, et rafraîchi par le polling (zone remplacée
+            quand sa signature change). Voir ChargementController::rappelRoutes().
+        --}}
+        <div id="zone-rappel">{!! $rappelHtml !!}</div>
 
         <div class="space-y-3" id="liste-routes">
             @foreach($lignes as $ligne)
@@ -84,51 +98,22 @@
             la liste ne doit contenir que des cartes de tournée pour que
             la réconciliation par id reste triviale.
         --}}
-        <p id="liste-vide" class="text-[14px] text-ink-muted {{ count($lignes) > 0 ? 'hidden' : '' }}">Aucune tournée prête à charger pour le moment.</p>
+        <p id="liste-vide" class="text-[14px] text-ink-muted {{ count($lignes) > 0 || count($familles) > 0 ? 'hidden' : '' }}">Aucune tournée à charger pour le moment.</p>
 
         {{--
-            Ajouté le 24/09/2026 (prompt de cette date §1.2) — affiché à la
-            place du message générique ci-dessus quand la liste est vide,
-            voir ChargementController::etatSansTournee(). Rendu au
-            chargement de page uniquement (pas de polling ici, voir le
-            docblock de index()) — un rechargement de page suffit si
-            l'état change pendant que cet écran est ouvert.
+            Familles confirmées pas encore dans une tournée (06/10/2026) —
+            statut = conditionnement (Restante / En préparation / Prête), polled
+            comme les tournées. Voir ChargementController::construireFamillesSansTournee().
+            Suivent le filtre de l'écran (aucune avec « Chargées »).
         --}}
-        @if($etatSansTournee)
-            @if($etatSansTournee['routesJamaisGenerees'])
-                {{--
-                    Rappel « générez d'abord les routes » refait le 03/10/2026 :
-                    emoji, texte aéré (titre / explication / action) et lien
-                    « Suivi livraison » devenu un vrai bouton. Le bouton mène
-                    au bloc « Génération des routes » de Suivi livraison
-                    (#generer-routes, voir GenererRoutesPanel.vue — la
-                    génération a quitté la page campagne le même jour) ; les
-                    équipes sans droit de génération voient le texte seul.
-                --}}
-                <div class="bg-amber-50 border border-amber-200 rounded-xl px-5 py-6 mb-4 text-center">
-                    <div class="text-[36px] leading-none mb-3" aria-hidden="true">🚚</div>
-                    <p class="text-[16px] text-amber-900 font-semibold mb-3">Conditionnement terminé, tournées pas encore générées</p>
-                    <p class="text-[13.5px] text-amber-800 leading-relaxed max-w-md mx-auto mb-5">
-                        Toutes les familles confirmées sont conditionnées, mais aucune tournée n'a encore été créée pour cette campagne.
-                    </p>
-                    @if(auth()->user()?->isAdmin() || auth()->user()?->isGestionnaire())
-                        <a href="{{ route('livraison.suivi-livraison.index', $campagne) }}#generer-routes"
-                            class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 rounded-lg bg-accent hover:bg-accent-dark text-white text-[14px] font-semibold no-underline transition-colors active:scale-95">
-                            🗺️ Générer les routes dans Suivi livraison
-                        </a>
-                    @else
-                        <p class="text-[13px] text-amber-700">Prévenez un admin/gestionnaire pour qu'il les génère depuis l'écran Suivi livraison.</p>
-                    @endif
-                </div>
-            @elseif(count($etatSansTournee['lignesPreparation']) > 0)
-                <p class="text-[13px] text-ink-muted mb-2">Conditionnement en cours — ces familles ne sont pas encore prêtes à charger :</p>
-                <div class="space-y-3">
-                    @foreach($etatSansTournee['lignesPreparation'] as $ligne)
-                        {!! $ligne['html'] !!}
-                    @endforeach
-                </div>
-            @endif
-        @endif
+        <div id="section-familles" class="mt-6 {{ count($familles) > 0 ? '' : 'hidden' }}">
+            <p class="text-[13px] text-ink-muted mb-2">Familles pas encore dans une tournée :</p>
+            <div class="space-y-3" id="liste-familles">
+                @foreach($familles as $famille)
+                    {!! $famille['html'] !!}
+                @endforeach
+            </div>
+        </div>
     </div>
 
     <script>
@@ -153,27 +138,68 @@
             window.location.href = url.toString();
         }
 
+        // Popup de confirmation avant de confirmer un chargement (06/10/2026) :
+        // une confirmation notifie le chauffeur, autant éviter un clic par erreur.
         async function confirmerChargement(id) {
+            const confirme = await window.amanaConfirm({
+                title: 'Confirmer le chargement ?',
+                message: 'Le chauffeur sera prévenu que son véhicule est chargé.',
+                confirmLabel: 'Chargement confirmé',
+            });
+            if (!confirme) return;
+
             await occuper(id, async () => {
                 const r = await poster(`/livraison/chargement/routes/${id}/confirmer`);
-                if (!r.success) return;
+                if (!r.success) {
+                    window.amanaToast(r.message || 'Impossible de confirmer le chargement.', 'error');
+                    return;
+                }
 
                 // Ne retire plus la ligne du DOM (08/09/2026, prompt de cette
                 // date §7.1/§7.2) : reste visible avec son statut "Chargée",
                 // déplacée en bas de liste plutôt que supprimée — voir
-                // ChargementController::index() côté serveur pour le même tri
+                // ChargementController::construireListe() pour le même tri
                 // au prochain chargement de page.
                 const ligne = document.getElementById(`route-${id}`);
                 if (!ligne) return;
 
                 // Renommé 'en_cours' → 'charge' le 09/09/2026 (prompt §4).
                 ligne.dataset.statut = 'charge';
+                ligne.dataset.etat = 'chargee';
                 ligne.classList.add('opacity-60');
                 ligne.querySelector('.statut-route').textContent = 'Chargée';
                 ligne.querySelector('.statut-route').className = 'statut-route text-[11px] font-medium px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700';
-                ligne.querySelector('.flex.gap-2').style.display = 'none';
+                ligne.querySelector('.actions-prete').style.display = 'none';
+                ligne.querySelector('.actions-chargee').style.display = '';
                 ligne.parentElement.appendChild(ligne);
             });
+        }
+
+        // Annulation d'un chargement confirmé par erreur (06/10/2026) : popup
+        // de confirmation, puis la tournée redevient « Prête » et un incident
+        // est ouvert côté serveur. Le rendu exact revient du polling, forcé
+        // tout de suite pour ne pas attendre 20 s.
+        async function annulerChargement(id) {
+            const confirme = await window.amanaConfirm({
+                title: 'Annuler le chargement ?',
+                message: 'La tournée repasse « Prête » et un incident est ouvert pour les administrateurs.',
+                confirmLabel: "Annuler le chargement",
+                danger: true,
+            });
+            if (!confirme) return;
+
+            await occuper(id, async () => {
+                const r = await poster(`/livraison/chargement/routes/${id}/annuler-chargement`);
+                if (!r.success) {
+                    window.amanaToast(r.message || "Impossible d'annuler le chargement.", 'error');
+                    return;
+                }
+                window.amanaToast('Chargement annulé — incident ouvert.', 'success');
+            });
+
+            modifieLocalement.delete(String(id));
+            pollEnCours = false;
+            await rafraichirListe(true);
         }
 
         // Popups natives remplacées le 29/09/2026 (prompt de cette date §5) :
@@ -243,6 +269,10 @@
         const URL_LISTE = @json(route('livraison.chargement.liste', $campagne));
         const POLL_MS = 20000;
         const signatures = new Map(Object.entries(@json(collect($lignes)->pluck('sig', 'id'))));
+        // Signatures des cartes « famille sans tournée » et du rappel (06/10/2026) :
+        // mêmes principes que les tournées, sans les actions locales à protéger.
+        const signaturesFamilles = new Map(Object.entries(@json(collect($familles)->pluck('sig', 'id'))));
+        let signatureRappel = @json(md5($rappelHtml));
         // Toute tournée déjà affichée pendant cette visite de page — y compris
         // une carte retirée localement (bénévole absent) — n'est jamais
         // "nouvelle" : pas de surbrillance ni de son pour elle.
@@ -316,7 +346,7 @@
             for (const r of donnees.routes) {
                 const id = String(r.id);
                 let ligne = document.getElementById(`route-${id}`);
-                let redevenuePrete = false;
+                let devenuePrete = false;
 
                 if (protegee(id, ligne)) {
                     if (ligne) ordre.push(ligne);
@@ -327,23 +357,25 @@
                     ligne = creerLigne(r.html);
                     liste.appendChild(ligne);
                 } else if (signatures.get(id) !== r.sig) {
-                    // Tournée re-conditionnée après une annulation (statut
-                    // 'packaging_annule' → 'chargement', voir
-                    // PackagingController::finaliserConditionnement()) : à
-                    // signaler comme une nouvelle tournée prête à charger.
-                    redevenuePrete = r.statut === 'chargement' && ligne.dataset.statut !== 'chargement';
+                    // Une tournée qui passe à « Prête » (dernier colis prêt, ou
+                    // re-conditionnement après un packaging annulé, voir
+                    // PackagingController::finaliserConditionnement()) est à
+                    // signaler comme une nouvelle tournée à charger.
+                    devenuePrete = r.etat === 'prete' && ligne.dataset.etat !== 'prete';
                     const remplacement = creerLigne(r.html);
                     ligne.replaceWith(remplacement);
                     ligne = remplacement;
                 }
                 signatures.set(id, r.sig);
                 ordre.push(ligne);
-                if (redevenuePrete) nouvelles.push(ligne);
+                if (devenuePrete) nouvelles.push(ligne);
 
                 if (!routesVues.has(id)) {
                     routesVues.add(id);
-                    // Une tournée découverte déjà "Chargée" n'a rien de nouveau à signaler.
-                    if (r.statut !== 'charge') nouvelles.push(ligne);
+                    // Toutes les tournées sont maintenant listées dès leur
+                    // création (06/10/2026) : seules celles découvertes déjà
+                    // « Prêtes » méritent surbrillance et son.
+                    if (r.etat === 'prete') nouvelles.push(ligne);
                 }
             }
 
@@ -366,9 +398,16 @@
                 }
             }
 
+            appliquerFamilles(donnees.familles);
+            appliquerRappel(donnees.rappel);
+
             document.getElementById('stat-chargees').textContent = donnees.stats.chargees;
             document.getElementById('stat-restantes').textContent = donnees.stats.restantes;
-            document.getElementById('liste-vide').classList.toggle('hidden', liste.querySelector(':scope > [id^="route-"]') !== null);
+            document.getElementById('stat-en-preparation').textContent = donnees.stats.en_preparation;
+            document.getElementById('stat-pretes').textContent = donnees.stats.pretes;
+            const aDesRoutes = liste.querySelector(':scope > [id^="route-"]') !== null;
+            const aDesFamilles = document.getElementById('liste-familles').children.length > 0;
+            document.getElementById('liste-vide').classList.toggle('hidden', aDesRoutes || aDesFamilles);
 
             if (nouvelles.length > 0) {
                 nouvelles.forEach(mettreEnSurbrillance);
@@ -376,8 +415,58 @@
             }
         }
 
-        async function rafraichirListe() {
-            if (pollEnCours || document.hidden) return;
+        // Familles sans tournée (statut = conditionnement) : réconciliation par
+        // id, sans surbrillance. Le serveur applique déjà le filtre de l'écran.
+        function appliquerFamilles(familles) {
+            const conteneur = document.getElementById('liste-familles');
+            const visibles = familles;
+            const ids = new Set(visibles.map((f) => String(f.id)));
+            const ordre = [];
+
+            for (const f of visibles) {
+                const id = String(f.id);
+                let carte = document.getElementById(`famille-${id}`);
+                if (!carte) {
+                    carte = creerLigne(f.html);
+                    conteneur.appendChild(carte);
+                } else if (signaturesFamilles.get(id) !== f.sig) {
+                    const remplacement = creerLigne(f.html);
+                    carte.replaceWith(remplacement);
+                    carte = remplacement;
+                }
+                signaturesFamilles.set(id, f.sig);
+                ordre.push(carte);
+            }
+
+            conteneur.querySelectorAll(':scope > [id^="famille-"]').forEach((carte) => {
+                const id = carte.id.replace('famille-', '');
+                if (!ids.has(id)) {
+                    carte.remove();
+                    signaturesFamilles.delete(id);
+                }
+            });
+
+            let repere = conteneur.firstElementChild;
+            for (const carte of ordre) {
+                if (carte === repere) {
+                    repere = repere.nextElementSibling;
+                } else {
+                    conteneur.insertBefore(carte, repere);
+                }
+            }
+
+            document.getElementById('section-familles').classList.toggle('hidden', conteneur.children.length === 0);
+        }
+
+        // Rappel « générez les routes » : remplacé seulement si sa signature a changé.
+        function appliquerRappel(rappel) {
+            if (!rappel || rappel.sig === signatureRappel) return;
+            document.getElementById('zone-rappel').innerHTML = rappel.html;
+            signatureRappel = rappel.sig;
+        }
+
+        async function rafraichirListe(forcer = false) {
+            if ((pollEnCours && !forcer) || document.hidden) return;
             pollEnCours = true;
             const debutRequete = Date.now();
             try {
@@ -392,7 +481,7 @@
             }
         }
 
-        setInterval(rafraichirListe, POLL_MS);
+        setInterval(() => rafraichirListe(), POLL_MS);
         document.addEventListener('visibilitychange', () => { if (!document.hidden) rafraichirListe(); });
     </script>
 @endsection

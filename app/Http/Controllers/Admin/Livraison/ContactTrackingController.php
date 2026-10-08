@@ -12,8 +12,8 @@ use App\Http\Controllers\Concerns\HasDetailPanelProps;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CampagneResource;
 use App\Http\Resources\LivraisonQueueResource;
+use App\Http\Resources\PersonneResumeResource;
 use App\Models\Campagne;
-use App\Models\CampagneJournee;
 use App\Models\Famille;
 use App\Models\Livraison;
 use App\Models\Organisation;
@@ -22,8 +22,7 @@ use App\Models\PersonneDesactivee;
 use App\Models\Quartier;
 use App\Models\SecteurActivite;
 use App\Services\FamilleConfirmationSyncService;
-use App\Services\RetraitHqSchedulingService;
-use App\Services\RouteMutationService;
+use App\Services\LivraisonChangementService;
 use App\Support\Creneau;
 use App\Support\FamilleFilters;
 use Illuminate\Database\Eloquent\Builder;
@@ -54,10 +53,10 @@ class ContactTrackingController extends Controller
 
     public function __construct(
         private readonly FamilleConfirmationSyncService $syncService,
-        // Ajoutés le 24/09/2026 (prompt de cette date §4/§5) — voir
-        // mettreAJourSeDeplace() plus bas.
-        private readonly RouteMutationService $mutationService,
-        private readonly RetraitHqSchedulingService $retraitHqScheduling,
+        // Changements en cours de campagne (06/10/2026) : se_deplace,
+        // « prendre en charge » (chauffeur imposé), confirmation tardive —
+        // voir mettreAJourSeDeplace()/prendreEnCharge() plus bas.
+        private readonly LivraisonChangementService $changements,
     ) {}
 
     /**
@@ -114,6 +113,9 @@ class ContactTrackingController extends Controller
             // corriger se_deplace après le premier contact sans rouvrir
             // tout le dossier (voir mettreAJourSeDeplace()).
             'seDeplaceUrlTemplate' => route('livraison.contacts.se-deplace', '__ID__'),
+            // « Prendre en charge » (06/10/2026) : un chauffeur s'engage à
+            // livrer cette famille (livraison imposée) — voir prendreEnCharge().
+            'priseEnChargeUrlTemplate' => route('livraison.contacts.prise-en-charge', '__ID__'),
             'retourUrl' => route('livraison.campagnes.index'),
             ...$this->detailPanelProps(),
             'secteursActivite' => $secteursActivite,
@@ -165,7 +167,7 @@ class ContactTrackingController extends Controller
         // id/nom/prenom/telephone/telephone_bis/email de `famille` restent
         // nécessaires.
         $query = $this->queteBase($request)
-            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email', 'personneAssignee'])
+            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email', 'personneAssignee', 'benevoleImpose'])
             // Ordre demandé le 29/09/2026 : a_contacter en tête, puis
             // injoignable, confirmé, archivé, rejetée en bas (voir
             // Livraison::ORDRE_AFFICHAGE_CONTACT). Remplace le simple
@@ -457,6 +459,17 @@ class ContactTrackingController extends Controller
             foreach ($request->input('creneaux') as $creneau) {
                 $livraison->creneaux()->create(['creneau' => $creneau]);
             }
+
+            // Confirmation tardive (campagne déjà démarrée, 06/10/2026) :
+            // rendez-vous QG + email pour une famille se_deplace, ajout à la
+            // tournée du chauffeur pour une famille imposée. Une erreur ici
+            // (QG non configuré, chauffeur sans véhicule...) ne doit pas
+            // faire échouer la confirmation elle-même, déjà enregistrée.
+            try {
+                $this->changements->apresConfirmation(Livraison::findOrFail($livraison->id));
+            } catch (\RuntimeException $e) {
+                report($e);
+            }
         } else {
             // 'rejetee'/'archive' (et tout futur statut à effet dossier
             // non-'sync') : voir STATUTS_CONTACT_EFFETS. 'contacte'/
@@ -483,18 +496,14 @@ class ContactTrackingController extends Controller
      * for current campagne") — que la valeur change ou non, le nombre
      * total de familles se_deplace de la journée peut avoir changé.
      *
-     * Impact tournées, seulement dans un sens :
-     *   - false → true (la famille n'a plus besoin d'être livrée) : si
-     *     elle était déjà dans une tournée, on l'en retire immédiatement
-     *     (RouteMutationService::retirerLivraison(), même méthode que le
-     *     retrait manuel d'un arrêt) ;
-     *   - true → false (la famille redevient à livrer) : AUCUNE action de
-     *     clustering ici — elle repasse simplement dans le pool de
-     *     RouteGenerationService::genererPourCreneau() (statut déjà
-     *     'non_assignee', jamais assignée puisqu'exclue jusqu'ici) et
-     *     sera prise en compte au prochain lancement de génération pour
-     *     cette journée, exactement comme n'importe quelle nouvelle
-     *     confirmation — pas besoin d'un recalcul spécial ici.
+     * Règles de changement (06/10/2026 — voir LivraisonChangementService) :
+     * la famille est retirée de sa tournée tant qu'elle n'est pas chargée,
+     * refus si tournée chargée/en cours ou famille déjà livrée/remise ou
+     * imposée à un chauffeur ; le planning QG de la journée est recalculé
+     * et les familles concernées sont prévenues par email (campagne
+     * démarrée). Une famille qui repasse en livraison perd son rendez-vous
+     * QG, est prévenue de l'annulation, et redevient éligible à la
+     * génération.
      */
     public function mettreAJourSeDeplace(Request $request, Livraison $livraison): JsonResponse
     {
@@ -506,23 +515,49 @@ class ContactTrackingController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $livraison->se_deplace = $request->boolean('se_deplace');
-        $livraison->save();
-
-        if ($livraison->se_deplace) {
-            $etape = $livraison->etapesRoute()->with('route')->first();
-            if ($etape?->route) {
-                $this->mutationService->retirerLivraison($etape->route, $etape);
-            }
-        }
-
-        if ($livraison->id_campagne_journee !== null) {
-            $journee = CampagneJournee::find($livraison->id_campagne_journee);
-            if ($journee) {
-                $this->retraitHqScheduling->planifierPour($livraison->campagne, $journee);
-            }
+        try {
+            $this->changements->changerSeDeplace($livraison, $request->boolean('se_deplace'));
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
         return response()->json(['success' => true, 'se_deplace' => $livraison->fresh()->se_deplace]);
+    }
+
+    /**
+     * « Prendre en charge » (06/10/2026) : un chauffeur s'engage à livrer
+     * cette famille (livraison imposée, tournée sans créneau). `id_benevole`
+     * vide = retirer l'imposition. Règles et refus (famille livrée, tournée
+     * chargée/en cours, famille se_deplace...) :
+     * LivraisonChangementService.
+     */
+    public function prendreEnCharge(Request $request, Livraison $livraison): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id_benevole' => 'nullable|integer',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        try {
+            if ($request->filled('id_benevole')) {
+                $this->changements->prendreEnCharge($livraison, $request->integer('id_benevole'));
+            } else {
+                $this->changements->retirerImposition($livraison);
+            }
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        $livraison->refresh()->load('benevoleImpose');
+
+        return response()->json([
+            'success' => true,
+            'id_benevole_impose' => $livraison->id_benevole_impose,
+            'benevole_impose' => $livraison->benevoleImpose ? new PersonneResumeResource($livraison->benevoleImpose) : null,
+            'statut' => $livraison->statut,
+        ]);
     }
 }
