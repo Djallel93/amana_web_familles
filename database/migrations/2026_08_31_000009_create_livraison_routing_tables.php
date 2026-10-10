@@ -154,10 +154,17 @@ return new class extends Migration
         // colis repart en préparation. Actionnable comme
         // benevole_absent/capacite (statut ouvert/resolu), pas un simple
         // jalon.
+        // 'retrait_hq_non_livre' (type, 09/10/2026) : levé quand l'équipe chargement marque
+        // une famille « Non livré (absent) » sur l'écran Retrait QG — une famille qui se
+        // déplace n'a PAS de tournée, d'où id_route nullable et id_campagne (la campagne ne
+        // se déduit plus de la route pour ce type ; pour les autres types la route suffit).
         Schema::create('route_incidents', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_route')->constrained('routes')->cascadeOnDelete();
-            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule']);
+            $table->foreignId('id_route')->nullable()->constrained('routes')->cascadeOnDelete();
+            // id_campagne : renseigné quand id_route est null (type retrait_hq_non_livre) ;
+            // sinon la campagne est celle de la route.
+            $table->foreignId('id_campagne')->nullable()->constrained('campagnes')->cascadeOnDelete();
+            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre']);
             $table->foreignId('id_livraison')->nullable()
                 ->constrained('livraisons')
                 ->nullOnDelete()
@@ -174,6 +181,7 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['id_route', 'type']);
+            $table->index(['id_campagne', 'statut']);
             $table->index('statut');
         });
     }

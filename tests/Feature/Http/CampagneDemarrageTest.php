@@ -11,6 +11,7 @@ use App\Models\Famille;
 use App\Models\Livraison;
 use App\Models\RouteLivraison;
 use App\Notifications\RetraitHqNotification;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Tests\Concerns\BuildsDisponibiliteFixtures;
 use Tests\Concerns\SeedsCommunFixtures;
@@ -185,5 +186,51 @@ class CampagneDemarrageTest extends TestCase
         $this->actingAs($this->gestionnaire())->postJson(route('livraison.campagnes.rouvrir', $this->campagne))
             ->assertOk()
             ->assertJsonPath('campagne.statut', 'en_cours');
+    }
+    // ── 09/10/2026 : compteur Retrait QG du hub + journalisation des emails ──
+
+    public function test_avancement_compte_les_retraits_qg_et_ceux_deja_remis(): void
+    {
+        $this->livraison(['se_deplace' => true, 'statut_retrait_hq' => 'delivre']);
+        $this->livraison(['se_deplace' => true]);
+        $this->livraison(['se_deplace' => true, 'statut_contact' => 'a_contacter']); // pas confirmée : ignorée
+        $this->livraison(); // livrée à domicile : jamais comptée
+
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.avancement', $this->campagne))
+            ->assertOk()
+            ->assertJsonPath('compteurs.retraits_total', 2)
+            ->assertJsonPath('compteurs.retraits_delivres', 1);
+    }
+
+    public function test_demarrer_journalise_le_bilan_des_emails_de_retrait_qg(): void
+    {
+        Log::spy();
+        $this->livraison(['se_deplace' => true]);
+
+        $this->actingAs($this->gestionnaire())->postJson(route('livraison.campagnes.demarrer', $this->campagne))
+            ->assertOk();
+
+        Log::shouldHaveReceived('info')->withArgs(
+            fn(string $message, array $contexte = []) => str_contains($message, 'Campagne démarrée')
+                && $contexte['retraits_planifies'] === 1
+                && $contexte['emails_retrait_envoyes'] === 1
+        )->once();
+    }
+
+    public function test_demarrer_journalise_la_raison_quand_une_famille_na_pas_demail(): void
+    {
+        Log::spy();
+        $livraison = $this->livraison(['se_deplace' => true]);
+        $livraison->famille->update(['email' => null]);
+
+        $this->actingAs($this->gestionnaire())->postJson(route('livraison.campagnes.demarrer', $this->campagne))
+            ->assertOk()
+            ->assertJsonPath('retraits_planifies', 1);
+
+        Log::shouldHaveReceived('warning')->withArgs(
+            fn(string $message, array $contexte = []) => str_contains($message, 'non envoyé')
+                && $contexte['raison'] === 'famille_sans_email'
+        )->once();
+        Notification::assertNothingSent();
     }
 }

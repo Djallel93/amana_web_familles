@@ -137,6 +137,31 @@ class MaRouteController extends Controller
     }
 
     /**
+     * Annule un « Livré » cliqué par erreur (09/10/2026) : l'arrêt et sa
+     * livraison repassent à 'en_cours' (même retour que remettreEnCours() pour
+     * un arrêt ignoré) et une tournée déjà 'livraisons_terminees' se rouvre.
+     * Aucune notification à la famille. Chauffeur propriétaire ou admin/gestionnaire.
+     */
+    public function annulerLivraison(EtapeRoute $etape): JsonResponse
+    {
+        $this->assertProprietaire($etape);
+
+        if ($etape->statut !== 'livree') {
+            throw ValidationException::withMessages(['etape' => 'Seul un arrêt livré peut être annulé.']);
+        }
+
+        $route = RouteLivraison::findOrFail($etape->id_route);
+
+        if (!in_array($route->statut, ['en_cours', 'livraisons_terminees'], true)) {
+            throw ValidationException::withMessages(['etape' => "Cette tournée n'est plus modifiable."]);
+        }
+
+        $route->rouvrirEtape($etape);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
      * Toute action de terrain (livré / ignoré / scan) exige une tournée
      * démarrée (30/09/2026) : le clic sur « Je commence ma tournée » n'est
      * plus implicite.

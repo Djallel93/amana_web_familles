@@ -27,6 +27,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * aujourd'hui (l'interface TS Livraison la déclare optionnelle) — même
  * précaution que RouteLivraisonResource pour rester correcte si un futur
  * appelant de ce resource la charge.
+ *
+ * @property string|null $motif_statut_contact    Motif d'un archivage/rejet (09/10/2026)
+ * @property string      $statut_conditionnement  en_attente|en_cours|prete (09/10/2026)
  */
 class LivraisonQueueResource extends JsonResource
 {
@@ -38,6 +41,11 @@ class LivraisonQueueResource extends JsonResource
             'id_campagne_journee' => $this->id_campagne_journee,
             'statut' => $this->statut,
             'statut_contact' => $this->statut_contact,
+            // Motif d'un archivage/rejet (09/10/2026), affiché dans le détail de la ligne.
+            'motif_statut_contact' => $this->motif_statut_contact,
+            // Statut de conditionnement : l'UI s'en sert pour griser « Retirer »/« Réinitialiser »
+            // (refusés par le serveur une fois le packaging commencé).
+            'statut_conditionnement' => $this->statut_conditionnement,
             'id_personne_assignee' => $this->id_personne_assignee,
             'personne_assignee' => $this->whenLoaded('personneAssignee', fn() => $this->personneAssignee ? new PersonneResumeResource($this->personneAssignee) : null),
             // Chauffeur imposé (06/10/2026, « Prendre en charge »).

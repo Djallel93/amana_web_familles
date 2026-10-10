@@ -21,6 +21,7 @@ use App\Models\OrganismeAide;
 use App\Models\PersonneDesactivee;
 use App\Models\Quartier;
 use App\Models\SecteurActivite;
+use App\Services\ChauffeursConfirmesService;
 use App\Services\FamilleConfirmationSyncService;
 use App\Services\LivraisonChangementService;
 use App\Support\Creneau;
@@ -51,12 +52,17 @@ class ContactTrackingController extends Controller
 {
     use HasDetailPanelProps;
 
+    /** Statuts de contact qui exigent un motif (09/10/2026). */
+    private const STATUTS_AVEC_MOTIF = ['archive', 'rejetee'];
+
     public function __construct(
         private readonly FamilleConfirmationSyncService $syncService,
         // Changements en cours de campagne (06/10/2026) : se_deplace,
         // « prendre en charge » (chauffeur imposé), confirmation tardive —
         // voir mettreAJourSeDeplace()/prendreEnCharge() plus bas.
         private readonly LivraisonChangementService $changements,
+        // Chauffeurs confirmés pour la journée (09/10/2026) — validation de prendreEnCharge().
+        private readonly ChauffeursConfirmesService $chauffeursConfirmes,
     ) {}
 
     /**
@@ -116,6 +122,9 @@ class ContactTrackingController extends Controller
             // « Prendre en charge » (06/10/2026) : un chauffeur s'engage à
             // livrer cette famille (livraison imposée) — voir prendreEnCharge().
             'priseEnChargeUrlTemplate' => route('livraison.contacts.prise-en-charge', '__ID__'),
+            // Retirer une famille ajoutée par erreur / la réinitialiser (09/10/2026).
+            'retirerUrlTemplate' => route('livraison.contacts.retirer', '__ID__'),
+            'reinitialiserUrlTemplate' => route('livraison.contacts.reinitialiser', '__ID__'),
             'retourUrl' => route('livraison.campagnes.index'),
             ...$this->detailPanelProps(),
             'secteursActivite' => $secteursActivite,
@@ -426,6 +435,10 @@ class ContactTrackingController extends Controller
             // confirmation, livraisons.se_deplace reste à false (défaut)
             // pour tout autre statut_contact.
             'se_deplace' => 'required_if:statut_contact,confirme|boolean',
+            // Motif OBLIGATOIRE pour archiver ou rejeter (09/10/2026) : la popup de
+            // ContactsQueue.vue ne valide l'action qu'une fois le motif saisi, le
+            // serveur applique la même règle.
+            'motif' => ['required_if:statut_contact,' . implode(',', self::STATUTS_AVEC_MOTIF), 'nullable', 'string', 'max:1000'],
         ]);
 
         if ($validator->fails()) {
@@ -433,7 +446,12 @@ class ContactTrackingController extends Controller
         }
 
         $statut = $request->input('statut_contact');
-        $donnees = ['statut_contact' => $statut];
+        $donnees = [
+            'statut_contact' => $statut,
+            'motif_statut_contact' => in_array($statut, self::STATUTS_AVEC_MOTIF, true)
+                ? trim((string) $request->input('motif'))
+                : null,
+        ];
         $donneesConfirmees = null;
 
         if ($statut === 'confirme') {
@@ -541,6 +559,17 @@ class ContactTrackingController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
+        // Seuls les chauffeurs CONFIRMÉS pour la journée de la famille sont
+        // proposables (09/10/2026) — même critère que RouteGenerationService::
+        // candidatsPour() et que le sélecteur (PickersController::personnes()).
+        if ($request->filled('id_benevole')
+            && !$this->chauffeursConfirmes->estConfirme($request->integer('id_benevole'), $livraison->id_campagne_journee, $livraison->id_campagne)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ce bénévole n\'a pas confirmé sa disponibilité (avec un véhicule) pour la journée de cette famille.',
+            ], 422);
+        }
+
         try {
             if ($request->filled('id_benevole')) {
                 $this->changements->prendreEnCharge($livraison, $request->integer('id_benevole'));
@@ -559,5 +588,43 @@ class ContactTrackingController extends Controller
             'benevole_impose' => $livraison->benevoleImpose ? new PersonneResumeResource($livraison->benevoleImpose) : null,
             'statut' => $livraison->statut,
         ]);
+    }
+
+    /**
+     * Retire une famille ajoutée par erreur à la campagne (09/10/2026) —
+     * supprime sa livraison. Règles et refus : voir
+     * LivraisonChangementService::retirerDeLaCampagne().
+     */
+    public function retirer(Livraison $livraison): JsonResponse
+    {
+        $idFamille = $livraison->id_famille;
+        $idCampagne = $livraison->id_campagne;
+
+        try {
+            $this->changements->retirerDeLaCampagne($livraison);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        audit('delete', 'livraisons', $livraison->id, ['id_famille' => $idFamille, 'id_campagne' => $idCampagne], null);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Remet une famille confirmée par erreur à « à contacter » (09/10/2026) —
+     * voir LivraisonChangementService::reinitialiserContact().
+     */
+    public function reinitialiser(Livraison $livraison): JsonResponse
+    {
+        try {
+            $this->changements->reinitialiserContact($livraison);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        audit('update', 'livraisons', $livraison->id, ['statut_contact' => 'confirme'], ['statut_contact' => 'a_contacter']);
+
+        return response()->json(['success' => true, 'statut_contact' => 'a_contacter']);
     }
 }

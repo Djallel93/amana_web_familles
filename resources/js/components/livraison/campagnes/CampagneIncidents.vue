@@ -18,13 +18,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { Modal, useConfirm, useToast } from "@amana/shared-ui";
-import { apiPost } from "../shared/api";
-import type { LigneIncident, ResoudreIncidentResultat } from "../shared/types";
+import { apiGet, apiPost } from "../shared/api";
+import PersonSelect from "../shared/PersonSelect.vue";
+import type { LigneIncident, OptionsIncident, PersonneResume, ResoudreIncidentResultat } from "../shared/types";
 
 const props = defineProps<{
     incidents: LigneIncident[];
     resoudreUrlTemplate: string;
     ignorerUrlTemplate: string;
+    rouvrirUrlTemplate: string;
+    optionsUrlTemplate: string;
+    resoudreSuiteUrlTemplate: string;
 }>();
 
 const emit = defineEmits<{
@@ -103,6 +107,122 @@ const enCours = ref(false);
 
 function ouvrir(incident: LigneIncident) {
     selection.value = incident;
+    reinitialiserSuite();
+}
+
+// ── Suite à donner à la famille (09/10/2026) ────────────────────────────
+type ActionSuite = "reinitialiser" | "tournee" | "retrait_qg" | "chauffeur" | "reessayer" | "domicile" | "simple";
+
+const CHOIX_LIVRAISON_IGNOREE: { id: ActionSuite; label: string; aide: string }[] = [
+    {
+        id: "reinitialiser",
+        label: "Remettre la famille à planifier",
+        aide: "Elle sera reprise à la prochaine génération de routes.",
+    },
+    {
+        id: "tournee",
+        label: "L'ajouter à une tournée existante",
+        aide: "Une tournée pas encore chargée de cette campagne.",
+    },
+    {
+        id: "retrait_qg",
+        label: "Elle viendra chercher son colis au QG",
+        aide: "Un rendez-vous au QG lui est attribué.",
+    },
+    { id: "chauffeur", label: "L'imposer à un chauffeur", aide: "Seuls les chauffeurs confirmés pour cette journée." },
+    { id: "simple", label: "Clore sans suite", aide: "L'incident est résolu, la famille reste ignorée." },
+];
+
+const CHOIX_RETRAIT_NON_LIVRE: { id: ActionSuite; label: string; aide: string }[] = [
+    { id: "reessayer", label: "La famille peut revenir", aide: "Son retrait repasse à « Prête »." },
+    { id: "domicile", label: "La livrer à domicile", aide: "Elle ne se déplace plus : à planifier dans une tournée." },
+    { id: "simple", label: "Clore sans suite", aide: "L'incident est résolu, rien ne change pour la famille." },
+];
+
+const avecSuite = computed(() => {
+    const type = selection.value?.type;
+    return type === "livraison_ignoree" || type === "retrait_hq_non_livre";
+});
+
+const choixSuite = computed(() =>
+    selection.value?.type === "retrait_hq_non_livre" ? CHOIX_RETRAIT_NON_LIVRE : CHOIX_LIVRAISON_IGNOREE,
+);
+
+const panneauSuite = ref(false);
+const suite = ref<ActionSuite | null>(null);
+const idRouteChoisie = ref<number | null>(null);
+const chauffeurChoisi = ref<PersonneResume | null>(null);
+const tournees = ref<OptionsIncident["tournees"]>([]);
+const chargementOptions = ref(false);
+
+function reinitialiserSuite() {
+    panneauSuite.value = false;
+    suite.value = null;
+    idRouteChoisie.value = null;
+    chauffeurChoisi.value = null;
+    tournees.value = [];
+}
+
+async function ouvrirPanneauSuite(incident: LigneIncident) {
+    panneauSuite.value = true;
+    if (incident.type !== "livraison_ignoree") return;
+
+    chargementOptions.value = true;
+    const resultat = await apiGet<OptionsIncident>(props.optionsUrlTemplate.replace("__ID__", String(incident.id)));
+    chargementOptions.value = false;
+    if (resultat.ok) tournees.value = resultat.data.tournees;
+    else toast.error(resultat.message);
+}
+
+const suiteValidable = computed(() => {
+    if (suite.value === null) return false;
+    if (suite.value === "tournee") return idRouteChoisie.value !== null;
+    if (suite.value === "chauffeur") return chauffeurChoisi.value !== null;
+    return true;
+});
+
+async function validerSuite(incident: LigneIncident) {
+    if (!suiteValidable.value || suite.value === null) return;
+    if (suite.value === "simple") return resoudre(incident);
+
+    enCours.value = true;
+    const resultat = await apiPost<{ success: boolean }>(
+        props.resoudreSuiteUrlTemplate.replace("__ID__", String(incident.id)),
+        {
+            action: suite.value,
+            id_route: suite.value === "tournee" ? idRouteChoisie.value : undefined,
+            id_benevole: suite.value === "chauffeur" ? chauffeurChoisi.value?.id : undefined,
+        },
+    );
+    enCours.value = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    majStatut(incident.id, "resolu");
+    reinitialiserSuite();
+    emit("change");
+    toast.success("Incident résolu.");
+}
+
+async function rouvrir(incident: LigneIncident) {
+    enCours.value = true;
+    const resultat = await apiPost<{ success: boolean; avertissement?: string }>(
+        props.rouvrirUrlTemplate.replace("__ID__", String(incident.id)),
+    );
+    enCours.value = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    majStatut(incident.id, "ouvert");
+    emit("change");
+    toast.success("Incident rouvert.");
+    if (resultat.data.avertissement) toast.warning(resultat.data.avertissement);
 }
 
 function majStatut(id: number, statut: LigneIncident["statut"]) {
@@ -144,7 +264,8 @@ async function resoudre(incident: LigneIncident) {
 async function ignorer(incident: LigneIncident) {
     const confirmed = await confirmDialog.ask({
         title: "Ignorer cet incident ?",
-        message: "L'incident sera fermé sans être traité (aucune action n'est lancée). Il ne pourra pas être rouvert.",
+        message:
+            "L'incident sera fermé sans être traité (aucune action n'est lancée). Vous pourrez le rouvrir tant que la campagne n'est pas terminée.",
         confirmLabel: "Ignorer",
     });
     if (!confirmed) return;
@@ -207,8 +328,9 @@ async function ignorer(incident: LigneIncident) {
                 <div class="min-w-0">
                     <p class="text-[14px] font-medium text-ink truncate">{{ incident.type_label }}</p>
                     <p class="text-[12.5px] text-ink-muted truncate">
-                        Tournée #{{ incident.id_route
-                        }}<template v-if="incident.chauffeur"> · {{ incident.chauffeur }}</template
+                        <template v-if="incident.id_route !== null">Tournée #{{ incident.id_route }}</template
+                        ><template v-else>Retrait au QG</template
+                        ><template v-if="incident.chauffeur"> · {{ incident.chauffeur }}</template
                         ><template v-if="incident.famille"> · {{ incident.famille }}</template>
                     </p>
                     <p class="text-[12px] text-ink-muted">{{ formatDateHeure(incident.created_at) }}</p>
@@ -242,7 +364,7 @@ async function ignorer(incident: LigneIncident) {
                 <dl
                     class="divide-y divide-surface-3 rounded-lg border border-surface-border bg-surface-2 text-[13px] mb-4"
                 >
-                    <div class="flex justify-between gap-4 px-3 py-2">
+                    <div v-if="selection.id_route !== null" class="flex justify-between gap-4 px-3 py-2">
                         <dt class="text-ink-muted">Tournée</dt>
                         <dd class="font-medium text-ink">#{{ selection.id_route }}</dd>
                     </div>
@@ -280,6 +402,54 @@ async function ignorer(incident: LigneIncident) {
                     {{ selection.notes }}
                 </p>
 
+                <!-- Suite à donner à la famille (09/10/2026) -->
+                <div
+                    v-if="selection.statut === 'ouvert' && avecSuite && panneauSuite"
+                    class="rounded-lg border border-surface-border p-3 mb-4 space-y-2"
+                >
+                    <p class="text-[12px] font-semibold uppercase tracking-wide text-ink-muted">
+                        Que faire de cette famille ?
+                    </p>
+                    <label
+                        v-for="c in choixSuite"
+                        :key="c.id"
+                        class="flex items-start gap-2 text-[13px] cursor-pointer"
+                    >
+                        <input v-model="suite" type="radio" name="suite-incident" :value="c.id" class="mt-1" />
+                        <span>
+                            <span class="font-medium text-ink">{{ c.label }}</span>
+                            <span class="block text-[12px] text-ink-muted">{{ c.aide }}</span>
+                        </span>
+                    </label>
+
+                    <div v-if="suite === 'tournee'" class="pl-6">
+                        <p v-if="chargementOptions" class="text-[12px] text-ink-muted">Chargement des tournées…</p>
+                        <p v-else-if="tournees.length === 0" class="text-[12px] text-rose-600">
+                            Aucune tournée ne peut encore accueillir cette famille (toutes sont chargées ou en cours).
+                        </p>
+                        <select
+                            v-else
+                            v-model="idRouteChoisie"
+                            class="w-full text-[13px] border border-surface-border rounded-lg px-2 py-1.5 bg-surface"
+                        >
+                            <option :value="null" disabled>Choisir une tournée…</option>
+                            <option v-for="t in tournees" :key="t.id" :value="t.id">{{ t.libelle }}</option>
+                        </select>
+                    </div>
+
+                    <div v-if="suite === 'chauffeur'" class="pl-6">
+                        <PersonSelect
+                            role="benevole"
+                            avec-vehicule
+                            :id-campagne-journee="selection.id_campagne_journee"
+                            :id-campagne="selection.id_campagne"
+                            placeholder="Choisir un chauffeur confirmé…"
+                            :model-value="chauffeurChoisi"
+                            @update:model-value="(p) => (chauffeurChoisi = p)"
+                        />
+                    </div>
+                </div>
+
                 <div class="flex flex-wrap justify-end gap-2">
                     <button
                         type="button"
@@ -298,6 +468,25 @@ async function ignorer(incident: LigneIncident) {
                             Ignorer
                         </button>
                         <button
+                            v-if="avecSuite && !panneauSuite"
+                            type="button"
+                            :disabled="enCours"
+                            @click="ouvrirPanneauSuite(selection)"
+                            class="px-4 py-2 rounded-lg bg-accent text-white text-[13px] font-semibold disabled:opacity-60"
+                        >
+                            Résoudre…
+                        </button>
+                        <button
+                            v-else-if="avecSuite"
+                            type="button"
+                            :disabled="enCours || !suiteValidable"
+                            @click="validerSuite(selection)"
+                            class="px-4 py-2 rounded-lg bg-accent text-white text-[13px] font-semibold disabled:opacity-60"
+                        >
+                            Valider
+                        </button>
+                        <button
+                            v-else
                             type="button"
                             :disabled="enCours"
                             @click="resoudre(selection)"
@@ -306,6 +495,16 @@ async function ignorer(incident: LigneIncident) {
                             Résoudre
                         </button>
                     </template>
+                    <!-- Rouvrir (09/10/2026) : incident résolu ou fermé ; refusé par le serveur si la campagne est terminée. -->
+                    <button
+                        v-else
+                        type="button"
+                        :disabled="enCours"
+                        @click="rouvrir(selection)"
+                        class="px-4 py-2 rounded-lg border border-accent text-accent text-[13px] font-semibold hover:bg-accent/5 disabled:opacity-60"
+                    >
+                        Rouvrir
+                    </button>
                 </div>
             </div>
         </Modal>

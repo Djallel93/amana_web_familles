@@ -341,6 +341,23 @@ export type StatutContactPostable = (typeof STATUTS_CONTACT_POSTABLES)[number];
 export const CRENEAUX = ["08-10", "10-12", "12-14", "14-16", "16-18", "18-19"] as const;
 export type Creneau = (typeof CRENEAUX)[number];
 
+/**
+ * Créneaux encore pertinents pour générer des routes à `dateIso` (09/10/2026) — miroir de
+ * App\Support\Creneau::restantsPour() : journée passée → aucun, future → tous, aujourd'hui →
+ * le créneau en cours et les suivants (avant 8h tous, à partir de 19h aucun).
+ */
+export function creneauxRestantsPour(dateIso: string, maintenant: Date = new Date()): Creneau[] {
+    const jour = dateIso.slice(0, 10);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const aujourdhui = `${maintenant.getFullYear()}-${pad(maintenant.getMonth() + 1)}-${pad(maintenant.getDate())}`;
+
+    if (jour < aujourdhui) return [];
+    if (jour > aujourdhui) return [...CRENEAUX];
+
+    const heure = maintenant.getHours();
+    return CRENEAUX.filter((c) => Number(c.split("-")[1]) > heure);
+}
+
 export const CRENEAU_LIBELLES: Record<Creneau, string> = {
     "08-10": "8h - 10h",
     "10-12": "10h - 12h",
@@ -396,6 +413,10 @@ export interface Livraison {
     // contacts) : livraisons.id_benevole_impose — tournée sans créneau.
     id_benevole_impose?: number | null;
     benevole_impose?: PersonneResume | null;
+    /** Motif saisi pour un archivage/rejet (09/10/2026), null sinon. */
+    motif_statut_contact?: string | null;
+    /** en_attente | en_cours | prete — « Retirer »/« Réinitialiser » sont refusés une fois entamé. */
+    statut_conditionnement?: string;
 }
 
 export interface VehiculeType {
@@ -517,6 +538,9 @@ export const TYPES_INCIDENT = [
     "chargement_termine",
     "livraison_ignoree",
     "packaging_annule",
+    "chargement_annule",
+    // 09/10/2026 : famille « Non livré (absent) » au Retrait QG — pas de tournée (id_route null).
+    "retrait_hq_non_livre",
 ] as const;
 export type TypeIncident = (typeof TYPES_INCIDENT)[number];
 
@@ -605,6 +629,9 @@ export interface AvancementCampagne {
         livraisons_confirmees: number;
         routes_total: number;
         routes_terminees: number;
+        /** Familles confirmées qui se déplacent au QG / dont le colis est remis (carte Retrait QG). */
+        retraits_total: number;
+        retraits_delivres: number;
         incidents_ouverts: number;
     };
 }
@@ -618,7 +645,11 @@ export interface LigneIncident {
     description: string;
     guide: string | null;
     notes: string | null;
-    id_route: number;
+    /** null pour retrait_hq_non_livre (une famille qui se déplace n'a pas de tournée). */
+    id_route: number | null;
+    id_livraison: number | null;
+    id_campagne_journee: number | null;
+    id_campagne: number | null;
     chauffeur: string | null;
     famille: string | null;
     signale_par: string | null;
@@ -662,4 +693,15 @@ export interface IncidentsUrls {
     liste: string;
     resoudre: string;
     ignorer: string;
+    /** Rouvrir un incident résolu/ignoré (09/10/2026). */
+    rouvrir: string;
+    /** Tournées où l'on peut encore ajouter la famille d'une livraison ignorée. */
+    options: string;
+    /** Résoudre avec une suite à donner à la famille (livraison ignorée / retrait QG non livré). */
+    resoudreSuite: string;
+}
+
+/** Réponse de IncidentsController::options(). */
+export interface OptionsIncident {
+    tournees: { id: number; libelle: string }[];
 }

@@ -38,8 +38,8 @@
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
-import { useToast } from "@amana/shared-ui";
-import { apiGet, apiPost, buildQuery } from "../shared/api";
+import { useConfirm, usePrompt, useToast } from "@amana/shared-ui";
+import { apiDelete, apiGet, apiPost, buildQuery } from "../shared/api";
 import PaginationControls from "../shared/PaginationControls.vue";
 import PersonSelect from "../shared/PersonSelect.vue";
 import FamilleFilterPanel from "../shared/FamilleFilterPanel.vue";
@@ -70,6 +70,8 @@ declare global {
 }
 
 const toast = useToast();
+const confirmDialog = useConfirm();
+const promptDialog = usePrompt();
 
 const props = defineProps<{
     campagnes: Campagne[];
@@ -91,6 +93,11 @@ const props = defineProps<{
     // chauffeur s'engage à livrer cette famille (livraison imposée), voir
     // ContactTrackingController::prendreEnCharge().
     priseEnChargeUrlTemplate: string;
+    // retirerUrlTemplate / reinitialiserUrlTemplate (09/10/2026) : retirer une famille
+    // ajoutée par erreur (DELETE) et remettre à « à contacter » une famille confirmée
+    // par erreur — voir ContactTrackingController::retirer()/reinitialiser().
+    retirerUrlTemplate: string;
+    reinitialiserUrlTemplate: string;
 }>();
 
 const campagnes = ref<Campagne[]>(props.campagnes);
@@ -105,6 +112,8 @@ const assignerLotUrl = props.assignerLotUrl;
 const contacterManuelUrlTemplate = props.contacterManuelUrlTemplate;
 const seDeplaceUrlTemplate = props.seDeplaceUrlTemplate;
 const priseEnChargeUrlTemplate = props.priseEnChargeUrlTemplate;
+const retirerUrlTemplate = props.retirerUrlTemplate;
+const reinitialiserUrlTemplate = props.reinitialiserUrlTemplate;
 
 const LIBELLES_STATUT_CONTACT: Record<StatutContactPostable, string> = {
     injoignable: "Injoignable",
@@ -124,6 +133,12 @@ function urlSeDeplace(id: number): string {
 }
 function urlPriseEnCharge(id: number): string {
     return priseEnChargeUrlTemplate.replace("__ID__", String(id));
+}
+function urlRetirer(id: number): string {
+    return retirerUrlTemplate.replace("__ID__", String(id));
+}
+function urlReinitialiser(id: number): string {
+    return reinitialiserUrlTemplate.replace("__ID__", String(id));
 }
 
 function formatDateFr(iso: string): string {
@@ -416,17 +431,115 @@ function confirmationIncomplete(id: number): string[] {
 }
 
 async function marquerStatutSimple(livraison: Livraison, statut: "injoignable" | "rejetee" | "archive") {
+    // Rejeter/archiver exige un MOTIF (09/10/2026) : la popup ne valide rien tant que le motif
+    // n'est pas saisi et confirmé — annuler (null) n'envoie aucune requête. Le serveur applique
+    // la même règle (ContactTrackingController::contacterManuel()).
+    let motif: string | undefined;
+    if (statut === "rejetee" || statut === "archive") {
+        const nom = `${livraison.famille.prenom} ${livraison.famille.nom}`;
+        const saisi = await promptDialog.ask({
+            title: statut === "archive" ? "Archiver cette famille" : "Rejeter cette famille",
+            message: `${nom} (#${livraison.famille.id}) — indiquez le motif. Le statut n'est appliqué qu'une fois le motif confirmé.`,
+            label: "Motif (obligatoire)",
+            placeholder:
+                statut === "archive" ? "Pourquoi archiver cette famille ?" : "Pourquoi rejeter cette famille ?",
+            confirmLabel: statut === "archive" ? "Archiver" : "Rejeter",
+            required: true,
+            maxLength: 1000,
+        });
+        if (saisi === null) return;
+        motif = saisi;
+    }
+
     statutSimpleEnCours[livraison.id] = true;
-    const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), { statut_contact: statut });
+    const resultat = await apiPost<{ success: boolean }>(urlContacterManuel(livraison.id), {
+        statut_contact: statut,
+        motif,
+    });
     statutSimpleEnCours[livraison.id] = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.errors.motif?.[0] ?? resultat.message);
+        return;
+    }
+
+    toast.success("Statut mis à jour.");
+    chargerFile(meta.value?.current_page ?? 1);
+}
+
+/**
+ * Retirer une famille ajoutée par erreur à la campagne (09/10/2026) — supprime sa
+ * livraison. Le serveur refuse (message affiché tel quel) si la famille est livrée, dans
+ * une tournée chargée/en cours ou si son conditionnement a commencé.
+ */
+const retraitEnCours = reactive<Record<number, boolean>>({});
+
+async function retirerDeLaCampagne(livraison: Livraison) {
+    const nom = `${livraison.famille.prenom} ${livraison.famille.nom}`;
+    const confirme = await confirmDialog.ask({
+        title: "Retirer de la campagne ?",
+        message: `${nom} (#${livraison.famille.id}) sera retirée de cette campagne : sa livraison, ses créneaux et sa place dans une tournée sont supprimés. Vous pourrez la rajouter depuis la sélection des familles.`,
+        confirmLabel: "Retirer",
+        danger: true,
+    });
+    if (!confirme) return;
+
+    retraitEnCours[livraison.id] = true;
+    const resultat = await apiDelete<{ success: boolean }>(urlRetirer(livraison.id));
+    retraitEnCours[livraison.id] = false;
 
     if (!resultat.ok) {
         toast.error(resultat.message);
         return;
     }
 
-    toast.success("Statut mis à jour.");
+    ouvertes.delete(livraison.id);
+    toast.success("Famille retirée de la campagne.");
     chargerFile(meta.value?.current_page ?? 1);
+}
+
+/**
+ * Famille confirmée par erreur (09/10/2026) : retour à « à contacter » — créneaux,
+ * « se déplace », chauffeur imposé et place dans une tournée non chargée sont effacés.
+ */
+const reinitialisationEnCours = reactive<Record<number, boolean>>({});
+
+async function reinitialiserConfirmation(livraison: Livraison) {
+    const nom = `${livraison.famille.prenom} ${livraison.famille.nom}`;
+    const confirme = await confirmDialog.ask({
+        title: "Réinitialiser la confirmation ?",
+        message: `${nom} (#${livraison.famille.id}) repasse à « À contacter » : ses créneaux, son choix « se déplace au QG », son chauffeur imposé et sa place dans une tournée seront effacés.`,
+        confirmLabel: "Réinitialiser",
+        danger: true,
+    });
+    if (!confirme) return;
+
+    reinitialisationEnCours[livraison.id] = true;
+    const resultat = await apiPost<{ success: boolean }>(urlReinitialiser(livraison.id));
+    reinitialisationEnCours[livraison.id] = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    // Le formulaire de confirmation déjà rempli ne doit pas ressurgir tel quel.
+    delete seDeplaceFormulaire[livraison.id];
+    const f = formulaire(livraison.id);
+    f.ouvert = false;
+    f.creneaux = [];
+    toast.success("Confirmation réinitialisée.");
+    chargerFile(meta.value?.current_page ?? 1);
+}
+
+/** Un motif n'existe que pour un rejet ou un archivage (statuts absents du type StatutContact, lignes déjà en base). */
+function motifApplicable(livraison: Livraison): boolean {
+    return ["archive", "rejetee"].includes(livraison.statut_contact);
+}
+
+/** Le conditionnement entamé bloque « Retirer » et « Réinitialiser » (voir le serveur). */
+function conditionnementEntame(livraison: Livraison): boolean {
+    return livraison.statut_conditionnement === "en_cours" || livraison.statut_conditionnement === "prete";
 }
 
 /**
@@ -643,6 +756,12 @@ onMounted(() => {
             </div>
 
             <!--
+                09/10/2026 : plus d'`overflow-hidden` sur la carte — il coupait la liste déroulante
+                du sélecteur de chauffeur (PersonSelect) au bord de la ligne. Le corps déplié est
+                organisé en blocs : Coordonnées / Suivi, puis « Livraison » (se déplace + chauffeur
+                imposé, familles confirmées), puis Actions.
+            -->
+            <!--
                 Ligne repliable (01/10/2026, prompt de cette date §2) : l'en-tête
                 reste toujours visible (case, #id, nom, pastille assigné,
                 pastille se_deplace, téléphone, statut en haut à droite) ; le
@@ -653,11 +772,11 @@ onMounted(() => {
             <div
                 v-for="livraison in file"
                 :key="livraison.id"
-                class="bg-surface border border-surface-border rounded-xl shadow-sm overflow-hidden"
+                class="bg-surface border border-surface-border rounded-xl shadow-sm"
                 :class="selection.has(livraison.id) ? 'ring-2 ring-accent/40' : ''"
             >
                 <div
-                    class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-2/60 transition-colors"
+                    class="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface-2/60 transition-colors rounded-t-xl"
                     role="button"
                     tabindex="0"
                     :aria-expanded="ligneOuverte(livraison.id)"
@@ -760,51 +879,76 @@ onMounted(() => {
                         </div>
                     </div>
 
-                    <!-- Toggle se_deplace (25/09/2026) — correction a posteriori
-                         (mettreAJourSeDeplace()), distincte des radios du formulaire
-                         de confirmation (le choix initial). Seulement une fois
-                         confirmé : avant, se_deplace vaut toujours false. -->
-                    <button
-                        v-if="livraison.statut_contact === 'confirme'"
-                        type="button"
-                        :disabled="seDeplaceEnCours[livraison.id]"
-                        @click="basculerSeDeplace(livraison)"
-                        class="inline-flex items-center gap-1.5 text-[12.5px] font-medium px-2.5 py-1 rounded-full disabled:opacity-60"
-                        :class="livraison.se_deplace ? 'bg-amber-100 text-amber-700' : 'bg-stone-100 text-ink-muted'"
+                    <!-- Motif saisi lors d'un archivage / rejet (09/10/2026). -->
+                    <p
+                        v-if="livraison.motif_statut_contact && motifApplicable(livraison)"
+                        class="text-[12.5px] text-ink bg-stone-50 rounded-lg px-3 py-2"
                     >
-                        🚶 Se déplace : {{ livraison.se_deplace ? "Oui" : "Non" }} · changer
-                    </button>
+                        <span class="text-[10px] font-bold text-ink-muted uppercase tracking-wide mr-1.5">Motif</span>
+                        {{ livraison.motif_statut_contact }}
+                    </p>
 
-                    <!-- « Prendre en charge » (06/10/2026) : un chauffeur s'engage à
-                         livrer cette famille (livraison imposée). Seulement une
-                         fois confirmée ; impossible pour une famille qui se
-                         déplace au QG (le serveur refuse aussi). -->
+                    <!-- Bloc « Livraison » : correction a posteriori de se_deplace (25/09/2026,
+                         mettreAJourSeDeplace()) + « Prendre en charge » (06/10/2026 : un chauffeur
+                         s'engage à livrer cette famille, livraison imposée). Seulement une fois
+                         confirmée ; pas de prise en charge pour une famille qui se déplace au QG
+                         (le serveur refuse aussi). Le sélecteur ne propose que les chauffeurs
+                         CONFIRMÉS pour la journée de la famille (09/10/2026). -->
                     <div
                         v-if="livraison.statut_contact === 'confirme'"
-                        class="max-w-xs"
-                        :class="
-                            priseEnChargeEnCours[livraison.id] || livraison.se_deplace
-                                ? 'pointer-events-none opacity-60'
-                                : ''
-                        "
+                        class="bg-stone-50 rounded-lg px-3 py-2.5 space-y-3"
                     >
-                        <label class="block text-[11px] text-ink-muted mb-1">Prise en charge par un chauffeur</label>
-                        <PersonSelect
-                            role="benevole"
-                            avec-vehicule
-                            placeholder="Aucun — choisir un chauffeur…"
-                            :model-value="livraison.benevole_impose ?? null"
-                            @update:model-value="(p) => prendreEnCharge(livraison, p)"
-                        />
-                        <p v-if="livraison.se_deplace" class="text-[11px] text-ink-muted mt-1">
-                            Cette famille vient au QG : pas de prise en charge possible.
-                        </p>
+                        <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wide">Livraison</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                            <div>
+                                <label class="block text-[11px] text-ink-muted mb-1">Retrait au QG</label>
+                                <button
+                                    type="button"
+                                    :disabled="seDeplaceEnCours[livraison.id]"
+                                    @click="basculerSeDeplace(livraison)"
+                                    class="inline-flex items-center gap-1.5 text-[12.5px] font-medium px-2.5 py-1.5 rounded-full disabled:opacity-60"
+                                    :class="
+                                        livraison.se_deplace
+                                            ? 'bg-amber-100 text-amber-700'
+                                            : 'bg-white text-ink-muted border border-surface-border'
+                                    "
+                                >
+                                    🚶 Se déplace : {{ livraison.se_deplace ? "Oui" : "Non" }} · changer
+                                </button>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] text-ink-muted mb-1"
+                                    >Prise en charge par un chauffeur</label
+                                >
+                                <div
+                                    :class="
+                                        priseEnChargeEnCours[livraison.id] || livraison.se_deplace
+                                            ? 'pointer-events-none opacity-60'
+                                            : ''
+                                    "
+                                >
+                                    <PersonSelect
+                                        role="benevole"
+                                        avec-vehicule
+                                        :id-campagne-journee="livraison.id_campagne_journee ?? null"
+                                        :id-campagne="livraison.id_campagne"
+                                        placeholder="Aucun — choisir un chauffeur…"
+                                        :model-value="livraison.benevole_impose ?? null"
+                                        @update:model-value="(p) => prendreEnCharge(livraison, p)"
+                                    />
+                                </div>
+                                <p v-if="livraison.se_deplace" class="text-[11px] text-ink-muted mt-1">
+                                    Cette famille vient au QG : pas de prise en charge possible.
+                                </p>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Actions de statut : injoignable/rejetée/archivée n'ont
-                         besoin d'aucun champ (un clic, voir marquerStatutSimple()) —
-                         seule la confirmation ouvre un formulaire. -->
-                    <div class="flex flex-wrap gap-2">
+                    <!-- Actions de statut : injoignable/rejetée/archivée — un clic, avec un motif
+                         obligatoire pour les deux dernières (marquerStatutSimple()). Seule la
+                         confirmation ouvre un formulaire. « Réinitialiser » (famille confirmée par
+                         erreur) et « Retirer » (famille ajoutée par erreur) sont à part, à droite. -->
+                    <div class="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
                             @click="basculerOuverture(livraison.id)"
@@ -835,6 +979,36 @@ onMounted(() => {
                             class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-stone-500 text-white hover:opacity-90 disabled:opacity-60"
                         >
                             Archivée
+                        </button>
+
+                        <span class="hidden sm:block flex-1" aria-hidden="true"></span>
+
+                        <button
+                            v-if="livraison.statut_contact === 'confirme'"
+                            type="button"
+                            :disabled="reinitialisationEnCours[livraison.id] || conditionnementEntame(livraison)"
+                            :title="
+                                conditionnementEntame(livraison)
+                                    ? 'Le conditionnement a commencé : annulez-le d\'abord dans Packaging.'
+                                    : 'Remettre cette famille à « À contacter »'
+                            "
+                            @click="reinitialiserConfirmation(livraison)"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            ↺ Réinitialiser
+                        </button>
+                        <button
+                            type="button"
+                            :disabled="retraitEnCours[livraison.id] || conditionnementEntame(livraison)"
+                            :title="
+                                conditionnementEntame(livraison)
+                                    ? 'Le conditionnement a commencé : annulez-le d\'abord dans Packaging.'
+                                    : 'Retirer cette famille de la campagne'
+                            "
+                            @click="retirerDeLaCampagne(livraison)"
+                            class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            🗑 Retirer de la campagne
                         </button>
                     </div>
 

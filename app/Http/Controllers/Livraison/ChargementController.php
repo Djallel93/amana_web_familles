@@ -173,7 +173,8 @@ class ChargementController extends Controller
     {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)
             ->whereIn('statut', ['planifiee', 'chargement', 'charge', 'packaging_annule'])
-            ->with(['benevole', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux'])
+            // vehiculeType + colis (09/10/2026) : type de véhicule et nombre de colis à charger de la carte.
+            ->with(['benevole', 'vehiculeType', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux', 'etapes.livraison.colis'])
             ->get()
             // Une tournée vidée de tous ses arrêts n'a rien à charger.
             ->filter(fn(RouteLivraison $route) => $route->etapes->isNotEmpty())

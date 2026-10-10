@@ -50,6 +50,22 @@
         </div>
     </div>
 
+    {{--
+        Chauffeur et chargement (09/10/2026) : type de véhicule, contact du chauffeur (le joindre
+        s'il tarde) et nombre de colis à charger dans le véhicule — total des colis des familles
+        de la tournée (un colis par personne du foyer, voir livraison_colis).
+    --}}
+    @php($colisAcharger = $route->etapes->sum(fn($e) => $e->livraison?->colis->count() ?? 0))
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink mb-3">
+        <span>🚗 {{ $route->vehiculeType->type ?? 'Véhicule non renseigné' }}</span>
+        @if($route->benevole?->telephone)
+            <a href="tel:{{ $route->benevole->telephone }}" class="text-accent underline">📞 {{ $route->benevole->telephone }}</a>
+        @else
+            <span class="text-ink-muted">📞 téléphone non renseigné</span>
+        @endif
+        <span class="font-medium">📦 {{ $colisAcharger }} {{ $route->etat === 'chargee' ? 'colis chargés' : 'colis à charger' }}</span>
+    </div>
+
     {{-- « Famille #{id} » comme Packaging (06/10/2026) : plus de nom complet,
          et une pastille de conditionnement par famille. --}}
     <ul class="text-[12px] text-ink-muted space-y-1 mb-3">

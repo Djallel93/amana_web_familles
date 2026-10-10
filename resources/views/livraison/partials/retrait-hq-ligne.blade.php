@@ -31,13 +31,15 @@
                     'delivre' => 'bg-emerald-100 text-emerald-700',
                     'non_delivre' => 'bg-rose-100 text-rose-700',
                     'prete' => 'bg-accent/10 text-accent',
+                    'en_preparation' => 'bg-amber-100 text-amber-700',
                     default => 'bg-stone-100 text-ink-muted',
                 } }}">
                 {{ match($livraison->statutRetraitHqAffiche) {
                     'delivre' => 'Livré',
                     'non_delivre' => 'Non livré',
                     'prete' => 'Prête',
-                    default => 'En préparation',
+                    'en_preparation' => 'En préparation',
+                    default => 'Restante',
                 } }}
             </span>
         </div>
@@ -55,10 +57,16 @@
         (pas juste désactivés) le reste du temps, même principe que
         chargement-route.blade.php pour 'chargement'.
     --}}
-    <div class="flex gap-2" @if($livraison->statutRetraitHqAffiche !== 'prete') style="display:none" @endif>
+    <div class="flex gap-2 actions-prete" @if($livraison->statutRetraitHqAffiche !== 'prete') style="display:none" @endif>
         <button type="button" onclick="marquerLivre({{ $livraison->id }})"
             class="text-[12px] px-3 py-1.5 rounded-lg bg-accent text-white">Livré</button>
         <button type="button" onclick="marquerNonLivre({{ $livraison->id }})"
             class="text-[12px] px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600">Non livré (absent)</button>
+    </div>
+
+    {{-- « Non livré » marqué par erreur (09/10/2026) : retour à « Prête » (l'incident ouvert est résolu avec). --}}
+    <div class="flex gap-2 actions-non-livre" @if($livraison->statutRetraitHqAffiche !== 'non_delivre') style="display:none" @endif>
+        <button type="button" onclick="annulerNonLivre({{ $livraison->id }})"
+            class="text-[12px] px-3 py-1.5 rounded-lg border border-accent text-accent">Annuler « Non livré »</button>
     </div>
 </div>

@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Admin\Livraison;
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Models\PersonneDesactivee;
+use App\Services\ChauffeursConfirmesService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -37,6 +38,8 @@ use Illuminate\Http\Request;
  */
 class PickersController extends Controller
 {
+    public function __construct(private readonly ChauffeursConfirmesService $chauffeursConfirmes) {}
+
     /**
      * Recherche de personnes par nom/prénom, filtrable par rôle minimum
      * (`role=benevole` pour le picker chauffeur du tableau de bord,
@@ -72,8 +75,23 @@ class PickersController extends Controller
         // ci-dessous) : appliquée avant le limit(50), pour ne pas risquer
         // de tronquer la liste avec des résultats qui seraient de toute
         // façon exclus ensuite.
-        if ($request->boolean('avec_vehicule')) {
+        // Ignoré quand la liste est restreinte aux chauffeurs d'une journée (voir plus
+        // bas, 09/10/2026) : le véhicule effectif y est celui de la journée, qui peut
+        // différer — ou exister sans véhicule au profil.
+        if ($request->boolean('avec_vehicule') && !$request->filled('id_campagne_journee') && !$request->filled('id_campagne')) {
             $query->whereHas('benevoleProfil', fn($q) => $q->whereNotNull('id_vehicule_type'));
+        }
+
+        // id_campagne_journee / id_campagne (09/10/2026) : « Prise en charge par un
+        // chauffeur » — seuls les bénévoles CONFIRMÉS pour cette journée sont proposés
+        // (voir ChauffeursConfirmesService), avec le véhicule déclaré pour la journée.
+        $chauffeursJournee = null;
+        if ($request->filled('id_campagne_journee') || $request->filled('id_campagne')) {
+            $chauffeursJournee = $this->chauffeursConfirmes->pourJournee(
+                $request->filled('id_campagne_journee') ? $request->integer('id_campagne_journee') : null,
+                $request->filled('id_campagne') ? $request->integer('id_campagne') : null,
+            );
+            $query->whereIn('id', array_keys($chauffeursJournee));
         }
 
         // hasAtLeastRole() n'est pas une contrainte SQL (logique de cascade
@@ -109,13 +127,18 @@ class PickersController extends Controller
         // profil du bénévole sélectionné — exposé ici directement plutôt
         // qu'un aller-retour supplémentaire.
         return response()->json(
-            ($toutes ? $personnes : $personnes->take(20))->map(fn(Personne $p) => [
-                'id' => $p->id,
-                'nom' => $p->nom,
-                'prenom' => $p->prenom,
-                'id_vehicule_type' => $p->benevoleProfil?->id_vehicule_type,
-                'vehicule_type' => $p->benevoleProfil?->vehiculeType?->type,
-            ]),
+            ($toutes ? $personnes : $personnes->take(20))->map(function (Personne $p) use ($chauffeursJournee) {
+                // Véhicule de la journée quand la liste est restreinte aux chauffeurs confirmés.
+                $vehicule = $chauffeursJournee[$p->id] ?? null;
+
+                return [
+                    'id' => $p->id,
+                    'nom' => $p->nom,
+                    'prenom' => $p->prenom,
+                    'id_vehicule_type' => $vehicule->id ?? $p->benevoleProfil?->id_vehicule_type,
+                    'vehicule_type' => $vehicule->type ?? $p->benevoleProfil?->vehiculeType?->type,
+                ];
+            }),
         );
     }
 }

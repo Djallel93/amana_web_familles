@@ -173,6 +173,17 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
             }
           : { badge: demarree.value ? "Routes à générer" : null, ton: "neutre" as Ton };
 
+    // Carte « Retrait QG » (09/10/2026) : « X/Y retirés » comme « X/Y tournées terminées »
+    // de Suivi livraison ; rien à afficher quand aucune famille ne se déplace.
+    const retrait = !a.value
+        ? { badge: null, ton: "neutre" as Ton }
+        : a.value.compteurs.retraits_total === 0
+          ? { badge: demarree.value ? "Aucun retrait" : null, ton: "neutre" as Ton }
+          : {
+                badge: `${a.value.compteurs.retraits_delivres}/${a.value.compteurs.retraits_total} retirés`,
+                ton: (a.value.compteurs.retraits_delivres >= a.value.compteurs.retraits_total ? "ok" : "cours") as Ton,
+            };
+
     return [
         {
             titre: "Avant la campagne",
@@ -300,8 +311,7 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                     href: u.retraitHq,
                     desactivee: !demarree.value,
                     description: "Accueillir les familles qui se déplacent au QG.",
-                    badge: null,
-                    ton: "neutre",
+                    ...retrait,
                 },
             ],
         },

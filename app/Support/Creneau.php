@@ -95,6 +95,38 @@ final class Creneau
         };
     }
 
+    /**
+     * Créneaux encore pertinents pour générer des routes un jour donné
+     * (09/10/2026, mode automatique de l'assistant) : le créneau EN COURS et
+     * ceux à venir, jamais un créneau déjà terminé.
+     *   - journée passée → aucun ; journée future → tous ;
+     *   - aujourd'hui → les créneaux qui finissent après l'heure actuelle
+     *     (avant 8h tous, à partir de 19h aucun).
+     * Comparaison à l'heure de l'application (APP_TIMEZONE), comme actuel().
+     *
+     * @return list<string>
+     */
+    public static function restantsPour(\DateTimeInterface|string $date, ?\DateTimeInterface $maintenant = null): array
+    {
+        $maintenant ??= now();
+        $jour = $date instanceof \DateTimeInterface ? $date->format('Y-m-d') : substr($date, 0, 10);
+        $aujourdhui = $maintenant->format('Y-m-d');
+
+        if ($jour < $aujourdhui) {
+            return [];
+        }
+        if ($jour > $aujourdhui) {
+            return self::TOUS;
+        }
+
+        $heure = (int) $maintenant->format('H');
+
+        return array_values(array_filter(
+            self::TOUS,
+            fn(string $creneau) => (int) explode('-', $creneau)[1] > $heure,
+        ));
+    }
+
     public static function libelle(string $creneau): string
     {
         return self::LIBELLES[$creneau] ?? $creneau;

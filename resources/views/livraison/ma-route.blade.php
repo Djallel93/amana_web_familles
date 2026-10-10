@@ -51,6 +51,9 @@
                 $vue = $vues[$route->id];
                 $stats = $vue['stats'];
                 $signatures[$route->id] = $vue['signature'];
+                // 09/10/2026 : tant que la tournée n'a pas démarré, seul le bouton « Je commence ma
+                // tournée » (et son explication) est affiché — ni lien Maps, ni stats, ni arrêts.
+                $avantDemarrage = in_array($route->statut, ['planifiee', 'chargement', 'charge', 'packaging_annule'], true);
             @endphp
             <div class="bg-surface border border-surface-border rounded-xl p-5 mb-5">
                 <p class="text-[13px] font-medium text-ink mb-3">
@@ -58,17 +61,22 @@
                 </p>
 
                 {{-- Démarrage : actif uniquement quand le chargement est terminé (statut 'charge'). --}}
-                @if(in_array($route->statut, ['planifiee', 'chargement', 'charge', 'packaging_annule'], true))
+                @if($avantDemarrage)
+                    <p class="text-[14px] text-ink text-center mb-3" id="texte-demarrer-{{ $route->id }}">
+                        @if($route->statut === 'charge')
+                            Le chargement est terminé : <strong>cliquez ici pour démarrer votre tournée</strong>.
+                        @else
+                            Disponible une fois le chargement terminé.
+                        @endif
+                    </p>
                     <button type="button" id="btn-demarrer-{{ $route->id }}" onclick="demarrerTournee({{ $route->id }})"
                         {{ $route->statut === 'charge' ? '' : 'disabled' }}
                         class="w-full text-[16px] font-semibold px-4 py-4 rounded-xl bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed">
                         Je commence ma tournée
                     </button>
-                    @if($route->statut !== 'charge')
-                        <p class="text-[12px] text-ink-muted mt-2 text-center">Disponible une fois le chargement terminé.</p>
-                    @endif
                 @endif
 
+                @unless($avantDemarrage)
                 @if($vue['lien_maps'])
                     <a href="{{ $vue['lien_maps'] }}" target="_blank" rel="noopener"
                         class="mt-3 flex items-center justify-center gap-2 text-[13px] font-medium text-accent border border-accent rounded-lg px-3 py-2">
@@ -144,7 +152,11 @@
                                             class="text-[12px] px-3 py-1.5 rounded-lg border border-surface-border text-ink-muted">Ignorer</button>
                                     @elseif($etape['statut'] === 'ignoree' && in_array($route->statut, ['en_cours', 'livraisons_terminees'], true))
                                         <button type="button" onclick="remettreEnCours({{ $etape['id'] }})"
-                                            class="text-[12px] px-3 py-1.5 rounded-lg border border-accent text-accent">Remettre en cours</button>
+                                            class="text-[12px] px-3 py-1.5 rounded-lg border border-accent text-accent">Annuler « ignorée »</button>
+                                    @elseif($etape['statut'] === 'livree' && in_array($route->statut, ['en_cours', 'livraisons_terminees'], true))
+                                        {{-- 09/10/2026 : « Livrée » cliqué par erreur — remet l'arrêt en cours. --}}
+                                        <button type="button" onclick="annulerLivraison({{ $etape['id'] }})"
+                                            class="text-[12px] px-3 py-1.5 rounded-lg border border-accent text-accent">Annuler « livrée »</button>
                                     @endif
                                 </div>
                             </div>
@@ -168,6 +180,7 @@
                         </button>
                     </div>
                 @endif
+                @endunless
             </div>
         @empty
             <p class="text-[14px] text-ink-muted">Aucune tournée active pour le moment.</p>
@@ -243,6 +256,26 @@
 
         async function remettreEnCours(id) {
             const resultat = await poster(`/livraison/benevole/etapes/${id}/remettre-en-cours`);
+            if (resultat) window.location.reload();
+        }
+
+        // « Livrée » cliqué par erreur (09/10/2026) : confirmation puis retour de l'arrêt à « en cours ».
+        async function annulerLivraison(id) {
+            dialogueOuvert = true;
+            let confirme;
+            try {
+                confirme = await window.amanaConfirm({
+                    title: 'Annuler la livraison ?',
+                    message: 'Cet arrêt n\'est plus marqué « livré » : il repasse « en cours ».',
+                    confirmLabel: 'Annuler la livraison',
+                    cancelLabel: 'Garder « livrée »',
+                });
+            } finally {
+                dialogueOuvert = false;
+            }
+            if (!confirme) return;
+
+            const resultat = await poster(`/livraison/benevole/etapes/${id}/annuler-livraison`);
             if (resultat) window.location.reload();
         }
 

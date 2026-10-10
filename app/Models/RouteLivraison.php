@@ -164,7 +164,9 @@ class RouteLivraison extends Model
     /**
      * Remet un arrêt ignoré à 'en_cours' (famille finalement disponible) :
      * clôt l'incident 'livraison_ignoree' ouvert et rouvre la tournée si
-     * elle était déjà marquée 'livraisons_terminees'.
+     * elle était déjà marquée 'livraisons_terminees'. Sert aussi à annuler un
+     * « Livré » cliqué par erreur (09/10/2026, MaRouteController::annulerLivraison()) :
+     * dans ce cas aucun incident n'est ouvert, la clause ne touche rien.
      */
     public function rouvrirEtape(EtapeRoute $etape): void
     {

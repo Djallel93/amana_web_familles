@@ -71,6 +71,19 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
         ], $surcharge));
     }
 
+    /** Disponibilité confirmée du chauffeur pour la journée de la campagne (obligatoire pour « Prendre en charge », 09/10/2026). */
+    private function confirmerChauffeur(int $idPersonne, array $attributs = []): BenevoleDisponibilite
+    {
+        $dispo = BenevoleDisponibilite::create(array_merge([
+            'id_personne' => $idPersonne,
+            'id_campagne_journee' => $this->journee->id,
+            'statut' => 'confirme',
+        ], $attributs));
+        $dispo->creneaux()->create(['creneau' => '08-10']);
+
+        return $dispo;
+    }
+
     // ── Suivi des contacts : confirmation ────────────────────────────────
 
     public function test_la_confirmation_est_refusee_sans_se_deplace(): void
@@ -132,6 +145,56 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
             ->assertOk();
 
         $this->assertSame('injoignable', $livraison->fresh()->statut_contact);
+        $this->assertNull($livraison->fresh()->motif_statut_contact);
+    }
+
+    // ── Motif obligatoire pour archiver / rejeter (09/10/2026) ───────────
+
+    public function test_archiver_ou_rejeter_exige_un_motif(): void
+    {
+        $gestionnaire = $this->gestionnaire();
+
+        foreach (['archive', 'rejetee'] as $statut) {
+            $livraison = $this->livraison();
+
+            $this->actingAs($gestionnaire)
+                ->postJson(route('livraison.contacts.contacter-manuel', $livraison), ['statut_contact' => $statut])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['motif']);
+
+            $this->postJson(route('livraison.contacts.contacter-manuel', $livraison), ['statut_contact' => $statut, 'motif' => '   '])
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['motif']);
+
+            $this->assertSame('a_contacter', $livraison->fresh()->statut_contact);
+        }
+    }
+
+    public function test_le_motif_est_enregistre_avec_larchivage_ou_le_rejet(): void
+    {
+        $archivee = $this->livraison();
+        $rejetee = $this->livraison();
+        $gestionnaire = $this->gestionnaire();
+
+        $this->actingAs($gestionnaire)
+            ->postJson(route('livraison.contacts.contacter-manuel', $archivee), ['statut_contact' => 'archive', 'motif' => '  Déménagé hors zone  '])
+            ->assertOk();
+        $this->postJson(route('livraison.contacts.contacter-manuel', $rejetee), ['statut_contact' => 'rejetee', 'motif' => 'Ne répond plus aux critères'])
+            ->assertOk();
+
+        $this->assertSame('archive', $archivee->fresh()->statut_contact);
+        $this->assertSame('Déménagé hors zone', $archivee->fresh()->motif_statut_contact);
+        $this->assertSame('Ne répond plus aux critères', $rejetee->fresh()->motif_statut_contact);
+    }
+
+    public function test_la_file_de_contacts_expose_le_motif(): void
+    {
+        $this->livraison(['statut_contact' => 'archive', 'motif_statut_contact' => 'Doublon']);
+
+        $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.contacts.queue', ['id_campagne' => $this->campagne->id]))
+            ->assertOk()
+            ->assertJsonPath('data.0.motif_statut_contact', 'Doublon');
     }
 
     public function test_confirmer_une_famille_imposee_apres_le_demarrage_lajoute_a_la_tournee_du_chauffeur(): void
@@ -204,6 +267,7 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
     public function test_prendre_en_charge_impose_la_famille_et_cree_la_tournee(): void
     {
         $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($chauffeur->id);
         $livraison = $this->livraison(['statut_contact' => 'confirme']);
 
         $this->actingAs($this->gestionnaire())
@@ -219,6 +283,7 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
     public function test_prendre_en_charge_renvoie_le_message_de_refus_quand_la_famille_se_deplace(): void
     {
         $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($chauffeur->id);
         $livraison = $this->livraison(['statut_contact' => 'confirme', 'se_deplace' => true]);
 
         $this->actingAs($this->gestionnaire())
@@ -233,6 +298,7 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
     public function test_un_id_benevole_vide_retire_limposition(): void
     {
         $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($chauffeur->id);
         $livraison = $this->livraison(['statut_contact' => 'confirme']);
         $gestionnaire = $this->gestionnaire();
 
@@ -266,5 +332,125 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.id_benevole_impose', $chauffeur->id)
             ->assertJsonPath('data.0.benevole_impose.id', $chauffeur->id);
+    }
+    // ── Chauffeurs confirmés uniquement (09/10/2026) ─────────────────────
+
+    public function test_prendre_en_charge_est_refuse_pour_un_benevole_non_confirme_sur_la_journee(): void
+    {
+        $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($chauffeur->id, ['statut' => 'non_confirme']);
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.prise-en-charge', $livraison), ['id_benevole' => $chauffeur->id])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertNull($livraison->fresh()->id_benevole_impose);
+    }
+
+    public function test_prendre_en_charge_est_refuse_pour_un_benevole_confirme_une_autre_journee(): void
+    {
+        $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $autreJournee = $this->campagne->ajouterJournee('2026-11-11');
+        BenevoleDisponibilite::create(['id_personne' => $chauffeur->id, 'id_campagne_journee' => $autreJournee->id, 'statut' => 'confirme']);
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.prise-en-charge', $livraison), ['id_benevole' => $chauffeur->id])
+            ->assertStatus(422);
+    }
+
+    public function test_le_selecteur_ne_propose_que_les_chauffeurs_confirmes_pour_la_journee(): void
+    {
+        $confirme = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($confirme->id);
+        $nonConfirme = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($nonConfirme->id, ['statut' => 'non_confirme']);
+        $sansDispo = $this->creerBenevole($this->vehicules['voiture']);
+        $sansVehicule = $this->creerBenevole($this->vehicules['non_vehicule']);
+        $this->confirmerChauffeur($sansVehicule->id);
+        // Véhicule déclaré pour la journée : prime sur celui du profil.
+        $utilitaireJour = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($utilitaireJour->id, ['vehicule_confirme' => false, 'id_vehicule_type' => $this->vehicules['utilitaire']]);
+
+        $reponse = $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.personnes.recherche', [
+                'tous' => 1,
+                'role' => 'benevole',
+                'avec_vehicule' => 1,
+                'id_campagne_journee' => $this->journee->id,
+            ]))
+            ->assertOk();
+
+        $ids = collect($reponse->json())->pluck('id')->all();
+        $this->assertEqualsCanonicalizing([$confirme->id, $utilitaireJour->id], $ids);
+        $this->assertNotContains($nonConfirme->id, $ids);
+        $this->assertNotContains($sansDispo->id, $ids);
+        $this->assertNotContains($sansVehicule->id, $ids);
+
+        $parId = collect($reponse->json())->keyBy('id');
+        $this->assertSame($this->vehicules['utilitaire'], $parId[$utilitaireJour->id]['id_vehicule_type']);
+    }
+    // ── Retirer / réinitialiser (09/10/2026) ─────────────────────────────
+
+    public function test_retirer_supprime_la_livraison(): void
+    {
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+
+        $this->actingAs($this->gestionnaire())
+            ->deleteJson(route('livraison.contacts.retirer', $livraison))
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $this->assertDatabaseMissing('livraisons', ['id' => $livraison->id]);
+    }
+
+    public function test_retirer_renvoie_le_message_de_refus_pour_une_famille_livree(): void
+    {
+        $livraison = $this->livraison(['statut_contact' => 'confirme', 'statut' => 'livree']);
+
+        $this->actingAs($this->gestionnaire())
+            ->deleteJson(route('livraison.contacts.retirer', $livraison))
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure(['message']);
+
+        $this->assertDatabaseHas('livraisons', ['id' => $livraison->id]);
+    }
+
+    public function test_reinitialiser_remet_une_famille_confirmee_a_contacter(): void
+    {
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+        $livraison->creneaux()->create(['creneau' => '08-10']);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.reinitialiser', $livraison))
+            ->assertOk()
+            ->assertJsonPath('statut_contact', 'a_contacter');
+
+        $this->assertSame('a_contacter', $livraison->fresh()->statut_contact);
+        $this->assertCount(0, $livraison->fresh()->creneaux);
+    }
+
+    public function test_reinitialiser_est_refuse_pour_une_famille_pas_encore_confirmee(): void
+    {
+        $livraison = $this->livraison(['statut_contact' => 'injoignable']);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.reinitialiser', $livraison))
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_retirer_et_reinitialiser_sont_reserves_aux_gestionnaires(): void
+    {
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+
+        $this->actingAs($this->creerPersonne(['benevole']))
+            ->deleteJson(route('livraison.contacts.retirer', $livraison))
+            ->assertRedirect(); // middleware d'équipe : un non-gestionnaire est renvoyé à l'accueil
+        $this->postJson(route('livraison.contacts.reinitialiser', $livraison))->assertRedirect();
+        $this->assertDatabaseHas('livraisons', ['id' => $livraison->id, 'statut_contact' => 'confirme']);
     }
 }

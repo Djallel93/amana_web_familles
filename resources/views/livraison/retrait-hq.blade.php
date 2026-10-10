@@ -49,7 +49,11 @@
                 <p id="stat-avec-email" class="text-[20px] font-semibold text-sky-700">{{ $stats['avec_email'] }}</p>
             </div>
         </div>
-        <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
+                <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restante(s)</p>
+                <p id="stat-restantes" class="text-[20px] font-semibold text-ink">{{ $stats['restantes'] }}</p>
+            </div>
             <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
                 <p class="text-[11px] text-ink-muted uppercase tracking-wide">En préparation</p>
                 <p id="stat-en-preparation" class="text-[20px] font-semibold text-ink">{{ $stats['en_preparation'] }}</p>
@@ -67,6 +71,7 @@
         <div class="flex gap-2 mb-4 flex-wrap" id="filtre-retrait-hq">
             @foreach([
                 'toutes' => 'Toutes',
+                'restante' => 'Restantes',
                 'en_preparation' => 'En préparation',
                 'prete' => 'Prêtes',
                 'delivre' => 'Livrées',
@@ -131,7 +136,9 @@
             const badge = ligne.querySelector('.statut-retrait-hq');
             badge.textContent = libelle;
             badge.className = `statut-retrait-hq text-[11px] font-medium px-2 py-0.5 rounded-full ${classe}`;
-            ligne.querySelector('.flex.gap-2').style.display = 'none';
+            ligne.querySelector('.actions-prete').style.display = 'none';
+            // « Non livré » : le bouton d'annulation apparaît tout de suite (09/10/2026).
+            ligne.querySelector('.actions-non-livre').style.display = statut === 'non_delivre' ? '' : 'none';
         }
 
         async function marquerLivre(id) {
@@ -147,6 +154,16 @@
                 const r = await poster(`/livraison/retrait-hq/livraisons/${id}/non-livre`);
                 if (!r.success) { if (r.message) window.amanaToast(r.message, 'error'); return; }
                 appliquerStatutLocal(id, 'non_delivre', 'Non livré', 'bg-rose-100 text-rose-700');
+            });
+        }
+
+        // « Non livré » marqué par erreur (09/10/2026) : la famille redevient « Prête » ; on
+        // recharge la page pour retrouver ses boutons et des cartes de stats à jour.
+        async function annulerNonLivre(id) {
+            await occuper(id, async () => {
+                const r = await poster(`/livraison/retrait-hq/livraisons/${id}/annuler-non-livre`);
+                if (!r.success) { if (r.message) window.amanaToast(r.message, 'error'); return; }
+                window.location.reload();
             });
         }
 
@@ -235,6 +252,7 @@
             document.getElementById('stat-total').textContent = donnees.stats.total;
             document.getElementById('stat-delivrees').textContent = donnees.stats.delivrees;
             document.getElementById('stat-avec-email').textContent = donnees.stats.avec_email;
+            document.getElementById('stat-restantes').textContent = donnees.stats.restantes;
             document.getElementById('stat-en-preparation').textContent = donnees.stats.en_preparation;
             document.getElementById('stat-pretes').textContent = donnees.stats.pretes;
             document.getElementById('stat-non-delivrees').textContent = donnees.stats.non_delivrees;

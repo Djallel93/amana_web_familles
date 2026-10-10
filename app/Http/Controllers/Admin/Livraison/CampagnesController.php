@@ -226,6 +226,9 @@ class CampagnesController extends Controller
                 'liste' => route('livraison.campagnes.incidents-liste', $campagne),
                 'resoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
                 'ignorer' => route('livraison.incidents.ignorer', ['incident' => '__ID__']),
+                'rouvrir' => route('livraison.incidents.rouvrir', ['incident' => '__ID__']),
+                'options' => route('livraison.incidents.options', ['incident' => '__ID__']),
+                'resoudreSuite' => route('livraison.incidents.resoudre-suite', ['incident' => '__ID__']),
             ],
             'clotureUrl' => route('livraison.campagnes.cloture', $campagne),
             'terminerUrl' => route('livraison.campagnes.terminer', $campagne),
@@ -768,13 +771,18 @@ class CampagnesController extends Controller
     public function avancement(Campagne $campagne, CampagneDemarrageService $demarrage): JsonResponse
     {
         $livraisons = Livraison::where('id_campagne', $campagne->id)
-            ->select('statut_contact', 'statut_conditionnement')
+            ->select('statut_contact', 'statut_conditionnement', 'se_deplace', 'statut_retrait_hq')
             ->get();
 
         $livraisonsTotal = $livraisons->count();
         $livraisonsAConfirmer = $livraisons->whereIn('statut_contact', ['a_contacter', 'contacte'])->count();
         $livraisonsConfirmees = $livraisons->where('statut_contact', 'confirme')->count();
         $livraisonsPretes = $livraisons->where('statut_conditionnement', 'prete')->count();
+        // Carte « Retrait QG » du hub (09/10/2026) : familles confirmées qui se
+        // déplacent au QG, et parmi elles celles dont le colis est remis.
+        $retraits = $livraisons->where('statut_contact', 'confirme')->where('se_deplace', true);
+        $retraitsTotal = $retraits->count();
+        $retraitsDelivres = $retraits->where('statut_retrait_hq', 'delivre')->count();
 
         $routes = RouteLivraison::where('id_campagne', $campagne->id)->select('statut')->get();
         $routesTotal = $routes->count();
@@ -813,6 +821,8 @@ class CampagnesController extends Controller
                 'livraisons_confirmees' => $livraisonsConfirmees,
                 'routes_total' => $routesTotal,
                 'routes_terminees' => $routesTerminees,
+                'retraits_total' => $retraitsTotal,
+                'retraits_delivres' => $retraitsDelivres,
                 // Carte « Incidents » du hub (03/10/2026) : nombre d'incidents
                 // ouverts (statut null — jalon chargement_termine — exclu par
                 // le where).
@@ -824,7 +834,7 @@ class CampagnesController extends Controller
     private function incidentsOuverts(Campagne $campagne): int
     {
         return RouteIncident::ouverts()
-            ->whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
+            ->deCampagne($campagne->id)
             ->count();
     }
 

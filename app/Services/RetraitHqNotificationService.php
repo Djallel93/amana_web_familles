@@ -36,7 +36,19 @@ class RetraitHqNotificationService
     {
         $famille = $this->familleAvecEmail($livraison);
 
+        // Journalisation de debug (09/10/2026) : chaque saut était silencieux, impossible de
+        // savoir pourquoi un email de rendez-vous n'était pas parti.
         if ($famille === null || empty($famille->email) || $livraison->heure_arrivee_prevue_hq === null) {
+            Log::warning('[RetraitHqNotificationService] Email de retrait QG non envoyé', [
+                'id_livraison' => $livraison->id,
+                'id_famille' => $livraison->id_famille,
+                'raison' => match (true) {
+                    $famille === null => 'famille_introuvable',
+                    empty($famille->email) => 'famille_sans_email',
+                    default => 'heure_arrivee_prevue_hq_nulle',
+                },
+            ]);
+
             return false;
         }
 
@@ -44,10 +56,20 @@ class RetraitHqNotificationService
             Notification::route('mail', $famille->email)
                 ->notify(new RetraitHqNotification($livraison, $famille, $this->qrCode));
 
+            Log::info('[RetraitHqNotificationService] Email de retrait QG envoyé', [
+                'id_livraison' => $livraison->id,
+                'id_famille' => $famille->id,
+                'heure_arrivee_prevue_hq' => $livraison->heure_arrivee_prevue_hq->toDateTimeString(),
+                'mailer' => config('mail.default'),
+            ]);
+
             return true;
         } catch (\Throwable $e) {
             Log::error('[RetraitHqNotificationService] Échec envoi email de retrait QG', [
                 'id_livraison' => $livraison->id,
+                'id_famille' => $livraison->id_famille,
+                'mailer' => config('mail.default'),
+                'exception' => $e::class,
                 'message' => $e->getMessage(),
             ]);
 

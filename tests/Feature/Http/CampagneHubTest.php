@@ -84,6 +84,9 @@ class CampagneHubTest extends TestCase
                 ->where('incidentsUrls.liste', route('livraison.campagnes.incidents-liste', $campagne))
                 ->where('incidentsUrls.resoudre', route('livraison.incidents.resoudre', ['incident' => '__ID__']))
                 ->where('incidentsUrls.ignorer', route('livraison.incidents.ignorer', ['incident' => '__ID__']))
+                ->where('incidentsUrls.rouvrir', route('livraison.incidents.rouvrir', ['incident' => '__ID__']))
+                ->where('incidentsUrls.options', route('livraison.incidents.options', ['incident' => '__ID__']))
+                ->where('incidentsUrls.resoudreSuite', route('livraison.incidents.resoudre-suite', ['incident' => '__ID__']))
                 // Démarrage + assistant « Génération des routes » (06/10/2026).
                 ->where('demarrerUrl', route('livraison.campagnes.demarrer', $campagne))
                 ->where('generationUrls.chauffeurs', route('livraison.campagnes.chauffeurs-disponibles', $campagne))

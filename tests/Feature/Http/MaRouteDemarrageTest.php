@@ -412,4 +412,94 @@ class MaRouteDemarrageTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.famille.id', $livraison->id_famille);
     }
+    // ── 09/10/2026 : démarrage seul avant le départ, annulation de « livrée » ──
+
+    public function test_avant_le_demarrage_seul_le_bouton_et_son_explication_sont_affiches(): void
+    {
+        $benevole = $this->creerPersonne(['benevole']);
+        $campagne = $this->creerCampagne();
+        $route = $this->creerRoute($campagne, $benevole->id, 'charge');
+        $this->creerEtape($route, $this->creerLivraison($campagne, [], ['nom' => 'Zebulon', 'prenom' => 'Famille']), 1);
+
+        $this->actingAs($benevole)->get(route('livraison.benevole.ma-route.show'))
+            ->assertOk()
+            ->assertSee('Je commence ma tournée')
+            ->assertSee('cliquez ici pour démarrer votre tournée')
+            ->assertDontSee('Zebulon')
+            ->assertDontSee('Colis à livrer')
+            ->assertDontSee('Google Maps');
+    }
+
+    public function test_une_tournee_en_cours_affiche_ses_arrets_sans_le_bouton_de_demarrage(): void
+    {
+        $benevole = $this->creerPersonne(['benevole']);
+        $campagne = $this->creerCampagne();
+        $route = $this->creerRoute($campagne, $benevole->id, 'en_cours');
+        $this->creerEtape($route, $this->creerLivraison($campagne, [], ['nom' => 'Zebulon']), 1, 'en_cours');
+
+        $this->actingAs($benevole)->get(route('livraison.benevole.ma-route.show'))
+            ->assertOk()
+            ->assertSee('Zebulon')
+            ->assertSee('Colis à livrer')
+            ->assertDontSee('Je commence ma tournée');
+    }
+
+    public function test_annuler_une_livraison_remet_larret_et_la_livraison_en_cours(): void
+    {
+        $benevole = $this->creerPersonne(['benevole']);
+        $campagne = $this->creerCampagne();
+        $route = $this->creerRoute($campagne, $benevole->id, 'en_cours');
+        $livraison = $this->creerLivraison($campagne, ['statut' => 'livree']);
+        $etape = $this->creerEtape($route, $livraison, 1, 'livree');
+
+        $this->actingAs($benevole)
+            ->postJson(route('livraison.benevole.etapes.annuler-livraison', $etape))
+            ->assertOk();
+
+        $this->assertSame('en_cours', $etape->fresh()->statut);
+        $this->assertSame('en_cours', $livraison->fresh()->statut);
+    }
+
+    public function test_annuler_une_livraison_rouvre_une_tournee_deja_terminee(): void
+    {
+        $benevole = $this->creerPersonne(['benevole']);
+        $campagne = $this->creerCampagne();
+        $route = $this->creerRoute($campagne, $benevole->id, 'livraisons_terminees');
+        $etape = $this->creerEtape($route, $this->creerLivraison($campagne, ['statut' => 'livree']), 1, 'livree');
+
+        $this->actingAs($benevole)
+            ->postJson(route('livraison.benevole.etapes.annuler-livraison', $etape))
+            ->assertOk();
+
+        $this->assertSame('en_cours', $route->fresh()->statut);
+    }
+
+    public function test_annuler_une_livraison_est_refuse_pour_un_arret_non_livre_ou_une_tournee_terminee(): void
+    {
+        $benevole = $this->creerPersonne(['benevole']);
+        $campagne = $this->creerCampagne();
+        $enCours = $this->creerRoute($campagne, $benevole->id, 'en_cours');
+        $pasLivre = $this->creerEtape($enCours, $this->creerLivraison($campagne), 1, 'en_cours');
+        $terminee = $this->creerRoute($campagne, $benevole->id, 'terminee');
+        $livre = $this->creerEtape($terminee, $this->creerLivraison($campagne, ['statut' => 'livree']), 1, 'livree');
+
+        $this->actingAs($benevole)->postJson(route('livraison.benevole.etapes.annuler-livraison', $pasLivre))->assertStatus(422);
+        $this->postJson(route('livraison.benevole.etapes.annuler-livraison', $livre))->assertStatus(422);
+        $this->assertSame('livree', $livre->fresh()->statut);
+    }
+
+    public function test_un_autre_chauffeur_ne_peut_pas_annuler_la_livraison(): void
+    {
+        $proprietaire = $this->creerPersonne(['benevole']);
+        $autre = $this->creerPersonne(['benevole']);
+        $campagne = $this->creerCampagne();
+        $route = $this->creerRoute($campagne, $proprietaire->id, 'en_cours');
+        $etape = $this->creerEtape($route, $this->creerLivraison($campagne, ['statut' => 'livree']), 1, 'livree');
+
+        $this->actingAs($autre)
+            ->postJson(route('livraison.benevole.etapes.annuler-livraison', $etape))
+            ->assertStatus(422);
+
+        $this->assertSame('livree', $etape->fresh()->statut);
+    }
 }

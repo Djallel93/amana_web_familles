@@ -101,6 +101,9 @@ onUnmounted(() => {
                 :incidents="incidents"
                 :resoudre-url-template="urls.resoudre"
                 :ignorer-url-template="urls.ignorer"
+                :rouvrir-url-template="urls.rouvrir"
+                :options-url-template="urls.options"
+                :resoudre-suite-url-template="urls.resoudreSuite"
                 @change="emit('change')"
             />
         </div>

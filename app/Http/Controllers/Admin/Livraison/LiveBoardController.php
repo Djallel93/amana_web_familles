@@ -152,6 +152,10 @@ class LiveBoardController extends Controller
         $creneau = $request->input('creneau');
         $idsBenevoles = array_map('intval', $request->input('ids_benevoles'));
 
+        if ($refus = $this->refuserCreneauPasse($journee, $creneau)) {
+            return $refus;
+        }
+
         $apercu = $this->generationService->apercuCreneau($campagne, $journee, $creneau, $idsBenevoles);
         if ($apercu['familles'] + $apercu['sans_coordonnees'] === 0) {
             return response()->json([
@@ -215,6 +219,10 @@ class LiveBoardController extends Controller
         }
 
         $journee = $this->journeeDe($campagne, $request->integer('id_campagne_journee'));
+
+        if ($refus = $this->refuserCreneauPasse($journee, $request->input('creneau'))) {
+            return $refus;
+        }
 
         return response()->json($this->generationService->apercuCreneau(
             $campagne,
@@ -368,7 +376,7 @@ class LiveBoardController extends Controller
      */
     public function incidents(Campagne $campagne): JsonResponse
     {
-        $incidents = RouteIncident::whereHas('route', fn($q) => $q->where('id_campagne', $campagne->id))
+        $incidents = RouteIncident::deCampagne($campagne->id)
             ->where('statut', 'ouvert')
             ->with(['route.benevole', 'livraison.famille:id,nom,prenom'])
             ->get();
@@ -590,5 +598,21 @@ class LiveBoardController extends Controller
     private function journeeDe(Campagne $campagne, int $idJournee): CampagneJournee
     {
         return CampagneJournee::where('id_campagne', $campagne->id)->findOrFail($idJournee);
+    }
+
+    /**
+     * Mode automatique (09/10/2026) : seuls le créneau en cours et les suivants
+     * peuvent être générés — le serveur applique la règle que l'assistant affiche.
+     */
+    private function refuserCreneauPasse(CampagneJournee $journee, string $creneau): ?JsonResponse
+    {
+        if (in_array($creneau, Creneau::restantsPour($journee->date), true)) {
+            return null;
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Ce créneau est déjà terminé : choisissez le créneau en cours ou un créneau à venir.',
+        ], 422);
     }
 }

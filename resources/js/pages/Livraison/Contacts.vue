@@ -50,6 +50,8 @@ const props = defineProps<{
     contacterManuelUrlTemplate: string;
     seDeplaceUrlTemplate: string;
     priseEnChargeUrlTemplate: string;
+    retirerUrlTemplate: string;
+    reinitialiserUrlTemplate: string;
     retourUrl: string;
     showUrlTemplate: string;
     updateUrlTemplate: string;
@@ -103,6 +105,8 @@ onMounted(() => {
             :contacter-manuel-url-template="contacterManuelUrlTemplate"
             :se-deplace-url-template="seDeplaceUrlTemplate"
             :prise-en-charge-url-template="priseEnChargeUrlTemplate"
+            :retirer-url-template="retirerUrlTemplate"
+            :reinitialiser-url-template="reinitialiserUrlTemplate"
         />
     </div>
 

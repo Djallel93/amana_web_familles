@@ -34,6 +34,13 @@ const props = defineProps<{
     modelValue?: PersonneResume | null;
     /** Ne proposer que les bénévoles ayant déclaré un véhicule (voir PickersController::personnes()). */
     avecVehicule?: boolean;
+    /**
+     * Restreint la liste aux chauffeurs CONFIRMÉS pour cette journée (09/10/2026), avec le
+     * véhicule déclaré pour la journée — « Prise en charge par un chauffeur » de Suivi des
+     * contacts. À défaut, `idCampagne` couvre une livraison sans journée.
+     */
+    idCampagneJournee?: number | null;
+    idCampagne?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -44,9 +51,22 @@ const emit = defineEmits<{
 // composants montés en même temps (une seule requête réseau, même à 50 lignes).
 const cache = new Map<string, Promise<PersonneResume[]>>();
 
-function charger(role: string | undefined, avecVehicule: boolean): Promise<PersonneResume[]> {
+function charger(
+    role: string | undefined,
+    avecVehicule: boolean,
+    idCampagneJournee?: number | null,
+    idCampagne?: number | null,
+): Promise<PersonneResume[]> {
     const url =
-        "/livraison/personnes/recherche" + buildQuery({ tous: 1, role, avec_vehicule: avecVehicule || undefined });
+        "/livraison/personnes/recherche" +
+        buildQuery({
+            tous: 1,
+            role,
+            avec_vehicule: avecVehicule || undefined,
+            id_campagne_journee: idCampagneJournee ?? undefined,
+            // La campagne ne sert que de repli quand la livraison n'a pas de journée.
+            id_campagne: idCampagneJournee ? undefined : (idCampagne ?? undefined),
+        });
 
     let promesse = cache.get(url);
     if (!promesse) {
@@ -69,7 +89,12 @@ const erreur = ref(false);
 
 onMounted(async () => {
     try {
-        personnes.value = await charger(props.role, props.avecVehicule ?? false);
+        personnes.value = await charger(
+            props.role,
+            props.avecVehicule ?? false,
+            props.idCampagneJournee,
+            props.idCampagne,
+        );
     } catch {
         erreur.value = true;
     } finally {
@@ -101,6 +126,7 @@ function onSelection(id: string | string[]) {
 const messageVide = computed(() => {
     if (chargement.value) return "Chargement…";
     if (erreur.value) return "Liste indisponible, réessayez.";
+    if (props.idCampagneJournee || props.idCampagne) return "Aucun chauffeur confirmé pour cette journée.";
     return "Aucune personne disponible.";
 });
 </script>

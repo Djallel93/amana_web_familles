@@ -40,6 +40,9 @@ class GenerationRoutesAssistantTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        // Heure figée (09/10/2026) : le mode automatique refuse les créneaux déjà terminés,
+        // la journée de ces tests (10/11/2026) doit rester dans le futur quelle que soit la date d'exécution.
+        $this->travelTo('2026-10-01 09:00:00');
         Notification::fake();
         $this->chargerRolesFamilles();
         $this->vehicules = $this->creerVehicules();
@@ -384,5 +387,46 @@ class GenerationRoutesAssistantTest extends TestCase
         $this->actingAs($this->gestionnaire())
             ->getJson(route('livraison.campagnes.non-couvertes-tableau', $this->campagne) . '?' . http_build_query($this->parametres(['se_deplace' => 0, 'sans_imposees' => 1])))
             ->assertJsonPath('data.0.poids_kg', 12.5);
+    }
+    // ── Créneaux courants et restants uniquement (09/10/2026) ────────────
+
+    public function test_le_jour_meme_un_creneau_deja_termine_est_refuse_a_lapercu_et_a_la_generation(): void
+    {
+        $this->travelTo('2026-11-10 11:00:00'); // journée de la campagne = aujourd'hui, 08-10 terminé
+        $chauffeur = $this->chauffeur();
+        $this->livraison();
+
+        $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.apercu-generation', $this->campagne) . '?' . http_build_query($this->parametres(['ids_benevoles' => [$chauffeur->id]])))
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->postJson(route('livraison.campagnes.generer-routes', $this->campagne), $this->parametres(['ids_benevoles' => [$chauffeur->id]]))
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertSame(0, RouteLivraison::count());
+    }
+
+    public function test_le_jour_meme_le_creneau_en_cours_reste_generable(): void
+    {
+        $this->travelTo('2026-11-10 09:15:00'); // 08-10 est le créneau en cours
+        $chauffeur = $this->chauffeur();
+        $this->livraison();
+
+        $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.apercu-generation', $this->campagne) . '?' . http_build_query($this->parametres(['ids_benevoles' => [$chauffeur->id]])))
+            ->assertOk()
+            ->assertJsonPath('familles', 1);
+    }
+
+    public function test_une_journee_passee_naccepte_plus_aucune_generation_automatique(): void
+    {
+        $this->travelTo('2026-11-11 08:00:00');
+        $chauffeur = $this->chauffeur();
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.campagnes.generer-routes', $this->campagne), $this->parametres(['ids_benevoles' => [$chauffeur->id]]))
+            ->assertStatus(422);
     }
 }

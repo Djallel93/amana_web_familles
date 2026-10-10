@@ -6,13 +6,16 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Amana\Shared\Models\BenevoleProfil;
+use Amana\Shared\Services\NotificationCenterService;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
 use App\Models\EtapeRoute;
 use App\Models\Famille;
 use App\Models\Livraison;
 use App\Models\PersonneDesactivee;
+use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Changements EN COURS DE CAMPAGNE qui déplacent une famille entre les trois
@@ -51,6 +54,7 @@ class LivraisonChangementService
         private readonly RouteMutationService $mutation,
         private readonly RetraitHqSchedulingService $retraitHqScheduling,
         private readonly RetraitHqNotificationService $retraitHqNotification,
+        private readonly NotificationCenterService $notificationCenter,
     ) {}
 
     /**
@@ -99,6 +103,85 @@ class LivraisonChangementService
     }
 
     /**
+     * Retire une famille de la campagne (09/10/2026) — « ajoutée par erreur ».
+     * Mêmes garde-fous que les autres changements : refus si la famille est
+     * livrée/remise, si sa tournée est chargée ou en cours (arrêt pas ignoré)
+     * ou si le conditionnement a commencé (colis déjà préparés : à annuler
+     * d'abord dans Packaging).
+     *
+     * Un arrêt IGNORÉ de la famille est supprimé avec elle : la clé étrangère
+     * etapes_route.id_livraison est en nullOnDelete, l'arrêt resterait sinon
+     * dans sa tournée comme un faux arrêt « retour QG ». Les incidents ouverts
+     * qui la concernent sont fermés, le rendez-vous QG éventuel est annulé
+     * (email) et le planning de la journée recalculé.
+     */
+    public function retirerDeLaCampagne(Livraison $livraison): void
+    {
+        $this->refuserSiConditionnementCommence($livraison, 'retirée de la campagne');
+
+        $avaitUnRendezVous = $livraison->se_deplace && $livraison->heure_arrivee_prevue_hq !== null;
+
+        DB::transaction(function () use ($livraison) {
+            $this->degagerDeLaTournee($livraison);
+
+            // Arrêts restants (ignorés, ou tournée annulée) : sinon nullOnDelete.
+            EtapeRoute::where('id_livraison', $livraison->id)->delete();
+            $this->fermerIncidentsDe($livraison);
+
+            $livraison->delete();
+        });
+
+        if ($livraison->se_deplace) {
+            $this->replanifierJournee($livraison);
+
+            if ($avaitUnRendezVous && $this->campagneDe($livraison)->statut === 'en_cours') {
+                $this->retraitHqNotification->notifierAnnulation($livraison);
+            }
+        }
+    }
+
+    /**
+     * Remet une famille confirmée par erreur à « à contacter » (09/10/2026) :
+     * créneaux, se_deplace (et son rendez-vous QG), chauffeur imposé et place
+     * dans une tournée non chargée sont effacés — la famille est de nouveau
+     * à joindre. Mêmes refus que retirerDeLaCampagne().
+     */
+    public function reinitialiserContact(Livraison $livraison): void
+    {
+        if ($livraison->statut_contact !== 'confirme') {
+            throw new \RuntimeException('Seule une famille confirmée peut être réinitialisée.');
+        }
+
+        $this->refuserSiConditionnementCommence($livraison, 'réinitialisée');
+
+        $avaitUnRendezVous = $livraison->se_deplace && $livraison->heure_arrivee_prevue_hq !== null;
+        $etaitSeDeplace = $livraison->se_deplace;
+
+        DB::transaction(function () use ($livraison) {
+            $this->degagerDeLaTournee($livraison);
+
+            $livraison->creneaux()->delete();
+            $livraison->forceFill([
+                'statut_contact' => 'a_contacter',
+                'motif_statut_contact' => null,
+                'statut' => 'non_assignee',
+                'se_deplace' => false,
+                'heure_arrivee_prevue_hq' => null,
+                'statut_retrait_hq' => null,
+                'id_benevole_impose' => null,
+            ])->save();
+        });
+
+        if ($etaitSeDeplace) {
+            $this->replanifierJournee($livraison);
+
+            if ($avaitUnRendezVous && $this->campagneDe($livraison)->statut === 'en_cours') {
+                $this->retraitHqNotification->notifierAnnulation($livraison);
+            }
+        }
+    }
+
+    /**
      * « Prendre en charge » : $idBenevole s'engage à livrer cette famille
      * (livraison imposée). Retire d'abord la famille de sa tournée
      * classique si besoin, puis — campagne démarrée et famille confirmée —
@@ -128,6 +211,44 @@ class LivraisonChangementService
         $livraison->save();
 
         $this->ajouterALaTourneeImposee($livraison);
+    }
+
+    /**
+     * Résolution d'un incident « livraison ignorée » (09/10/2026) : la famille
+     * redevient à planifier (non_assignee) — elle sera reprise à la prochaine
+     * génération de routes. L'arrêt ignoré reste dans l'historique de sa tournée.
+     */
+    public function remettreAPlanifier(Livraison $livraison): void
+    {
+        $this->degagerDeLaTournee($livraison);
+    }
+
+    /**
+     * Résolution d'un incident « livraison ignorée » : ajoute la famille à une
+     * tournée EXISTANTE de la même campagne (tournée non chargée uniquement —
+     * le colis de cette famille n'est de toute façon pas dans le véhicule d'une
+     * tournée chargée ou en cours). Le chauffeur est prévenu par RouteMutationService.
+     */
+    public function ajouterALaTournee(Livraison $livraison, RouteLivraison $route): void
+    {
+        if ($route->id_campagne !== $livraison->id_campagne) {
+            throw new \RuntimeException('Cette tournée appartient à une autre campagne.');
+        }
+
+        if (!in_array($route->statut, self::STATUTS_TOURNEE_MODIFIABLES, true)) {
+            throw new \RuntimeException(
+                "La tournée #{$route->id} est déjà chargée ou en cours : choisissez une tournée qui n'est pas encore partie."
+            );
+        }
+
+        $famille = Famille::find($livraison->id_famille);
+        if ($famille === null || $famille->latitude === null || $famille->longitude === null) {
+            throw new \RuntimeException('Cette famille n\'a pas de coordonnées : impossible de l\'ajouter à une tournée.');
+        }
+
+        $this->degagerDeLaTournee($livraison);
+
+        $this->mutation->ajouterLivraison($route, $livraison->fresh());
     }
 
     /**
@@ -268,6 +389,32 @@ class LivraisonChangementService
             null,
             autoriserImposees: true,
         );
+    }
+
+    /**
+     * Ferme les incidents ouverts d'une famille retirée de la campagne : sans
+     * livraison (id_livraison passe à null), ils n'identifieraient plus personne.
+     * Aucun effet de bord, comme IncidentResolutionService::forcerResolutionPourCampagne().
+     */
+    private function fermerIncidentsDe(Livraison $livraison): void
+    {
+        RouteIncident::ouverts()->where('id_livraison', $livraison->id)->get()->each(function (RouteIncident $incident) {
+            $incident->update([
+                'statut' => 'resolu',
+                'notes' => trim(($incident->notes ?? '') . "\n[Résolu : la famille a été retirée de la campagne]"),
+            ]);
+            $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
+        });
+    }
+
+    /** Un conditionnement entamé (colis préparés) bloque retrait et réinitialisation. */
+    private function refuserSiConditionnementCommence(Livraison $livraison, string $action): void
+    {
+        if (in_array($livraison->statut_conditionnement, ['en_cours', 'prete'], true)) {
+            throw new \RuntimeException(
+                "Le conditionnement de cette famille a commencé : annulez-le d'abord dans Packaging avant qu'elle soit {$action}."
+            );
+        }
     }
 
     /** Campagne de la livraison — requête typée plutôt que la relation (typée `Model` par l'analyse statique). */

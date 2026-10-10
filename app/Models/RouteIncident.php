@@ -16,8 +16,9 @@ use Illuminate\Support\Facades\Notification;
  * une tournée — voir create_route_incidents_table.php.
  *
  * @property int      $id
- * @property int      $id_route
- * @property string   $type            benevole_absent|capacite|chargement_annule|chargement_termine|livraison_ignoree|packaging_annule
+ * @property int|null $id_route          null pour type = retrait_hq_non_livre (pas de tournée)
+ * @property int|null $id_campagne       renseigné quand id_route est null
+ * @property string   $type            benevole_absent|capacite|chargement_annule|chargement_termine|livraison_ignoree|packaging_annule|retrait_hq_non_livre
  * @property int|null $id_livraison    renseigné pour type = livraison_ignoree ou packaging_annule
  * @property int      $signale_par
  * @property string|null $statut       ouvert|resolu — null pour type = chargement_termine
@@ -30,7 +31,7 @@ class RouteIncident extends Model
         return config('database.default');
     }
 
-    protected $fillable = ['id_route', 'type', 'id_livraison', 'signale_par', 'statut', 'notes'];
+    protected $fillable = ['id_route', 'id_campagne', 'type', 'id_livraison', 'signale_par', 'statut', 'notes'];
 
     /**
      * 'packaging_annule' ajouté le 05/09/2026 (prompt §5.3) — voir
@@ -41,7 +42,7 @@ class RouteIncident extends Model
      * l'équipe chargement doit savoir que ce colis n'est plus disponible
      * tant que gestionnaire/admin n'a pas marqué l'incident résolu.
      */
-    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule'];
+    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre'];
 
     public const STATUTS = ['ouvert', 'ignore', 'resolu'];
 
@@ -60,6 +61,8 @@ class RouteIncident extends Model
         // 06/10/2026 : chargement confirmé par erreur puis annulé par
         // l'équipe chargement — voir ChargementController::annulerChargement().
         'chargement_annule' => 'Chargement annulé',
+        // 09/10/2026 : famille « Non livré (absent) » au Retrait QG — voir RetraitHqController.
+        'retrait_hq_non_livre' => 'Retrait QG non livré',
     ];
 
     // Types pour lesquels `statut` est sans objet (jalon, pas alerte actionnable).
@@ -106,6 +109,8 @@ class RouteIncident extends Model
                 . 'La famille n\'a pas reçu son colis.',
             'packaging_annule' => "Le packaging de {$famille} a été annulé après le chargement ({$tournee}) : "
                 . 'le colis repart en préparation. L\'incident se résout tout seul quand le colis est de nouveau prêt.',
+            'retrait_hq_non_livre' => "{$famille} ne s'est pas présentée au retrait QG (marquée « Non livré (absent) »). "
+                . 'Son colis n\'a pas été remis : la famille peut revenir (statut remis à « Prête »), ou être livrée à domicile.',
             'chargement_annule' => "Le chargement de la {$tournee} de {$chauffeur} a été annulé par l'équipe chargement "
                 . '(confirmé par erreur). La tournée est de nouveau « prête à charger » : vérifier que le chauffeur n\'est pas déjà parti.',
             default => 'Incident de tournée.',
@@ -130,6 +135,36 @@ class RouteIncident extends Model
     }
 
     /**
+     * Incidents d'une campagne (09/10/2026) : ceux de ses tournées, plus ceux
+     * rattachés directement à la campagne (retrait_hq_non_livre, sans tournée).
+     */
+    public function scopeDeCampagne($query, int $idCampagne)
+    {
+        return $query->where(fn($q) => $q
+            ->whereHas('route', fn($r) => $r->where('id_campagne', $idCampagne))
+            ->orWhere('id_campagne', $idCampagne));
+    }
+
+    /** Campagne de l'incident, via sa tournée ou directement. */
+    public function idCampagneEffectif(): ?int
+    {
+        return $this->id_campagne ?? data_get($this, 'route.id_campagne');
+    }
+
+    /**
+     * Prévient admins et gestionnaires — à la création, et à la réouverture
+     * d'un incident (09/10/2026) dont la notification avait été retirée.
+     */
+    public function notifierAdmins(): void
+    {
+        $destinataires = Personne::adminsDe()
+            ->orWhere(fn($q) => $q->avecRole('gestionnaire'))
+            ->get();
+
+        Notification::send($destinataires, new RouteIncidentNotification($this));
+    }
+
+    /**
      * Notifie admin/gestionnaire à la création — voir le prompt du
      * 03/09/2026 §2.9/évenement urgent : centralisé ici (plutôt que
      * dans chacun des 4 points de création — ChargementController x3,
@@ -139,12 +174,6 @@ class RouteIncident extends Model
      */
     protected static function booted(): void
     {
-        static::created(function (RouteIncident $incident) {
-            $destinataires = Personne::adminsDe()
-                ->orWhere(fn($q) => $q->avecRole('gestionnaire'))
-                ->get();
-
-            Notification::send($destinataires, new RouteIncidentNotification($incident));
-        });
+        static::created(fn(RouteIncident $incident) => $incident->notifierAdmins());
     }
 }

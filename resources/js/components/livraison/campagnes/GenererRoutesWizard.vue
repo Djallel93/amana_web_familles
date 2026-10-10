@@ -28,11 +28,13 @@ import PaginationControls from "../shared/PaginationControls.vue";
 import FamilleFilterPanel from "../shared/FamilleFilterPanel.vue";
 import {
     CRENEAUX,
+    creneauxRestantsPour,
     CRENEAU_LIBELLES,
     normalizePaginated,
     type ApercuGeneration,
     type Campagne,
     type ChauffeurDisponible,
+    type Creneau,
     type FamilleEligible,
     type FamilleFiltres,
     type GenerationUrls,
@@ -108,6 +110,17 @@ function retour() {
 }
 
 // ── Étape 2 : journée + créneau ─────────────────────────────────────────
+// Mode automatique (09/10/2026) : seuls le créneau en cours et les suivants sont proposés
+// (le serveur refuse aussi un créneau terminé) ; le mode personnalisé garde les six créneaux.
+const creneauxProposes = computed<readonly Creneau[]>(() =>
+    mode.value === "auto" && journeeChoisie.value ? creneauxRestantsPour(journeeChoisie.value.date) : CRENEAUX,
+);
+
+// Un créneau déjà choisi qui n'est plus proposé (changement de journée ou de mode) est abandonné.
+watch(creneauxProposes, (propose) => {
+    if (creneau.value !== "" && !propose.includes(creneau.value as Creneau)) creneau.value = "";
+});
+
 const creneauConfirmable = computed(() => idJournee.value !== null && creneau.value !== "");
 
 async function confirmerCreneau() {
@@ -479,9 +492,12 @@ async function autreTournee() {
 
                 <div>
                     <label class="block text-[12px] text-ink-muted mb-1.5">Créneau</label>
+                    <p v-if="creneauxProposes.length === 0" class="text-[13px] text-rose-600">
+                        Tous les créneaux de cette journée sont terminés : choisissez une autre journée.
+                    </p>
                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         <button
-                            v-for="c in CRENEAUX"
+                            v-for="c in creneauxProposes"
                             :key="c"
                             type="button"
                             @click="creneau = c"

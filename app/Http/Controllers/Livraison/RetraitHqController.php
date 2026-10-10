@@ -5,11 +5,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Livraison;
 
+use Amana\Shared\Services\NotificationCenterService;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
 use App\Models\Campagne;
 use App\Models\Livraison;
+use App\Models\RouteIncident;
+use App\Support\StatutChargement;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,15 +33,19 @@ use Illuminate\Support\Facades\Auth;
  * passage prévu, voir RetraitHqSchedulingService) plutôt que par urgence
  * de créneau.
  *
- * 4 statuts affichés (prompt §3), dérivés de 2 colonnes existantes plutôt
+ * 5 statuts affichés (prompt §3, « Restante » séparée de « En préparation »
+ * le 09/10/2026), dérivés de 2 colonnes existantes plutôt
  * que d'un nouveau statut unique — délibéré, pour réutiliser exactement
  * le même statut_conditionnement que Packaging/Chargement (§1.2 : "en
  * preparation"/"Prête" sont VRAIMENT le même statut_conditionnement que
  * partout ailleurs dans le domaine livraison, pas une resaisie) :
- *   - statut_conditionnement != 'prete'            → "En préparation"
+ *   - statut_conditionnement == 'en_attente'        → "Restante"     (aucun colis prêt)
+ *   - statut_conditionnement == 'en_cours'          → "En préparation" (au moins un colis prêt)
  *   - statut_conditionnement == 'prete' && statut_retrait_hq == null → "Prête"   (boutons actifs)
  *   - statut_retrait_hq == 'delivre'                → "Livré"
- *   - statut_retrait_hq == 'non_delivre'             → "Non livré" (no-show)
+ *   - statut_retrait_hq == 'non_delivre'             → "Non livré" (no-show) —
+ *     annulable (annulerNonLivre()) : un no-show marqué par erreur se corrige, et
+ *     marquer « Non livré » ouvre un incident « retrait_hq_non_livre ».
  */
 class RetraitHqController extends Controller
 {
@@ -115,6 +122,7 @@ class RetraitHqController extends Controller
         // les autres cartes stat de cet écran.
         $stats = [
             'total' => $livraisons->count(),
+            'restantes' => $livraisons->where('statutRetraitHqAffiche', 'restante')->count(),
             'en_preparation' => $livraisons->where('statutRetraitHqAffiche', 'en_preparation')->count(),
             'pretes' => $livraisons->where('statutRetraitHqAffiche', 'prete')->count(),
             'delivrees' => $livraisons->where('statutRetraitHqAffiche', 'delivre')->count(),
@@ -140,7 +148,7 @@ class RetraitHqController extends Controller
         return ['lignes' => $lignes, 'stats' => $stats];
     }
 
-    private const STATUTS_AFFICHES = ['en_preparation', 'prete', 'delivre', 'non_delivre'];
+    private const STATUTS_AFFICHES = ['restante', 'en_preparation', 'prete', 'delivre', 'non_delivre'];
 
     /**
      * Voir le docblock de classe pour le détail des 4 états — dérivés,
@@ -148,11 +156,13 @@ class RetraitHqController extends Controller
      */
     private function statutAffiche(Livraison $livraison): string
     {
+        // Restante / en préparation / prête : même dérivation que l'écran Chargement
+        // (StatutChargement::pourFamille()), pour que les deux écrans de l'équipe disent la même chose.
         if ($livraison->statut_conditionnement !== 'prete') {
-            return 'en_preparation';
+            return StatutChargement::pourFamille($livraison);
         }
 
-        return $livraison->statut_retrait_hq ?? 'prete';
+        return $livraison->statut_retrait_hq ?? StatutChargement::PRETE;
     }
 
     /**
@@ -188,7 +198,47 @@ class RetraitHqController extends Controller
 
         $livraison->update(['statut_retrait_hq' => 'non_delivre']);
 
+        // Incident (09/10/2026) : une famille qui ne vient pas méritait déjà l'attention du
+        // gestionnaire — id_route null (pas de tournée), rattaché à la campagne.
+        RouteIncident::create([
+            'id_route' => null,
+            'id_campagne' => $livraison->id_campagne,
+            'type' => 'retrait_hq_non_livre',
+            'id_livraison' => $livraison->id,
+            'signale_par' => Auth::id(),
+            'statut' => 'ouvert',
+        ]);
+
         return response()->json(['success' => true]);
+    }
+
+    /**
+     * Annule un « Non livré (absent) » marqué par erreur (09/10/2026) : la
+     * famille redevient « Prête » et son incident « retrait QG non livré »
+     * encore ouvert est résolu avec elle. Un incident déjà traité par le
+     * gestionnaire n'est pas touché.
+     */
+    public function annulerNonLivre(Livraison $livraison): JsonResponse
+    {
+        if ($livraison->statut_retrait_hq !== 'non_delivre') {
+            return response()->json(['success' => false, 'message' => 'Cette famille n\'est pas (ou plus) marquée « Non livré ».'], 422);
+        }
+
+        $livraison->update(['statut_retrait_hq' => null]);
+
+        RouteIncident::ouverts()
+            ->where('type', 'retrait_hq_non_livre')
+            ->where('id_livraison', $livraison->id)
+            ->get()
+            ->each(function (RouteIncident $incident) {
+                $incident->update([
+                    'statut' => 'resolu',
+                    'notes' => trim(($incident->notes ?? '') . "\n[Résolu : « Non livré » annulé par l'équipe]"),
+                ]);
+                app(NotificationCenterService::class)->resoudreParDonnee('id_incident', $incident->id);
+            });
+
+        return response()->json(['success' => true, 'statut' => $this->statutAffiche($livraison->fresh())]);
     }
 
     /**

@@ -8,6 +8,7 @@ namespace App\Services;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * « Démarrer la campagne » (06/10/2026) — fin de la phase « avant la
@@ -77,12 +78,32 @@ class CampagneDemarrageService
         audit('update', 'campagnes', $campagne->id, ['statut' => $avant], ['statut' => 'en_cours']);
 
         $retraits = 0;
+        $emailsEnvoyes = 0;
         foreach (CampagneJournee::where('id_campagne', $campagne->id)->get() as $journee) {
-            foreach ($this->retraitHqScheduling->planifierPour($campagne, $journee) as $livraison) {
-                $this->retraitHqNotification->notifierPour($livraison);
+            $planifiees = $this->retraitHqScheduling->planifierPour($campagne, $journee);
+
+            Log::info('[CampagneDemarrageService] Retraits QG planifiés', [
+                'id_campagne' => $campagne->id,
+                'id_campagne_journee' => $journee->id,
+                'retraits' => $planifiees->count(),
+            ]);
+
+            foreach ($planifiees as $livraison) {
+                if ($this->retraitHqNotification->notifierPour($livraison)) {
+                    $emailsEnvoyes++;
+                }
                 $retraits++;
             }
         }
+
+        // Bilan du démarrage (09/10/2026, debug des emails de rendez-vous) : un écart entre
+        // retraits planifiés et emails envoyés se lit ici, le détail par famille juste au-dessus.
+        Log::info('[CampagneDemarrageService] Campagne démarrée', [
+            'id_campagne' => $campagne->id,
+            'routes_imposees' => $routesImposees,
+            'retraits_planifies' => $retraits,
+            'emails_retrait_envoyes' => $emailsEnvoyes,
+        ]);
 
         return ['routes_imposees' => $routesImposees, 'retraits_planifies' => $retraits];
     }

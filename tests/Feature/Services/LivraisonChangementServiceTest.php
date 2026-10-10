@@ -10,6 +10,7 @@ use App\Models\CampagneJournee;
 use App\Models\EtapeRoute;
 use App\Models\Famille;
 use App\Models\Livraison;
+use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Notifications\RetraitHqAnnuleNotification;
 use App\Notifications\RetraitHqNotification;
@@ -361,5 +362,164 @@ class LivraisonChangementServiceTest extends TestCase
         $this->service->prendreEnCharge($this->livraison(['statut_conditionnement' => 'en_attente']), $benevole->id);
 
         $this->assertSame('planifiee', $route->fresh()->statut);
+    }
+    // ── Retirer une famille de la campagne (09/10/2026) ──────────────────
+
+    public function test_retirer_supprime_la_livraison_et_sa_place_dans_une_tournee_non_chargee(): void
+    {
+        $route = $this->route('planifiee');
+        $livraison = $this->livraison();
+        $etape = $this->dansRoute($route, $livraison);
+
+        $this->service->retirerDeLaCampagne($livraison);
+
+        $this->assertDatabaseMissing('livraisons', ['id' => $livraison->id]);
+        $this->assertDatabaseMissing('etapes_route', ['id' => $etape->id]);
+    }
+
+    public function test_retirer_une_famille_dont_larret_est_ignore_supprime_aussi_larret(): void
+    {
+        // etapes_route.id_livraison est en nullOnDelete : sans suppression explicite,
+        // l'arrêt ignoré deviendrait un faux arrêt « retour QG » de la tournée.
+        $route = $this->route('en_cours');
+        $livraison = $this->livraison();
+        $etape = $this->dansRoute($route, $livraison, 'ignoree');
+        $livraison->update(['statut' => 'ignoree']);
+
+        $this->service->retirerDeLaCampagne($livraison);
+
+        $this->assertDatabaseMissing('livraisons', ['id' => $livraison->id]);
+        $this->assertDatabaseMissing('etapes_route', ['id' => $etape->id]);
+        $this->assertSame(0, EtapeRoute::where('id_route', $route->id)->whereNull('id_livraison')->count());
+    }
+
+    public function test_retirer_ferme_les_incidents_ouverts_de_la_famille(): void
+    {
+        $route = $this->route('en_cours');
+        $livraison = $this->livraison();
+        $this->dansRoute($route, $livraison, 'ignoree');
+        $incident = RouteIncident::withoutEvents(fn() => RouteIncident::create([
+            'id_route' => $route->id,
+            'type' => 'livraison_ignoree',
+            'id_livraison' => $livraison->id,
+            'signale_par' => $route->id_benevole,
+            'statut' => 'ouvert',
+        ]));
+
+        $this->service->retirerDeLaCampagne($livraison);
+
+        $this->assertSame('resolu', $incident->fresh()->statut);
+    }
+
+    public function test_retirer_est_refuse_quand_la_famille_est_livree(): void
+    {
+        $livraison = $this->livraison(['statut' => 'livree']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->service->retirerDeLaCampagne($livraison);
+    }
+
+    public function test_retirer_est_refuse_quand_la_tournee_est_chargee_et_larret_en_attente(): void
+    {
+        $livraison = $this->livraison();
+        $this->dansRoute($this->route('charge'), $livraison);
+
+        try {
+            $this->service->retirerDeLaCampagne($livraison);
+            $this->fail('Refus attendu.');
+        } catch (\RuntimeException) {
+            $this->assertDatabaseHas('livraisons', ['id' => $livraison->id]);
+        }
+    }
+
+    public function test_retirer_est_refuse_quand_le_conditionnement_a_commence(): void
+    {
+        foreach (['en_cours', 'prete'] as $statut) {
+            $livraison = $this->livraison(['statut_conditionnement' => $statut]);
+
+            try {
+                $this->service->retirerDeLaCampagne($livraison);
+                $this->fail('Refus attendu pour un conditionnement ' . $statut);
+            } catch (\RuntimeException $e) {
+                $this->assertStringContainsString('Packaging', $e->getMessage());
+                $this->assertDatabaseHas('livraisons', ['id' => $livraison->id]);
+            }
+        }
+    }
+
+    public function test_retirer_une_famille_au_qg_annule_son_rendez_vous_et_replanifie_la_journee(): void
+    {
+        $partante = $this->livraison(['se_deplace' => true]);
+        $restante = $this->livraison(['se_deplace' => true]);
+        app(RetraitHqSchedulingService::class)->planifierPour($this->campagne, $this->journee);
+        Notification::fake();
+
+        $this->service->retirerDeLaCampagne($partante->fresh());
+
+        $this->assertDatabaseMissing('livraisons', ['id' => $partante->id]);
+        $this->assertNotNull($restante->fresh()->heure_arrivee_prevue_hq);
+        Notification::assertSentOnDemand(RetraitHqAnnuleNotification::class);
+    }
+
+    // ── Réinitialiser une famille confirmée (09/10/2026) ─────────────────
+
+    public function test_reinitialiser_remet_la_famille_a_contacter_et_efface_ses_choix(): void
+    {
+        $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $livraison = $this->livraison();
+        $livraison->creneaux()->create(['creneau' => Creneau::MATIN_1]);
+        $this->service->prendreEnCharge($livraison, $chauffeur->id);
+
+        $this->service->reinitialiserContact($livraison->fresh());
+
+        $livraison->refresh();
+        $this->assertSame('a_contacter', $livraison->statut_contact);
+        $this->assertNull($livraison->id_benevole_impose);
+        $this->assertSame('non_assignee', $livraison->statut);
+        $this->assertFalse($livraison->se_deplace);
+        $this->assertCount(0, $livraison->creneaux);
+        $this->assertDatabaseMissing('etapes_route', ['id_livraison' => $livraison->id]);
+    }
+
+    public function test_reinitialiser_une_famille_au_qg_annule_son_rendez_vous(): void
+    {
+        $livraison = $this->livraison(['se_deplace' => true]);
+        app(RetraitHqSchedulingService::class)->planifierPour($this->campagne, $this->journee);
+        Notification::fake();
+
+        $this->service->reinitialiserContact($livraison->fresh());
+
+        $livraison->refresh();
+        $this->assertFalse($livraison->se_deplace);
+        $this->assertNull($livraison->heure_arrivee_prevue_hq);
+        $this->assertNull($livraison->statut_retrait_hq);
+        Notification::assertSentOnDemand(RetraitHqAnnuleNotification::class);
+    }
+
+    public function test_reinitialiser_est_refuse_pour_une_famille_non_confirmee_livree_ou_en_packaging(): void
+    {
+        $cas = [
+            $this->livraison(['statut_contact' => 'a_contacter']),
+            $this->livraison(['statut' => 'livree']),
+            $this->livraison(['statut_conditionnement' => 'prete']),
+        ];
+
+        foreach ($cas as $livraison) {
+            try {
+                $this->service->reinitialiserContact($livraison);
+                $this->fail('Refus attendu.');
+            } catch (\RuntimeException) {
+                $this->assertSame($livraison->statut_contact, $livraison->fresh()->statut_contact);
+            }
+        }
+    }
+
+    public function test_reinitialiser_est_refuse_quand_la_tournee_est_chargee(): void
+    {
+        $livraison = $this->livraison();
+        $this->dansRoute($this->route('charge'), $livraison);
+
+        $this->expectException(\RuntimeException::class);
+        $this->service->reinitialiserContact($livraison);
     }
 }

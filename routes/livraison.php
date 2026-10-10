@@ -163,6 +163,12 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // ContactTrackingController::prendreEnCharge().
     Route::post('/contacts/{livraison}/prise-en-charge', [ContactTrackingController::class, 'prendreEnCharge'])
         ->name('contacts.prise-en-charge');
+    // Retirer une famille ajoutée par erreur / réinitialiser une famille confirmée
+    // par erreur (09/10/2026) — voir LivraisonChangementService.
+    Route::delete('/contacts/{livraison}', [ContactTrackingController::class, 'retirer'])
+        ->name('contacts.retirer');
+    Route::post('/contacts/{livraison}/reinitialiser', [ContactTrackingController::class, 'reinitialiser'])
+        ->name('contacts.reinitialiser');
 
     // Renommé depuis 'tableau-de-bord' (07/09/2026, prompt §6) — voir
     // config/amana-shared.php. {campagne?} optionnel ajouté au même
@@ -198,6 +204,14 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // Fermeture sans traitement, statut 'ignore' (03/10/2026).
     Route::post('/incidents/{incident}/ignorer', [LiveBoardController::class, 'ignorerIncident'])
         ->name('incidents.ignorer');
+    // Rouvrir un incident résolu/ignoré (09/10/2026, sauf campagne terminée), et résoudre
+    // « livraison ignorée » / « retrait QG non livré » avec une suite à donner à la famille.
+    Route::post('/incidents/{incident}/rouvrir', [IncidentsController::class, 'rouvrir'])
+        ->name('incidents.rouvrir');
+    Route::get('/incidents/{incident}/options', [IncidentsController::class, 'options'])
+        ->name('incidents.options');
+    Route::post('/incidents/{incident}/resoudre-suite', [IncidentsController::class, 'resoudreAvecSuite'])
+        ->name('incidents.resoudre-suite');
     Route::post('/routes/{route}/ajouter-livraison', [LiveBoardController::class, 'ajouterLivraison'])
         ->name('routes.ajouter-livraison');
     Route::delete('/routes/{route}/etapes/{etape}', [LiveBoardController::class, 'retirerLivraison'])
@@ -274,6 +288,9 @@ Route::middleware(['auth', 'role:benevole'])->prefix('livraison/benevole')->name
         ->name('routes.etat');
     Route::post('/etapes/{etape}/remettre-en-cours', [MaRouteController::class, 'remettreEnCours'])
         ->name('etapes.remettre-en-cours');
+    // « Livré » cliqué par erreur (09/10/2026).
+    Route::post('/etapes/{etape}/annuler-livraison', [MaRouteController::class, 'annulerLivraison'])
+        ->name('etapes.annuler-livraison');
     Route::post('/routes/{route}/livraison-terminee', [MaRouteController::class, 'livraisonTerminee'])
         ->name('routes.livraison-terminee');
     Route::post('/routes/{route}/retour-qg', [MaRouteController::class, 'retourQg'])
@@ -420,6 +437,9 @@ Route::middleware('auth')->prefix('livraison/retrait-hq')->name('livraison.retra
         ->middleware('can:gererRetraitHq,livraison')->name('livre');
     Route::post('/livraisons/{livraison}/non-livre', [RetraitHqController::class, 'marquerNonLivre'])
         ->middleware('can:gererRetraitHq,livraison')->name('non-livre');
+    // Annule un « Non livré (absent) » marqué par erreur (09/10/2026).
+    Route::post('/livraisons/{livraison}/annuler-non-livre', [RetraitHqController::class, 'annulerNonLivre'])
+        ->middleware('can:gererRetraitHq,livraison')->name('annuler-non-livre');
     // Cible du QR code envoyé par RetraitHqNotification — voir
     // RetraitHqController::scan(). GET (pas POST) : ouvert directement
     // par l'appareil qui scanne, pas d'appel fetch() derrière.

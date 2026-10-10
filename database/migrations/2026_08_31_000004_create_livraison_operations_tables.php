@@ -110,6 +110,11 @@ return new class extends Migration
             // familles.etat_dossier — mise à jour, exclusion, ou ni l'un
             // ni l'autre) vit dans App\Models\Livraison::STATUTS_CONTACT.
             $table->string('statut_contact', 30)->default('a_contacter');
+            // Motif saisi (obligatoire) quand le gestionnaire passe la famille à
+            // 'archive' ou 'rejetee' (09/10/2026) — null pour tout autre statut,
+            // effacé au retour à 'a_contacter' (réinitialisation).
+            $table->string('motif_statut_contact', 1000)->nullable()
+                ->comment('Motif obligatoire quand statut_contact = archive|rejetee, saisi dans la popup de Suivi des contacts');
             $table->unsignedInteger('id_personne_assignee')->nullable()
                 ->comment('ref_personnes.id du gestionnaire chargé de contacter cette famille — rôle vérifié côté application, pas de FK');
 

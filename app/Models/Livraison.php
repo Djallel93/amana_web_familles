@@ -39,6 +39,7 @@ use Illuminate\Support\Carbon;
  * @property bool         $se_deplace             La famille se déplace au QG pour cette campagne (propriété pure de la campagne, pas de valeur par défaut)
  * @property Carbon|null $heure_arrivee_prevue_hq  Créneau de rendez-vous QG — familles se_deplace uniquement
  * @property string|null $statut_retrait_hq      delivre|non_delivre — familles se_deplace uniquement
+ * @property string|null $motif_statut_contact    motif saisi pour archive|rejetee (09/10/2026)
  */
 class Livraison extends Model
 {
@@ -53,7 +54,7 @@ class Livraison extends Model
         'nombre_personnes', 'poids_kg',
         'id_benevole_impose',
         'note_besoins_speciaux',
-        'statut_contact', 'id_personne_assignee',
+        'statut_contact', 'motif_statut_contact', 'id_personne_assignee',
         'adresse_confirmee', 'code_postal_confirme', 'ville_confirmee',
         'nombre_adulte_confirme', 'nombre_enfant_confirme',
         // Ajoutés le 24/09/2026 (prompt de cette date §2), se_deplace
