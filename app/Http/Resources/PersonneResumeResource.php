@@ -16,8 +16,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Le modèle Personne masque déjà `password`/`remember_token`
  * (Amana\Shared\Models\Personne::$hidden), mais d'autres colonnes
  * (email, etc.) auraient tout de même été exposées sans intérêt pour
- * resources/js/components/livraison/tableau-de-bord/RoutesPanel.vue/
- * IncidentsPanel.vue, qui ne lisent que id/nom/prenom sur ce champ.
+ * resources/js/components/livraison/tableau-de-bord/RoutesPanel.vue
+ * (et l'ex-IncidentsPanel.vue, supprimé le 10/10/2026), qui ne lisent que id/nom/prenom sur ce champ.
  *
  * id_vehicule_type/vehicule_type (présents sur l'interface TS
  * PersonneResume) sont VOLONTAIREMENT absents ici : ce sont des colonnes

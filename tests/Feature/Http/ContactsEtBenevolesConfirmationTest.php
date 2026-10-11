@@ -8,9 +8,11 @@ namespace Tests\Feature\Http;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
+use App\Models\EtapeRoute;
 use App\Models\Famille;
 use App\Models\Livraison;
 use App\Models\RouteLivraison;
+use App\Services\RouteMutationService;
 use Illuminate\Support\Facades\Notification;
 use Tests\Concerns\BuildsDisponibiliteFixtures;
 use Tests\Concerns\SeedsCommunFixtures;
@@ -213,6 +215,172 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
         $route = RouteLivraison::where('id_benevole', $chauffeur->id)->sole();
         $this->assertNull($route->creneau);
         $this->assertSame('assignee', $livraison->fresh()->statut);
+    }
+
+    // ── Confirmation : chauffeur imposé et créneaux (10/10/2026) ─────────
+
+    public function test_la_confirmation_peut_imposer_un_chauffeur_et_cree_sa_tournee(): void
+    {
+        $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($chauffeur->id);
+        $livraison = $this->livraison();
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.contacter-manuel', $livraison), [
+                'statut_contact' => 'confirme',
+                'se_deplace' => false,
+                'creneaux' => ['08-10'],
+                'id_benevole_impose' => $chauffeur->id,
+            ])
+            ->assertOk();
+
+        $livraison->refresh();
+        $this->assertSame('confirme', $livraison->statut_contact);
+        $this->assertSame($chauffeur->id, $livraison->id_benevole_impose);
+        $this->assertSame('assignee', $livraison->statut);
+        $this->assertSame(1, RouteLivraison::where('id_benevole', $chauffeur->id)->whereNull('creneau')->count());
+    }
+
+    public function test_la_confirmation_refuse_un_chauffeur_impose_pour_une_famille_qui_se_deplace(): void
+    {
+        $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($chauffeur->id);
+        $livraison = $this->livraison();
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.contacter-manuel', $livraison), [
+                'statut_contact' => 'confirme',
+                'se_deplace' => true,
+                'creneaux' => ['08-10'],
+                'id_benevole_impose' => $chauffeur->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['id_benevole_impose']);
+
+        $this->assertSame('a_contacter', $livraison->fresh()->statut_contact);
+    }
+
+    public function test_la_confirmation_refuse_un_chauffeur_non_confirme_pour_la_journee(): void
+    {
+        $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $livraison = $this->livraison();
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.contacter-manuel', $livraison), [
+                'statut_contact' => 'confirme',
+                'se_deplace' => false,
+                'creneaux' => ['08-10'],
+                'id_benevole_impose' => $chauffeur->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['id_benevole_impose']);
+
+        $this->assertSame('a_contacter', $livraison->fresh()->statut_contact);
+    }
+
+    public function test_modifier_la_confirmation_deplace_la_famille_dune_tournee_non_partie_vers_le_chauffeur_impose(): void
+    {
+        $ancien = $this->creerBenevole($this->vehicules['voiture']);
+        $nouveau = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($nouveau->id);
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+
+        $ancienneRoute = app(RouteMutationService::class)->construirePersonnalisee(
+            $this->campagne,
+            $ancien->id,
+            $this->vehicules['voiture'],
+            [$livraison->id],
+            '08-10',
+            $this->journee->id,
+        );
+        $this->assertSame('assignee', $livraison->fresh()->statut);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.contacter-manuel', $livraison), [
+                'statut_contact' => 'confirme',
+                'se_deplace' => false,
+                'creneaux' => ['08-10'],
+                'id_benevole_impose' => $nouveau->id,
+            ])
+            ->assertOk();
+
+        $this->assertSame($nouveau->id, $livraison->fresh()->id_benevole_impose);
+        $this->assertSame(0, EtapeRoute::where('id_route', $ancienneRoute->id)->where('id_livraison', $livraison->id)->count());
+        $this->assertSame(
+            1,
+            EtapeRoute::where('id_livraison', $livraison->id)
+                ->whereHas('route', fn($q) => $q->where('id_benevole', $nouveau->id))
+                ->count(),
+        );
+    }
+
+    public function test_modifier_la_confirmation_est_refuse_quand_la_tournee_est_deja_chargee(): void
+    {
+        $ancien = $this->creerBenevole($this->vehicules['voiture']);
+        $nouveau = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($nouveau->id);
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+
+        $route = app(RouteMutationService::class)->construirePersonnalisee(
+            $this->campagne,
+            $ancien->id,
+            $this->vehicules['voiture'],
+            [$livraison->id],
+            '08-10',
+            $this->journee->id,
+        );
+        $route->update(['statut' => 'charge']);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.contacter-manuel', $livraison), [
+                'statut_contact' => 'confirme',
+                'se_deplace' => false,
+                'creneaux' => ['08-10'],
+                'id_benevole_impose' => $nouveau->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonStructure(['message']);
+
+        $this->assertNull($livraison->fresh()->id_benevole_impose);
+        $this->assertSame(1, EtapeRoute::where('id_route', $route->id)->where('id_livraison', $livraison->id)->count());
+    }
+
+    public function test_modifier_la_confirmation_remplace_les_creneaux_et_peut_retirer_le_chauffeur(): void
+    {
+        $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->confirmerChauffeur($chauffeur->id);
+        $livraison = $this->livraison(['statut_contact' => 'confirme', 'id_benevole_impose' => $chauffeur->id]);
+        $livraison->creneaux()->create(['creneau' => '08-10']);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.contacts.contacter-manuel', $livraison), [
+                'statut_contact' => 'confirme',
+                'se_deplace' => false,
+                'creneaux' => ['14-16', '16-18'],
+                'id_benevole_impose' => null,
+            ])
+            ->assertOk();
+
+        $livraison->refresh();
+        $this->assertNull($livraison->id_benevole_impose);
+        $this->assertEqualsCanonicalizing(['14-16', '16-18'], $livraison->creneaux->pluck('creneau')->all());
+    }
+
+    public function test_la_file_de_contacts_expose_les_creneaux_enregistres(): void
+    {
+        $livraison = $this->livraison(['statut_contact' => 'confirme']);
+        $livraison->creneaux()->create(['creneau' => '08-10']);
+        $livraison->creneaux()->create(['creneau' => '10-12']);
+
+        $reponse = $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.contacts.queue', ['id_campagne' => $this->campagne->id]))
+            ->assertOk();
+
+        $this->assertEqualsCanonicalizing(
+            ['08-10', '10-12'],
+            collect($reponse->json('data.0.creneaux'))->pluck('creneau')->all(),
+        );
     }
 
     // ── Suivi des bénévoles ──────────────────────────────────────────────

@@ -159,9 +159,7 @@ class RetraitHqEtChargementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('0.type', 'retrait_hq_non_livre')
             ->assertJsonPath('0.type_label', 'Retrait QG non livré')
-            ->assertJsonPath('0.id_route', null);
-        $this->getJson(route('livraison.campagnes.incidents', $this->campagne))
-            ->assertOk()
+            ->assertJsonPath('0.id_route', null)
             ->assertJsonCount(1);
     }
 

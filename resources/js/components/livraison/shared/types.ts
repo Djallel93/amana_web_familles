@@ -175,6 +175,8 @@ export interface FamilleEligible {
     id_livraison?: number;
     /** Poids du colis de la livraison (kg) — nonCouvertesTable() seulement (06/10/2026). */
     poids_kg?: number;
+    /** Nombre de colis (parts) de la livraison — nonCouvertesTable() seulement (10/10/2026). */
+    nombre_parts?: number;
 }
 
 /**
@@ -628,6 +630,8 @@ export interface AvancementCampagne {
         livraisons_total: number;
         livraisons_confirmees: number;
         routes_total: number;
+        /** Tournées chargées par l'équipe chargement (statut « charge » ou plus avancé). */
+        routes_chargees: number;
         routes_terminees: number;
         /** Familles confirmées qui se déplacent au QG / dont le colis est remis (carte Retrait QG). */
         retraits_total: number;
@@ -666,6 +670,8 @@ export interface ChauffeurDisponible {
     id_vehicule_type: number;
     vehicule: string;
     capacite_kg: number;
+    /** Nombre de colis (parts) transportables (10/10/2026). */
+    nombre_part_max: number;
     ids_secteurs: number[];
     /** Déjà une tournée active sur ce créneau : affiché grisé, non sélectionnable. */
     occupe: boolean;
@@ -676,9 +682,18 @@ export interface ChauffeurDisponible {
 export interface ApercuGeneration {
     familles: number;
     poids_kg: number;
+    /** Nombre de colis (parts) à livrer (10/10/2026). */
+    parts: number;
     capacite_kg: number;
+    capacite_parts: number;
     sans_coordonnees: number;
     chauffeurs: number;
+    plus_gros_vehicule_kg: number;
+    plus_gros_vehicule_parts: number;
+    /** Plus petit nombre de véhicules couvrant poids ET colis ; null = même la flotte entière ne suffit pas. */
+    vehicules_minimum: number | null;
+    exclues_se_deplace: number;
+    exclues_imposees: number;
 }
 
 export interface GenerationUrls {

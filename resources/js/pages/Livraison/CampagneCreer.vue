@@ -17,6 +17,8 @@ defineProps<{
     livraisonsMaxParTourneeDefaut: string;
     googlePlacesKey: string;
     hqGlobalDefaut: { lat: number; lng: number } | null;
+    hqAdresseDefaut: string | null;
+    retraitQgDefaut: { debut: string; fin: string };
 }>();
 </script>
 
@@ -38,6 +40,8 @@ defineProps<{
             :livraisons-max-par-tournee-defaut="livraisonsMaxParTourneeDefaut"
             :google-places-key="googlePlacesKey"
             :hq-global-defaut="hqGlobalDefaut"
+            :hq-adresse-defaut="hqAdresseDefaut"
+            :retrait-qg-defaut="retraitQgDefaut"
         />
     </div>
 </template>

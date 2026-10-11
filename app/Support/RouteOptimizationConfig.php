@@ -93,6 +93,17 @@ final class RouteOptimizationConfig
     }
 
     /**
+     * Adresse du QG (réglage global `route_hq_adresse`, 10/10/2026), ou null si non renseignée.
+     * Préremplit « Nouvelle campagne » ; recopiée sur la campagne à sa création, comme lat/lng.
+     */
+    public static function adresseHq(): ?string
+    {
+        $adresse = trim((string) Setting::get('route_hq_adresse', 'familles'));
+
+        return $adresse === '' ? null : $adresse;
+    }
+
+    /**
      * Coordonnées du QG à utiliser pour LE CLUSTERING/TSP d'une campagne
      * précise — voir le prompt du 05/09/2026 §1.2 : chaque campagne peut
      * désormais surcharger le HQ global (campagnes.hq_latitude/

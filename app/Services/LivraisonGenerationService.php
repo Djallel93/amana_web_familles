@@ -145,11 +145,17 @@ class LivraisonGenerationService
         $sousRequetePoids = Livraison::query()->whereColumn('livraisons.id_famille', 'familles.id')->select('poids_kg');
         $livraisonMatch($sousRequetePoids);
 
+        // Nombre de colis / parts (10/10/2026) : une part par personne — un véhicule a aussi un
+        // nombre de parts maximal, que la barre de progression du mode personnalisé suit.
+        $sousRequeteParts = Livraison::query()->whereColumn('livraisons.id_famille', 'familles.id')->select('nombre_personnes');
+        $livraisonMatch($sousRequeteParts);
+
         return Famille::query()
             ->select('familles.*')
             ->selectSub($this->dateDerniereLivraisonSql(), 'derniere_livraison_le')
             ->selectSub($sousRequeteIdLivraison, 'id_livraison')
             ->selectSub($sousRequetePoids, 'poids_kg')
+            ->selectSub($sousRequeteParts, 'nombre_parts')
             ->whereHas('livraisons', $livraisonMatch);
     }
 

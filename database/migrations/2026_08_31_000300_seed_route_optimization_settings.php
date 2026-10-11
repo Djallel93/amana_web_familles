@@ -136,7 +136,16 @@ return new class extends Migration
         // la boucle générique de l'écran Paramètres — voir
         // resources/views/settings/index.blade.php et
         // HqCoordinatesAutocomplete.vue.
+        // 10/10/2026 : route_hq_adresse (type 'string') ajoutée — l'adresse du QG préremplit
+        // désormais « Nouvelle campagne » avec les coordonnées (modifiable ensuite par campagne).
         $reglagesHq = [
+            [
+                'cle' => 'route_hq_adresse',
+                'valeur' => '',
+                'type' => 'string',
+                'libelle' => 'HQ par défaut — Adresse',
+                'description' => "Adresse du point de départ des tournées (local de l'association), reprise dans les emails de retrait au QG.",
+            ],
             [
                 'cle' => 'route_hq_latitude',
                 'valeur' => '',

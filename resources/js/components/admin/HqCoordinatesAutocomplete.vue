@@ -17,6 +17,11 @@
     aller-retour HTTP puisque les détails du lieu sont déjà en main après
     la sélection dans la liste déroulante.
 
+    10/10/2026 : l'adresse du QG est désormais conservée elle aussi (réglage `route_hq_adresse`,
+    champ `hq_adresse` d'une campagne) — prop OPTIONNELLE targetAdresseId : si elle est fournie,
+    `formattedAddress` est demandé en plus de `location` et écrit dans ce champ texte. Sans elle,
+    comportement inchangé (coordonnées seules).
+
     Les deux <input type="number"> cibles (id passés en data-*) restent
     TOUJOURS visibles et pré-remplis avec les valeurs actuelles (pour
     qu'elles soient visibles à la réouverture de l'écran, même sans
@@ -50,6 +55,8 @@ const props = defineProps<{
     googlePlacesKey: string;
     targetLatId: string;
     targetLngId: string;
+    /** Id du champ texte qui reçoit l'adresse choisie (facultatif, voir l'en-tête). */
+    targetAdresseId?: string;
 }>();
 
 const googlePlacesKey = ref(props.googlePlacesKey);
@@ -74,13 +81,13 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
     return window.__googleMapsLoadPromise;
 }
 
-function ecrireDansChamp(id: string, valeur: number): void {
+function ecrireDansChamp(id: string, valeur: number | string): void {
     const cible = document.getElementById(id) as HTMLInputElement | null;
     if (!cible) return;
 
     // 6 décimales ≈ 11cm de précision, largement suffisant pour un point de
     // départ de tournée et plus lisible qu'un flottant JS brut à 15 chiffres.
-    cible.value = valeur.toFixed(6);
+    cible.value = typeof valeur === "number" ? valeur.toFixed(6) : valeur;
     cible.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
@@ -106,11 +113,16 @@ async function initAutocomplete(): Promise<void> {
 
         autocompleteElement.addEventListener("gmp-select", async ({ placePrediction }: any) => {
             const place = placePrediction.toPlace();
-            await place.fetchFields({ fields: ["location"] });
+            await place.fetchFields({
+                fields: props.targetAdresseId ? ["location", "formattedAddress"] : ["location"],
+            });
 
             if (place.location) {
                 ecrireDansChamp(targetLatId.value, place.location.lat());
                 ecrireDansChamp(targetLngId.value, place.location.lng());
+            }
+            if (props.targetAdresseId && place.formattedAddress) {
+                ecrireDansChamp(props.targetAdresseId, place.formattedAddress);
             }
 
             showSearch.value = false;

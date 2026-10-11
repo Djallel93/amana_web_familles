@@ -8,7 +8,6 @@ namespace App\Http\Controllers\Admin\Livraison;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CampagneResource;
 use App\Http\Resources\FamilleEligibleResource;
-use App\Http\Resources\RouteIncidentResource;
 use App\Http\Resources\RouteLivraisonResource;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
@@ -59,7 +58,7 @@ class LiveBoardController extends Controller
      * domaine livraison) — page Inertia, remplace resources/views/
      * livraison/suivi-livraison.blade.php (supprimée dans ce même
      * chunk). Seule cette action change : genererRoutes()/statistiques()/
-     * routes()/nonCouvertes()/nonCouvertesTable()/incidents()/
+     * routes()/nonCouvertes()/nonCouvertesTable()/
      * resoudreIncident()/etc. restent des endpoints JSON classiques,
      * consommés par LiveBoard.vue et ses panneaux (désormais enfants Vue
      * normaux de cette page, plus un îlot séparé) exactement comme
@@ -77,6 +76,9 @@ class LiveBoardController extends Controller
      * unique) de la Blade — LiveBoard.vue lit déjà ce même objet plat
      * (voir son onMounted()), pas de raison d'exploser cette forme en
      * quinze props distinctes pour cette seule page.
+     *
+     * 10/10/2026 : plus d'URLs d'incidents ici — la section « Incidents » ne vit plus que dans le hub
+     * de la campagne (CampagnesController::show() → incidentsUrls).
      */
     public function index(?Campagne $campagne = null): InertiaResponse
     {
@@ -94,14 +96,11 @@ class LiveBoardController extends Controller
                 ? route('livraison.campagnes.show', $campagne)
                 : route('livraison.campagnes.index'),
             'urls' => [
-                'incidents' => route('livraison.campagnes.incidents', ['campagne' => '__CAMPAGNE__']),
                 'routes' => route('livraison.campagnes.routes', ['campagne' => '__CAMPAGNE__']),
                 'nonCouvertes' => route('livraison.campagnes.non-couvertes', ['campagne' => '__CAMPAGNE__']),
                 'statistiques' => route('livraison.campagnes.suivi-livraison-statistiques', ['campagne' => '__CAMPAGNE__']),
                 'routeSupprimer' => route('livraison.routes.supprimer', ['route' => '__ID__']),
                 'etapeStatut' => route('livraison.routes.etapes.statut', ['route' => '__ID__', 'etape' => '__ETAPE__']),
-                'incidentResoudre' => route('livraison.incidents.resoudre', ['incident' => '__ID__']),
-                'incidentIgnorer' => route('livraison.incidents.ignorer', ['incident' => '__ID__']),
                 'routeAjouter' => route('livraison.routes.ajouter-livraison', ['route' => '__ID__']),
                 'routeRetirer' => route('livraison.routes.retirer-livraison', ['route' => '__ID__', 'etape' => '__ETAPE__']),
                 // Accès admin à l'écran chauffeur de chaque tournée (29/09/2026,
@@ -138,6 +137,8 @@ class LiveBoardController extends Controller
             'creneau' => 'required|in:' . implode(',', Creneau::TOUS),
             'ids_benevoles' => 'required|array|min:1',
             'ids_benevoles.*' => 'integer',
+            // Stratégie « moins de véhicules » (10/10/2026) — voir RouteGenerationService::genererPourCreneau().
+            'minimiser_vehicules' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -172,7 +173,7 @@ class LiveBoardController extends Controller
         }
 
         try {
-            $resultat = $this->generationService->genererPourCreneauEtBenevoles($campagne, $journee, $creneau, $idsBenevoles);
+            $resultat = $this->generationService->genererPourCreneauEtBenevoles($campagne, $journee, $creneau, $idsBenevoles, $request->boolean('minimiser_vehicules'));
         } catch (\RuntimeException $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
@@ -202,15 +203,17 @@ class LiveBoardController extends Controller
     }
 
     /**
-     * Récapitulatif avant confirmation (mode automatique) : familles
-     * éligibles et leur poids face à la capacité des chauffeurs choisis.
+     * Récapitulatif du créneau (mode automatique) : familles éligibles, poids,
+     * colis et capacité des chauffeurs. `ids_benevoles` est facultatif depuis le
+     * 10/10/2026 : l'étape « statistiques » s'affiche juste après le choix du
+     * créneau, avant celui des chauffeurs (absent = tous les chauffeurs disponibles).
      */
     public function apercuGeneration(Request $request, Campagne $campagne): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'id_campagne_journee' => 'required|integer',
             'creneau' => 'required|in:' . implode(',', Creneau::TOUS),
-            'ids_benevoles' => 'required|array|min:1',
+            'ids_benevoles' => 'sometimes|array',
             'ids_benevoles.*' => 'integer',
         ]);
 
@@ -228,7 +231,7 @@ class LiveBoardController extends Controller
             $campagne,
             $journee,
             $request->input('creneau'),
-            array_map('intval', $request->input('ids_benevoles')),
+            $request->has('ids_benevoles') ? array_map('intval', $request->input('ids_benevoles')) : null,
         ));
     }
 
@@ -367,21 +370,6 @@ class LiveBoardController extends Controller
         $paginateur->getCollection()->transform(fn($famille) => new FamilleEligibleResource($famille));
 
         return response()->json($paginateur);
-    }
-
-    /**
-     * Incidents ouverts de la campagne — voir matrice §4 ("Resolve" =
-     * admin/gestionnaire uniquement, couvert par le rôle de ce groupe de
-     * routes).
-     */
-    public function incidents(Campagne $campagne): JsonResponse
-    {
-        $incidents = RouteIncident::deCampagne($campagne->id)
-            ->where('statut', 'ouvert')
-            ->with(['route.benevole', 'livraison.famille:id,nom,prenom'])
-            ->get();
-
-        return response()->json(RouteIncidentResource::collection($incidents));
     }
 
     /**

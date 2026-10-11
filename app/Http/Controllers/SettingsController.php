@@ -32,13 +32,13 @@ use Inertia\Response as InertiaResponse;
  * imbriqué — seulement deux sous-ensembles de la boucle générique à
  * séparer : les deux interrupteurs d'inscription ("Général") et les
  * réglages d'algorithme de clustering ("Itinéraires"). Les clés
- * route_hq_latitude/route_hq_longitude sont exclues de $reglagesItineraires
+ * route_hq_adresse/route_hq_latitude/route_hq_longitude sont exclues de $reglagesItineraires
  * : elles ont leur propre widget dédié dans l'onglet "Itinéraires" (voir
  * HqCoordinatesAutocomplete.vue) plutôt que la boucle générique.
  */
 class SettingsController extends SettingsControllerBase
 {
-    private const CLES_HQ = ['route_hq_latitude', 'route_hq_longitude'];
+    private const CLES_HQ = ['route_hq_adresse', 'route_hq_latitude', 'route_hq_longitude'];
 
     protected function appCode(): string
     {

@@ -68,8 +68,8 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     Route::post('/campagnes/{campagne}/incidents/forcer-resolution', [CampagnesController::class, 'forcerResolutionIncidents'])
         ->name('campagnes.incidents.forcer-resolution');
     // Liste complète des incidents de la campagne (section repliable du hub,
-    // 06/10/2026 — plus de page dédiée). L'URL /campagnes/{campagne}/incidents
-    // existe déjà : c'est l'endpoint JSON des incidents OUVERTS de Suivi livraison.
+    // 06/10/2026 — plus de page dédiée). Seul emplacement des incidents depuis le
+    // 10/10/2026 : Suivi livraison ne les affiche plus.
     Route::get('/campagnes/{campagne}/incidents/liste', [IncidentsController::class, 'liste'])
         ->name('campagnes.incidents-liste');
     // « Démarrer la campagne » (06/10/2026) — voir CampagneDemarrageService.
@@ -197,8 +197,6 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // Cartes statistiques Suivi livraison (09/09/2026, prompt §5.2.4).
     Route::get('/campagnes/{campagne}/suivi-livraison-statistiques', [LiveBoardController::class, 'statistiques'])
         ->name('campagnes.suivi-livraison-statistiques');
-    Route::get('/campagnes/{campagne}/incidents', [LiveBoardController::class, 'incidents'])
-        ->name('campagnes.incidents');
     Route::post('/incidents/{incident}/resoudre', [LiveBoardController::class, 'resoudreIncident'])
         ->name('incidents.resoudre');
     // Fermeture sans traitement, statut 'ignore' (03/10/2026).

@@ -55,6 +55,8 @@ class FamilleEligibleResource extends JsonResource
             'derniere_livraison_le' => $this->derniere_livraison_le,
             'id_livraison' => $this->when(isset($this->id_livraison), $this->id_livraison),
             'poids_kg' => $this->when($this->resource->getAttribute('poids_kg') !== null, fn() => (float) $this->resource->getAttribute('poids_kg')),
+            // Nombre de colis (parts) de la livraison — même provenance que poids_kg (10/10/2026).
+            'nombre_parts' => $this->when($this->resource->getAttribute('nombre_parts') !== null, fn() => (int) $this->resource->getAttribute('nombre_parts')),
         ];
     }
 }

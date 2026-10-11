@@ -135,10 +135,13 @@ class RouteGenerationService
      * Les chauffeurs non sélectionnés, non disponibles ou déjà occupés sur
      * ce créneau sont ignorés (voir vehiculesDisponiblesPour()).
      *
+     * $minimiserVehicules (10/10/2026) : stratégie « moins de véhicules » — voir
+     * genererPourCreneau(). Faux = historique (tous les chauffeurs choisis servent).
+     *
      * @param int[] $idsBenevoles
      * @return array{routes_creees: int, non_couvertes: int}
      */
-    public function genererPourCreneauEtBenevoles(Campagne $campagne, CampagneJournee $journee, string $creneau, array $idsBenevoles): array
+    public function genererPourCreneauEtBenevoles(Campagne $campagne, CampagneJournee $journee, string $creneau, array $idsBenevoles, bool $minimiserVehicules = false): array
     {
         $hq = RouteOptimizationConfig::coordonneesHqPourCampagne($campagne);
 
@@ -146,31 +149,113 @@ class RouteGenerationService
             throw new \RuntimeException('Coordonnées QG non configurées — voir Paramètres avant de lancer un clustering.');
         }
 
-        return $this->genererPourCreneau($campagne, $journee, $creneau, $hq, $idsBenevoles);
+        return $this->genererPourCreneau($campagne, $journee, $creneau, $hq, $idsBenevoles, $minimiserVehicules);
     }
 
     /**
-     * Aperçu (sans rien écrire) affiché avant de confirmer la génération :
-     * familles éligibles pour ce créneau, leur poids, la capacité des
-     * chauffeurs choisis et les familles sans coordonnées (exclues du
-     * clustering, voir genererPourCreneau()).
+     * Aperçu (sans rien écrire) affiché dès le choix du créneau puis avant de
+     * confirmer la génération : familles éligibles pour ce créneau, leur poids
+     * ET leur nombre de colis (parts), la capacité des chauffeurs (kg et colis),
+     * le plus gros véhicule, le nombre minimal de véhicules estimé, les familles
+     * sans coordonnées (exclues du clustering) et celles exclues d'office
+     * (retrait au QG, chauffeur imposé).
      *
-     * @param int[] $idsBenevoles
-     * @return array{familles: int, poids_kg: float, capacite_kg: float, sans_coordonnees: int, chauffeurs: int}
+     * $idsBenevoles null (10/10/2026) = tous les chauffeurs disponibles : l'étape
+     * « statistiques » de l'assistant précède le choix des chauffeurs.
+     *
+     * @param int[]|null $idsBenevoles
+     * @return array{familles: int, poids_kg: float, parts: int, capacite_kg: float, capacite_parts: int, sans_coordonnees: int, chauffeurs: int, plus_gros_vehicule_kg: float, plus_gros_vehicule_parts: int, vehicules_minimum: int|null, exclues_se_deplace: int, exclues_imposees: int}
      */
-    public function apercuCreneau(Campagne $campagne, CampagneJournee $journee, string $creneau, array $idsBenevoles): array
+    public function apercuCreneau(Campagne $campagne, CampagneJournee $journee, string $creneau, ?array $idsBenevoles = null): array
     {
         $pool = $this->poolPour($campagne, $journee, $creneau);
         $geocodees = $this->geocodees($pool);
         $vehicules = $this->vehiculesDisponiblesPour($journee, $creneau, $idsBenevoles);
 
+        $poids = (float) $geocodees->sum('poids_kg');
+        $parts = (int) $geocodees->sum('nombre_personnes');
+        $minimum = $geocodees->isEmpty() ? [] : $this->selectionnerMinimumVehicules($vehicules, $poids, $parts);
+
         return [
             'familles' => $geocodees->count(),
-            'poids_kg' => round((float) $geocodees->sum('poids_kg'), 1),
+            'poids_kg' => round($poids, 1),
+            'parts' => $parts,
             'capacite_kg' => round((float) array_sum(array_column($vehicules, 'capacite_kg')), 1),
+            'capacite_parts' => (int) array_sum(array_column($vehicules, 'nombre_part_max')),
             'sans_coordonnees' => $pool->count() - $geocodees->count(),
             'chauffeurs' => count($vehicules),
+            'plus_gros_vehicule_kg' => $vehicules === [] ? 0.0 : round((float) max(array_column($vehicules, 'capacite_kg')), 1),
+            'plus_gros_vehicule_parts' => $vehicules === [] ? 0 : (int) max(array_column($vehicules, 'nombre_part_max')),
+            // null = même tous les chauffeurs ne suffisent pas (poids ou colis).
+            'vehicules_minimum' => $minimum === null ? null : count($minimum),
+            'exclues_se_deplace' => $this->confirmeesAttenduesPour($campagne, $journee, $creneau)->where('se_deplace', true)->count(),
+            'exclues_imposees' => $this->confirmeesAttenduesPour($campagne, $journee, $creneau)->where('se_deplace', false)->whereNotNull('id_benevole_impose')->count(),
         ];
+    }
+
+    /**
+     * Familles confirmées non assignées de ce créneau, AVANT les exclusions de
+     * poolPour() (retrait QG, chauffeur imposé) — pour les compter à part.
+     *
+     * @return Collection<int, Livraison>
+     */
+    private function confirmeesAttenduesPour(Campagne $campagne, CampagneJournee $journee, string $creneau): Collection
+    {
+        return Livraison::where('id_campagne', $campagne->id)
+            ->where('id_campagne_journee', $journee->id)
+            ->where('statut', 'non_assignee')
+            ->where('statut_contact', 'confirme')
+            ->whereHas('creneaux', fn($q) => $q->where('creneau', $creneau))
+            ->get(['id', 'se_deplace', 'id_benevole_impose']);
+    }
+
+    /**
+     * Plus petit ensemble de véhicules couvrant à la fois le poids ET le nombre de
+     * colis du pool (10/10/2026, stratégie « moins de véhicules »). On prend d'abord
+     * les plus gros jusqu'à tout couvrir (nombre minimal), puis on remplace chacun,
+     * du plus gros au plus petit, par le plus petit véhicule libre qui suffit encore :
+     * mêmes économies d'espace, flotte la plus juste. null = la flotte entière ne suffit pas.
+     *
+     * @param array<int, array{id_benevole: int, capacite_kg: float, nombre_part_max: int}> $vehicules
+     * @return array<int, array{id_benevole: int, capacite_kg: float, nombre_part_max: int}>|null
+     */
+    private function selectionnerMinimumVehicules(array $vehicules, float $poids, int $parts): ?array
+    {
+        $suffit = fn(array $ensemble) => array_sum(array_column($ensemble, 'capacite_kg')) >= $poids
+            && array_sum(array_column($ensemble, 'nombre_part_max')) >= $parts;
+
+        $tries = $vehicules;
+        usort($tries, fn($a, $b) => [$b['capacite_kg'], $b['nombre_part_max']] <=> [$a['capacite_kg'], $a['nombre_part_max']]);
+
+        $retenus = [];
+        $reste = $tries;
+        while (!$suffit($retenus)) {
+            if ($reste === []) {
+                return null;
+            }
+            $retenus[] = array_shift($reste);
+        }
+
+        // Resserrage : le plus gros d'abord, on tente un véhicule libre plus petit.
+        foreach (array_keys($retenus) as $i) {
+            $sansCelui = $retenus;
+            unset($sansCelui[$i]);
+
+            $candidats = array_filter($reste, fn($v) => $suffit([...$sansCelui, $v]));
+            if ($candidats === []) {
+                continue;
+            }
+            usort($candidats, fn($a, $b) => [$a['capacite_kg'], $a['nombre_part_max']] <=> [$b['capacite_kg'], $b['nombre_part_max']]);
+            $remplacant = $candidats[array_key_first($candidats)];
+
+            if ($remplacant['capacite_kg'] < $retenus[$i]['capacite_kg']) {
+                $reste[] = $retenus[$i];
+                $reste = array_values(array_filter($reste, fn($v) => $v['id_benevole'] !== $remplacant['id_benevole']));
+                $retenus[$i] = $remplacant;
+            }
+        }
+
+        return $retenus;
     }
 
     /**
@@ -179,7 +264,7 @@ class RouteGenerationService
      * créneau). Source de la liste de l'assistant (modes automatique et
      * personnalisé) — mêmes règles que vehiculesDisponiblesPour().
      *
-     * @return array<int, array{id_personne: int, nom: string, prenom: string, id_vehicule_type: int, vehicule: string, capacite_kg: float, ids_secteurs: int[], occupe: bool, id_route: int|null}>
+     * @return array<int, array{id_personne: int, nom: string, prenom: string, id_vehicule_type: int, vehicule: string, capacite_kg: float, nombre_part_max: int, ids_secteurs: int[], occupe: bool, id_route: int|null}>
      */
     public function chauffeursDisponibles(CampagneJournee $journee, string $creneau): array
     {
@@ -194,6 +279,8 @@ class RouteGenerationService
                 'id_vehicule_type' => $candidat['id_vehicule_type'],
                 'vehicule' => $candidat['vehicule_libelle'],
                 'capacite_kg' => $candidat['capacite_kg'],
+                // Colis (parts) transportables (10/10/2026) : la tournée personnalisée l'affiche aussi.
+                'nombre_part_max' => $candidat['nombre_part_max'],
                 'ids_secteurs' => $candidat['ids_secteurs'],
                 'occupe' => isset($occupes[$candidat['id_benevole']]),
                 'id_route' => $occupes[$candidat['id_benevole']] ?? null,
@@ -428,9 +515,21 @@ class RouteGenerationService
     // ── Cycle par créneau ────────────────────────────────────────────────
 
     /**
+     * $minimiserVehicules (10/10/2026) : au lieu de répartir les familles sur TOUS les
+     * chauffeurs choisis, on ne retient d'abord que le plus petit ensemble de véhicules
+     * couvrant poids ET colis (selectionnerMinimumVehicules()), puis, si le découpage
+     * géographique laisse des familles non placées, on ajoute un véhicule de la réserve
+     * à la fois jusqu'à tout placer ou épuiser la réserve. Les chauffeurs non retenus ne
+     * reçoivent aucune tournée.
+     *
+     * Le clustering produit un groupe par zone géographique, donc autant de tournées : restreindre
+     * la flotte ne suffit pas à réduire le nombre de véhicules. Dans cette stratégie, les groupes
+     * les plus proches sont donc fusionnés (fusionnerClusters()) tant qu'un véhicule retenu peut
+     * encore tout emporter.
+     *
      * @return array{routes_creees: int, non_couvertes: int}
      */
-    private function genererPourCreneau(Campagne $campagne, CampagneJournee $journee, string $creneau, array $hq, ?array $idsBenevoles = null): array
+    private function genererPourCreneau(Campagne $campagne, CampagneJournee $journee, string $creneau, array $hq, ?array $idsBenevoles = null, bool $minimiserVehicules = false): array
     {
         $pool = $this->geocodees($this->poolPour($campagne, $journee, $creneau));
         // Familles sans coordonnées résolues (géocodage en attente/échoué,
@@ -448,13 +547,51 @@ class RouteGenerationService
         }
 
         $poolRetenu = $this->prioriserInflexibles($pool, $vehicules);
-
-        $plafondPoids = max(array_column($vehicules, 'capacite_kg'));
-
         $livraisonsArray = $poolRetenu->map(fn(Livraison $l) => $this->versArrayClustering($l))->all();
+        $maxLivraisons = RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne($campagne);
 
-        $clusters = $this->clustering->identifierClusters($livraisonsArray, $hq, $plafondPoids);
-        $resultat = $this->assignment->assigner($clusters, $vehicules, RouteOptimizationConfig::maxLivraisonsParRoutePourCampagne($campagne));
+        $flotte = $vehicules;
+        $reserve = [];
+        if ($minimiserVehicules) {
+            $minimum = $this->selectionnerMinimumVehicules(
+                $vehicules,
+                (float) $poolRetenu->sum('poids_kg'),
+                (int) $poolRetenu->sum('nombre_personnes'),
+            );
+            // Flotte insuffisante même au complet : on garde tout (comportement historique).
+            if ($minimum !== null) {
+                $idsRetenus = array_column($minimum, 'id_benevole');
+                $flotte = $minimum;
+                $reserve = array_values(array_filter($vehicules, fn($v) => !in_array($v['id_benevole'], $idsRetenus, true)));
+            }
+        }
+
+        // Le clustering et l'assignation sont purs (rien d'écrit avant la boucle de
+        // création) : on peut les rejouer en ajoutant un véhicule de la réserve.
+        while (true) {
+            $plafondPoids = max(array_column($flotte, 'capacite_kg'));
+            $clusters = $this->clustering->identifierClusters($livraisonsArray, $hq, $plafondPoids);
+            if ($minimiserVehicules) {
+                $clusters = $this->fusionnerClusters($clusters, count($flotte), $flotte, $hq, $maxLivraisons);
+            }
+            $resultat = $this->assignment->assigner($clusters, $flotte, $maxLivraisons);
+
+            if ($resultat['non_places'] === [] || $reserve === []) {
+                break;
+            }
+
+            $poidsRestant = (float) array_sum(array_map(fn(array $c) => (float) $c['poids_total'], $resultat['non_places']));
+            usort($reserve, fn($a, $b) => $a['capacite_kg'] <=> $b['capacite_kg']);
+            $index = array_key_last($reserve);
+            foreach ($reserve as $i => $v) {
+                if ($v['capacite_kg'] >= $poidsRestant) {
+                    $index = $i;
+                    break;
+                }
+            }
+            $flotte[] = $reserve[$index];
+            array_splice($reserve, $index, 1);
+        }
 
         $routesCreees = 0;
         foreach ($resultat['assignations'] as $assignation) {
@@ -478,6 +615,77 @@ class RouteGenerationService
         // "non couvertes" pour CE créneau, ce n'en est pas un échec.
 
         return ['routes_creees' => $routesCreees, 'non_couvertes' => $nonCouvertes];
+    }
+
+    /**
+     * Fusionne les deux groupes les plus proches (distance entre centres) tant qu'il y a plus de
+     * groupes que de véhicules ($cible) et qu'un véhicule de la flotte peut emporter le groupe fusionné
+     * (poids, colis, nombre d'arrêts). S'arrête quand plus aucune fusion n'est possible. Stratégie
+     * « moins de véhicules » uniquement (10/10/2026).
+     *
+     * @param array<int, array<string, mixed>> $clusters
+     * @param array<int, array{capacite_kg: float, nombre_part_max: int}> $flotte
+     * @param array{lat: float, lng: float} $hq
+     * @return array<int, array<string, mixed>> Triés par distance_hq décroissante, comme ClusteringService.
+     */
+    private function fusionnerClusters(array $clusters, int $cible, array $flotte, array $hq, int $maxLivraisons): array
+    {
+        $clusters = array_values($clusters);
+
+        while (count($clusters) > $cible) {
+            $meilleur = null;
+            $meilleureDistance = INF;
+
+            for ($i = 0; $i < count($clusters); $i++) {
+                for ($j = $i + 1; $j < count($clusters); $j++) {
+                    $poids = $clusters[$i]['poids_total'] + $clusters[$j]['poids_total'];
+                    $parts = $clusters[$i]['nombre_parts'] + $clusters[$j]['nombre_parts'];
+                    $arrets = $clusters[$i]['nombre_livraisons'] + $clusters[$j]['nombre_livraisons'];
+
+                    if ($arrets > $maxLivraisons) {
+                        continue;
+                    }
+                    $tient = array_filter($flotte, fn($v) => $v['capacite_kg'] >= $poids && $v['nombre_part_max'] >= $parts);
+                    if ($tient === []) {
+                        continue;
+                    }
+
+                    $distance = $this->geo->distanceHaversine(
+                        $clusters[$i]['centre']['lat'], $clusters[$i]['centre']['lng'],
+                        $clusters[$j]['centre']['lat'], $clusters[$j]['centre']['lng'],
+                    );
+                    if ($distance < $meilleureDistance) {
+                        $meilleureDistance = $distance;
+                        $meilleur = [$i, $j];
+                    }
+                }
+            }
+
+            if ($meilleur === null) {
+                break;
+            }
+
+            [$i, $j] = $meilleur;
+            $livraisons = [...$clusters[$i]['livraisons'], ...$clusters[$j]['livraisons']];
+            $centre = $this->geo->centre($livraisons);
+
+            $clusters[$i] = [
+                'id' => $clusters[$i]['id'] . '+' . $clusters[$j]['id'],
+                'centre' => $centre,
+                'livraisons' => $livraisons,
+                'quartier_id' => $clusters[$i]['quartier_id'] === $clusters[$j]['quartier_id'] ? $clusters[$i]['quartier_id'] : null,
+                'distance_hq' => $this->geo->distanceHaversine($hq['lat'], $hq['lng'], $centre['lat'], $centre['lng']),
+                'nombre_livraisons' => count($livraisons),
+                'nombre_parts' => array_sum(array_column($livraisons, 'nombre_personnes')),
+                'poids_total' => array_sum(array_column($livraisons, 'poids_kg')),
+            ];
+            unset($clusters[$j]);
+            $clusters = array_values($clusters);
+        }
+
+        usort($clusters, fn($a, $b) => $b['distance_hq'] <=> $a['distance_hq']);
+
+        return $clusters;
     }
 
     /**
@@ -585,8 +793,8 @@ class RouteGenerationService
     /**
      * Retire du pool, par ordre de criticité CROISSANTE, les livraisons de
      * familles FLEXIBLES (plusieurs créneaux confirmés) jusqu'à ce que le
-     * pool restant tienne dans la capacité totale estimée des véhicules
-     * disponibles — voir docblock de classe, point 1. Les familles
+     * pool restant tienne dans la capacité totale estimée (poids ET nombre de
+     * parts) des véhicules disponibles — voir docblock de classe, point 1. Les familles
      * inflexibles (un seul créneau confirmé, forcément celui-ci) ne sont
      * jamais retirées.
      *
@@ -597,9 +805,12 @@ class RouteGenerationService
     private function prioriserInflexibles(Collection $pool, array $vehicules): Collection
     {
         $capaciteDisponible = array_sum(array_column($vehicules, 'capacite_kg'));
+        // Colis (parts) : une part par personne — un véhicule a aussi un nombre de parts
+        // maximal (10/10/2026), jusqu'ici ignoré par ce tri qui ne regardait que le poids.
+        $capacitePartsDisponible = (int) array_sum(array_column($vehicules, 'nombre_part_max'));
 
         $poidsTotal = (float) $pool->sum('poids_kg');
-        if ($poidsTotal <= $capaciteDisponible) {
+        if ($poidsTotal <= $capaciteDisponible && (int) $pool->sum('nombre_personnes') <= $capacitePartsDisponible) {
             return $pool; // Tout tient, rien à retirer.
         }
 
@@ -613,14 +824,17 @@ class RouteGenerationService
         $flexibles = $flexibles->sortByDesc(fn(Livraison $l) => $l->famille->criticite ?? 0)->values();
 
         $poidsRetenu = (float) $inflexibles->sum('poids_kg');
+        $partsRetenues = (int) $inflexibles->sum('nombre_personnes');
         $retenues = $inflexibles;
 
         foreach ($flexibles as $livraison) {
-            if ($poidsRetenu + $livraison->poids_kg > $capaciteDisponible) {
+            if ($poidsRetenu + $livraison->poids_kg > $capaciteDisponible
+                || $partsRetenues + $livraison->nombre_personnes > $capacitePartsDisponible) {
                 continue; // Reste non_assignee, reconsidérée à un créneau ultérieur.
             }
             $retenues->push($livraison);
             $poidsRetenu += $livraison->poids_kg;
+            $partsRetenues += $livraison->nombre_personnes;
         }
 
         return $retenues->values();

@@ -171,15 +171,34 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                 <h3 class="font-heading text-base font-semibold text-ink tracking-tight mb-1">HQ par défaut</h3>
                 <p class="text-[13px] text-ink-muted mb-3">
                     Coordonnées du point de départ des tournées (local de l'association). Requises avant tout
-                    clustering. Recherchez une adresse pour remplir automatiquement les coordonnées, ou saisissez-les
-                    manuellement — seules les coordonnées sont conservées, pas l'adresse recherchée.
+                    clustering. Recherchez une adresse pour remplir automatiquement l'adresse et les coordonnées, ou
+                    saisissez-les manuellement. Ces valeurs préremplissent chaque nouvelle campagne (modifiables ensuite
+                    pour cette campagne seulement) ; l'adresse figure dans les emails de retrait au QG.
                 </p>
 
                 <HqCoordinatesAutocomplete
                     :google-places-key="googlePlacesKey"
                     target-lat-id="setting-route_hq_latitude"
                     target-lng-id="setting-route_hq_longitude"
+                    target-adresse-id="setting-route_hq_adresse"
                 />
+
+                <div class="max-w-md mt-3">
+                    <label for="setting-route_hq_adresse" class="block text-xs font-bold text-ink mb-1.5"
+                        >Adresse</label
+                    >
+                    <input
+                        type="text"
+                        maxlength="255"
+                        id="setting-route_hq_adresse"
+                        name="settings[route_hq_adresse]"
+                        :value="oldSettings('route_hq_adresse') ?? settings.route_hq_adresse?.valeur"
+                        class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface text-ink"
+                    />
+                    <span v-if="erreur('settings.route_hq_adresse')" class="block text-xs text-rose-600 mt-1">{{
+                        erreur("settings.route_hq_adresse")
+                    }}</span>
+                </div>
 
                 <div class="flex gap-3 max-w-md mt-3">
                     <div class="flex-1">

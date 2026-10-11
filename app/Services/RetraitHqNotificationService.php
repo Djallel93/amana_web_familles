@@ -32,7 +32,28 @@ class RetraitHqNotificationService
         private readonly QrCodeService $qrCode,
     ) {}
 
+    /** Résultats de envoyerPour() — lus par CampagneDemarrageService pour son bilan. */
+    public const ENVOYE = 'envoye';
+
+    public const SANS_EMAIL = 'sans_email';
+
+    public const ECHEC = 'echec';
+
+    public const NON_PLANIFIE = 'non_planifie';
+
     public function notifierPour(Livraison $livraison): bool
+    {
+        return $this->envoyerPour($livraison) === self::ENVOYE;
+    }
+
+    /**
+     * Comme notifierPour(), mais renvoie la RAISON (10/10/2026) : un échec d'envoi
+     * (ex. RouteNotFoundException dans la notification, avalée ci-dessous) restait
+     * invisible hors des logs, et « famille sans email » était confondu avec un échec.
+     *
+     * @return self::ENVOYE|self::SANS_EMAIL|self::ECHEC|self::NON_PLANIFIE
+     */
+    public function envoyerPour(Livraison $livraison): string
     {
         $famille = $this->familleAvecEmail($livraison);
 
@@ -49,7 +70,7 @@ class RetraitHqNotificationService
                 },
             ]);
 
-            return false;
+            return $famille === null || empty($famille->email) ? self::SANS_EMAIL : self::NON_PLANIFIE;
         }
 
         try {
@@ -63,7 +84,7 @@ class RetraitHqNotificationService
                 'mailer' => config('mail.default'),
             ]);
 
-            return true;
+            return self::ENVOYE;
         } catch (\Throwable $e) {
             Log::error('[RetraitHqNotificationService] Échec envoi email de retrait QG', [
                 'id_livraison' => $livraison->id,
@@ -73,7 +94,7 @@ class RetraitHqNotificationService
                 'message' => $e->getMessage(),
             ]);
 
-            return false;
+            return self::ECHEC;
         }
     }
 

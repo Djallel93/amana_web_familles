@@ -233,4 +233,18 @@ class CampagneDemarrageTest extends TestCase
         )->once();
         Notification::assertNothingSent();
     }
+
+    public function test_demarrer_expose_le_bilan_des_emails_de_retrait_qg_dans_la_reponse(): void
+    {
+        $this->livraison(['se_deplace' => true]);
+        $sansEmail = $this->livraison(['se_deplace' => true]);
+        $sansEmail->famille->update(['email' => null]);
+
+        $this->actingAs($this->gestionnaire())->postJson(route('livraison.campagnes.demarrer', $this->campagne))
+            ->assertOk()
+            ->assertJsonPath('retraits_planifies', 2)
+            ->assertJsonPath('emails_retrait_envoyes', 1)
+            ->assertJsonPath('emails_retrait_sans_adresse', 1)
+            ->assertJsonPath('emails_retrait_en_echec', 0);
+    }
 }

@@ -53,7 +53,7 @@ class CampagneDemarrageService
     }
 
     /**
-     * @return array{routes_imposees: int, retraits_planifies: int}
+     * @return array{routes_imposees: int, retraits_planifies: int, emails_retrait_envoyes: int, emails_retrait_sans_adresse: int, emails_retrait_en_echec: int}
      *
      * @throws \RuntimeException message prêt à afficher
      */
@@ -79,6 +79,8 @@ class CampagneDemarrageService
 
         $retraits = 0;
         $emailsEnvoyes = 0;
+        $emailsSansAdresse = 0;
+        $emailsEnEchec = 0;
         foreach (CampagneJournee::where('id_campagne', $campagne->id)->get() as $journee) {
             $planifiees = $this->retraitHqScheduling->planifierPour($campagne, $journee);
 
@@ -89,9 +91,11 @@ class CampagneDemarrageService
             ]);
 
             foreach ($planifiees as $livraison) {
-                if ($this->retraitHqNotification->notifierPour($livraison)) {
-                    $emailsEnvoyes++;
-                }
+                match ($this->retraitHqNotification->envoyerPour($livraison)) {
+                    RetraitHqNotificationService::ENVOYE => $emailsEnvoyes++,
+                    RetraitHqNotificationService::SANS_EMAIL => $emailsSansAdresse++,
+                    default => $emailsEnEchec++,
+                };
                 $retraits++;
             }
         }
@@ -103,8 +107,17 @@ class CampagneDemarrageService
             'routes_imposees' => $routesImposees,
             'retraits_planifies' => $retraits,
             'emails_retrait_envoyes' => $emailsEnvoyes,
+            'emails_retrait_sans_adresse' => $emailsSansAdresse,
+            'emails_retrait_en_echec' => $emailsEnEchec,
         ]);
 
-        return ['routes_imposees' => $routesImposees, 'retraits_planifies' => $retraits];
+        return [
+            'routes_imposees' => $routesImposees,
+            'retraits_planifies' => $retraits,
+            // Bilan visible dans l'interface (10/10/2026) : un échec d'envoi n'était lisible que dans les logs.
+            'emails_retrait_envoyes' => $emailsEnvoyes,
+            'emails_retrait_sans_adresse' => $emailsSansAdresse,
+            'emails_retrait_en_echec' => $emailsEnEchec,
+        ];
     }
 }

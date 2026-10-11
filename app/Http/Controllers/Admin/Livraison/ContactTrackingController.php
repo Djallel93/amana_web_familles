@@ -176,7 +176,7 @@ class ContactTrackingController extends Controller
         // id/nom/prenom/telephone/telephone_bis/email de `famille` restent
         // nécessaires.
         $query = $this->queteBase($request)
-            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email', 'personneAssignee', 'benevoleImpose'])
+            ->with(['famille:id,nom,prenom,telephone,telephone_bis,email', 'personneAssignee', 'benevoleImpose', 'creneaux'])
             // Ordre demandé le 29/09/2026 : a_contacter en tête, puis
             // injoignable, confirmé, archivé, rejetée en bas (voir
             // Livraison::ORDRE_AFFICHAGE_CONTACT). Remplace le simple
@@ -435,6 +435,10 @@ class ContactTrackingController extends Controller
             // confirmation, livraisons.se_deplace reste à false (défaut)
             // pour tout autre statut_contact.
             'se_deplace' => 'required_if:statut_contact,confirme|boolean',
+            // Chauffeur imposé dès la confirmation (10/10/2026) : avant, le sélecteur
+            // n'apparaissait qu'APRÈS la confirmation (voir prendreEnCharge()). La clé
+            // absente laisse l'imposition inchangée ; présente mais vide, elle la retire.
+            'id_benevole_impose' => 'nullable|integer',
             // Motif OBLIGATOIRE pour archiver ou rejeter (09/10/2026) : la popup de
             // ContactsQueue.vue ne valide l'action qu'une fois le motif saisi, le
             // serveur applique la même règle.
@@ -446,6 +450,43 @@ class ContactTrackingController extends Controller
         }
 
         $statut = $request->input('statut_contact');
+        $imposeDemande = $statut === 'confirme' && $request->filled('id_benevole_impose');
+
+        if ($imposeDemande) {
+            // Une famille ne peut pas à la fois venir au QG et être imposée à un chauffeur.
+            if ($request->boolean('se_deplace')) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => ['id_benevole_impose' => ['Une famille qui se déplace au QG ne peut pas être imposée à un chauffeur.']],
+                ], 422);
+            }
+
+            // Même critère que prendreEnCharge() : chauffeur confirmé pour la journée de la famille.
+            if (!$this->chauffeursConfirmes->estConfirme($request->integer('id_benevole_impose'), $livraison->id_campagne_journee, $livraison->id_campagne)) {
+                return response()->json([
+                    'success' => false,
+                    'errors' => ['id_benevole_impose' => ['Ce bénévole n\'a pas confirmé sa disponibilité (avec un véhicule) pour la journée de cette famille.']],
+                ], 422);
+            }
+        }
+
+        // Modification d'une famille DÉJÀ confirmée (10/10/2026) : se_deplace qui change
+        // doit déplacer la famille entre tournée / retrait QG avec les règles de
+        // LivraisonChangementService (refus si tournée chargée, email d'annulation...),
+        // pas seulement écrire la colonne.
+        $etaitConfirmee = $livraison->statut_contact === 'confirme';
+        $seDeplaceChange = $statut === 'confirme' && $etaitConfirmee
+            && $request->boolean('se_deplace') !== (bool) $livraison->se_deplace;
+
+        if ($seDeplaceChange) {
+            try {
+                $this->changements->changerSeDeplace($livraison, $request->boolean('se_deplace'));
+            } catch (\RuntimeException $e) {
+                return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            }
+            $livraison->refresh();
+        }
+
         $donnees = [
             'statut_contact' => $statut,
             'motif_statut_contact' => in_array($statut, self::STATUTS_AVEC_MOTIF, true)
@@ -454,7 +495,7 @@ class ContactTrackingController extends Controller
         ];
         $donneesConfirmees = null;
 
-        if ($statut === 'confirme') {
+        if ($statut === 'confirme' && !$etaitConfirmee) {
             $donnees['se_deplace'] = $request->boolean('se_deplace');
         }
 
@@ -487,6 +528,27 @@ class ContactTrackingController extends Controller
                 $this->changements->apresConfirmation(Livraison::findOrFail($livraison->id));
             } catch (\RuntimeException $e) {
                 report($e);
+            }
+
+            // Chauffeur imposé choisi à la confirmation (10/10/2026) : prendreEnCharge() retire la
+            // famille de sa tournée actuelle tant qu'elle n'est pas partie, puis l'ajoute à celle du
+            // chauffeur (campagne démarrée). Un refus (tournée chargée/en cours, famille livrée...)
+            // est renvoyé, la confirmation elle-même restant enregistrée.
+            if ($request->has('id_benevole_impose')) {
+                try {
+                    $fraiche = Livraison::findOrFail($livraison->id);
+                    if ($imposeDemande) {
+                        $this->changements->prendreEnCharge($fraiche, $request->integer('id_benevole_impose'));
+                    } else {
+                        $this->changements->retirerImposition($fraiche);
+                    }
+                } catch (\RuntimeException $e) {
+                    return response()->json([
+                        'success' => false,
+                        'confirmee' => true,
+                        'message' => 'Confirmation enregistrée, mais le chauffeur imposé n\'a pas pu être appliqué : ' . $e->getMessage(),
+                    ], 422);
+                }
             }
         } else {
             // 'rejetee'/'archive' (et tout futur statut à effet dossier

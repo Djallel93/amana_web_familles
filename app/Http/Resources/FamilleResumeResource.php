@@ -10,8 +10,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * Résumé famille pour le domaine livraison — extrait le 10/09/2026
- * (Section E3 du refactor), utilisé par LiveBoardController::routes()/
- * incidents() (via RouteLivraisonResource/RouteIncidentResource), dont la
+ * (Section E3 du refactor), utilisé par LiveBoardController::routes()
+ * (via RouteLivraisonResource), dont la
  * relation famille est chargée en `'famille:id,nom,prenom,adresse'`.
  *
  * `adresse` exposée seulement si effectivement chargée (colonne NOT NULL

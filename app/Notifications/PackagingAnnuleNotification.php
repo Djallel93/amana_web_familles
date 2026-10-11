@@ -16,7 +16,7 @@ use Illuminate\Notifications\Notification;
  * conditionnement déjà marqué prêt sur une tournée déjà passée en
  * 'chargement' (voir PackagingController::annulerConditionnement()) — la
  * tournée redescend au statut 'packaging_annule' et un RouteIncident du
- * même nom est levé en parallèle (visible sur IncidentsPanel.vue).
+ * même nom est levé en parallèle (visible dans la section Incidents du hub de la campagne).
  *
  * severity 'warning' (contrairement à RoutePretePourChargementNotification,
  * qui est une bonne nouvelle) : l'équipe chargement doit savoir qu'un

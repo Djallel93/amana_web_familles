@@ -181,9 +181,88 @@ class GenerationRoutesAssistantTest extends TestCase
             ->json();
 
         $this->assertEquals(
-            ['familles' => 2, 'poids_kg' => 20, 'capacite_kg' => 200, 'sans_coordonnees' => 0, 'chauffeurs' => 1],
+            [
+                'familles' => 2,
+                'poids_kg' => 20,
+                'parts' => 4,
+                'capacite_kg' => 200,
+                'capacite_parts' => 5,
+                'sans_coordonnees' => 0,
+                'chauffeurs' => 1,
+                'plus_gros_vehicule_kg' => 200,
+                'plus_gros_vehicule_parts' => 5,
+                'vehicules_minimum' => 1,
+                'exclues_se_deplace' => 1,
+                'exclues_imposees' => 0,
+            ],
             $apercu,
         );
+    }
+
+    public function test_lapercu_sans_chauffeurs_choisis_porte_sur_tous_les_chauffeurs_disponibles(): void
+    {
+        $this->chauffeur();
+        $this->chauffeur(self::CRENEAU, $this->vehicules['utilitaire']);
+        $this->livraison();
+
+        $apercu = $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.apercu-generation', $this->campagne) . '?' . http_build_query($this->parametres()))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame(2, $apercu['chauffeurs']);
+        $this->assertEquals(700, $apercu['capacite_kg']);
+        $this->assertSame(15, $apercu['capacite_parts']);
+        $this->assertEquals(500, $apercu['plus_gros_vehicule_kg']);
+        $this->assertSame(1, $apercu['vehicules_minimum']);
+    }
+
+    public function test_lapercu_estime_le_nombre_minimal_de_vehicules_selon_le_poids_et_les_colis(): void
+    {
+        // Poids faible (3 × 10 kg) mais 3 × 4 = 12 colis : un utilitaire (10 parts) ne suffit pas seul,
+        // une voiture (5 parts) non plus — il faut les deux, alors que le poids tiendrait dans un seul.
+        $this->chauffeur();
+        $this->chauffeur(self::CRENEAU, $this->vehicules['utilitaire']);
+        foreach (range(1, 3) as $_) {
+            $this->livraison(['nombre_personnes' => 4]);
+        }
+
+        $apercu = $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.apercu-generation', $this->campagne) . '?' . http_build_query($this->parametres()))
+            ->assertOk()
+            ->json();
+
+        $this->assertSame(12, $apercu['parts']);
+        $this->assertSame(2, $apercu['vehicules_minimum']);
+    }
+
+    public function test_lapercu_signale_une_flotte_insuffisante_par_vehicules_minimum_nul(): void
+    {
+        $this->chauffeur(); // voiture : 5 colis
+        $this->livraison(['nombre_personnes' => 4]);
+        $this->livraison(['nombre_personnes' => 4]);
+
+        $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.apercu-generation', $this->campagne) . '?' . http_build_query($this->parametres()))
+            ->assertOk()
+            ->assertJsonPath('parts', 8)
+            ->assertJsonPath('vehicules_minimum', null);
+    }
+
+    public function test_lapercu_compte_les_familles_imposees_et_se_deplacant_a_part(): void
+    {
+        $this->chauffeur();
+        $imposeur = $this->creerBenevole($this->vehicules['voiture']);
+        $this->livraison(['id_benevole_impose' => $imposeur->id]);
+        $this->livraison(['se_deplace' => true]);
+        $this->livraison();
+
+        $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.apercu-generation', $this->campagne) . '?' . http_build_query($this->parametres()))
+            ->assertOk()
+            ->assertJsonPath('familles', 1)
+            ->assertJsonPath('exclues_imposees', 1)
+            ->assertJsonPath('exclues_se_deplace', 1);
     }
 
     public function test_lapercu_ne_compte_pas_les_familles_imposees(): void
@@ -260,6 +339,87 @@ class GenerationRoutesAssistantTest extends TestCase
         $this->assertContains($choisi->id, $benevoles);
         $this->assertNotContains($autre->id, $benevoles);
         $this->assertSame(self::CRENEAU, RouteLivraison::where('id_benevole', $choisi->id)->value('creneau'));
+    }
+
+    /** Deux familles à ~33 km l'une de l'autre : deux groupes géographiques distincts (seuil par défaut : 2,5 km). */
+    private function deuxZonesEloignees(): void
+    {
+        $this->livraison();
+        $loin = $this->livraison();
+        $famille = Famille::find($loin->id_famille);
+        $famille->latitude = 0.31;
+        $famille->save();
+    }
+
+    public function test_par_defaut_chaque_zone_recoit_sa_tournee_avec_tous_les_chauffeurs_choisis(): void
+    {
+        $a = $this->chauffeur();
+        $b = $this->chauffeur();
+        $this->deuxZonesEloignees();
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.campagnes.generer-routes', $this->campagne), $this->parametres(['ids_benevoles' => [$a->id, $b->id]]))
+            ->assertOk();
+
+        $this->assertSame(2, RouteLivraison::where('id_campagne', $this->campagne->id)->count());
+    }
+
+    public function test_la_strategie_moins_de_vehicules_fusionne_les_zones_quand_un_seul_vehicule_suffit(): void
+    {
+        $a = $this->chauffeur();
+        $b = $this->chauffeur();
+        $this->deuxZonesEloignees(); // 2 × 10 kg, 2 × 2 colis : tient dans une voiture (200 kg, 5 colis)
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.campagnes.generer-routes', $this->campagne), $this->parametres([
+                'ids_benevoles' => [$a->id, $b->id],
+                'minimiser_vehicules' => true,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('routes_creees', 1)
+            ->assertJsonPath('non_couvertes', 0);
+
+        $route = RouteLivraison::where('id_campagne', $this->campagne->id)->sole();
+        $this->assertSame(2, $route->etapes()->whereNotNull('id_livraison')->count());
+    }
+
+    public function test_la_strategie_moins_de_vehicules_ajoute_un_vehicule_quand_les_colis_depassent_une_voiture(): void
+    {
+        $a = $this->chauffeur();
+        $b = $this->chauffeur();
+        // 2 × 4 colis = 8 > 5 par voiture : deux véhicules sont indispensables malgré la stratégie.
+        $this->livraison(['nombre_personnes' => 4]);
+        $loin = $this->livraison(['nombre_personnes' => 4]);
+        $famille = Famille::find($loin->id_famille);
+        $famille->latitude = 0.31;
+        $famille->save();
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.campagnes.generer-routes', $this->campagne), $this->parametres([
+                'ids_benevoles' => [$a->id, $b->id],
+                'minimiser_vehicules' => true,
+            ]))
+            ->assertOk()
+            ->assertJsonPath('routes_creees', 2)
+            ->assertJsonPath('non_couvertes', 0);
+    }
+
+    public function test_la_generation_respecte_le_nombre_de_colis_maximal_du_vehicule(): void
+    {
+        $voiture = $this->chauffeur(); // 5 colis max
+        // 3 familles de 2 colis dans la même zone : 6 colis > 5, poids très inférieur à 200 kg.
+        foreach (range(1, 3) as $_) {
+            $this->livraison();
+        }
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.campagnes.generer-routes', $this->campagne), $this->parametres(['ids_benevoles' => [$voiture->id]]))
+            ->assertOk()
+            ->assertJsonPath('routes_creees', 1)
+            ->assertJsonPath('non_couvertes', 1);
+
+        $route = RouteLivraison::where('id_benevole', $voiture->id)->sole();
+        $this->assertSame(2, $route->etapes()->whereNotNull('id_livraison')->count());
     }
 
     public function test_la_generation_ne_renvoie_aucun_email_de_retrait_qg(): void
@@ -387,6 +547,25 @@ class GenerationRoutesAssistantTest extends TestCase
         $this->actingAs($this->gestionnaire())
             ->getJson(route('livraison.campagnes.non-couvertes-tableau', $this->campagne) . '?' . http_build_query($this->parametres(['se_deplace' => 0, 'sans_imposees' => 1])))
             ->assertJsonPath('data.0.poids_kg', 12.5);
+    }
+
+    public function test_le_tableau_des_familles_expose_le_nombre_de_colis(): void
+    {
+        $this->livraison(['nombre_personnes' => 4]);
+
+        $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.non-couvertes-tableau', $this->campagne) . '?' . http_build_query($this->parametres(['se_deplace' => 0, 'sans_imposees' => 1])))
+            ->assertJsonPath('data.0.nombre_parts', 4);
+    }
+
+    public function test_les_chauffeurs_disponibles_exposent_le_nombre_de_colis_du_vehicule(): void
+    {
+        $this->chauffeur();
+
+        $this->actingAs($this->gestionnaire())
+            ->getJson(route('livraison.campagnes.chauffeurs-disponibles', $this->campagne) . '?' . http_build_query($this->parametres()))
+            ->assertOk()
+            ->assertJsonPath('0.nombre_part_max', 5);
     }
     // ── Créneaux courants et restants uniquement (09/10/2026) ────────────
 

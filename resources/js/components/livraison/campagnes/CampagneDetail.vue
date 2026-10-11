@@ -173,6 +173,19 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
             }
           : { badge: demarree.value ? "Routes à générer" : null, ton: "neutre" as Ton };
 
+    // Carte « Chargement » (10/10/2026) : « X/Y chargées » — « Terminé » seulement une fois TOUTES les
+    // tournées confirmées chargées (et non plus dès que les colis sont prêts).
+    const chargement = !a.value
+        ? { badge: null, ton: "neutre" as Ton }
+        : a.value.chargement_termine
+          ? { badge: "Terminé", ton: "ok" as Ton }
+          : a.value.compteurs.routes_total > 0
+            ? {
+                  badge: `${a.value.compteurs.routes_chargees}/${a.value.compteurs.routes_total} chargées`,
+                  ton: (a.value.compteurs.routes_chargees > 0 ? "cours" : "neutre") as Ton,
+              }
+            : { badge: "En attente", ton: "neutre" as Ton };
+
     // Carte « Retrait QG » (09/10/2026) : « X/Y retirés » comme « X/Y tournées terminées »
     // de Suivi livraison ; rien à afficher quand aucune famille ne se déplace.
     const retrait = !a.value
@@ -293,7 +306,7 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                     href: u.chargement,
                     desactivee: !demarree.value,
                     description: "Charger les véhicules, tournée par tournée.",
-                    ...etat(a.value?.chargement_termine, "Terminé", "En attente"),
+                    ...chargement,
                 },
                 {
                     cle: "suivi",
@@ -332,9 +345,14 @@ async function demarrer() {
     if (!confirmed) return;
 
     demarrageEnCours.value = true;
-    const resultat = await apiPost<{ success: boolean; routes_imposees: number; retraits_planifies: number }>(
-        props.demarrerUrl,
-    );
+    const resultat = await apiPost<{
+        success: boolean;
+        routes_imposees: number;
+        retraits_planifies: number;
+        emails_retrait_envoyes: number;
+        emails_retrait_sans_adresse: number;
+        emails_retrait_en_echec: number;
+    }>(props.demarrerUrl);
     demarrageEnCours.value = false;
 
     if (!resultat.ok) {
@@ -343,9 +361,26 @@ async function demarrer() {
     }
 
     statut.value = "en_cours";
-    toast.success(
-        `Campagne démarrée — ${resultat.data.routes_imposees} tournée(s) imposée(s), ${resultat.data.retraits_planifies} retrait(s) QG planifié(s).`,
-    );
+    const {
+        routes_imposees,
+        retraits_planifies,
+        emails_retrait_envoyes,
+        emails_retrait_sans_adresse,
+        emails_retrait_en_echec,
+    } = resultat.data;
+    const bilan = `Campagne démarrée — ${routes_imposees} tournée(s) imposée(s), ${retraits_planifies} retrait(s) QG planifié(s), ${emails_retrait_envoyes} email(s) envoyé(s).`;
+    // Bilan des emails de rendez-vous (10/10/2026) : un envoi raté ne doit plus passer inaperçu.
+    if (emails_retrait_en_echec > 0 || emails_retrait_sans_adresse > 0) {
+        const details = [
+            emails_retrait_en_echec > 0 ? `${emails_retrait_en_echec} échec(s) d'envoi` : null,
+            emails_retrait_sans_adresse > 0
+                ? `${emails_retrait_sans_adresse} famille(s) sans email (à prévenir par téléphone)`
+                : null,
+        ].filter(Boolean);
+        toast.warning(`${bilan} Attention : ${details.join(", ")}.`);
+    } else {
+        toast.success(bilan);
+    }
     void chargerAvancement();
 }
 

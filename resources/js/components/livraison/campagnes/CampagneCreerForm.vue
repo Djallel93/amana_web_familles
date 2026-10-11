@@ -9,17 +9,20 @@
       - le type n'a plus de valeur par défaut et est obligatoire ;
       - au moins une date est obligatoire — les lignes de date vides sont
         ignorées à l'envoi (seules les dates choisies comptent) ;
+      - 10/10/2026 : le type est un menu déroulant (SelectMenu partagé) ; l'adresse, la latitude et la
+        longitude du QG sont préremplies depuis les réglages ; la fenêtre « Retrait QG — début / fin »
+        se règle dès la création (elle ne s'éditait qu'ensuite, depuis les paramètres de la campagne) ;
       - « Créer la campagne » ouvre d'abord une confirmation avec un
         récapitulatif de ce qui va être créé (ConfirmDialog partagé, option
         `details` — amana_shared_ui v1.8.0), puis seulement poste.
 -->
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { useConfirm, useToast } from "@amana/shared-ui";
+import { SelectMenu, useConfirm, useToast } from "@amana/shared-ui";
 import { apiPost } from "../shared/api";
 import { CAMPAGNE_TYPES, type Campagne, type CampagneType } from "../shared/types";
 import HqCoordinatesAutocomplete from "../../admin/HqCoordinatesAutocomplete.vue";
-import { CAMPAGNE_TYPE_STYLES, formatDateFr } from "./campagneStyles";
+import { CAMPAGNE_TYPE_OPTIONS, formatDateFr } from "./campagneStyles";
 
 const props = defineProps<{
     storeUrl: string;
@@ -28,6 +31,10 @@ const props = defineProps<{
     // Affiché à titre indicatif à côté du champ HQ (prompt du 09/09/2026 §2.1)
     // et dans le récapitulatif quand le champ est laissé vide.
     hqGlobalDefaut: { lat: number; lng: number } | null;
+    // Préremplissage du QG depuis les réglages (10/10/2026) : adresse + coordonnées, modifiables ici.
+    hqAdresseDefaut: string | null;
+    // Fenêtre de retrait au QG proposée par défaut, « HH:MM ».
+    retraitQgDefaut: { debut: string; fin: string };
 }>();
 
 const confirmDialog = useConfirm();
@@ -55,6 +62,8 @@ interface FormCampagne {
     hq_adresse: string;
     hq_latitude: ChampNumerique;
     hq_longitude: ChampNumerique;
+    heure_debut_arrivee_hq: string;
+    heure_fin_arrivee_hq: string;
 }
 
 function nouvelleLigneJournee(): FormJournee {
@@ -70,9 +79,13 @@ const form = ref<FormCampagne>({
     // Préremplie depuis le réglage global ; laissée vide retombe sur le même
     // réglage côté serveur (voir store()).
     livraisons_max_par_tournee: props.livraisonsMaxParTourneeDefaut,
-    hq_adresse: "",
-    hq_latitude: "",
-    hq_longitude: "",
+    // QG prérempli depuis les réglages (10/10/2026) ; une valeur laissée vide retombe de toute façon
+    // sur le réglage global côté serveur (voir store()).
+    hq_adresse: props.hqAdresseDefaut ?? "",
+    hq_latitude: props.hqGlobalDefaut?.lat ?? "",
+    hq_longitude: props.hqGlobalDefaut?.lng ?? "",
+    heure_debut_arrivee_hq: props.retraitQgDefaut.debut,
+    heure_fin_arrivee_hq: props.retraitQgDefaut.fin,
 });
 
 function ajouterLigneJournee() {
@@ -154,6 +167,13 @@ function lignesRecapitulatif(): { label: string; value: string }[] {
                     : `Réglage global (${props.livraisonsMaxParTourneeDefaut})`,
         },
         { label: "Point de départ (HQ)", value: hq },
+        {
+            label: "Retrait QG",
+            value:
+                f.heure_debut_arrivee_hq && f.heure_fin_arrivee_hq
+                    ? `de ${f.heure_debut_arrivee_hq} à ${f.heure_fin_arrivee_hq}`
+                    : `Plage par défaut (${props.retraitQgDefaut.debut} – ${props.retraitQgDefaut.fin})`,
+        },
     ];
 }
 
@@ -199,6 +219,8 @@ async function creerCampagne() {
         hq_adresse: form.value.hq_adresse || null,
         hq_latitude: form.value.hq_latitude === "" ? null : Number(form.value.hq_latitude),
         hq_longitude: form.value.hq_longitude === "" ? null : Number(form.value.hq_longitude),
+        heure_debut_arrivee_hq: form.value.heure_debut_arrivee_hq || null,
+        heure_fin_arrivee_hq: form.value.heure_fin_arrivee_hq || null,
     });
 
     envoiEnCours.value = false;
@@ -207,7 +229,9 @@ async function creerCampagne() {
         fieldErrors.value = resultat.errors;
         // Les erreurs de la section repliée seraient invisibles : on l'ouvre.
         if (
-            Object.keys(resultat.errors).some((champ) => champ.startsWith("livraisons_max") || champ.startsWith("hq_"))
+            Object.keys(resultat.errors).some(
+                (champ) => champ.startsWith("livraisons_max") || champ.startsWith("hq_") || champ.startsWith("heure_"),
+            )
         ) {
             avancesOuverts.value = true;
         }
@@ -229,26 +253,21 @@ async function creerCampagne() {
     <form class="space-y-5" novalidate @submit.prevent="demanderConfirmation">
         <!-- Type : obligatoire, sans valeur par défaut -->
         <section class="bg-surface border border-surface-border rounded-xl p-4">
-            <h2 class="text-[12.5px] font-medium text-ink-muted uppercase tracking-wide mb-2">
+            <label
+                for="campagne-type"
+                class="block text-[12.5px] font-medium text-ink-muted uppercase tracking-wide mb-2"
+            >
                 Type <span class="text-rose-600">*</span>
-            </h2>
-            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="Type de campagne">
-                <button
-                    v-for="(label, code) in CAMPAGNE_TYPES"
-                    :key="code"
-                    type="button"
-                    role="radio"
-                    :aria-checked="form.type === code"
-                    @click="form.type = code as CampagneType"
-                    class="min-h-[2.25rem] px-4 py-1.5 rounded-full text-[13px] font-medium border transition-colors"
-                    :class="
-                        form.type === code
-                            ? CAMPAGNE_TYPE_STYLES[code as CampagneType].pastilleActive
-                            : CAMPAGNE_TYPE_STYLES[code as CampagneType].pastille
-                    "
-                >
-                    {{ label }}
-                </button>
+            </label>
+            <div class="max-w-sm">
+                <SelectMenu
+                    v-model="form.type"
+                    :options="CAMPAGNE_TYPE_OPTIONS"
+                    input-id="campagne-type"
+                    placeholder="Choisir un type de campagne…"
+                    size="lg"
+                    :invalid="erreursPourChamp('type').length > 0"
+                />
             </div>
             <p v-if="form.type === null" class="text-[11.5px] text-ink-muted mt-2">Choisissez le type de campagne.</p>
             <p v-for="e in erreursPourChamp('type')" :key="e" class="text-[11px] text-rose-600 mt-1">{{ e }}</p>
@@ -410,25 +429,33 @@ async function creerCampagne() {
             </div>
 
             <!-- HQ : entièrement optionnel, vide = réglage global (voir store()) -->
-            <div class="max-w-xs mt-4">
-                <label class="block text-[12px] text-ink-muted mb-1">Adresse HQ (optionnel)</label>
+            <div class="max-w-md mt-4">
+                <label for="nouvelle-campagne-hq-adresse" class="block text-[12px] text-ink-muted mb-1"
+                    >Adresse HQ (optionnel)</label
+                >
                 <input
+                    id="nouvelle-campagne-hq-adresse"
                     v-model="form.hq_adresse"
                     type="text"
                     class="w-full rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]"
                 />
                 <p class="text-[11px] text-ink-muted mt-1">
-                    Laissée vide, cette campagne utilisera le réglage global
-                    <template v-if="hqGlobalDefaut">({{ hqGlobalDefaut.lat }}, {{ hqGlobalDefaut.lng }})</template>
-                    <template v-else
-                        >— non configuré actuellement, pensez à le renseigner ci-dessous ou dans les réglages.</template
+                    <template v-if="hqGlobalDefaut || hqAdresseDefaut"
+                        >Préremplie depuis les réglages, modifiable pour cette campagne uniquement.</template
                     >
+                    <template v-else
+                        >Aucun QG configuré dans les réglages : renseignez-le ici ou dans les réglages.</template
+                    >
+                </p>
+                <p v-for="e in erreursPourChamp('hq_adresse')" :key="e" class="text-[11px] text-rose-600 mt-1">
+                    {{ e }}
                 </p>
             </div>
             <HqCoordinatesAutocomplete
                 :google-places-key="googlePlacesKey"
                 target-lat-id="nouvelle-campagne-hq-lat"
                 target-lng-id="nouvelle-campagne-hq-lng"
+                target-adresse-id="nouvelle-campagne-hq-adresse"
             />
             <div class="max-w-xs grid grid-cols-2 gap-3 mt-2">
                 <div>
@@ -453,6 +480,57 @@ async function creerCampagne() {
                         class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem] bg-stone-50 text-ink-muted"
                     />
                 </div>
+            </div>
+
+            <!-- Fenêtre de retrait au QG (10/10/2026) : les familles qui se déplacent reçoivent un rendez-vous
+                 étalé sur cette plage (RetraitHqSchedulingService) ; bornée à 08h-19h comme les créneaux. -->
+            <div class="max-w-xs mt-4">
+                <p class="text-[12px] text-ink-muted mb-1">Retrait QG</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="nouvelle-campagne-retrait-debut" class="block text-[12px] text-ink-muted mb-1"
+                            >Retrait QG — début</label
+                        >
+                        <input
+                            id="nouvelle-campagne-retrait-debut"
+                            v-model="form.heure_debut_arrivee_hq"
+                            type="time"
+                            min="08:00"
+                            max="19:00"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]"
+                        />
+                        <p
+                            v-for="e in erreursPourChamp('heure_debut_arrivee_hq')"
+                            :key="e"
+                            class="text-[11px] text-rose-600 mt-1"
+                        >
+                            {{ e }}
+                        </p>
+                    </div>
+                    <div>
+                        <label for="nouvelle-campagne-retrait-fin" class="block text-[12px] text-ink-muted mb-1"
+                            >Retrait QG — fin</label
+                        >
+                        <input
+                            id="nouvelle-campagne-retrait-fin"
+                            v-model="form.heure_fin_arrivee_hq"
+                            type="time"
+                            min="08:00"
+                            max="19:00"
+                            class="w-full rounded-lg border border-surface-border px-3 py-2 text-[13px] min-h-[2.25rem]"
+                        />
+                        <p
+                            v-for="e in erreursPourChamp('heure_fin_arrivee_hq')"
+                            :key="e"
+                            class="text-[11px] text-rose-600 mt-1"
+                        >
+                            {{ e }}
+                        </p>
+                    </div>
+                </div>
+                <p class="text-[11px] text-ink-muted mt-1">
+                    Plage d'accueil des familles qui viennent chercher leur colis au QG (entre 08:00 et 19:00).
+                </p>
             </div>
         </details>
 

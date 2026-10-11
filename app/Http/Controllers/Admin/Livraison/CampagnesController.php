@@ -105,6 +105,14 @@ class CampagnesController extends Controller
             // Idem pour le HQ (prompt du 09/09/2026 §2.1) : laissé vide, la
             // campagne retombe sur le réglage global.
             'hqGlobalDefaut' => RouteOptimizationConfig::coordonneesHq(),
+            // 10/10/2026 : le formulaire préremplit adresse + latitude + longitude du QG depuis les
+            // réglages (modifiables pour cette campagne seulement), et propose la fenêtre de retrait
+            // QG par défaut (bornes de Campagne::heureDebutArriveeHq()/heureFinArriveeHq()).
+            'hqAdresseDefaut' => RouteOptimizationConfig::adresseHq(),
+            'retraitQgDefaut' => [
+                'debut' => substr((new Campagne())->heureDebutArriveeHq(), 0, 5),
+                'fin' => substr((new Campagne())->heureFinArriveeHq(), 0, 5),
+            ],
         ]);
     }
 
@@ -334,6 +342,10 @@ class CampagnesController extends Controller
             // ci-dessus : optionnel ici, préremplie automatiquement plus bas
             // si absente (voir $livraisonsMaxParTournee).
             'livraisons_max_par_tournee' => 'nullable|integer|min:1',
+            // Fenêtre de retrait au QG dès la création (10/10/2026) — mêmes règles que update() :
+            // bornée à 08h-19h, fin strictement après début.
+            'heure_debut_arrivee_hq' => 'nullable|date_format:H:i|after_or_equal:08:00',
+            'heure_fin_arrivee_hq' => 'nullable|date_format:H:i|before_or_equal:19:00|after:heure_debut_arrivee_hq',
         ]);
 
         if ($validator->fails()) {
@@ -347,9 +359,8 @@ class CampagnesController extends Controller
         // HQ préremplie depuis le réglage global à la création (prompt du
         // 05/09/2026 §1.2 : "always prefill with it") — copiée une fois
         // pour toutes, PAS relue dynamiquement ensuite (voir docblock de
-        // create_campagnes_domain_tables.php). L'adresse n'a pas d'équivalent
-        // global (settings ne stocke que lat/lng) : seule celle saisie ici
-        // (le cas échéant) est conservée. Depuis le 09/09/2026 (prompt
+        // create_campagnes_domain_tables.php). L'adresse a désormais son
+        // réglage global (route_hq_adresse, 10/10/2026), recopiée de la même façon. Depuis le 09/09/2026 (prompt
         // §2.1), l'admin peut aussi saisir explicitement lat/lng dès la
         // création (nouveau champ optionnel du formulaire) — dans ce cas
         // c'est cette valeur qui prime, le réglage global ne servant plus
@@ -358,6 +369,9 @@ class CampagnesController extends Controller
         $hqGlobal = RouteOptimizationConfig::coordonneesHq();
         $donnees['hq_latitude'] ??= $hqGlobal['lat'] ?? null;
         $donnees['hq_longitude'] ??= $hqGlobal['lng'] ?? null;
+        // Adresse du QG : même repli (réglage global `route_hq_adresse`, 10/10/2026) — avant, elle
+        // n'avait pas d'équivalent global et restait vide, donc absente de l'email de retrait QG.
+        $donnees['hq_adresse'] ??= RouteOptimizationConfig::adresseHq();
 
         // Même logique que hq_* ci-dessus (prompt du 08/09/2026 §2.2.3) :
         // préremplie depuis le réglage global si l'admin ne l'a pas saisie
@@ -786,12 +800,12 @@ class CampagnesController extends Controller
 
         $routes = RouteLivraison::where('id_campagne', $campagne->id)->select('statut')->get();
         $routesTotal = $routes->count();
-        // 'charge' ajouté le 09/09/2026 (prompt §4) : nouveau statut
-        // intercalé entre 'chargement' et 'en_cours' (voir docblock de la
-        // migration routes) — doit rester compté ici au même titre que
-        // les deux, cette ligne mesure "route sortie de planifiee", pas
-        // "route effectivement chargée".
-        $routesChargees = $routes->whereIn('statut', ['chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee'])->count();
+        // Corrigé le 10/10/2026 : 'chargement' (= prête À charger, posé automatiquement dès que tous
+        // les colis sont prêts, voir RouteChargementService::promouvoirSiPrete()) ne compte PAS comme
+        // chargée — la carte « Chargement » passait à « Terminé » dès la fin du packaging. Une tournée
+        // est chargée quand l'équipe chargement l'a confirmée ('charge', voir ChargementController::confirmer())
+        // ou qu'elle est déjà plus loin.
+        $routesChargees = $routes->whereIn('statut', ['charge', 'en_cours', 'livraisons_terminees', 'terminee'])->count();
         $routesEnLivraison = $routes->whereIn('statut', ['en_cours', 'livraisons_terminees', 'terminee'])->count();
         $routesTerminees = $routes->where('statut', 'terminee')->count();
 
@@ -820,6 +834,7 @@ class CampagnesController extends Controller
                 'livraisons_total' => $livraisonsTotal,
                 'livraisons_confirmees' => $livraisonsConfirmees,
                 'routes_total' => $routesTotal,
+                'routes_chargees' => $routesChargees,
                 'routes_terminees' => $routesTerminees,
                 'retraits_total' => $retraitsTotal,
                 'retraits_delivres' => $retraitsDelivres,

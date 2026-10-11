@@ -6,11 +6,14 @@
     dense des quatre (voir le commentaire qui occupait ce fichier Blade
     avant ce patch, qui expliquait pourquoi il était resté en JS simple
     jusqu'ici) : orchestrateur unique qui centralise le fetch
-    incidents/routes/non-couvertes/statistiques et les repasse en props
+    routes/non-couvertes/statistiques et les repasse en props
     aux panneaux, plutôt que chaque panneau ne fetch pour son propre
-    compte — nécessaire ici parce qu'une seule mutation (résoudre un
-    incident, construire une tournée personnalisée) peut invalider
-    plusieurs listes à la fois.
+    compte — nécessaire ici parce qu'une seule mutation (retirer une
+    famille d'une tournée, réassigner) peut invalider plusieurs listes à la fois.
+
+    10/10/2026 : la section « Incidents » n'est plus affichée ici — elle ne vit plus que dans
+    le hub de la campagne (CampagneIncidentsSection.vue). Les incidents restent créés et
+    résolus ailleurs ; cet écran ne les charge plus.
 
     Révisé le 09/09/2026 (prompt de cette date §5.2.4) : cartes
     statistiques ajoutées en haut, même patron que ContactsQueue.vue/
@@ -31,8 +34,8 @@
     compris `urls`, déjà un objet JSON unique côté Blade (data-urls),
     repris tel quel comme prop plutôt qu'éclaté en une prop par URL (voir
     le docblock de LiveBoardController::index()). Tout le reste
-    (incidents/routes/non-couvertes/statistiques, RoutesPanel/
-    IncidentsPanel/ShortfallPanel) reste des endpoints
+    (routes/non-couvertes/statistiques, RoutesPanel/
+    ShortfallPanel) reste des endpoints
     JSON classiques, inchangés — cet écran n'est PAS un cas B.
 
     Aucun repli dataset conservé : cet écran est le seul consommateur de
@@ -44,7 +47,7 @@
     l'en-tête de components/familles/useLiveDossiers.ts ; ce composant est
     le cas 2 de cette règle, données JSON dans un composant Vue, où le
     usePoll() d'Inertia ne convient pas) :
-    incidents/tournées/statistiques sont relus en arrière-plan toutes les
+    tournées/statistiques sont relus en arrière-plan toutes les
     20s (POLL_MS) pour qu'un arrêt livré ou ignoré par un chauffeur
     apparaisse sans action de l'admin. Ces données restent des endpoints
     JSON (pas des props Inertia, voir plus haut) : router.reload() n'aurait
@@ -59,17 +62,13 @@
     Un jeton par liste (jetons) garantit que la réponse d'un poll parti
     AVANT un rechargement déclenché par une action de l'admin (chargerTout)
     ne l'écrase pas ; un tick est de toute façon ignoré tant qu'un
-    chargement non silencieux est en cours. "Non couvertes" n'est relue que
-    si l'ensemble des incidents ouverts a changé (c'est le "bénévole absent"
-    signalé par l'équipe chargement qui en orpheline des livraisons — un
-    arrêt livré ne change rien à cette liste), pas à chaque tick.
-    [30/09/2026 : relue désormais à chaque tick, voir rafraichirEnArrierePlan().]
+    chargement non silencieux est en cours. "Non couvertes" est relue à chaque
+    tick (30/09/2026), voir rafraichirEnArrierePlan().
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { apiGet } from "../shared/api";
-import type { Campagne, Livraison, RouteIncident, RouteLivraison, SuiviLivraisonStatistiques } from "../shared/types";
-import IncidentsPanel from "./IncidentsPanel.vue";
+import type { Campagne, Livraison, RouteLivraison, SuiviLivraisonStatistiques } from "../shared/types";
 import RoutesPanel from "./RoutesPanel.vue";
 import ShortfallPanel from "./ShortfallPanel.vue";
 
@@ -101,16 +100,11 @@ const urlsCampagne = computed(() => {
     const id = campagneId.value;
     const remplacer = (gabarit: string) => gabarit.replace("__CAMPAGNE__", id);
     return {
-        incidents: remplacer(urls.incidents ?? ""),
         routes: remplacer(urls.routes ?? ""),
         nonCouvertes: remplacer(urls.nonCouvertes ?? ""),
         statistiques: remplacer(urls.statistiques ?? ""),
     };
 });
-
-const incidents = ref<RouteIncident[]>([]);
-const chargementIncidents = ref(false);
-const erreurIncidents = ref(false);
 
 const routes = ref<RouteLivraison[]>([]);
 const chargementRoutes = ref(false);
@@ -131,26 +125,10 @@ const stats = ref<SuiviLivraisonStatistiques | null>(null);
 // jeton n'est plus le courant à son retour est écarté — il a été dépassé
 // par un chargement plus récent (action de l'admin, changement de campagne).
 const POLL_MS = 20000;
-const jetons = { incidents: 0, routes: 0, nonCouvertes: 0, stats: 0 };
+const jetons = { routes: 0, nonCouvertes: 0, stats: 0 };
 
 function memeContenu(a: unknown, b: unknown): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
-}
-
-async function chargerIncidents(silencieux = false) {
-    const jeton = silencieux ? jetons.incidents : ++jetons.incidents;
-    if (!silencieux) {
-        chargementIncidents.value = true;
-        erreurIncidents.value = false;
-    }
-    const resultat = await apiGet<RouteIncident[]>(urlsCampagne.value.incidents);
-    if (jeton !== jetons.incidents) return;
-    if (!silencieux) chargementIncidents.value = false;
-    if (!resultat.ok) {
-        if (!silencieux) erreurIncidents.value = true;
-        return;
-    }
-    if (!silencieux || !memeContenu(incidents.value, resultat.data)) incidents.value = resultat.data;
 }
 
 async function chargerRoutes(silencieux = false) {
@@ -206,7 +184,6 @@ function apresChangementTournee() {
 }
 
 function chargerTout() {
-    chargerIncidents();
     chargerRoutes();
     chargerNonCouvertes();
     chargerStatistiques();
@@ -224,20 +201,14 @@ async function rafraichirEnArrierePlan() {
     if (!campagneId.value || document.hidden || pollEnCours) return;
     // Un chargement non silencieux (action de l'admin, changement de
     // campagne) est plus récent que ce tick : on laisse passer ce tick.
-    if (chargementIncidents.value || chargementRoutes.value || chargementNonCouvertes.value) return;
+    if (chargementRoutes.value || chargementNonCouvertes.value) return;
 
     pollEnCours = true;
     try {
         // « Non couvertes » relue à chaque tick (30/09/2026) : les pills de
         // ShortfallPanel (Se déplace au QG / Non assignées) doivent suivre
-        // les confirmations et bascules en direct, pas seulement quand
-        // l'ensemble des incidents ouverts change.
-        await Promise.all([
-            chargerIncidents(true),
-            chargerRoutes(true),
-            chargerStatistiques(true),
-            chargerNonCouvertes(true),
-        ]);
+        // les confirmations et bascules en direct.
+        await Promise.all([chargerRoutes(true), chargerStatistiques(true), chargerNonCouvertes(true)]);
     } finally {
         pollEnCours = false;
     }
@@ -312,14 +283,6 @@ onUnmounted(() => {
                     <p class="text-[20px] font-semibold text-rose-700">{{ stats.livraisons_ignorees }}</p>
                 </div>
             </div>
-
-            <IncidentsPanel
-                :incidents="incidents"
-                :chargement="chargementIncidents"
-                :erreur="erreurIncidents"
-                :url-resoudre="urls.incidentResoudre ?? ''"
-                @changed="chargerTout"
-            />
 
             <h2 class="text-[14px] font-medium text-ink mb-3">Tournées</h2>
             <RoutesPanel

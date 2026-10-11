@@ -50,6 +50,7 @@ import {
     CRENEAU_LIBELLES,
     normalizePaginated,
     type Campagne,
+    type Creneau,
     type CampagneJournee,
     type FamilleFiltres,
     type Livraison,
@@ -373,7 +374,7 @@ async function assignerLot(personne: PersonneResume | null) {
  * L'état de requête (envoiEnCours/erreurs) reste local : forme propre à
  * cet écran, pas au patron d'expansion lui-même.
  */
-const { formulaire, basculerOuverture, toggleCreneau, groupeToutCoche, toggleGroupe, toggleTout } =
+const { formulaire, ouvrir, fermer, toggleCreneau, groupeToutCoche, toggleGroupe, toggleTout } =
     useFormulaireCreneaux();
 
 interface EtatEnvoiConfirmation {
@@ -416,6 +417,44 @@ const seDeplaceFormulaire = reactive<Record<number, boolean | undefined>>({});
 
 function seDeplaceValeur(id: number): boolean | undefined {
     return seDeplaceFormulaire[id];
+}
+
+/**
+ * Chauffeur imposé choisi DANS le formulaire de confirmation (10/10/2026) : avant, le sélecteur
+ * n'existait qu'après la confirmation (bloc « Livraison », prendreEnCharge()). `undefined` = pas
+ * encore touché ; `null` = aucun chauffeur. Envoyé avec les créneaux par enregistrerContact().
+ */
+const imposeFormulaire = reactive<Record<number, PersonneResume | null | undefined>>({});
+
+function imposeValeur(livraison: Livraison): PersonneResume | null {
+    const saisi = imposeFormulaire[livraison.id];
+    return saisi === undefined ? (livraison.benevole_impose ?? null) : saisi;
+}
+
+/**
+ * Ouvre/ferme le formulaire. À l'ouverture il est PRÉREMPLI avec ce que la livraison porte déjà
+ * (10/10/2026) : créneaux enregistrés, « se déplace » et chauffeur imposé — avant, une famille
+ * confirmée rouvrait un formulaire vide et ses créneaux n'étaient plus visibles ni modifiables.
+ */
+function basculerConfirmation(livraison: Livraison) {
+    if (formulaire(livraison.id).ouvert) {
+        fermer(livraison.id);
+        return;
+    }
+    ouvrir(
+        livraison.id,
+        (livraison.creneaux ?? []).map((c) => c.creneau),
+    );
+    if (livraison.statut_contact === "confirme") {
+        seDeplaceFormulaire[livraison.id] = livraison.se_deplace;
+    }
+    delete imposeFormulaire[livraison.id];
+}
+
+/** Libellés des créneaux déjà enregistrés d'une famille (chips du bloc « Livraison »). */
+function creneauxEnregistres(livraison: Livraison): Creneau[] {
+    const enregistres = (livraison.creneaux ?? []).map((c) => c.creneau);
+    return [...CRENEAUX_MATIN, ...CRENEAUX_APRES_MIDI].filter((c) => enregistres.includes(c));
 }
 
 /**
@@ -525,6 +564,7 @@ async function reinitialiserConfirmation(livraison: Livraison) {
 
     // Le formulaire de confirmation déjà rempli ne doit pas ressurgir tel quel.
     delete seDeplaceFormulaire[livraison.id];
+    delete imposeFormulaire[livraison.id];
     const f = formulaire(livraison.id);
     f.ouvert = false;
     f.creneaux = [];
@@ -611,15 +651,22 @@ async function enregistrerContact(livraison: Livraison) {
         statut_contact: "confirme",
         creneaux: f.creneaux,
         se_deplace: seDeplace,
+        // Clé toujours envoyée : vide = pas de chauffeur imposé (retire une imposition existante).
+        id_benevole_impose: seDeplace ? null : (imposeValeur(livraison)?.id ?? null),
     });
     e.envoiEnCours = false;
 
     if (!resultat.ok) {
         e.erreurs = resultat.errors;
-        if (Object.keys(resultat.errors).length === 0) toast.error(resultat.message);
+        if (Object.keys(resultat.errors).length === 0) {
+            toast.error(resultat.message);
+            // Confirmation enregistrée mais chauffeur refusé : la file doit refléter l'état réel.
+            chargerFile(meta.value?.current_page ?? 1);
+        }
         return;
     }
 
+    fermer(livraison.id);
     toast.success("Contact enregistré.");
     chargerFile(meta.value?.current_page ?? 1);
 }
@@ -824,6 +871,20 @@ onMounted(() => {
                             >
                                 🚶 Se déplace
                             </span>
+                            <span
+                                v-if="livraison.benevole_impose"
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200"
+                            >
+                                🚚 {{ livraison.benevole_impose.prenom }} {{ livraison.benevole_impose.nom }}
+                            </span>
+                            <span
+                                v-if="livraison.statut_contact === 'confirme' && creneauxEnregistres(livraison).length"
+                                class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            >
+                                🕒 {{ creneauxEnregistres(livraison).length }} créneau{{
+                                    creneauxEnregistres(livraison).length > 1 ? "x" : ""
+                                }}
+                            </span>
                         </div>
                         <p v-if="!ligneOuverte(livraison.id)" class="text-[12.5px] text-ink-muted mt-0.5 truncate">
                             📞 {{ livraison.famille.telephone || "—" }}
@@ -895,10 +956,24 @@ onMounted(() => {
                          (le serveur refuse aussi). Le sélecteur ne propose que les chauffeurs
                          CONFIRMÉS pour la journée de la famille (09/10/2026). -->
                     <div
-                        v-if="livraison.statut_contact === 'confirme'"
+                        v-if="livraison.statut_contact === 'confirme' && !formulaire(livraison.id).ouvert"
                         class="bg-stone-50 rounded-lg px-3 py-2.5 space-y-3"
                     >
                         <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wide">Livraison</p>
+                        <!-- Créneaux enregistrés (10/10/2026) : invisibles après la confirmation
+                             jusqu'ici. « Modifier la confirmation » les rouvre dans le formulaire. -->
+                        <div>
+                            <label class="block text-[11px] text-ink-muted mb-1">Créneaux de disponibilité</label>
+                            <div v-if="creneauxEnregistres(livraison).length" class="flex flex-wrap gap-1.5">
+                                <span
+                                    v-for="creneau in creneauxEnregistres(livraison)"
+                                    :key="creneau"
+                                    class="text-[11.5px] px-2 py-1 rounded-md border border-accent bg-accent/5 text-ink"
+                                    >{{ CRENEAU_LIBELLES[creneau] }}</span
+                                >
+                            </div>
+                            <p v-else class="text-[12px] text-ink-muted">Aucun créneau enregistré.</p>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
                             <div>
                                 <label class="block text-[11px] text-ink-muted mb-1">Retrait au QG</label>
@@ -951,10 +1026,12 @@ onMounted(() => {
                     <div class="flex flex-wrap items-center gap-2">
                         <button
                             type="button"
-                            @click="basculerOuverture(livraison.id)"
+                            @click="basculerConfirmation(livraison)"
                             class="min-h-[2.25rem] text-[12.5px] px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:opacity-90"
                         >
-                            ✅ Confirmer
+                            {{
+                                livraison.statut_contact === "confirme" ? "✏️ Modifier la confirmation" : "✅ Confirmer"
+                            }}
                         </button>
                         <button
                             type="button"
@@ -1103,51 +1180,92 @@ onMounted(() => {
                              posée UNIQUEMENT ici (saisie téléphonique staff),
                              pas sur le formulaire public de confirmation —
                              décision produit actée avec l'utilisateur. -->
-                        <div>
-                            <label class="block text-[11px] text-ink-muted mb-1.5"
-                                >La famille se déplacera-t-elle au QG pour récupérer son colis ?</label
-                            >
-                            <div class="flex gap-2 max-w-xs">
-                                <label
-                                    class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
-                                    :class="
-                                        seDeplaceValeur(livraison.id) === true
-                                            ? 'border-accent bg-accent/5 text-ink font-semibold'
-                                            : 'border-ink-faint text-ink-muted'
-                                    "
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                            <div>
+                                <label class="block text-[11px] text-ink-muted mb-1.5"
+                                    >La famille se déplacera-t-elle au QG pour récupérer son colis ?</label
                                 >
-                                    <input
-                                        type="radio"
-                                        :value="true"
-                                        v-model="seDeplaceFormulaire[livraison.id]"
-                                        class="w-3.5 h-3.5 accent-accent"
-                                    />
-                                    Oui
-                                </label>
-                                <label
-                                    class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
-                                    :class="
-                                        seDeplaceValeur(livraison.id) === false
-                                            ? 'border-accent bg-accent/5 text-ink font-semibold'
-                                            : 'border-ink-faint text-ink-muted'
-                                    "
+                                <div class="flex gap-2 max-w-xs">
+                                    <label
+                                        class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                        :class="
+                                            seDeplaceValeur(livraison.id) === true
+                                                ? 'border-accent bg-accent/5 text-ink font-semibold'
+                                                : 'border-ink-faint text-ink-muted'
+                                        "
+                                    >
+                                        <input
+                                            type="radio"
+                                            :value="true"
+                                            v-model="seDeplaceFormulaire[livraison.id]"
+                                            class="w-3.5 h-3.5 accent-accent"
+                                        />
+                                        Oui
+                                    </label>
+                                    <label
+                                        class="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 border rounded-md text-[12.5px] cursor-pointer select-none"
+                                        :class="
+                                            seDeplaceValeur(livraison.id) === false
+                                                ? 'border-accent bg-accent/5 text-ink font-semibold'
+                                                : 'border-ink-faint text-ink-muted'
+                                        "
+                                    >
+                                        <input
+                                            type="radio"
+                                            :value="false"
+                                            v-model="seDeplaceFormulaire[livraison.id]"
+                                            class="w-3.5 h-3.5 accent-accent"
+                                        />
+                                        Non
+                                    </label>
+                                </div>
+                                <p
+                                    v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []"
+                                    :key="e"
+                                    class="text-[11px] text-rose-600 mt-1"
                                 >
-                                    <input
-                                        type="radio"
-                                        :value="false"
-                                        v-model="seDeplaceFormulaire[livraison.id]"
-                                        class="w-3.5 h-3.5 accent-accent"
-                                    />
-                                    Non
-                                </label>
+                                    {{ e }}
+                                </p>
                             </div>
-                            <p
-                                v-for="e in etatEnvoi(livraison.id).erreurs.se_deplace ?? []"
-                                :key="e"
-                                class="text-[11px] text-rose-600 mt-1"
-                            >
-                                {{ e }}
-                            </p>
+
+                            <!-- Chauffeur imposé dès la confirmation (10/10/2026). Si la famille est déjà
+                             dans une tournée qui n'est pas partie, elle en est retirée puis ajoutée à
+                             celle du chauffeur (LivraisonChangementService::prendreEnCharge()). -->
+                            <div>
+                                <label class="block text-[11px] text-ink-muted mb-1.5"
+                                    >Imposer un chauffeur (facultatif)</label
+                                >
+                                <div
+                                    :class="
+                                        seDeplaceValeur(livraison.id) === true ? 'pointer-events-none opacity-60' : ''
+                                    "
+                                >
+                                    <PersonSelect
+                                        role="benevole"
+                                        avec-vehicule
+                                        :id-campagne-journee="livraison.id_campagne_journee ?? null"
+                                        :id-campagne="livraison.id_campagne"
+                                        placeholder="Aucun — choisir un chauffeur…"
+                                        :model-value="
+                                            seDeplaceValeur(livraison.id) === true ? null : imposeValeur(livraison)
+                                        "
+                                        @update:model-value="(p) => (imposeFormulaire[livraison.id] = p)"
+                                    />
+                                </div>
+                                <p
+                                    v-if="seDeplaceValeur(livraison.id) === true"
+                                    class="text-[11px] text-ink-muted mt-1"
+                                >
+                                    Cette famille vient au QG : pas de chauffeur possible.
+                                </p>
+                                <p
+                                    v-for="e in etatEnvoi(livraison.id).erreurs.id_benevole_impose ?? []"
+                                    :key="e"
+                                    class="text-[11px] text-rose-600 mt-1"
+                                >
+                                    {{ e }}
+                                </p>
+                            </div>
                         </div>
 
                         <!-- Interdit tant que créneaux ET se_deplace ne sont pas

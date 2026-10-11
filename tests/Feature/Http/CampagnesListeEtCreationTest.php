@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http;
 
+use Amana\Shared\Models\Setting;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\Donation;
@@ -13,6 +14,7 @@ use App\Models\Livraison;
 use App\Models\PersonneDesactivee;
 use App\Models\RouteLivraison;
 use App\Support\Creneau;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\SeedsCommunFixtures;
 use Tests\TestCase;
 
@@ -87,7 +89,48 @@ class CampagnesListeEtCreationTest extends TestCase
                 ->where('retourUrl', route('livraison.campagnes.index'))
                 ->has('livraisonsMaxParTourneeDefaut')
                 ->has('googlePlacesKey')
-                ->has('hqGlobalDefaut'));
+                ->has('hqGlobalDefaut')
+                ->has('hqAdresseDefaut')
+                // Fenêtre de retrait QG proposée par défaut : bornes de Campagne::heureDebutArriveeHq()/heureFinArriveeHq().
+                ->where('retraitQgDefaut.debut', '08:00')
+                ->where('retraitQgDefaut.fin', '19:00'));
+    }
+
+    /** Réglage global du QG (ref_settings, application « familles ») — la ligne est créée si absente. */
+    private function definirReglageHq(string $cle, string $valeur, string $type): void
+    {
+        $commun = DB::connection(config('amana-shared.connection', 'commun'));
+        $idApplication = $commun->table('ref_applications')->where('code', 'familles')->value('id');
+
+        $commun->table('ref_settings')->updateOrInsert(
+            ['id_application' => $idApplication, 'cle' => $cle],
+            ['valeur' => $valeur, 'type' => $type, 'libelle' => $cle, 'description' => ''],
+        );
+        Setting::clearCache();
+    }
+
+    public function test_la_page_de_creation_prerempli_le_qg_depuis_les_reglages(): void
+    {
+        $this->definirReglageHq('route_hq_adresse', '12 rue du Quartier Général, 44000 Nantes', 'string');
+        $this->definirReglageHq('route_hq_latitude', '47.218371', 'float');
+        $this->definirReglageHq('route_hq_longitude', '-1.553621', 'float');
+
+        $this->actingAs($this->creerPersonne(['gestionnaire']))->get(route('livraison.campagnes.creer'))
+            ->assertOk()
+            ->assertInertia(fn($page) => $page
+                ->component('Livraison/CampagneCreer')
+                ->where('hqAdresseDefaut', '12 rue du Quartier Général, 44000 Nantes')
+                ->where('hqGlobalDefaut.lat', 47.218371)
+                ->where('hqGlobalDefaut.lng', -1.553621));
+    }
+
+    public function test_la_page_de_creation_sans_adresse_de_qg_configuree_renvoie_null(): void
+    {
+        $this->definirReglageHq('route_hq_adresse', '', 'string');
+
+        $this->actingAs($this->creerPersonne(['gestionnaire']))->get(route('livraison.campagnes.creer'))
+            ->assertOk()
+            ->assertInertia(fn($page) => $page->where('hqAdresseDefaut', null));
     }
 
     public function test_creer_nest_pas_interprete_comme_un_id_de_campagne(): void
@@ -137,6 +180,92 @@ class CampagnesListeEtCreationTest extends TestCase
         $campagne = Campagne::firstOrFail();
         $this->assertSame('preparation', $campagne->statut);
         $this->assertSame(2, $campagne->journees()->count());
+    }
+
+    public function test_store_enregistre_la_fenetre_de_retrait_qg(): void
+    {
+        $this->actingAs($this->creerPersonne(['gestionnaire']))
+            ->postJson(route('livraison.campagnes.store'), [
+                'type' => 'zakat_el_fitr',
+                'poids_moyen_kg' => 5,
+                'journees' => [['date' => '2026-11-10']],
+                'heure_debut_arrivee_hq' => '09:30',
+                'heure_fin_arrivee_hq' => '16:00',
+            ])
+            ->assertCreated()
+            // Réponse de création : valeurs telles qu'envoyées (« HH:MM ») ; relues en base : « HH:MM:SS ».
+            ->assertJsonPath('campagne.heure_debut_arrivee_hq', '09:30')
+            ->assertJsonPath('campagne.heure_fin_arrivee_hq', '16:00');
+
+        $campagne = Campagne::firstOrFail();
+        $this->assertSame('09:30:00', $campagne->heureDebutArriveeHq());
+        $this->assertSame('16:00:00', $campagne->heureFinArriveeHq());
+    }
+
+    public function test_store_sans_fenetre_de_retrait_garde_les_bornes_par_defaut(): void
+    {
+        $this->actingAs($this->creerPersonne(['gestionnaire']))
+            ->postJson(route('livraison.campagnes.store'), [
+                'type' => 'zakat_el_fitr',
+                'poids_moyen_kg' => 5,
+                'journees' => [['date' => '2026-11-10']],
+            ])
+            ->assertCreated();
+
+        $campagne = Campagne::firstOrFail();
+        $this->assertNull($campagne->getRawOriginal('heure_debut_arrivee_hq'));
+        $this->assertSame('08:00:00', $campagne->heureDebutArriveeHq());
+        $this->assertSame('19:00:00', $campagne->heureFinArriveeHq());
+    }
+
+    public function test_store_refuse_une_fenetre_de_retrait_hors_plage_ou_inversee(): void
+    {
+        $gestionnaire = $this->creerPersonne(['gestionnaire']);
+        $base = ['type' => 'zakat_el_fitr', 'poids_moyen_kg' => 5, 'journees' => [['date' => '2026-11-10']]];
+
+        // Avant 08h et après 19h : hors plage opérationnelle.
+        $this->actingAs($gestionnaire)
+            ->postJson(route('livraison.campagnes.store'), [...$base, 'heure_debut_arrivee_hq' => '06:00', 'heure_fin_arrivee_hq' => '20:00'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['heure_debut_arrivee_hq', 'heure_fin_arrivee_hq']);
+
+        // Fin avant le début.
+        $this->postJson(route('livraison.campagnes.store'), [...$base, 'heure_debut_arrivee_hq' => '15:00', 'heure_fin_arrivee_hq' => '10:00'])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['heure_fin_arrivee_hq']);
+
+        $this->assertSame(0, Campagne::count());
+    }
+
+    public function test_store_recopie_ladresse_du_qg_des_reglages_quand_elle_est_laissee_vide(): void
+    {
+        $this->definirReglageHq('route_hq_adresse', '12 rue du Quartier Général, 44000 Nantes', 'string');
+
+        $this->actingAs($this->creerPersonne(['gestionnaire']))
+            ->postJson(route('livraison.campagnes.store'), [
+                'type' => 'zakat_el_fitr',
+                'poids_moyen_kg' => 5,
+                'journees' => [['date' => '2026-11-10']],
+            ])
+            ->assertCreated();
+
+        $this->assertSame('12 rue du Quartier Général, 44000 Nantes', Campagne::firstOrFail()->hq_adresse);
+    }
+
+    public function test_store_garde_ladresse_saisie_pour_la_campagne(): void
+    {
+        $this->definirReglageHq('route_hq_adresse', '12 rue du Quartier Général, 44000 Nantes', 'string');
+
+        $this->actingAs($this->creerPersonne(['gestionnaire']))
+            ->postJson(route('livraison.campagnes.store'), [
+                'type' => 'zakat_el_fitr',
+                'poids_moyen_kg' => 5,
+                'journees' => [['date' => '2026-11-10']],
+                'hq_adresse' => 'Salle annexe, 3 place Royale',
+            ])
+            ->assertCreated();
+
+        $this->assertSame('Salle annexe, 3 place Royale', Campagne::firstOrFail()->hq_adresse);
     }
 
     // ── Statistiques d'une ligne dépliée ─────────────────────────────────

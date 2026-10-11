@@ -121,6 +121,45 @@ class CampagneHubTest extends TestCase
             ->assertJsonPath('compteurs.incidents_ouverts', 2);
     }
 
+    // ── Carte « Chargement » (10/10/2026) ────────────────────────────────
+
+    public function test_le_chargement_nest_pas_termine_quand_les_tournees_sont_seulement_pretes_a_charger(): void
+    {
+        $campagne = $this->creerCampagne();
+        $this->creerRoute($campagne, 'chargement'); // colis tous prêts, pas encore chargée
+
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.avancement', $campagne))
+            ->assertOk()
+            ->assertJsonPath('chargement_termine', false)
+            ->assertJsonPath('compteurs.routes_chargees', 0);
+    }
+
+    public function test_le_chargement_est_termine_quand_toutes_les_tournees_sont_chargees_ou_plus_loin(): void
+    {
+        $campagne = $this->creerCampagne();
+        $this->creerRoute($campagne, 'charge');
+        $this->creerRoute($campagne, 'en_cours');
+
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.avancement', $campagne))
+            ->assertOk()
+            ->assertJsonPath('chargement_termine', true)
+            ->assertJsonPath('compteurs.routes_chargees', 2);
+    }
+
+    public function test_le_chargement_nest_pas_termine_tant_quune_tournee_reste_a_charger(): void
+    {
+        $campagne = $this->creerCampagne();
+        $this->creerRoute($campagne, 'charge');
+        $this->creerRoute($campagne, 'chargement');
+        $this->creerRoute($campagne, 'planifiee');
+
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.avancement', $campagne))
+            ->assertOk()
+            ->assertJsonPath('chargement_termine', false)
+            ->assertJsonPath('compteurs.routes_chargees', 1)
+            ->assertJsonPath('compteurs.routes_total', 3);
+    }
+
     // ── Sélection des familles (page dédiée) ─────────────────────────────
 
     public function test_la_page_familles_avec_campagne_porte_les_urls_de_selection(): void
@@ -387,7 +426,31 @@ class CampagneHubTest extends TestCase
                 // Ces deux URLs ne servaient qu'au contrôle « familles à contacter » du bloc de génération.
                 ->missing('urls.contactsQueue')
                 ->missing('urls.contactsStatistiques')
-                ->where('urls.incidentIgnorer', route('livraison.incidents.ignorer', ['incident' => '__ID__']))
                 ->has('campagnes', 1));
+    }
+
+    public function test_suivi_livraison_ne_porte_plus_la_section_incidents(): void
+    {
+        $campagne = $this->creerCampagne();
+        $campagne->ajouterJournee('2026-11-10');
+
+        // Les incidents ne vivent plus que dans le hub (10/10/2026) : plus aucune URL d'incident ici...
+        $this->actingAs($this->gestionnaire())->get(route('livraison.suivi-livraison.index', $campagne))
+            ->assertOk()
+            ->assertInertia(fn($page) => $page
+                ->component('Livraison/SuiviLivraison')
+                ->missing('urls.incidents')
+                ->missing('urls.incidentResoudre')
+                ->missing('urls.incidentIgnorer')
+                ->has('urls.routes'));
+
+        // ... mais le hub les porte toujours.
+        $this->get(route('livraison.campagnes.show', $campagne))
+            ->assertOk()
+            ->assertInertia(fn($page) => $page
+                ->component('Livraison/CampagneDetail')
+                ->where('incidentsUrls.liste', route('livraison.campagnes.incidents-liste', $campagne))
+                ->has('incidentsUrls.resoudre')
+                ->has('incidentsUrls.ignorer'));
     }
 }

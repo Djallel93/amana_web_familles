@@ -64,7 +64,10 @@ class RetraitHqNotification extends Notification
 
         Log::info('[RetraitHqNotification] Envoi email', ['id_livraison' => $this->livraison->id]);
 
-        $svg = $this->qrCode->genererSvg(route('livraison.retrait-hq.livraisons.scan', $this->livraison));
+        // Nom de route corrigé le 10/10/2026 : « livraison.retrait-hq.livraisons.scan » n'a jamais
+        // existé (le groupe de routes est préfixé « livraison.retrait-hq. » + « scan »). L'exception
+        // RouteNotFoundException était avalée par RetraitHqNotificationService : aucun email ne partait.
+        $svg = $this->qrCode->genererSvg(route('livraison.retrait-hq.scan', $this->livraison));
 
         $campagne = $this->livraison->campagne;
 

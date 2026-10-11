@@ -1205,42 +1205,6 @@ parameters:
 			path: app/Http/Resources/ReleveResource.php
 
 		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/RouteIncidentResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/RouteIncidentResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$livraison\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/RouteIncidentResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$route\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/RouteIncidentResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$statut\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/RouteIncidentResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\RouteIncidentResource\:\:\$type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/RouteIncidentResource.php
-
-		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\RouteLivraisonResource\:\:\$benevole\.$#'
 			identifier: property.notFound
 			count: 1

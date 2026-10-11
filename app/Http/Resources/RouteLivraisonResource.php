@@ -14,13 +14,12 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * `response()->json($routes)` (dump brut, `benevole`/`vehiculeType` sans
  * restriction de colonnes — voir PersonneResumeResource/VehiculeTypeResource
  * pour le détail de ce qui était exposé en trop). Réutilisée telle quelle
- * pour le champ `route` de RouteIncidentResource.
+ * pour le champ `route` de l'ex-RouteIncidentResource (supprimée le 10/10/2026 avec
+ * l'endpoint JSON des incidents de Suivi livraison).
  *
  * whenLoaded() sur benevole/vehiculeType/etapes plutôt qu'un accès direct :
- * RouteIncidentResource ne charge que `route.benevole` (voir
- * LiveBoardController::incidents()), pas vehiculeType ni etapes — cette
- * classe reste correcte dans les deux contextes plutôt que d'exiger un
- * chargement complet à chaque usage.
+ * cette classe reste correcte quel que soit le chargement de la relation, plutôt
+ * que d'exiger un chargement complet à chaque usage.
  */
 class RouteLivraisonResource extends JsonResource
 {
