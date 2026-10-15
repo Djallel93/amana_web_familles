@@ -1,0 +1,67 @@
+# Dependabot : mises à jour automatiques des dépendances (15/10/2026).
+#
+# - Mises à jour de VERSION : une fois par semaine, regroupées (mineures +
+#   correctifs dans une seule PR par écosystème ; chaque version majeure reste
+#   une PR séparée, à relire). Elles ciblent `develop` (preprod) : la porte de
+#   qualité s'exécute dessus avant toute promotion vers `main`, et aucune
+#   fusion de PR Dependabot ne déclenche donc un déploiement en production.
+# - Mises à jour de SÉCURITÉ : à activer dans les réglages GitHub (Code
+#   security). D'après la doc GitHub, elles ciblent toujours la branche par
+#   défaut (`main`) et, dès que `target-branch` est défini pour un écosystème,
+#   les réglages ci-dessous (branche, regroupement) ne s'appliquent pas à elles.
+# - GitHub ne lit ce fichier que sur la branche par défaut (`main`) : il ne
+#   devient actif qu'après la promotion de `develop` vers `main`.
+version: 2
+
+updates:
+  - package-ecosystem: composer
+    directory: "/"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      composer-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: npm
+    directory: "/"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: develop
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Paris
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"

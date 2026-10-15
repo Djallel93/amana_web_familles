@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e3f13e85ab8e139742521ebe93b62406",
+    "content-hash": "d42d04c9ff26573c04b635054f2cd281",
     "packages": [
         {
             "name": "amana/shared",
-            "version": "v3.0.0",
+            "version": "v3.1.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/Djallel93/amana_shared.git",
-                "reference": "a48902b0ea0976ddce5cb8cccbdb605e8a7c791c"
+                "reference": "54c0dd428a8c7dff82832d992735173211fd808a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/a48902b0ea0976ddce5cb8cccbdb605e8a7c791c",
-                "reference": "a48902b0ea0976ddce5cb8cccbdb605e8a7c791c",
+                "url": "https://api.github.com/repos/Djallel93/amana_shared/zipball/54c0dd428a8c7dff82832d992735173211fd808a",
+                "reference": "54c0dd428a8c7dff82832d992735173211fd808a",
                 "shasum": ""
             },
             "require": {
@@ -62,10 +62,10 @@
                 "shared"
             ],
             "support": {
-                "source": "https://github.com/Djallel93/amana_shared/tree/v3.0.0",
+                "source": "https://github.com/Djallel93/amana_shared/tree/v3.1.0",
                 "issues": "https://github.com/Djallel93/amana_shared/issues"
             },
-            "time": "2026-10-15T05:54:25+00:00"
+            "time": "2026-10-15T13:11:08+00:00"
         },
         {
             "name": "bacon/bacon-qr-code",
