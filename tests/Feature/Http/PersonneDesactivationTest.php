@@ -282,7 +282,7 @@ class PersonneDesactivationTest extends TestCase
         $route = $this->creerRoute($this->creerCampagne(), $chauffeur->id, 'planifiee');
 
         $this->actingAs($gestionnaire)
-            ->postJson(route('livraison.routes.reassigner', $route), ['id_benevole' => $inactive->id, 'id_vehicule_type' => 1])
+            ->postJson(route('livraison.chargement.routes.reassigner', $route), ['id_benevole' => $inactive->id, 'id_vehicule_type' => 1])
             ->assertStatus(422)
             ->assertJsonValidationErrors(['id_benevole']);
 

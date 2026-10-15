@@ -113,6 +113,17 @@ dependency (and therefore no `AMANA_REPOS_PAT` need) on this app for now.
 
 ---
 
+### Scheduler cron (installed by the deploy)
+
+Both deploy workflows end with an idempotent step that installs the Laravel scheduler line
+(`* * * * * cd $IONOS_REMOTE_PATH && $IONOS_PHP_CLI_PATH artisan schedule:run`) in the SSH account's
+`crontab`, tagged with a per-environment marker (`# amana_web_familles-scheduler` /
+`# amana_web_familles-preprod-scheduler`) so other crontab entries are kept. Nothing to configure by
+hand on IONOS. `IONOS_PHP_CLI_PATH` is also rendered into `.env` as `SCHEDULE_PHP_BINARY`, which
+`routes/console.php` uses to relaunch each scheduled command. See `docs/scheduled-tasks.md`.
+
+---
+
 ## 4. `IONOS_SSH_PRIVATE_KEY` and `AMANA_REPOS_PAT`, at a glance
 
 - **`IONOS_SSH_PRIVATE_KEY`** — the full **private** key file content

@@ -17,9 +17,10 @@
             la remplacer, ce sont deux dimensions indépendantes
             (voir PackagingController::calculerUrgencePackaging()).
         --}}
+        {{-- Préparation prioritaire (11/10/2026) : bordure indigo + pastille, distincte de la bordure rouge « urgente ». --}}
         <div class="border rounded-xl p-4
-            {{ $livraison->urgente ? 'border-rose-600 border-l-8' : 'border-surface-border' }}
-            {{ $livraison->famille->est_hotel ? 'bg-amber-50' : ($livraison->famille->etudiant ? 'bg-sky-50' : 'bg-surface') }}"
+            {{ $livraison->preparation_prioritaire ? 'border-indigo-600 border-l-8 ring-2 ring-indigo-200' : ($livraison->urgente ? 'border-rose-600 border-l-8' : 'border-surface-border') }}
+            {{ $livraison->preparation_prioritaire ? 'bg-indigo-50' : ($livraison->famille->est_hotel ? 'bg-amber-50' : ($livraison->famille->etudiant ? 'bg-sky-50' : 'bg-surface')) }}"
             id="livraison-{{ $livraison->id }}">
             <div class="flex items-start justify-between gap-3">
                 <div class="flex items-start gap-3">
@@ -55,6 +56,9 @@
                             </span>
                         </p>
                         <div class="flex gap-1.5 mt-1">
+                            @if($livraison->preparation_prioritaire)
+                                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600 text-white">⭐ Prioritaire</span>
+                            @endif
                             @if($livraison->famille->etudiant)
                                 <span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">Étudiant</span>
                             @endif

@@ -149,6 +149,23 @@
             });
         }
 
+        // Préparation prioritaire (11/10/2026) : confirmation puis remontée de la famille en tête de
+        // Packaging. On recharge la page pour afficher la pastille à la place du bouton.
+        async function demanderPreparationPrioritaire(id) {
+            const ok = await window.amanaConfirm({
+                title: 'Préparation prioritaire',
+                message: 'Cette famille passera en tête de la file Packaging. Cette demande ne peut pas être retirée. Continuer ?',
+                confirmLabel: 'Oui, prioriser',
+                cancelLabel: 'Annuler',
+            });
+            if (!ok) return;
+            await occuper(id, async () => {
+                const r = await poster(`/livraison/retrait-hq/livraisons/${id}/preparation-prioritaire`);
+                if (!r.success) { if (r.message) window.amanaToast(r.message, 'error'); return; }
+                window.location.reload();
+            });
+        }
+
         async function marquerNonLivre(id) {
             await occuper(id, async () => {
                 const r = await poster(`/livraison/retrait-hq/livraisons/${id}/non-livre`);

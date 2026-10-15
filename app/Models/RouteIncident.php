@@ -16,9 +16,9 @@ use Illuminate\Support\Facades\Notification;
  * une tournée — voir create_route_incidents_table.php.
  *
  * @property int      $id
- * @property int|null $id_route          null pour type = retrait_hq_non_livre (pas de tournée)
+ * @property int|null $id_route          null pour type = retrait_hq_non_livre | se_deplace_remplace (pas de tournée)
  * @property int|null $id_campagne       renseigné quand id_route est null
- * @property string   $type            benevole_absent|capacite|chargement_annule|chargement_termine|livraison_ignoree|packaging_annule|retrait_hq_non_livre
+ * @property string   $type            benevole_absent|capacite|chargement_annule|chargement_termine|livraison_ignoree|packaging_annule|retrait_hq_non_livre|se_deplace_remplace
  * @property int|null $id_livraison    renseigné pour type = livraison_ignoree ou packaging_annule
  * @property int      $signale_par
  * @property string|null $statut       ouvert|resolu — null pour type = chargement_termine
@@ -42,7 +42,7 @@ class RouteIncident extends Model
      * l'équipe chargement doit savoir que ce colis n'est plus disponible
      * tant que gestionnaire/admin n'a pas marqué l'incident résolu.
      */
-    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre'];
+    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace'];
 
     public const STATUTS = ['ouvert', 'ignore', 'resolu'];
 
@@ -63,6 +63,8 @@ class RouteIncident extends Model
         'chargement_annule' => 'Chargement annulé',
         // 09/10/2026 : famille « Non livré (absent) » au Retrait QG — voir RetraitHqController.
         'retrait_hq_non_livre' => 'Retrait QG non livré',
+        // 11/10/2026 : un chauffeur imposé l'emporte sur « se déplace au QG » — voir LivraisonChangementService.
+        'se_deplace_remplace' => 'Retrait QG remplacé par une livraison',
     ];
 
     // Types pour lesquels `statut` est sans objet (jalon, pas alerte actionnable).
@@ -113,6 +115,8 @@ class RouteIncident extends Model
                 . 'Son colis n\'a pas été remis : la famille peut revenir (statut remis à « Prête »), ou être livrée à domicile.',
             'chargement_annule' => "Le chargement de la {$tournee} de {$chauffeur} a été annulé par l'équipe chargement "
                 . '(confirmé par erreur). La tournée est de nouveau « prête à charger » : vérifier que le chauffeur n\'est pas déjà parti.',
+            'se_deplace_remplace' => "{$famille} devait venir chercher son colis au QG, mais un chauffeur lui a été imposé : "
+                . 'sa livraison à domicile remplace le retrait. La contacter pour l\'informer qu\'elle n\'a plus besoin de se déplacer, puis résoudre l\'incident.',
             default => 'Incident de tournée.',
         };
 

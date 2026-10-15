@@ -21,7 +21,7 @@ use Illuminate\Support\Carbon;
  *
  * @property int    $id
  * @property string $type          zakat_el_fitr | collecte_alimentaire | don_ponctuel
- * @property string $statut        preparation | collecte | en_cours | terminee
+ * @property string $statut        preparation | en_cours | terminee
  * @property Carbon $date_livraison  Date de RÉFÉRENCE — voir journees() depuis le 03/09/2026
  * @property float  $poids_moyen_kg
  * @property string|null $hq_adresse      Libellé HQ propre à cette campagne — voir create_campagnes_domain_tables.php
@@ -83,7 +83,7 @@ class Campagne extends Model
 
     public const TYPES = ['zakat_el_fitr', 'collecte_alimentaire', 'don_ponctuel'];
 
-    public const STATUTS = ['preparation', 'collecte', 'en_cours', 'terminee'];
+    public const STATUTS = ['preparation', 'en_cours', 'terminee'];
 
     // ── Relations ─────────────────────────────────────────────────────────
 

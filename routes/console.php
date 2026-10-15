@@ -13,27 +13,41 @@ Artisan::command('inspire', function () {
 | Tâches planifiées
 |--------------------------------------------------------------------------
 |
-| Décommenter pour automatiser l'envoi mensuel des vérifications (décision
-| 6.10) plutôt que de dépendre uniquement du bouton admin.verifications.envoyer.
-| Nécessite que le cron Laravel (`* * * * * php artisan schedule:run`) soit
-| configuré côté IONOS — confirmé actif le 11/08/2026 (voir README), donc
-| peut être décommenté dès que souhaité.
+| Le cron Laravel (`* * * * * php artisan schedule:run`) est installé par les workflows de
+| déploiement (voir docs/scheduled-tasks.md) — rien à configurer à la main sur IONOS.
 |
-| use Illuminate\Support\Facades\Schedule;
-| Schedule::command('familles:envoyer-verifications')->monthlyOn(1, '08:00');
+| Décommenter pour automatiser l'envoi mensuel des vérifications (décision
+| 6.10) plutôt que de dépendre uniquement du bouton admin.verifications.envoyer :
+|
+| Schedule::exec("{$phpPourCron} {$artisan} familles:envoyer-verifications")
+|     ->monthlyOn(1, '08:00')->name('familles:envoyer-verifications');
 |
 */
 
 use Illuminate\Support\Facades\Schedule;
 
+// PHP CLI absolu utilisé pour RE-lancer chaque commande planifiée (11/10/2026), au lieu de
+// laisser Schedule::command() résoudre le binaire via Symfony PhpExecutableFinder : sur IONOS ce
+// finder retombe sur « /usr/bin/php », souvent une version incompatible (exit 255), même quand le
+// cron appelle le bon binaire. SCHEDULE_PHP_BINARY est injecté depuis la variable
+// IONOS_PHP_CLI_PATH — la même que celle du cron installé par les workflows de déploiement —
+// et lu via config('app.schedule_php_binary') : env() renverrait null une fois la config
+// mise en cache. PHP_BINARY reste le repli en local (php artisan serve / tests).
+$phpPourCron = (string) config('app.schedule_php_binary');
+$artisan = base_path('artisan');
+
 // Purge quotidienne des demandes d'intake non confirmées après 48h (voir
-// NettoyerDemandesAttente / IntakeAttenteService) — activée par défaut
-// puisque le cron IONOS est confirmé actif (11/08/2026, voir README).
-Schedule::command('familles:nettoyer-demandes-attente')->daily();
+// NettoyerDemandesAttente / IntakeAttenteService).
+Schedule::exec("{$phpPourCron} {$artisan} familles:nettoyer-demandes-attente")
+    ->daily()
+    ->name('familles:nettoyer-demandes-attente');
 
 // Libération des verrous d'édition de dossiers périmés (19/09/2026, suite du
 // Scénario 5 du chantier "polling live") — voir Famille::libererVerrousPerimes().
 // Toutes les 5 minutes suffisent : le TTL du verrou est de 20 minutes et le
 // battement de cœur de DetailPanel.vue le renouvelle toutes les 5 minutes tant
 // que l'édition est active. withoutOverlapping : jamais deux nettoyages à la fois.
-Schedule::command('familles:liberer-verrous-perimes')->everyFiveMinutes()->withoutOverlapping();
+Schedule::exec("{$phpPourCron} {$artisan} familles:liberer-verrous-perimes")
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->name('familles:liberer-verrous-perimes');

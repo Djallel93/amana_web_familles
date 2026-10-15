@@ -37,7 +37,6 @@ export const CAMPAGNE_TYPE_OPTIONS: SelectMenuOption<CampagneType>[] = [
 /** Libellés des statuts de campagne (Campagne::STATUTS). */
 export const CAMPAGNE_STATUT_LABELS: Record<string, string> = {
     preparation: "Préparation",
-    collecte: "Collecte",
     en_cours: "En cours",
     terminee: "Terminée",
 };

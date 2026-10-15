@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Http;
 
+use Amana\Shared\Models\Personne;
 use App\Models\Campagne;
 use App\Models\Famille;
 use App\Models\Livraison;
@@ -22,10 +23,6 @@ use Tests\TestCase;
 class ChargementRappelRoutesTest extends TestCase
 {
     use SeedsCommunFixtures;
-
-    private const TITRE_DEMARREE = 'Tournées pas encore générées';
-
-    private const TITRE_NON_DEMARREE = 'Campagne pas encore démarrée';
 
     protected function setUp(): void
     {
@@ -57,22 +54,24 @@ class ChargementRappelRoutesTest extends TestCase
         ], $surcharge));
     }
 
-    public function test_le_rappel_a_un_emoji_et_un_bouton_vers_lassistant_de_generation(): void
+    /** Rappel tel que l'expose la page Inertia (null = pas de rappel). */
+    private function rappel(Campagne $campagne, Personne $personne): ?array
+    {
+        $reponse = $this->actingAs($personne)->get(route('livraison.chargement.index', $campagne))->assertOk();
+
+        return $reponse->viewData('page')['props']['rappel'];
+    }
+
+    public function test_le_rappel_mene_a_l_assistant_de_generation_quand_la_campagne_est_demarree(): void
     {
         $campagne = $this->campagne();
         $this->livraisonConfirmee($campagne, 'prete');
 
-        $cible = route('livraison.campagnes.show', $campagne) . '?generer=1';
+        $rappel = $this->rappel($campagne, $this->creerPersonne(['gestionnaire']));
 
-        $this->actingAs($this->creerPersonne(['gestionnaire']))
-            ->get(route('livraison.chargement.index', $campagne))
-            ->assertOk()
-            ->assertSee(self::TITRE_DEMARREE)
-            ->assertSee('🚚')
-            // Un vrai bouton (classes de bouton + min-h tactile), pas un lien souligné dans une phrase.
-            ->assertSee('<a href="' . $cible . '"', false)
-            ->assertSee('Générer les routes')
-            ->assertDontSee('class="underline font-medium"', false);
+        $this->assertTrue($rappel['demarree']);
+        $this->assertTrue($rappel['peut_generer']);
+        $this->assertSame(route('livraison.campagnes.show', $campagne) . '?generer=1', $rappel['url_generer']);
     }
 
     public function test_le_rappel_saffiche_meme_si_le_conditionnement_nest_pas_termine(): void
@@ -81,10 +80,7 @@ class ChargementRappelRoutesTest extends TestCase
         $this->livraisonConfirmee($campagne, 'prete');
         $this->livraisonConfirmee($campagne, 'en_attente');
 
-        $this->actingAs($this->creerPersonne(['gestionnaire']))
-            ->get(route('livraison.chargement.index', $campagne))
-            ->assertOk()
-            ->assertSee(self::TITRE_DEMARREE);
+        $this->assertNotNull($this->rappel($campagne, $this->creerPersonne(['gestionnaire'])));
     }
 
     public function test_campagne_non_demarree_le_bouton_mene_au_hub_pour_demarrer(): void
@@ -92,13 +88,10 @@ class ChargementRappelRoutesTest extends TestCase
         $campagne = $this->campagne('preparation');
         $this->livraisonConfirmee($campagne, 'en_attente');
 
-        $this->actingAs($this->creerPersonne(['gestionnaire']))
-            ->get(route('livraison.chargement.index', $campagne))
-            ->assertOk()
-            ->assertSee(self::TITRE_NON_DEMARREE)
-            ->assertSee('Démarrer la campagne')
-            ->assertSee('<a href="' . route('livraison.campagnes.show', $campagne) . '"', false)
-            ->assertDontSee(self::TITRE_DEMARREE);
+        $rappel = $this->rappel($campagne, $this->creerPersonne(['gestionnaire']));
+
+        $this->assertFalse($rappel['demarree']);
+        $this->assertSame(route('livraison.campagnes.show', $campagne), $rappel['url_campagne']);
     }
 
     public function test_une_equipe_sans_droit_de_generation_voit_le_message_mais_pas_le_bouton(): void
@@ -109,14 +102,10 @@ class ChargementRappelRoutesTest extends TestCase
         $chargeur = $this->creerPersonne(['membre']);
         $campagne->equipeMembres()->create(['id_personne' => $chargeur->id, 'role' => 'equipe_chargement']);
 
-        $this->actingAs($chargeur)
-            ->get(route('livraison.chargement.index', $campagne))
-            ->assertOk()
-            ->assertSee(self::TITRE_DEMARREE)
-            ->assertSee('🚚')
-            ->assertSee('Prévenez un admin/gestionnaire')
-            ->assertDontSee('?generer=1', false)
-            ->assertDontSee('Générer les routes');
+        $rappel = $this->rappel($campagne, $chargeur);
+
+        $this->assertNotNull($rappel);
+        $this->assertFalse($rappel['peut_generer']);
     }
 
     public function test_pas_de_rappel_sans_aucune_famille_confirmee(): void
@@ -124,11 +113,7 @@ class ChargementRappelRoutesTest extends TestCase
         $campagne = $this->campagne();
         $this->livraisonConfirmee($campagne, 'prete', ['statut_contact' => 'a_contacter']);
 
-        $this->actingAs($this->creerPersonne(['gestionnaire']))
-            ->get(route('livraison.chargement.index', $campagne))
-            ->assertOk()
-            ->assertDontSee(self::TITRE_DEMARREE)
-            ->assertDontSee(self::TITRE_NON_DEMARREE);
+        $this->assertNull($this->rappel($campagne, $this->creerPersonne(['gestionnaire'])));
     }
 
     public function test_les_familles_qui_se_deplacent_ne_declenchent_pas_le_rappel(): void
@@ -136,10 +121,7 @@ class ChargementRappelRoutesTest extends TestCase
         $campagne = $this->campagne();
         $this->livraisonConfirmee($campagne, 'prete', ['se_deplace' => true]);
 
-        $this->actingAs($this->creerPersonne(['gestionnaire']))
-            ->get(route('livraison.chargement.index', $campagne))
-            ->assertOk()
-            ->assertDontSee(self::TITRE_DEMARREE);
+        $this->assertNull($this->rappel($campagne, $this->creerPersonne(['gestionnaire'])));
     }
 
     public function test_pas_de_rappel_des_quune_tournee_existe(): void
@@ -154,27 +136,23 @@ class ChargementRappelRoutesTest extends TestCase
             'statut' => 'planifiee',
         ]);
 
-        $this->actingAs($this->creerPersonne(['gestionnaire']))
-            ->get(route('livraison.chargement.index', $campagne))
-            ->assertOk()
-            ->assertDontSee(self::TITRE_DEMARREE);
+        $this->assertNull($this->rappel($campagne, $this->creerPersonne(['gestionnaire'])));
     }
 
-    public function test_le_polling_renvoie_le_rappel_et_sa_signature(): void
+    public function test_le_polling_renvoie_le_rappel(): void
     {
         $campagne = $this->campagne();
         $gestionnaire = $this->creerPersonne(['gestionnaire']);
 
-        $vide = $this->actingAs($gestionnaire)->getJson(route('livraison.chargement.liste', $campagne))
+        $this->actingAs($gestionnaire)->getJson(route('livraison.chargement.liste', $campagne))
             ->assertOk()
-            ->assertJsonPath('rappel.html', '')
-            ->json();
+            ->assertJsonPath('rappel', null);
 
         $this->livraisonConfirmee($campagne, 'en_attente');
 
-        $rempli = $this->getJson(route('livraison.chargement.liste', $campagne))->assertOk()->json();
-
-        $this->assertStringContainsString(self::TITRE_DEMARREE, $rempli['rappel']['html']);
-        $this->assertNotSame($vide['rappel']['sig'], $rempli['rappel']['sig']);
+        $this->getJson(route('livraison.chargement.liste', $campagne))
+            ->assertOk()
+            ->assertJsonPath('rappel.demarree', true)
+            ->assertJsonPath('rappel.peut_generer', true);
     }
 }

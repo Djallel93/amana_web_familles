@@ -14,6 +14,7 @@ use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Notifications\RetraitHqAnnuleNotification;
 use App\Notifications\RetraitHqNotification;
+use App\Notifications\RouteModifieeNotification;
 use App\Services\LivraisonChangementService;
 use App\Services\RetraitHqSchedulingService;
 use App\Support\Creneau;
@@ -266,13 +267,81 @@ class LivraisonChangementServiceTest extends TestCase
         }
     }
 
-    public function test_prendre_en_charge_est_refuse_pour_une_famille_qui_se_deplace(): void
+    public function test_le_chauffeur_impose_l_emporte_sur_se_deplace(): void
+    {
+        $benevole = $this->creerBenevole($this->vehicules['voiture']);
+        $livraison = $this->livraison(['se_deplace' => true]);
+        app(RetraitHqSchedulingService::class)->planifierPour($this->campagne, $this->journee);
+        $this->assertNotNull($livraison->fresh()->heure_arrivee_prevue_hq);
+
+        $this->service->prendreEnCharge($livraison->fresh(), $benevole->id);
+
+        $livraison->refresh();
+        $this->assertFalse($livraison->se_deplace);
+        $this->assertNull($livraison->heure_arrivee_prevue_hq);
+        $this->assertNull($livraison->statut_retrait_hq);
+        $this->assertSame($benevole->id, $livraison->id_benevole_impose);
+        $this->assertSame('assignee', $livraison->statut);
+        // La famille qui avait un rendez-vous est prévenue de l'annulation.
+        Notification::assertSentOnDemand(RetraitHqAnnuleNotification::class);
+    }
+
+    public function test_remplacer_se_deplace_par_un_chauffeur_impose_ouvre_un_incident_a_traiter(): void
     {
         $benevole = $this->creerBenevole($this->vehicules['voiture']);
         $livraison = $this->livraison(['se_deplace' => true]);
 
-        $this->expectException(\RuntimeException::class);
-        $this->service->prendreEnCharge($livraison, $benevole->id);
+        $this->service->prendreEnCharge($livraison->fresh(), $benevole->id);
+
+        $incident = RouteIncident::ouverts()->where('type', 'se_deplace_remplace')->sole();
+        $this->assertNull($incident->id_route);
+        $this->assertSame($this->campagne->id, $incident->id_campagne);
+        $this->assertSame($livraison->id, $incident->id_livraison);
+        $this->assertStringContainsString('n\'a plus besoin de se déplacer', $incident->description());
+    }
+
+    public function test_l_incident_de_remplacement_n_est_pas_duplique(): void
+    {
+        $benevole = $this->creerBenevole($this->vehicules['voiture']);
+        $livraison = $this->livraison(['se_deplace' => true]);
+
+        $this->service->prendreEnCharge($livraison->fresh(), $benevole->id);
+        $this->service->signalerRemplacementSeDeplace($livraison->fresh());
+
+        $this->assertSame(1, RouteIncident::where('type', 'se_deplace_remplace')->count());
+    }
+
+    public function test_imposer_une_famille_qui_ne_se_deplace_pas_n_ouvre_aucun_incident(): void
+    {
+        $benevole = $this->creerBenevole($this->vehicules['voiture']);
+
+        $this->service->prendreEnCharge($this->livraison(), $benevole->id);
+
+        $this->assertSame(0, RouteIncident::where('type', 'se_deplace_remplace')->count());
+    }
+
+    public function test_impose_apres_se_deplace_est_refuse_quand_le_colis_a_deja_ete_remis_au_qg(): void
+    {
+        $benevole = $this->creerBenevole($this->vehicules['voiture']);
+        $livraison = $this->livraison(['se_deplace' => true, 'statut' => 'livree', 'statut_retrait_hq' => 'delivre']);
+
+        try {
+            $this->service->prendreEnCharge($livraison, $benevole->id);
+            $this->fail('Une famille déjà servie au QG ne peut pas être imposée.');
+        } catch (\RuntimeException) {
+            $this->assertTrue($livraison->fresh()->se_deplace);
+            $this->assertNull($livraison->fresh()->id_benevole_impose);
+        }
+    }
+
+    public function test_le_chauffeur_est_prevenu_par_email_quand_la_famille_n_entre_pas_encore_dans_une_tournee(): void
+    {
+        $benevole = $this->creerBenevole($this->vehicules['voiture']);
+        $this->campagne->update(['statut' => 'preparation']);
+
+        $this->service->prendreEnCharge($this->livraison(), $benevole->id);
+
+        Notification::assertSentTo($benevole, RouteModifieeNotification::class);
     }
 
     public function test_prendre_en_charge_est_refuse_pour_un_benevole_sans_vehicule(): void

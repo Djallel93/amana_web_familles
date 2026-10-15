@@ -110,7 +110,7 @@ watch(
         idChauffeur.value = null;
         resume.value = null;
         statsCreneau.value = null;
-        strategie.value = "tous";
+        strategie.value = "minimum";
         resultat.value = "";
     },
 );
@@ -269,12 +269,13 @@ async function continuerChauffeurs() {
 const resume = ref<ApercuGeneration | null>(null);
 const resultat = ref("");
 /**
- * Stratégie de répartition (10/10/2026) : « tous » = les familles sont réparties sur tous les
+ * Stratégie de répartition (10/10/2026 ; « minimum » proposée en premier et par défaut depuis le
+ * 11/10/2026) : « tous » = les familles sont réparties sur tous les
  * chauffeurs choisis ; « minimum » = le plus petit ensemble de véhicules couvrant poids ET colis,
  * les autres chauffeurs ne reçoivent pas de tournée (un véhicule de plus est ajouté si le
  * découpage géographique laisse des familles de côté).
  */
-const strategie = ref<"tous" | "minimum">("tous");
+const strategie = ref<"tous" | "minimum">("minimum");
 
 async function chargerResume() {
     enCours.value = true;
@@ -572,7 +573,7 @@ async function autreTournee() {
                     <label class="block text-[12px] text-ink-muted mb-1">Journée</label>
                     <select
                         v-model="idJournee"
-                        class="w-full sm:w-72 rounded-lg border border-surface-border px-3 py-2 text-[14px] min-h-[2.5rem]"
+                        class="w-full sm:w-72 rounded-lg border border-surface-border pl-3 pr-9 py-2 text-[14px] min-h-[2.5rem]"
                     >
                         <option :value="null" disabled>— Choisir —</option>
                         <option v-for="j in journees" :key="j.id" :value="j.id">
@@ -758,7 +759,7 @@ async function autreTournee() {
                     />
                     <select
                         v-model="filtreVehicule"
-                        class="rounded-lg border border-surface-border px-3 py-2 text-[13.5px] min-h-[2.5rem]"
+                        class="rounded-lg border border-surface-border pl-3 pr-9 py-2 text-[13.5px] min-h-[2.5rem]"
                     >
                         <option value="">Tous les véhicules</option>
                         <option v-for="v in vehiculesDisponibles" :key="v" :value="v">{{ v }}</option>
@@ -766,7 +767,7 @@ async function autreTournee() {
                     <select
                         v-if="secteursDesChauffeurs.length > 0"
                         v-model="filtreSecteur"
-                        class="rounded-lg border border-surface-border px-3 py-2 text-[13.5px] min-h-[2.5rem]"
+                        class="rounded-lg border border-surface-border pl-3 pr-9 py-2 text-[13.5px] min-h-[2.5rem]"
                     >
                         <option value="">Tous les secteurs</option>
                         <option v-for="s in secteursDesChauffeurs" :key="s.id" :value="s.id">{{ s.nom }}</option>
@@ -894,24 +895,6 @@ async function autreTournee() {
                     <label
                         class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer select-none"
                         :class="
-                            strategie === 'tous'
-                                ? 'border-accent bg-accent/5'
-                                : 'border-surface-border hover:bg-stone-50'
-                        "
-                    >
-                        <input v-model="strategie" type="radio" value="tous" class="mt-1 w-4 h-4 accent-accent" />
-                        <span>
-                            <span class="block text-[13.5px] font-medium text-ink"
-                                >Utiliser tous les chauffeurs choisis</span
-                            >
-                            <span class="block text-[12px] text-ink-muted">
-                                Les familles sont réparties sur chaque chauffeur : tournées plus courtes.
-                            </span>
-                        </span>
-                    </label>
-                    <label
-                        class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer select-none"
-                        :class="
                             strategie === 'minimum'
                                 ? 'border-accent bg-accent/5'
                                 : 'border-surface-border hover:bg-stone-50'
@@ -929,6 +912,24 @@ async function autreTournee() {
                                     — {{ resume.vehicules_minimum }} sur {{ resume.chauffeurs }}</template
                                 >
                                 ; les autres chauffeurs restent libres.
+                            </span>
+                        </span>
+                    </label>
+                    <label
+                        class="flex items-start gap-3 rounded-xl border p-3 cursor-pointer select-none"
+                        :class="
+                            strategie === 'tous'
+                                ? 'border-accent bg-accent/5'
+                                : 'border-surface-border hover:bg-stone-50'
+                        "
+                    >
+                        <input v-model="strategie" type="radio" value="tous" class="mt-1 w-4 h-4 accent-accent" />
+                        <span>
+                            <span class="block text-[13.5px] font-medium text-ink"
+                                >Utiliser tous les chauffeurs choisis</span
+                            >
+                            <span class="block text-[12px] text-ink-muted">
+                                Les familles sont réparties sur chaque chauffeur : tournées plus courtes.
                             </span>
                         </span>
                     </label>

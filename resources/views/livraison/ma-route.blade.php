@@ -41,6 +41,14 @@
                 Chauffeur : {{ $routeAdmin->benevole ? $routeAdmin->benevole->prenom . ' ' . $routeAdmin->benevole->nom : 'non assigné' }}
                 — vous agissez à sa place.
             </p>
+            {{-- Rouvrir une tournée terminée (11/10/2026) : admin uniquement. --}}
+            @if($routeAdmin->statut === 'terminee' && auth()->user()?->isAdmin())
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+                    <p class="text-[13px] text-ink mb-3">Cette tournée est terminée (retour au QG confirmé) : ses arrêts ne sont plus modifiables.</p>
+                    <button type="button" onclick="rouvrirTournee({{ $routeAdmin->id }})"
+                        class="text-[13px] font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90">Rouvrir la tournée</button>
+                </div>
+            @endif
         @else
             <h1 class="font-heading text-xl font-semibold text-ink mb-6">Ma tournée</h1>
         @endif
@@ -218,6 +226,19 @@
             }
 
             return await reponse.json().catch(() => ({}));
+        }
+
+        // Rouvrir une tournée terminée (11/10/2026, admin) : les arrêts redeviennent modifiables.
+        async function rouvrirTournee(routeId) {
+            const ok = await window.amanaConfirm({
+                title: 'Rouvrir la tournée',
+                message: 'Les arrêts redeviendront modifiables et le chauffeur ne sera plus « de retour au QG ». Continuer ?',
+                confirmLabel: 'Rouvrir',
+                cancelLabel: 'Annuler',
+            });
+            if (!ok) return;
+            const resultat = await poster(`/livraison/routes/${routeId}/rouvrir`);
+            if (resultat) window.location.reload();
         }
 
         async function demarrerTournee(routeId) {

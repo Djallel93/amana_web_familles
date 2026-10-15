@@ -307,7 +307,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property App\\Models\\Livraison\:\:\$urgente\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: app/Http/Controllers/Livraison/PackagingController.php
 
 		-

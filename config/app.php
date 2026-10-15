@@ -69,6 +69,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | PHP CLI des commandes planifiées
+    |--------------------------------------------------------------------------
+    |
+    | Binaire PHP absolu avec lequel routes/console.php relance chaque commande
+    | planifiée (Schedule::exec) : sur IONOS, Symfony devinerait le mauvais
+    | /usr/bin/php (exit 255). Lu ici et non via env() dans routes/console.php,
+    | car env() renvoie null hors des fichiers de config dès que la config est
+    | en cache (php artisan optimize au déploiement). PHP_BINARY en repli local.
+    |
+    */
+
+    'schedule_php_binary' => env('SCHEDULE_PHP_BINARY', PHP_BINARY),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

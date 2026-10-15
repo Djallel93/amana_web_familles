@@ -452,15 +452,13 @@ class ContactTrackingController extends Controller
         $statut = $request->input('statut_contact');
         $imposeDemande = $statut === 'confirme' && $request->filled('id_benevole_impose');
 
-        if ($imposeDemande) {
-            // Une famille ne peut pas à la fois venir au QG et être imposée à un chauffeur.
-            if ($request->boolean('se_deplace')) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => ['id_benevole_impose' => ['Une famille qui se déplace au QG ne peut pas être imposée à un chauffeur.']],
-                ], 422);
-            }
+        // Le chauffeur imposé l'emporte sur « se déplace au QG » (11/10/2026) : la famille est
+        // enregistrée comme livrée à domicile et un incident demande de la prévenir (voir
+        // LivraisonChangementService::signalerRemplacementSeDeplace()).
+        $seDeplaceEcrase = $imposeDemande && ($request->boolean('se_deplace') || (bool) $livraison->se_deplace);
+        $seDeplace = $imposeDemande ? false : $request->boolean('se_deplace');
 
+        if ($imposeDemande) {
             // Même critère que prendreEnCharge() : chauffeur confirmé pour la journée de la famille.
             if (!$this->chauffeursConfirmes->estConfirme($request->integer('id_benevole_impose'), $livraison->id_campagne_journee, $livraison->id_campagne)) {
                 return response()->json([
@@ -476,11 +474,11 @@ class ContactTrackingController extends Controller
         // pas seulement écrire la colonne.
         $etaitConfirmee = $livraison->statut_contact === 'confirme';
         $seDeplaceChange = $statut === 'confirme' && $etaitConfirmee
-            && $request->boolean('se_deplace') !== (bool) $livraison->se_deplace;
+            && $seDeplace !== (bool) $livraison->se_deplace;
 
         if ($seDeplaceChange) {
             try {
-                $this->changements->changerSeDeplace($livraison, $request->boolean('se_deplace'));
+                $this->changements->changerSeDeplace($livraison, $seDeplace);
             } catch (\RuntimeException $e) {
                 return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
             }
@@ -496,7 +494,7 @@ class ContactTrackingController extends Controller
         $donneesConfirmees = null;
 
         if ($statut === 'confirme' && !$etaitConfirmee) {
-            $donnees['se_deplace'] = $request->boolean('se_deplace');
+            $donnees['se_deplace'] = $seDeplace;
         }
 
         if ($statut === 'confirme' && $request->filled('adresse_confirmee')) {
@@ -539,6 +537,9 @@ class ContactTrackingController extends Controller
                     $fraiche = Livraison::findOrFail($livraison->id);
                     if ($imposeDemande) {
                         $this->changements->prendreEnCharge($fraiche, $request->integer('id_benevole_impose'));
+                        if ($seDeplaceEcrase) {
+                            $this->changements->signalerRemplacementSeDeplace(Livraison::findOrFail($livraison->id));
+                        }
                     } else {
                         $this->changements->retirerImposition($fraiche);
                     }

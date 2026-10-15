@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\Livraison\LiveBoardController;
 use App\Http\Controllers\Admin\Livraison\PickersController;
 use App\Http\Controllers\Admin\Livraison\StatistiquesController;
 use App\Http\Controllers\Livraison\ChargementController;
+use App\Http\Controllers\Livraison\ChargementEditionController;
 use App\Http\Controllers\Livraison\ContactConfirmationController;
 use App\Http\Controllers\Livraison\DisponibiliteController;
 use App\Http\Controllers\Livraison\MaRouteController;
@@ -210,10 +211,6 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
         ->name('incidents.options');
     Route::post('/incidents/{incident}/resoudre-suite', [IncidentsController::class, 'resoudreAvecSuite'])
         ->name('incidents.resoudre-suite');
-    Route::post('/routes/{route}/ajouter-livraison', [LiveBoardController::class, 'ajouterLivraison'])
-        ->name('routes.ajouter-livraison');
-    Route::delete('/routes/{route}/etapes/{etape}', [LiveBoardController::class, 'retirerLivraison'])
-        ->name('routes.retirer-livraison');
     // Override manuel du statut d'un arrêt par un gestionnaire (09/09/2026,
     // prompt de cette date §5.2.3 : "User needs to be able to manually
     // change these in case driver does not").
@@ -223,12 +220,9 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // voir MaRouteController::voirCommeChauffeur().
     Route::get('/routes/{route}/vue-chauffeur', [MaRouteController::class, 'voirCommeChauffeur'])
         ->name('routes.vue-chauffeur');
-    Route::post('/routes/{route}/reassigner', [LiveBoardController::class, 'reassignerRoute'])
-        ->name('routes.reassigner');
-    Route::post('/routes/{route}/diviser', [LiveBoardController::class, 'diviserRoute'])
-        ->name('routes.diviser');
-    Route::delete('/routes/{route}', [LiveBoardController::class, 'supprimerRoute'])
-        ->name('routes.supprimer');
+    // Rouvrir une tournée terminée (11/10/2026) — admin uniquement.
+    Route::post('/routes/{route}/rouvrir', [MaRouteController::class, 'rouvrir'])
+        ->middleware('role:admin')->name('routes.rouvrir');
     Route::post('/campagnes/{campagne}/routes-personnalisees', [LiveBoardController::class, 'construireRoutePersonnalisee'])
         ->name('routes.personnalisee');
 
@@ -405,6 +399,22 @@ Route::middleware('auth')->prefix('livraison/chargement')->name('livraison.charg
     // incident, voir ChargementController::annulerChargement().
     Route::post('/routes/{route}/annuler-chargement', [ChargementController::class, 'annulerChargement'])
         ->middleware('can:gerer,route')->name('annuler-chargement');
+    // Préparation prioritaire de toute la tournée (11/10/2026) — voir
+    // ChargementController::preparationPrioritaire().
+    Route::post('/routes/{route}/preparation-prioritaire', [ChargementController::class, 'preparationPrioritaire'])
+        ->middleware('can:gerer,route')->name('preparation-prioritaire');
+    // Composition des tournées depuis l'écran chargement (11/10/2026) — voir
+    // ChargementEditionController (ex-Suivi livraison).
+    Route::post('/routes/{route}/familles', [ChargementEditionController::class, 'ajouterFamille'])
+        ->middleware('can:gerer,route')->name('routes.ajouter-famille');
+    Route::delete('/routes/{route}/etapes/{etape}', [ChargementEditionController::class, 'retirerFamille'])
+        ->middleware('can:gerer,route')->name('routes.retirer-famille');
+    Route::post('/routes/{route}/reassigner', [ChargementEditionController::class, 'reassigner'])
+        ->middleware('can:gerer,route')->name('routes.reassigner');
+    Route::post('/routes/{route}/diviser', [ChargementEditionController::class, 'diviser'])
+        ->middleware('can:gerer,route')->name('routes.diviser');
+    Route::delete('/routes/{route}', [ChargementEditionController::class, 'supprimer'])
+        ->middleware('can:gerer,route')->name('routes.supprimer');
     Route::post('/routes/{route}/benevole-absent', [ChargementController::class, 'signalerBenevoleAbsent'])
         ->middleware('can:gerer,route')->name('benevole-absent');
     Route::post('/routes/{route}/capacite', [ChargementController::class, 'signalerCapacite'])
@@ -435,6 +445,10 @@ Route::middleware('auth')->prefix('livraison/retrait-hq')->name('livraison.retra
         ->middleware('can:gererRetraitHq,livraison')->name('livre');
     Route::post('/livraisons/{livraison}/non-livre', [RetraitHqController::class, 'marquerNonLivre'])
         ->middleware('can:gererRetraitHq,livraison')->name('non-livre');
+    // Préparation prioritaire d'une famille (11/10/2026) — voir
+    // RetraitHqController::preparationPrioritaire().
+    Route::post('/livraisons/{livraison}/preparation-prioritaire', [RetraitHqController::class, 'preparationPrioritaire'])
+        ->middleware('can:gererRetraitHq,livraison')->name('preparation-prioritaire');
     // Annule un « Non livré (absent) » marqué par erreur (09/10/2026).
     Route::post('/livraisons/{livraison}/annuler-non-livre', [RetraitHqController::class, 'annulerNonLivre'])
         ->middleware('can:gererRetraitHq,livraison')->name('annuler-non-livre');

@@ -11,6 +11,7 @@ use App\Models\CampagneJournee;
 use App\Models\EtapeRoute;
 use App\Models\Famille;
 use App\Models\Livraison;
+use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Services\RouteMutationService;
 use Illuminate\Support\Facades\Notification;
@@ -241,12 +242,14 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
         $this->assertSame(1, RouteLivraison::where('id_benevole', $chauffeur->id)->whereNull('creneau')->count());
     }
 
-    public function test_la_confirmation_refuse_un_chauffeur_impose_pour_une_famille_qui_se_deplace(): void
+    public function test_la_confirmation_donne_la_priorite_au_chauffeur_impose_sur_se_deplace(): void
     {
         $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
         $this->confirmerChauffeur($chauffeur->id);
         $livraison = $this->livraison();
 
+        // 11/10/2026 : le chauffeur imposé l'emporte — la famille est enregistrée en livraison
+        // à domicile et un incident demande de la prévenir qu'elle n'a plus à venir au QG.
         $this->actingAs($this->gestionnaire())
             ->postJson(route('livraison.contacts.contacter-manuel', $livraison), [
                 'statut_contact' => 'confirme',
@@ -254,10 +257,16 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
                 'creneaux' => ['08-10'],
                 'id_benevole_impose' => $chauffeur->id,
             ])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['id_benevole_impose']);
+            ->assertOk();
 
-        $this->assertSame('a_contacter', $livraison->fresh()->statut_contact);
+        $livraison->refresh();
+        $this->assertSame('confirme', $livraison->statut_contact);
+        $this->assertFalse($livraison->se_deplace);
+        $this->assertSame($chauffeur->id, $livraison->id_benevole_impose);
+        $this->assertSame(1, RouteIncident::ouverts()
+            ->where('type', 'se_deplace_remplace')
+            ->where('id_livraison', $livraison->id)
+            ->count());
     }
 
     public function test_la_confirmation_refuse_un_chauffeur_non_confirme_pour_la_journee(): void
@@ -448,7 +457,7 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
         $this->assertSame(1, RouteLivraison::where('id_benevole', $chauffeur->id)->whereNull('creneau')->count());
     }
 
-    public function test_prendre_en_charge_renvoie_le_message_de_refus_quand_la_famille_se_deplace(): void
+    public function test_prendre_en_charge_une_famille_qui_se_deplace_la_repasse_en_livraison_et_ouvre_un_incident(): void
     {
         $chauffeur = $this->creerBenevole($this->vehicules['voiture']);
         $this->confirmerChauffeur($chauffeur->id);
@@ -456,11 +465,13 @@ class ContactsEtBenevolesConfirmationTest extends TestCase
 
         $this->actingAs($this->gestionnaire())
             ->postJson(route('livraison.contacts.prise-en-charge', $livraison), ['id_benevole' => $chauffeur->id])
-            ->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonStructure(['message']);
+            ->assertOk()
+            ->assertJsonPath('id_benevole_impose', $chauffeur->id);
 
-        $this->assertNull($livraison->fresh()->id_benevole_impose);
+        $livraison->refresh();
+        $this->assertFalse($livraison->se_deplace);
+        $this->assertSame($chauffeur->id, $livraison->id_benevole_impose);
+        $this->assertSame(1, RouteIncident::where('type', 'se_deplace_remplace')->where('id_livraison', $livraison->id)->count());
     }
 
     public function test_un_id_benevole_vide_retire_limposition(): void

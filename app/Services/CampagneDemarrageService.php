@@ -29,8 +29,8 @@ use Illuminate\Support\Facades\Log;
  */
 class CampagneDemarrageService
 {
-    /** Statuts de départ autorisés ('collecte' existe dans l'enum, pas encore utilisé). */
-    private const STATUTS_DEMARRABLES = ['preparation', 'collecte'];
+    /** Statuts de départ autorisés ('collecte' a été retiré de l'enum le 11/10/2026 : jamais posé). */
+    private const STATUTS_DEMARRABLES = ['preparation'];
 
     public function __construct(
         private readonly RouteGenerationService $generation,

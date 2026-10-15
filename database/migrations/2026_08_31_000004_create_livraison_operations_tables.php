@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -145,6 +146,19 @@ return new class extends Migration
             $table->string('statut_retrait_hq', 20)->nullable()
                 ->comment('delivre|non_delivre — familles se_deplace uniquement, posé par équipe_chargement sur livraison/retrait-hq');
 
+            // Préparation prioritaire (11/10/2026) : posée depuis les écrans chargement et
+            // retrait-hq (tournée entière côté chargement), remonte la famille en tête de
+            // Packaging. Ne s'efface pas à la main ; devient sans objet une fois la famille
+            // 'prete'. prioritaire_at sert à départager plusieurs prioritaires (FIFO).
+            $table->boolean('preparation_prioritaire')->default(false)
+                ->comment('Préparation prioritaire demandée par chargement/retrait-hq — tri Packaging');
+            $table->timestamp('prioritaire_at')->nullable()
+                ->comment('Moment où la préparation prioritaire a été demandée (FIFO entre prioritaires)');
+            // Posé par Livraison::booted() quand statut_contact passe à 'confirme' (null sinon) —
+            // ordre FIFO du tri Packaging.
+            $table->timestamp('confirme_at')->nullable()
+                ->comment('Moment où la famille est passée au statut de contact confirme (FIFO Packaging)');
+
             $table->unsignedInteger('locked_by')->nullable()
                 ->comment('ref_personnes.id — même verrouillage que familles.locked_by, pas de FK');
             $table->timestamp('locked_at')->nullable();
@@ -160,6 +174,15 @@ return new class extends Migration
             // même rôle que l'index sur statut ci-dessus.
             $table->index('heure_arrivee_prevue_hq');
         });
+
+        // Un chauffeur imposé l'emporte sur tout autre statut (11/10/2026) : une famille ne peut
+        // pas être à la fois se_deplace et imposée. LivraisonChangementService applique la règle
+        // (se_deplace repasse à false + incident + email) ; cette contrainte est le filet de
+        // sécurité contre toute écriture directe.
+        DB::statement(
+            'ALTER TABLE livraisons ADD CONSTRAINT livraisons_se_deplace_xor_impose '
+            . 'CHECK (NOT (se_deplace = 1 AND id_benevole_impose IS NOT NULL))'
+        );
 
         // Pivot : créneaux de 2h (8h-19h) pour lesquels une famille est
         // disponible pour CETTE livraison. `creneau` est une colonne

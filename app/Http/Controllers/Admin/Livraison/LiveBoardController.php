@@ -99,15 +99,12 @@ class LiveBoardController extends Controller
                 'routes' => route('livraison.campagnes.routes', ['campagne' => '__CAMPAGNE__']),
                 'nonCouvertes' => route('livraison.campagnes.non-couvertes', ['campagne' => '__CAMPAGNE__']),
                 'statistiques' => route('livraison.campagnes.suivi-livraison-statistiques', ['campagne' => '__CAMPAGNE__']),
-                'routeSupprimer' => route('livraison.routes.supprimer', ['route' => '__ID__']),
                 'etapeStatut' => route('livraison.routes.etapes.statut', ['route' => '__ID__', 'etape' => '__ETAPE__']),
-                'routeAjouter' => route('livraison.routes.ajouter-livraison', ['route' => '__ID__']),
-                'routeRetirer' => route('livraison.routes.retirer-livraison', ['route' => '__ID__', 'etape' => '__ETAPE__']),
                 // Accès admin à l'écran chauffeur de chaque tournée (29/09/2026,
                 // prompt §6.2) — voir MaRouteController::voirCommeChauffeur().
                 'routeVueChauffeur' => route('livraison.routes.vue-chauffeur', ['route' => '__ID__']),
-                'routeReassigner' => route('livraison.routes.reassigner', ['route' => '__ID__']),
-                'routeDiviser' => route('livraison.routes.diviser', ['route' => '__ID__']),
+                // Composition des tournées : écran chargement (11/10/2026).
+                'chargement' => route('livraison.chargement.index', ['campagne' => '__CAMPAGNE__']),
             ],
         ]);
     }
@@ -396,46 +393,10 @@ class LiveBoardController extends Controller
 
     // ── Mutabilité des tournées (voir le prompt §3.3) ───────────────────
     //
-    // Les 6 méthodes ci-dessous ne renvoient plus `route`/`etape`/
-    // `nouvelle_route` dans leur JSON depuis le 12/09/2026 (Section E3 du
-    // refactor, suite) : c'était jusqu'ici un dump brut de fresh() (aucune
-    // relation chargée), et RoutesPanel.vue / BuildRouteFlow.vue —
-    // seuls appelants — typent chaque réponse en `{ success: boolean }`
-    // (voir apiPost<{ success: boolean }>/apiDelete<{ success: boolean }>
-    // à chaque site d'appel, sans cast `as any`) : en cas de succès, ils
-    // affichent un toast puis émettent changed/created, qui déclenche un
-    // rechargement complet côté parent (LiveBoard.vue::chargerTout()) —
-    // le modèle renvoyé n'était lu nulle part. Même forme que
-    // supprimerRoute() ci-dessous, qui n'a jamais renvoyé de modèle.
-
-    public function ajouterLivraison(Request $request, RouteLivraison $route): JsonResponse
-    {
-        $validator = Validator::make($request->all(), ['id_livraison' => 'required|integer|exists:livraisons,id']);
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
-        }
-
-        $livraison = Livraison::findOrFail($request->input('id_livraison'));
-
-        try {
-            $this->mutationService->ajouterLivraison($route, $livraison);
-        } catch (\RuntimeException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        return response()->json(['success' => true]);
-    }
-
-    public function retirerLivraison(RouteLivraison $route, EtapeRoute $etape): JsonResponse
-    {
-        try {
-            $this->mutationService->retirerLivraison($route, $etape);
-        } catch (\RuntimeException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        return response()->json(['success' => true]);
-    }
+    // Depuis le 11/10/2026, l'édition de la COMPOSITION d'une tournée (ajouter/retirer une
+    // famille, changer de chauffeur, scinder, annuler) vit sur l'écran chargement — voir
+    // ChargementEditionController. Ne reste ici que la correction manuelle du statut d'un arrêt,
+    // geste de suivi du jour J.
 
     /**
      * Override manuel du statut d'un arrêt par un gestionnaire (09/09/2026,
@@ -475,48 +436,6 @@ class LiveBoardController extends Controller
                 $echec('Ce bénévole est désactivé.');
             }
         };
-    }
-
-    public function reassignerRoute(Request $request, RouteLivraison $route): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'id_benevole' => ['required', 'integer', $this->regleChauffeurActif()],
-            'id_vehicule_type' => 'required|integer',
-        ]);
-        if ($validator->fails()) {
-            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
-        }
-
-        $this->mutationService->reassigner($route, $request->input('id_benevole'), $request->input('id_vehicule_type'));
-
-        return response()->json(['success' => true]);
-    }
-
-    public function diviserRoute(RouteLivraison $route): JsonResponse
-    {
-        try {
-            $this->mutationService->diviser($route);
-        } catch (\RuntimeException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        return response()->json(['success' => true]);
-    }
-
-    /**
-     * Voir le prompt du 05/09/2026 §5.2 — supprime une tournée encore
-     * 'planifiee' pour permettre de la reconstruire avec un poids moyen
-     * mis à jour (voir RouteMutationService::supprimer()).
-     */
-    public function supprimerRoute(RouteLivraison $route): JsonResponse
-    {
-        try {
-            $this->mutationService->supprimer($route);
-        } catch (\RuntimeException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
-        }
-
-        return response()->json(['success' => true]);
     }
 
     /**

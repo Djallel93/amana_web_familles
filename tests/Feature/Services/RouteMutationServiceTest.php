@@ -129,6 +129,31 @@ class RouteMutationServiceTest extends TestCase
         $benevole = $this->creerPersonne(['benevole']);
         $campagne = $this->creerCampagne();
         $route = $this->creerRoute($campagne, $benevole->id, ['statut' => 'chargement']);
+        $this->creerEtape($route, $this->creerLivraison($campagne), 1);
+
+        $this->expectException(\RuntimeException::class);
+
+        $this->mutation->supprimer($route);
+    }
+
+    public function test_supprimer_accepte_une_tournee_vide_pas_encore_chargee(): void
+    {
+        $benevole = $this->creerPersonne(['benevole']);
+        $campagne = $this->creerCampagne();
+
+        foreach (['chargement', 'packaging_annule'] as $statut) {
+            $route = $this->creerRoute($campagne, $benevole->id, ['statut' => $statut]);
+
+            $this->mutation->supprimer($route);
+
+            $this->assertDatabaseHas('routes', ['id' => $route->id, 'statut' => 'annulee']);
+        }
+    }
+
+    public function test_supprimer_refuse_une_tournee_vide_deja_chargee(): void
+    {
+        $benevole = $this->creerPersonne(['benevole']);
+        $route = $this->creerRoute($this->creerCampagne(), $benevole->id, ['statut' => 'charge']);
 
         $this->expectException(\RuntimeException::class);
 

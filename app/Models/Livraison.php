@@ -40,6 +40,9 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $heure_arrivee_prevue_hq  Créneau de rendez-vous QG — familles se_deplace uniquement
  * @property string|null $statut_retrait_hq      delivre|non_delivre — familles se_deplace uniquement
  * @property string|null $motif_statut_contact    motif saisi pour archive|rejetee (09/10/2026)
+ * @property bool         $preparation_prioritaire  Préparation prioritaire demandée (chargement/retrait-hq, 11/10/2026)
+ * @property Carbon|null  $prioritaire_at           Moment de la demande (FIFO entre prioritaires)
+ * @property Carbon|null  $confirme_at              Moment du passage à statut_contact = confirme (posé par booted())
  */
 class Livraison extends Model
 {
@@ -61,6 +64,8 @@ class Livraison extends Model
         // recentré comme propriété pure de la campagne le 25/09/2026 (voir
         // le prompt de cette date) — create_livraison_operations_tables.php.
         'se_deplace', 'heure_arrivee_prevue_hq', 'statut_retrait_hq',
+        // Ajoutés le 11/10/2026 : préparation prioritaire + horodatage de confirmation (tri Packaging).
+        'preparation_prioritaire', 'prioritaire_at', 'confirme_at',
     ];
 
     protected $casts = [
@@ -71,7 +76,26 @@ class Livraison extends Model
         'locked_at' => 'datetime',
         'se_deplace' => 'boolean',
         'heure_arrivee_prevue_hq' => 'datetime',
+        'preparation_prioritaire' => 'boolean',
+        'prioritaire_at' => 'datetime',
+        'confirme_at' => 'datetime',
     ];
+
+    /**
+     * confirme_at (11/10/2026) : horodate le passage à statut_contact = 'confirme' (ordre FIFO
+     * du tri Packaging) et se remet à null quand la famille quitte ce statut (réinitialisation,
+     * archivage...). Centralisé ici plutôt que dans chaque contrôleur : le statut change depuis
+     * le suivi des contacts, le formulaire public et les services de changement. Une valeur
+     * posée explicitement par l'appelant n'est jamais écrasée.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Livraison $livraison): void {
+            if ($livraison->isDirty('statut_contact') && !$livraison->isDirty('confirme_at')) {
+                $livraison->confirme_at = $livraison->statut_contact === 'confirme' ? now() : null;
+            }
+        });
+    }
 
     public const STATUTS = ['non_assignee', 'assignee', 'en_cours', 'livree', 'ignoree'];
 

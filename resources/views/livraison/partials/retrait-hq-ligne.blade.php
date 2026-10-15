@@ -52,6 +52,18 @@
         @if($livraison->famille->nombre_enfant > 0)<span class="text-violet-600"> · {{ $livraison->famille->nombre_enfant }} enfant(s)</span>@endif
     </p>
 
+    {{-- Préparation prioritaire (11/10/2026) : tant que le colis n'est pas prêt. Ne se retire pas. --}}
+    @if($livraison->statutRetraitHqAffiche !== 'prete' && !in_array($livraison->statutRetraitHqAffiche, ['delivre', 'non_delivre'], true))
+        <div class="mb-2">
+            @if($livraison->preparation_prioritaire)
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-600 text-white">⭐ Préparation prioritaire demandée</span>
+            @else
+                <button type="button" onclick="demanderPreparationPrioritaire({{ $livraison->id }})"
+                    class="text-[12px] px-3 py-1.5 rounded-lg border border-indigo-300 text-indigo-700 hover:bg-indigo-50">⭐ Préparation prioritaire</button>
+            @endif
+        </div>
+    @endif
+
     {{--
         Boutons actifs UNIQUEMENT au statut "prete" (prompt §3) — masqués
         (pas juste désactivés) le reste du temps, même principe que

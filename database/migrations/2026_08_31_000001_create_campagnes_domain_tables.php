@@ -75,7 +75,7 @@ return new class extends Migration
         Schema::create('campagnes', function (Blueprint $table) {
             $table->id();
             $table->enum('type', ['zakat_el_fitr', 'collecte_alimentaire', 'don_ponctuel']);
-            $table->enum('statut', ['preparation', 'collecte', 'en_cours', 'terminee'])
+            $table->enum('statut', ['preparation', 'en_cours', 'terminee'])
                 ->default('preparation');
             $table->date('date_livraison');
             $table->decimal('poids_moyen_kg', 6, 2)->default(0)

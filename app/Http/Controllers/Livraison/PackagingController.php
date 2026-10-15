@@ -17,6 +17,7 @@ use App\Notifications\PackagingAnnuleNotification;
 use App\Services\CouvertureCollecteService;
 use App\Services\QrCodeService;
 use App\Services\RouteChargementService;
+use App\Support\OrdrePackaging;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -178,14 +179,9 @@ class PackagingController extends Controller
 
                 return $livraison;
             })
-            ->sortBy([
-                // Urgente (créneau unique confirmé, aucun repli possible)
-                // toujours en tête, avant même la criticité — §2.2 : "the
-                // packaging team sees this family at the top AND with the
-                // red border", indépendant de criticite.
-                fn(Livraison $l) => $l->urgente ? 0 : 1,
-                fn(Livraison $l) => -($l->famille->criticite ?? 0),
-            ])
+            // Ordre du 11/10/2026 : préparation prioritaire, poids du créneau (urgente = un seul
+            // créneau confirmé, §2.2 du 09/09/2026), criticité, puis FIFO — voir OrdrePackaging.
+            ->sort(fn(Livraison $a, Livraison $b) => OrdrePackaging::cle($a) <=> OrdrePackaging::cle($b))
             ->values();
 
         $lignes = $livraisons->map(function (Livraison $livraison) {

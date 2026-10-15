@@ -12,9 +12,12 @@ use App\Models\CampagneJournee;
 use App\Models\EtapeRoute;
 use App\Models\Famille;
 use App\Models\Livraison;
+use App\Models\Personne;
 use App\Models\PersonneDesactivee;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
+use App\Notifications\RouteModifieeNotification;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -28,8 +31,12 @@ use Illuminate\Support\Facades\DB;
  *     s'engage à livrer cette famille quand il veut, sans créneau.
  *
  * Règles (validées le 06/10/2026) :
- *   - une famille ne peut pas être à la fois se_deplace et imposée — le
- *     cas est refusé avec un message, l'admin le règle à la main ;
+ *   - une famille ne peut pas être à la fois se_deplace et imposée, et le
+ *     chauffeur imposé l'emporte (11/10/2026) : imposer une famille qui se
+ *     déplace au QG la repasse en livraison (rendez-vous annulé, email
+ *     d'annulation si elle en avait un) et ouvre un incident
+ *     « se_deplace_remplace » demandant de la prévenir. L'inverse (marquer
+ *     « se déplace » une famille imposée) reste refusé ;
  *   - une famille déjà LIVRÉE n'est plus modifiable ;
  *   - une famille dans une tournée est retirée automatiquement tant que la
  *     tournée n'est pas chargée (planifiee / chargement / packaging_annule)
@@ -66,7 +73,7 @@ class LivraisonChangementService
         if ($seDeplace) {
             if ($livraison->id_benevole_impose !== null) {
                 throw new \RuntimeException(
-                    'Cette famille est imposée à un chauffeur : retirez d\'abord l\'imposition avant de la marquer « se déplace au QG ».'
+                    'Cette famille est imposée à un chauffeur, et le chauffeur imposé l\'emporte : retirez d\'abord l\'imposition avant de la marquer « se déplace au QG ».'
                 );
             }
 
@@ -189,10 +196,6 @@ class LivraisonChangementService
      */
     public function prendreEnCharge(Livraison $livraison, int $idBenevole): void
     {
-        if ($livraison->se_deplace) {
-            throw new \RuntimeException('Cette famille vient chercher son colis au QG : retirez d\'abord « se déplace au QG » avant de l\'imposer à un chauffeur.');
-        }
-
         if (PersonneDesactivee::estDesactivee($idBenevole)) {
             throw new \RuntimeException('Cette personne est désactivée : elle ne peut pas prendre de livraison.');
         }
@@ -205,12 +208,58 @@ class LivraisonChangementService
             return;
         }
 
+        // Le chauffeur imposé l'emporte sur « se déplace au QG » (11/10/2026) : se_deplace est
+        // levé AVANT de poser l'imposition (contrainte livraisons_se_deplace_xor_impose). Refus
+        // propagé si le colis a déjà été remis au QG (changerSeDeplace()).
+        $remplaceSeDeplace = (bool) $livraison->se_deplace;
+        if ($remplaceSeDeplace) {
+            $this->changerSeDeplace($livraison, false);
+            $livraison->refresh();
+        }
+
         $this->degagerDeLaTournee($livraison);
 
         $livraison->id_benevole_impose = $idBenevole;
         $livraison->save();
 
-        $this->ajouterALaTourneeImposee($livraison);
+        if ($remplaceSeDeplace) {
+            $this->signalerRemplacementSeDeplace($livraison);
+        }
+
+        // Déjà prévenu par RouteMutationService quand la famille entre dans une tournée ; sinon
+        // (campagne pas encore démarrée, famille sans coordonnées…) un email le prévient ici.
+        if (!$this->ajouterALaTourneeImposee($livraison)) {
+            Personne::find($idBenevole)?->notify(new RouteModifieeNotification(
+                'Une famille vous a été confiée en livraison imposée : elle sera ajoutée à votre tournée '
+                . 'dès que la campagne démarre, vous la livrerez quand vous le souhaitez.'
+            ));
+        }
+    }
+
+    /**
+     * Incident « se_deplace_remplace » (11/10/2026) : une famille qui comptait venir au QG se voit
+     * imposer un chauffeur — le gestionnaire doit la contacter pour lui dire qu'elle n'a plus à
+     * venir. Idempotent : un incident déjà ouvert pour cette famille n'est pas dupliqué.
+     */
+    public function signalerRemplacementSeDeplace(Livraison $livraison): void
+    {
+        $existe = RouteIncident::ouverts()
+            ->where('type', 'se_deplace_remplace')
+            ->where('id_livraison', $livraison->id)
+            ->exists();
+
+        if ($existe) {
+            return;
+        }
+
+        RouteIncident::create([
+            'id_route' => null,
+            'id_campagne' => $livraison->id_campagne,
+            'type' => 'se_deplace_remplace',
+            'id_livraison' => $livraison->id,
+            'signale_par' => (int) (Auth::id() ?? 0),
+            'statut' => 'ouvert',
+        ]);
     }
 
     /**
@@ -349,7 +398,7 @@ class LivraisonChangementService
      * démarrée, que la famille n'est pas confirmée, déjà dans une tournée,
      * ou sans coordonnées (elle reste alors dans « non couvertes »).
      */
-    private function ajouterALaTourneeImposee(Livraison $livraison): void
+    private function ajouterALaTourneeImposee(Livraison $livraison): bool
     {
         $campagne = $this->campagneDe($livraison);
 
@@ -357,12 +406,12 @@ class LivraisonChangementService
             || $livraison->statut_contact !== 'confirme'
             || $livraison->statut !== 'non_assignee'
             || $livraison->id_benevole_impose === null) {
-            return;
+            return false;
         }
 
         $famille = Famille::find($livraison->id_famille);
         if ($famille === null || $famille->latitude === null || $famille->longitude === null) {
-            return;
+            return false;
         }
 
         $route = RouteLivraison::where('id_campagne', $campagne->id)
@@ -375,7 +424,7 @@ class LivraisonChangementService
         if ($route !== null) {
             $this->mutation->ajouterLivraison($route, $livraison);
 
-            return;
+            return true;
         }
 
         $vehicule = $this->vehiculeDuChauffeur($livraison->id_benevole_impose);
@@ -389,6 +438,8 @@ class LivraisonChangementService
             null,
             autoriserImposees: true,
         );
+
+        return true;
     }
 
     /**

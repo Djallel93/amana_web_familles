@@ -543,6 +543,8 @@ export const TYPES_INCIDENT = [
     "chargement_annule",
     // 09/10/2026 : famille « Non livré (absent) » au Retrait QG — pas de tournée (id_route null).
     "retrait_hq_non_livre",
+    // 11/10/2026 : famille se_deplace remplacée par un chauffeur imposé — pas de tournée (id_route null).
+    "se_deplace_remplace",
 ] as const;
 export type TypeIncident = (typeof TYPES_INCIDENT)[number];
 

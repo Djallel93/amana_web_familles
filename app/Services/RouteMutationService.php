@@ -78,6 +78,27 @@ class RouteMutationService
         return $route->fresh();
     }
 
+    /** Statuts où les colis sont dans le véhicule ou la tournée est partie (11/10/2026). */
+    public const STATUTS_VERROUILLES = ['charge', 'en_cours', 'livraisons_terminees', 'terminee'];
+
+    /**
+     * Garde des modifications de composition (ajout/retrait de famille, changement de chauffeur,
+     * scission), 11/10/2026 : une tournée chargée (ou plus loin) n'est modifiable que par un
+     * admin, pour forcer une correction exceptionnelle. À appeler depuis les endpoints d'édition
+     * — pas depuis les flux internes, qui ont leurs propres règles (LivraisonChangementService).
+     *
+     * @throws \RuntimeException
+     */
+    public function refuserSiVerrouillee(RouteLivraison $route, ?Personne $acteur): void
+    {
+        if (in_array($route->statut, self::STATUTS_VERROUILLES, true) && !($acteur?->isAdmin() ?? false)) {
+            throw new \RuntimeException(
+                "La tournée #{$route->id} est déjà chargée ou en cours : seul un admin peut encore la modifier. "
+                . 'Annulez d\'abord le chargement si c\'est une erreur.'
+            );
+        }
+    }
+
     /**
      * Retire une livraison d'une tournée — remet la livraison
      * non_assignee, renumérote les arrêts restants.
@@ -329,8 +350,13 @@ class RouteMutationService
      */
     public function supprimer(RouteLivraison $route): void
     {
-        if ($route->statut !== 'planifiee') {
-            throw new \RuntimeException("Seule une tournée encore 'planifiee' peut être supprimée (statut actuel : {$route->statut}).");
+        // Une tournée vidée de ses familles (11/10/2026) peut aussi être annulée tant qu'elle n'est
+        // pas chargée : elle n'a plus rien à charger et ne doit pas rester bloquée.
+        $viderModifiable = in_array($route->statut, ['chargement', 'packaging_annule'], true)
+            && !$route->etapes()->exists();
+
+        if ($route->statut !== 'planifiee' && !$viderModifiable) {
+            throw new \RuntimeException("Seule une tournée encore 'planifiee' (ou vide, pas encore chargée) peut être supprimée (statut actuel : {$route->statut}).");
         }
 
         DB::transaction(function () use ($route) {

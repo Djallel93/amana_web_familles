@@ -109,6 +109,9 @@ jobs:
         env:
           APP_KEY: ${{ secrets.APP_KEY }}
           IONOS_APP_URL: ${{ vars.APP_URL }}
+          # Réutilisée pour SCHEDULE_PHP_BINARY (voir le template) — même variable que celle qui
+          # installe le cron plus bas : cron et app ne divergent jamais sur le binaire PHP.
+          IONOS_PHP_CLI_PATH: ${{ vars.IONOS_PHP_CLI_PATH }}
           DB_HOST: ${{ secrets.DB_HOST }}
           DB_NAME: ${{ secrets.DB_NAME }}
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
@@ -198,6 +201,37 @@ jobs:
             $PHP_BIN artisan storage:link || true
             $PHP_BIN artisan optimize
             $PHP_BIN artisan up
+          EOF
+
+      # Cron du scheduler Laravel (routes/console.php : purge des demandes d'intake,
+      # libération des verrous d'édition périmés…). Sans lui, rien de ce qui est
+      # planifié ne s'exécute : IONOS ne lance schedule:run que si on le lui demande.
+      # Idempotent : notre ligne est repérée par un marqueur, les autres entrées du
+      # crontab (autre app sur le même compte, sauvegardes…) sont conservées.
+      # S'auto-répare si le crontab est vidé ou si IONOS_REMOTE_PATH /
+      # IONOS_PHP_CLI_PATH changent. Marqueur propre à l'environnement : production et
+      # preprod peuvent partager le même compte SSH sans s'écraser.
+      # continue-on-error : un refus de `crontab` côté hébergeur ne doit pas faire
+      # échouer un déploiement déjà en ligne (l'étape reste visible en erreur).
+      - name: Ensure Laravel scheduler cron entry (idempotent)
+        continue-on-error: true
+        env:
+          APP_PATH: ${{ vars.IONOS_REMOTE_PATH }}
+          PHP_BIN: ${{ vars.IONOS_PHP_CLI_PATH }}
+        run: |
+          ssh ${{ secrets.IONOS_SSH_USER }}@${{ secrets.IONOS_SSH_HOST }} bash -s <<EOF
+            set -e
+            MARKER='# amana_web_familles-scheduler'
+            LINE="* * * * * cd $APP_PATH && $PHP_BIN artisan schedule:run >> /dev/null 2>&1 \$MARKER"
+            CURRENT="\$(crontab -l 2>/dev/null || true)"
+            if printf '%s\n' "\$CURRENT" | grep -Fxq -- "\$LINE"; then
+              echo "==> Scheduler cron already up to date"
+            else
+              KEEP="\$(printf '%s\n' "\$CURRENT" | grep -vF -- "\$MARKER" || true)"
+              { [ -n "\$KEEP" ] && printf '%s\n' "\$KEEP"; printf '%s\n' "\$LINE"; } | crontab -
+              echo "==> Scheduler cron installed/updated"
+            fi
+            crontab -l | grep -F -- "\$MARKER"
           EOF
 
       - name: Show deployment URL

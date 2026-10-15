@@ -129,11 +129,13 @@ class ChargementStatutsTest extends TestCase
         $this->assertSame([$chargee->id => 'chargee'], $this->etats($this->liste()));
     }
 
-    public function test_une_tournee_vide_nest_pas_listee(): void
+    public function test_une_tournee_vide_est_listee_comme_restante_pour_pouvoir_etre_completee(): void
     {
-        $this->route('planifiee', []);
+        $route = $this->route('planifiee', []);
 
-        $this->assertSame([], $this->etats($this->liste()));
+        // 11/10/2026 : plus masquée — on peut lui rendre des familles ou l'annuler depuis cet écran.
+        $this->assertSame([$route->id => 'restante'], $this->etats($this->liste()));
+        $this->assertTrue($this->liste()['routes'][0]['vide']);
     }
 
     // ── Stats et filtres ─────────────────────────────────────────────────
@@ -147,7 +149,7 @@ class ChargementStatutsTest extends TestCase
         $this->route('charge', [$this->livraison('prete')]);
 
         $this->assertSame(
-            ['chargees' => 1, 'restantes' => 2, 'en_preparation' => 1, 'pretes' => 1],
+            ['chargees' => 1, 'restantes' => 2, 'en_preparation' => 1, 'pretes' => 1, 'vides' => 0],
             $this->liste()['stats'],
         );
     }
@@ -173,15 +175,21 @@ class ChargementStatutsTest extends TestCase
         $this->assertCount(4, $this->liste('toutes')['routes']);
     }
 
-    public function test_la_page_propose_les_cinq_filtres_et_les_quatre_cartes(): void
+    public function test_la_page_est_une_page_inertia_avec_les_statistiques_et_le_filtre(): void
     {
+        $this->route('planifiee', [$this->livraison('en_cours')]);
+
         $this->actingAs($this->gestionnaire())
-            ->get(route('livraison.chargement.index', $this->campagne))
+            ->get(route('livraison.chargement.index', $this->campagne) . '?filtre_chargement=en_preparation')
             ->assertOk()
-            ->assertSee('stat-en-preparation', false)
-            ->assertSee('stat-pretes', false)
-            ->assertSee("appliquerFiltreChargement('en_preparation')", false)
-            ->assertSee("appliquerFiltreChargement('pretes')", false);
+            ->assertInertia(fn($page) => $page
+                ->component('Livraison/Chargement')
+                ->where('filtre', 'en_preparation')
+                ->where('stats.en_preparation', 1)
+                ->where('stats.pretes', 0)
+                ->where('stats.vides', 0)
+                ->has('routes', 1)
+                ->has('urls.liste'));
     }
 
     // ── Anonymisation ────────────────────────────────────────────────────
@@ -192,18 +200,21 @@ class ChargementStatutsTest extends TestCase
         $this->route('planifiee', [$livraison]);
         $sansTournee = $this->livraison('en_attente', ['statut' => 'non_assignee'], ['nom' => 'Quasimodov', 'prenom' => 'Esmeralda']);
 
+        // La page n'expose que des numéros de famille (« Famille #id » est composé côté Vue),
+        // jamais le nom ni le prénom — ni dans les props Inertia, ni dans le JSON du polling.
         $this->actingAs($this->gestionnaire())
             ->get(route('livraison.chargement.index', $this->campagne))
             ->assertOk()
-            ->assertSee('Famille #' . $livraison->famille->id)
-            ->assertSee('Famille #' . $sansTournee->famille->id)
+            ->assertInertia(fn($page) => $page
+                ->where('routes.0.etapes.0.famille_id', $livraison->famille->id)
+                ->where('familles.0.famille_id', $sansTournee->famille->id))
             ->assertDontSee('Zebulonsky')
             ->assertDontSee('Anatolie')
             ->assertDontSee('Quasimodov');
 
         $liste = $this->liste();
         $this->assertStringNotContainsString('Zebulonsky', json_encode($liste));
-        $this->assertStringContainsString('Famille #' . $livraison->famille->id, $liste['routes'][0]['html']);
+        $this->assertSame($livraison->famille->id, $liste['routes'][0]['etapes'][0]['famille_id']);
     }
 
     // ── Familles pas encore dans une tournée ─────────────────────────────
@@ -308,16 +319,51 @@ class ChargementStatutsTest extends TestCase
         $this->assertSame(0, RouteIncident::where('type', 'chargement_annule')->count());
     }
 
-    public function test_les_cartes_chargee_et_prete_portent_les_bons_boutons_avec_popup(): void
+    public function test_les_cartes_chargee_et_prete_exposent_les_bonnes_actions(): void
     {
-        $this->route('chargement', [$this->livraison('prete')]);
-        $this->route('charge', [$this->livraison('prete')]);
+        $prete = $this->route('chargement', [$this->livraison('prete')]);
+        $chargee = $this->route('charge', [$this->livraison('prete')]);
 
-        $this->actingAs($this->gestionnaire())
-            ->get(route('livraison.chargement.index', $this->campagne))
-            ->assertOk()
-            ->assertSee('Chargement confirmé')
-            ->assertSee('Annuler le chargement')
-            ->assertSee('amanaConfirm', false);
+        $routes = collect($this->liste()['routes'])->keyBy('id');
+
+        $this->assertTrue($routes[$prete->id]['peut_confirmer']);
+        $this->assertFalse($routes[$prete->id]['peut_annuler_chargement']);
+        $this->assertFalse($routes[$chargee->id]['peut_confirmer']);
+        $this->assertTrue($routes[$chargee->id]['peut_annuler_chargement']);
+    }
+
+    // ── Tournées vides (11/10/2026) ──────────────────────────────────────
+
+    public function test_le_tri_place_les_vides_en_tete_et_la_tournee_chargee_en_dernier(): void
+    {
+        $chargee = $this->route('charge', [$this->livraison('prete')]);
+        $pleine = $this->route('planifiee', [$this->livraison('en_attente')]);
+        $vide = $this->route('chargement', []);
+
+        $ids = collect($this->liste()['routes'])->pluck('id')->all();
+
+        // Peu importe l'ordre de création : la vide d'abord, la chargée en dernier.
+        $this->assertCount(3, $ids);
+        $this->assertSame($vide->id, $ids[0]);
+        $this->assertSame($chargee->id, $ids[2]);
+        $this->assertSame($pleine->id, $ids[1]);
+    }
+
+    public function test_une_tournee_vide_reste_listee_a_part_avec_son_filtre(): void
+    {
+        $vide = $this->route('chargement', []);
+        $pleine = $this->route('planifiee', [$this->livraison('en_attente')]);
+
+        $liste = $this->liste();
+        $this->assertSame(1, $liste['stats']['vides']);
+        // Une tournée vide n'est comptée ni dans les restantes ni dans les prêtes.
+        $this->assertSame(1, $liste['stats']['restantes']);
+        $this->assertSame(0, $liste['stats']['pretes']);
+        $this->assertSame([$vide->id, $pleine->id], collect($liste['routes'])->pluck('id')->all());
+
+        $this->assertSame([$vide->id], collect($this->liste('vides')['routes'])->pluck('id')->all());
+        $this->assertSame([$pleine->id], collect($this->liste('restantes')['routes'])->pluck('id')->all());
+        $this->assertFalse(collect($liste['routes'])->firstWhere('id', $vide->id)['peut_confirmer']);
+        $this->assertTrue(collect($liste['routes'])->firstWhere('id', $vide->id)['peut_supprimer']);
     }
 }

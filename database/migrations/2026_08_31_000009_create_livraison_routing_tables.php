@@ -164,7 +164,7 @@ return new class extends Migration
             // id_campagne : renseigné quand id_route est null (type retrait_hq_non_livre) ;
             // sinon la campagne est celle de la route.
             $table->foreignId('id_campagne')->nullable()->constrained('campagnes')->cascadeOnDelete();
-            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre']);
+            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace']);
             $table->foreignId('id_livraison')->nullable()
                 ->constrained('livraisons')
                 ->nullOnDelete()

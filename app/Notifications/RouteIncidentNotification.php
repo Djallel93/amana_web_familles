@@ -78,6 +78,8 @@ class RouteIncidentNotification extends Notification
             'livraison_ignoree' => 'Livraison ignorée',
             'packaging_annule' => 'Packaging annulé',
             'chargement_annule' => 'Chargement annulé',
+            'retrait_hq_non_livre' => 'Retrait QG non livré',
+            'se_deplace_remplace' => 'Retrait QG remplacé par une livraison',
             default => $this->incident->type,
         };
     }

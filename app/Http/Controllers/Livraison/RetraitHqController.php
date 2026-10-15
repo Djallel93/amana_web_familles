@@ -12,6 +12,7 @@ use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
 use App\Models\Campagne;
 use App\Models\Livraison;
 use App\Models\RouteIncident;
+use App\Services\PreparationPrioritaireService;
 use App\Support\StatutChargement;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
@@ -208,6 +209,21 @@ class RetraitHqController extends Controller
             'signale_par' => Auth::id(),
             'statut' => 'ouvert',
         ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * « Préparation prioritaire » (11/10/2026) : demande à Packaging de préparer cette famille
+     * en premier — voir PreparationPrioritaireService. Ne se retire pas.
+     */
+    public function preparationPrioritaire(Livraison $livraison, PreparationPrioritaireService $service): JsonResponse
+    {
+        try {
+            $service->prioriserLivraison($livraison);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json(['success' => true]);
     }

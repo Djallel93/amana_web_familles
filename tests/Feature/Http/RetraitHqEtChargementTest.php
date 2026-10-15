@@ -233,10 +233,10 @@ class RetraitHqEtChargementTest extends TestCase
         $this->actingAs($this->gestionnaire())
             ->get(route('livraison.chargement.index', $this->campagne))
             ->assertOk()
-            ->assertSee('Utilitaire')
-            ->assertSee('0611223344')
-            ->assertSee('tel:0611223344', false)
-            ->assertSee('5 colis à charger');
+            ->assertInertia(fn($page) => $page
+                ->where('routes.0.vehicule', 'Utilitaire')
+                ->where('routes.0.benevole.telephone', '0611223344')
+                ->where('routes.0.colis', 5));
     }
 
     public function test_la_carte_chargement_indique_un_telephone_manquant(): void
@@ -255,7 +255,8 @@ class RetraitHqEtChargementTest extends TestCase
         $this->actingAs($this->gestionnaire())
             ->get(route('livraison.chargement.index', $this->campagne))
             ->assertOk()
-            ->assertSee('téléphone non renseigné')
-            ->assertSee('0 colis à charger');
+            ->assertInertia(fn($page) => $page
+                ->where('routes.0.benevole.telephone', null)
+                ->where('routes.0.colis', 0));
     }
 }

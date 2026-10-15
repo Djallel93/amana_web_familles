@@ -8,6 +8,7 @@ namespace App\Http\Controllers\Livraison;
 use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Models\BenevoleRetourQg;
+use App\Models\Campagne;
 use App\Models\EtapeRoute;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
@@ -17,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
@@ -97,6 +99,37 @@ class MaRouteController extends Controller
         }
 
         $route->demarrer();
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Rouvre une tournée terminée (11/10/2026, admin uniquement — voir routes/livraison.php) : le
+     * « retour au QG » a figé la tournée (statut 'terminee'), plus aucun arrêt modifiable. Elle
+     * repasse à 'livraisons_terminees' — arrêts inchangés, tous de nouveau modifiables ; un arrêt
+     * remis « en cours » la ramène à 'en_cours' (RouteLivraison::rouvrirEtape()). Le chauffeur
+     * n'est plus « de retour au QG » : sa ligne BenevoleRetourQg est supprimée. Le mail
+     * « nouvelle tournée » déjà parti n'est pas rappelé. Refusé si la campagne est terminée.
+     */
+    public function rouvrir(RouteLivraison $route): JsonResponse
+    {
+        if ($route->statut !== 'terminee') {
+            return response()->json(['success' => false, 'message' => "Cette tournée n'est pas terminée."], 422);
+        }
+
+        if (Campagne::findOrFail($route->id_campagne)->statut === 'terminee') {
+            return response()->json([
+                'success' => false,
+                'message' => 'La campagne est terminée : rouvrez-la avant de rouvrir une tournée.',
+            ], 422);
+        }
+
+        DB::transaction(function () use ($route) {
+            $route->update(['statut' => 'livraisons_terminees']);
+            BenevoleRetourQg::where('id_route_origine', $route->id)->delete();
+        });
+
+        audit('update', 'routes_livraison', $route->id, ['statut' => 'terminee'], ['statut' => 'livraisons_terminees']);
 
         return response()->json(['success' => true]);
     }
