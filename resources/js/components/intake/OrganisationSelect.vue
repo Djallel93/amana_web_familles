@@ -123,7 +123,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", surClicExterieur
             role="combobox"
             :aria-expanded="ouvert"
             aria-haspopup="listbox"
-            class="w-full flex items-center justify-between gap-2 px-3 py-2.5 border rounded-md text-[14px] bg-surface-2 text-start outline-none transition-colors focus:border-accent"
+            class="w-full flex items-center justify-between gap-2 px-3 py-2.5 border rounded-md text-[14px] bg-surface-2 text-start outline-hidden transition-colors focus:border-accent"
             :class="[invalid ? 'border-rose-400' : ouvert ? 'border-accent' : 'border-ink-faint']"
             @click="basculer"
         >
@@ -150,7 +150,7 @@ onBeforeUnmount(() => document.removeEventListener("mousedown", surClicExterieur
                     :placeholder="searchPlaceholder"
                     autocomplete="off"
                     aria-label="Rechercher"
-                    class="w-full px-2.5 py-1.5 border border-ink-faint rounded-md text-[13px] bg-surface-2 outline-none focus:border-accent"
+                    class="w-full px-2.5 py-1.5 border border-ink-faint rounded-md text-[13px] bg-surface-2 outline-hidden focus:border-accent"
                     @keydown="onClavier"
                 />
             </div>

@@ -312,7 +312,7 @@ onUnmounted(detruireGraphiques);
              colonnes, sans étape sur tablette. -->
         <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg shrink-0">
                     🏠
                 </div>
                 <div class="min-w-0">
@@ -323,7 +323,7 @@ onUnmounted(detruireGraphiques);
                 </div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg shrink-0">
                     🧑
                 </div>
                 <div class="min-w-0">
@@ -334,7 +334,7 @@ onUnmounted(detruireGraphiques);
                 </div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg shrink-0">
                     🧒
                 </div>
                 <div class="min-w-0">
@@ -345,7 +345,7 @@ onUnmounted(detruireGraphiques);
                 </div>
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0">
+                <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg shrink-0">
                     🎚️
                 </div>
                 <div class="min-w-0">
@@ -358,7 +358,7 @@ onUnmounted(detruireGraphiques);
             </div>
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
                 <div
-                    class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                    class="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0"
                     :class="donnees.cartes.documentsIdentiteManquants > 0 ? 'bg-rose-100' : 'bg-emerald-100'"
                 >
                     🪪
@@ -378,7 +378,7 @@ onUnmounted(detruireGraphiques);
                  présent ici) -->
             <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
                 <div
-                    class="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                    class="w-10 h-10 rounded-full flex items-center justify-center text-lg shrink-0"
                     :class="donnees.cartes.aTraiterPriorite > 0 ? 'bg-rose-100' : 'bg-emerald-100'"
                 >
                     {{ donnees.cartes.aTraiterPriorite > 0 ? "⚠️" : "✅" }}
@@ -415,9 +415,7 @@ onUnmounted(detruireGraphiques);
                  déplace" ci-dessus. -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                    <div
-                        class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0"
-                    >
+                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg shrink-0">
                         🎓
                     </div>
                     <div class="min-w-0">
@@ -428,9 +426,7 @@ onUnmounted(detruireGraphiques);
                     </div>
                 </div>
                 <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-center gap-3">
-                    <div
-                        class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg flex-shrink-0"
-                    >
+                    <div class="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-lg shrink-0">
                         🏨
                     </div>
                     <div class="min-w-0">

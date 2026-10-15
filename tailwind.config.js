@@ -31,7 +31,10 @@ export default {
                 sidebar: { DEFAULT: '#0c2321', 2: '#123330' },
             },
             boxShadow: {
-                glow: 'rgba(15,118,110,0.25)',
+                // Corrigé le 14/10/2026 : l'ancienne valeur « rgba(…) » seule n'était pas
+                // un box-shadow valide (ni offsets ni flou) et ne rendait rien ; halo de
+                // 3 px, même forme que le `glow` du préréglage partagé.
+                glow: '0 0 0 3px rgba(15,118,110,0.25)',
             },
         },
     },

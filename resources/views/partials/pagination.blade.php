@@ -35,7 +35,7 @@
                      n'y étaient pas exposés du fait de leur largeur plus
                      généreuse, celui-ci est volontairement compact. --}}
                 <select data-per-page-select
-                    class="pl-2 pr-7 py-1.5 border border-ink-faint rounded-md text-[12.5px] bg-surface outline-none focus:border-accent cursor-pointer">
+                    class="pl-2 pr-7 py-1.5 border border-ink-faint rounded-md text-[12.5px] bg-surface outline-hidden focus:border-accent cursor-pointer">
                     @foreach(\App\Models\Famille::PAGINATION_PAR_PAGE as $option)
                         <option value="{{ $option }}" {{ $paginator->perPage() === $option ? 'selected' : '' }}>{{ $option }}</option>
                     @endforeach

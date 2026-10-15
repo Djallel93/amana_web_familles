@@ -136,7 +136,7 @@ const GROUPE_CARTE = "bg-surface-2 rounded-lg p-3";
 const GROUPE_LABEL = "text-[10px] font-bold text-ink-muted uppercase tracking-wide mb-2";
 const CHAMP_LABEL = "block text-[10.5px] font-semibold text-ink-muted mb-1";
 const CHAMP_INPUT =
-    "w-full rounded-md border border-ink-faint bg-surface px-2.5 py-1.5 text-[13px] min-h-[2rem] outline-none focus:border-accent";
+    "w-full rounded-md border border-ink-faint bg-surface px-2.5 py-1.5 text-[13px] min-h-[2rem] outline-hidden focus:border-accent";
 // has-[:checked] (Tailwind 3.4+) : bordure + fond teinté à la coche, sans
 // binding JS — même pattern que l'ancienne barre Blade.
 const CHIP_LABEL =

@@ -207,13 +207,13 @@ function ouvrirSyncGoogleContacts() {
             v-if="peutSyncGoogleContacts"
             type="button"
             @click="ouvrirSyncGoogleContacts"
-            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 flex-shrink-0"
+            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 shrink-0"
         >
             🔄 Sync retour Google Contacts
         </button>
         <a
             :href="exportUrl"
-            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 no-underline flex-shrink-0"
+            class="inline-flex items-center gap-1.5 px-3 py-2 border border-surface-border bg-surface hover:bg-surface-2 text-ink text-[12.5px] font-semibold rounded-lg transition-colors active:scale-95 no-underline shrink-0"
         >
             ⬇️ Exporter CSV
         </a>

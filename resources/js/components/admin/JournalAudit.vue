@@ -183,7 +183,7 @@ function formaterDiff(valeur: unknown): string {
                 <select
                     id="jrn_module"
                     v-model="filtres.module"
-                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-none transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
+                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-hidden transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
                 >
                     <option value="">Tous</option>
                     <option v-for="m in config.modules" :key="m" :value="m">{{ libelleModule(m) }}</option>
@@ -197,7 +197,7 @@ function formaterDiff(valeur: unknown): string {
                 <select
                     id="jrn_action"
                     v-model="filtres.action"
-                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-none transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
+                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-hidden transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
                 >
                     <option value="">Toutes</option>
                     <option v-for="a in config.actions" :key="a" :value="a">{{ libelleAction(a) }}</option>
@@ -211,7 +211,7 @@ function formaterDiff(valeur: unknown): string {
                 <select
                     id="jrn_user"
                     v-model="filtres.user_id"
-                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-none transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)] min-w-[180px]"
+                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-hidden transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)] min-w-[180px]"
                 >
                     <option value="">Tous</option>
                     <option v-for="p in config.personnes" :key="p.id" :value="String(p.id)">{{ p.nom }}</option>
@@ -227,7 +227,7 @@ function formaterDiff(valeur: unknown): string {
                     type="date"
                     v-model="filtres.from"
                     :max="filtres.to || undefined"
-                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-none transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
+                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-hidden transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
                 />
             </div>
 
@@ -238,7 +238,7 @@ function formaterDiff(valeur: unknown): string {
                     type="date"
                     v-model="filtres.to"
                     :min="filtres.from || undefined"
-                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-none transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
+                    class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] text-ink bg-surface-2 outline-hidden transition focus:border-accent focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]"
                 />
             </div>
 

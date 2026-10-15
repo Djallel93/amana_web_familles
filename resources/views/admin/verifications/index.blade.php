@@ -85,15 +85,15 @@
                                 <div class="text-[11.5px] text-ink-muted">Expire le {{ $verification->expires_at->format('d/m/Y H:i') }}</div>
                             </div>
                             @if($verification->estConfirmee())
-                                <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                                <span class="inline-flex shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
                                     ✅ Confirmée
                                 </span>
                             @elseif($verification->estExpiree())
-                                <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-gray-100 text-gray-500 border-gray-300">
+                                <span class="inline-flex shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-gray-100 text-gray-500 border-gray-300">
                                     ⏰ Expirée
                                 </span>
                             @else
-                                <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+                                <span class="inline-flex shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-amber-50 text-amber-700 border-amber-200">
                                     ⏳ En attente
                                 </span>
                             @endif

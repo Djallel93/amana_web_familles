@@ -224,7 +224,7 @@ function enregistrerEdition(ligne: DocumentRow) {
                         type="text"
                         maxlength="100"
                         :placeholder="t.labelPlaceholder"
-                        class="w-full px-2.5 py-1.5 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent"
+                        class="w-full px-2.5 py-1.5 border border-ink-faint rounded-md text-[13px] bg-surface outline-hidden focus:border-accent"
                         @keydown.enter.prevent="enregistrerEdition(ligne)"
                         @keydown.esc="annulerEdition"
                     />
@@ -284,7 +284,7 @@ function enregistrerEdition(ligne: DocumentRow) {
                 type="text"
                 maxlength="100"
                 :placeholder="t.labelPlaceholder"
-                class="w-full px-2.5 py-1.5 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent"
+                class="w-full px-2.5 py-1.5 border border-ink-faint rounded-md text-[13px] bg-surface outline-hidden focus:border-accent"
                 @keydown.enter.prevent="confirmerBrouillon"
                 @keydown.esc="annulerBrouillon"
             />

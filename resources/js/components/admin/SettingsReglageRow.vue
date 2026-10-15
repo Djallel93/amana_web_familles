@@ -48,7 +48,7 @@ const valeurAffichee = props.oldValeur !== undefined ? props.oldValeur : props.d
             <label :for="`setting-${cle}`" class="block text-sm font-semibold text-ink">{{ data.libelle }}</label>
             <p v-if="data.description" class="text-xs text-ink-muted mt-0.5">{{ data.description }}</p>
         </div>
-        <div class="flex-shrink-0" :class="data.type === 'encrypted' ? 'w-full' : 'w-56'">
+        <div class="shrink-0" :class="data.type === 'encrypted' ? 'w-full' : 'w-56'">
             <!-- Interrupteur (remplace le <select> Activé/Désactivé le 29/08/2026) —
                  le hidden à '0' avant la checkbox garantit qu'une valeur est
                  toujours soumise même décochée (la checkbox l'écrase à '1' si

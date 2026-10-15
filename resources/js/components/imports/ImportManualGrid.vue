@@ -145,49 +145,49 @@ async function envoyer(): Promise<void> {
                             <input
                                 v-model="ligne.prenom"
                                 type="text"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
                             <input
                                 v-model="ligne.nom"
                                 type="text"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
                             <input
                                 v-model="ligne.telephone"
                                 type="text"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
                             <input
                                 v-model="ligne.email"
                                 type="email"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
                             <input
                                 v-model="ligne.adresse"
                                 type="text"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
                             <input
                                 v-model="ligne.code_postal"
                                 type="text"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
                             <input
                                 v-model="ligne.ville_texte"
                                 type="text"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
@@ -195,7 +195,7 @@ async function envoyer(): Promise<void> {
                                 v-model="ligne.nombre_adulte"
                                 type="number"
                                 min="0"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1">
@@ -203,7 +203,7 @@ async function envoyer(): Promise<void> {
                                 v-model="ligne.nombre_enfant"
                                 type="number"
                                 min="0"
-                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-none focus:border-accent"
+                                class="w-full px-2 py-1.5 border border-ink-faint rounded text-[12.5px] bg-surface-2 outline-hidden focus:border-accent"
                             />
                         </td>
                         <td class="p-1 text-center">

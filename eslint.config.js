@@ -27,7 +27,7 @@
 import eslint from '@eslint/js';
 import eslintPluginVue from 'eslint-plugin-vue';
 import tseslint from 'typescript-eslint';
-import vueTsEslintConfig from '@vue/eslint-config-typescript';
+import vueParser from 'vue-eslint-parser';
 import eslintConfigPrettier from 'eslint-config-prettier/flat';
 
 export default tseslint.config(
@@ -36,7 +36,35 @@ export default tseslint.config(
     eslint.configs.recommended,
     ...tseslint.configs.recommended,
     ...eslintPluginVue.configs['flat/essential'],
-    ...vueTsEslintConfig(),
+
+    {
+        // `no-undef` désactivée sur TS/Vue (recommandation typescript-eslint) :
+        // vue-tsc vérifie déjà les identifiants, et la règle ne connaît pas les
+        // types DOM (NodeListOf, HTMLMetaElement…). Auparavant gérée par
+        // @vue/eslint-config-typescript.
+        files: ['resources/js/**/*.{ts,vue}'],
+        rules: { 'no-undef': 'off' },
+    },
+
+    {
+        // Remplace @vue/eslint-config-typescript (14/10/2026, décision D12) : sa
+        // chaîne de dépendances (fast-glob → micromatch → braces@3.0.3) laissait
+        // 4 vulnérabilités « high » dans `npm audit`. Même arrangement que
+        // amana_web_planning : vue-eslint-parser pour le <template>, parseur
+        // TypeScript pour les blocs <script>. On re-précise `parser: vueParser`
+        // car tseslint.configs.recommended pose le parseur TypeScript sur tous
+        // les fichiers, .vue compris.
+        files: ['resources/js/**/*.vue'],
+        languageOptions: {
+            parser: vueParser,
+            parserOptions: {
+                parser: tseslint.parser,
+                ecmaVersion: 'latest',
+                sourceType: 'module',
+                extraFileExtensions: ['.vue'],
+            },
+        },
+    },
 
     {
         rules: {

@@ -75,7 +75,7 @@
                         class="block px-4 py-3.5 no-underline text-inherit active:bg-surface-2 transition-colors">
                         <div class="flex items-start justify-between gap-2 mb-2">
                             <div class="text-[13.5px] text-ink font-semibold">{{ $import->created_at?->format('d/m/Y H:i') }}</div>
-                            <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border
+                            <span class="inline-flex shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border
                                          {{ $import->source === 'csv' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-stone-100 text-stone-700 border-stone-300' }}">
                                 {{ $import->source === 'csv' ? '📄 CSV' : '✍️ Manuel' }}
                             </span>

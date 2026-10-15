@@ -60,7 +60,7 @@
         {{-- Header card : total + compteurs par rôle (totaux complets, indépendants du filtre) --}}
         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 border-b border-surface-3">
             <div class="flex items-center gap-2.5">
-                <div class="w-7 h-7 bg-amber-50 rounded-md flex items-center justify-center text-sm flex-shrink-0">👥</div>
+                <div class="w-7 h-7 bg-amber-50 rounded-md flex items-center justify-center text-sm shrink-0">👥</div>
                 <span class="font-heading text-[14px] font-semibold text-ink">
                     {{ $total }} personne{{ $total !== 1 ? 's' : '' }}
                 </span>
@@ -94,10 +94,10 @@
         <form method="GET" action="{{ route('admin.personnes.index') }}"
             class="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-surface-3">
             <input type="search" name="q" value="{{ $recherche }}" placeholder="Rechercher un nom, un email, un téléphone…"
-                class="flex-1 min-w-[200px] px-3.5 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13.5px] font-body text-ink bg-surface-2 outline-none transition
+                class="flex-1 min-w-[200px] px-3.5 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13.5px] font-body text-ink bg-surface-2 outline-hidden transition
                         focus:border-accent focus:bg-surface">
             <select name="role"
-                class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13.5px] font-body text-ink bg-surface-2 outline-none focus:border-accent">
+                class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13.5px] font-body text-ink bg-surface-2 outline-hidden focus:border-accent">
                 <option value="">Tous les rôles</option>
                 @foreach($roleMap as $code => $info)
                     <option value="{{ $code }}" @selected($roleFiltre === $code)>{{ $info['label'] }}</option>
@@ -158,7 +158,7 @@
                             <tr class="border-b border-surface-3 last:border-0 hover:bg-surface-2 transition-colors">
                                 <td class="px-5 py-3">
                                     <div class="flex items-center gap-2.5">
-                                        <div class="w-[30px] h-[30px] bg-accent rounded-full flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
+                                        <div class="w-[30px] h-[30px] bg-accent rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0">
                                             {{ strtoupper(substr($personne->prenom, 0, 1)) }}
                                         </div>
                                         <span class="font-semibold text-ink {{ $personne->desactivee ? 'opacity-60' : '' }}">{{ $personne->prenom }} {{ $personne->nom }}</span>
@@ -220,7 +220,7 @@
                     <div class="px-4 py-3.5">
                         <div class="flex items-center justify-between mb-2.5">
                             <div class="flex items-center gap-2.5">
-                                <div class="w-9 h-9 bg-accent rounded-full flex items-center justify-center text-white text-[12px] font-bold flex-shrink-0">
+                                <div class="w-9 h-9 bg-accent rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0">
                                     {{ strtoupper(substr($personne->prenom, 0, 1)) }}
                                 </div>
                                 <div>
@@ -232,7 +232,7 @@
                                     <div class="text-[12px] text-ink-muted mt-px">{{ $personne->email }}</div>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                            <div class="flex items-center gap-1.5 ml-2 shrink-0">
                                 <a href="{{ route('admin.personnes.edit', $personne->id) }}"
                                     class="inline-flex items-center justify-center w-9 h-9 rounded-md border border-surface-border bg-surface hover:bg-surface-2 text-sm transition-colors no-underline min-h-[44px] min-w-[44px]"
                                     title="Modifier">✏️</a>

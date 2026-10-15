@@ -20,7 +20,7 @@
                     <div>
                         <label class="text-[10px] font-bold uppercase tracking-[0.6px] text-ink-muted block mb-1">Rôle attribué</label>
                         <select name="role"
-                            class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] font-body text-ink bg-surface-2 outline-none transition
+                            class="px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-[13px] font-body text-ink bg-surface-2 outline-hidden transition
                                    focus:border-accent focus:shadow-[0_0_0_3px_rgba(3,105,161,0.2)] cursor-pointer">
                             @foreach($roles as $r)
                                 @php $roleLabels = ['admin' => '🛡️ Administrateur', 'gestionnaire' => '⚙️ Gestionnaire', 'membre' => '👤 Membre', 'benevole' => '🤝 Bénévole']; @endphp

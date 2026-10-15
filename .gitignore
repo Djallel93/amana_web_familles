@@ -50,3 +50,11 @@ client_secret*
 
 # ── Données réelles (PII) ──────────────────────────────────────────────────
 /database/seeders/data/*.csv
+# ── Playwright (local only — decision D17) ───────────────────────────────
+# Screenshot / computed-style baselines are generated on the Tailwind 3 commit
+# and never committed; the specs and config are.
+/e2e/.auth
+/e2e/__screenshots__
+/e2e/__computed__
+/e2e/report
+/e2e/test-results

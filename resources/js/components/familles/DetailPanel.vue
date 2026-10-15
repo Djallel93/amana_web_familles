@@ -871,7 +871,7 @@ onMounted(() => {
         <template #header>
             <div v-if="famille" class="flex items-center gap-3">
                 <div
-                    class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                    class="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0"
                     :class="[avatarStyle.bg, avatarStyle.text]"
                 >
                     {{ initiales }}
@@ -957,7 +957,7 @@ onMounted(() => {
                             <input
                                 v-model="famille.prenom"
                                 type="text"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                             <span v-if="errors.prenom" class="text-[11px] text-rose-600">{{ errors.prenom }}</span>
                         </div>
@@ -966,7 +966,7 @@ onMounted(() => {
                             <input
                                 v-model="famille.nom"
                                 type="text"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                             <span v-if="errors.nom" class="text-[11px] text-rose-600">{{ errors.nom }}</span>
                         </div>
@@ -975,7 +975,7 @@ onMounted(() => {
                             <input
                                 v-model="famille.telephone"
                                 type="text"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                             <span v-if="errors.telephone" class="text-[11px] text-rose-600">{{
                                 errors.telephone
@@ -986,7 +986,7 @@ onMounted(() => {
                             <input
                                 v-model="famille.telephone_bis"
                                 type="text"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                         </div>
                         <div class="col-span-2">
@@ -994,7 +994,7 @@ onMounted(() => {
                             <input
                                 v-model="famille.email"
                                 type="email"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                             <span v-if="errors.email" class="text-[11px] text-rose-600">{{ errors.email }}</span>
                         </div>
@@ -1014,7 +1014,7 @@ onMounted(() => {
                                 v-model.number="famille.nombre_adulte"
                                 type="number"
                                 min="0"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                         </div>
                         <div>
@@ -1023,7 +1023,7 @@ onMounted(() => {
                                 v-model.number="famille.nombre_enfant"
                                 type="number"
                                 min="0"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                         </div>
                         <!-- sm:col-span-2 (04/09/2026) : col-span-2 seul
@@ -1074,7 +1074,7 @@ onMounted(() => {
                                 v-if="!googlePlacesKey || manualAdresseMode"
                                 v-model="famille.adresse"
                                 rows="2"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden resize-none transition-colors"
                             ></textarea>
                             <button
                                 v-if="googlePlacesKey && manualAdresseMode"
@@ -1092,7 +1092,7 @@ onMounted(() => {
                                 <input
                                     v-model="famille.code_postal"
                                     type="text"
-                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                                 />
                             </div>
                             <div>
@@ -1100,7 +1100,7 @@ onMounted(() => {
                                 <input
                                     v-model="famille.ville_texte"
                                     type="text"
-                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                                 />
                             </div>
                         </div>
@@ -1191,7 +1191,7 @@ onMounted(() => {
                             <input
                                 v-model="famille.hosted_by"
                                 type="text"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                             <span v-if="errors.hosted_by" class="text-[11px] text-rose-600">{{
                                 errors.hosted_by
@@ -1247,7 +1247,7 @@ onMounted(() => {
                             <label class="block text-xs font-semibold text-ink mb-1">Langue</label>
                             <select
                                 v-model="famille.langue"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             >
                                 <option v-for="l in LANGUES" :key="l.code" :value="l.code">{{ l.label }}</option>
                             </select>
@@ -1257,7 +1257,7 @@ onMounted(() => {
                             <textarea
                                 v-model="famille.circonstances"
                                 rows="2"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden resize-none transition-colors"
                             ></textarea>
                         </div>
                     </div>
@@ -1302,7 +1302,7 @@ onMounted(() => {
                                 type="number"
                                 min="0"
                                 max="4"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                             />
                             <span v-if="errors.work_days" class="text-[11px] text-rose-600">{{
                                 errors.work_days
@@ -1337,7 +1337,7 @@ onMounted(() => {
                                 v-model="famille.secteur_activite_autre"
                                 type="text"
                                 placeholder="Autre secteur (préciser)"
-                                class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent transition-colors"
+                                class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-hidden focus:border-accent transition-colors"
                             />
                             <span v-if="errors.secteurs_activite" class="block text-[11px] text-rose-600">{{
                                 errors.secteurs_activite
@@ -1376,7 +1376,7 @@ onMounted(() => {
                         v-model="famille.organisme_aide_autre"
                         type="text"
                         placeholder="Autre organisme (préciser)"
-                        class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-none focus:border-accent transition-colors"
+                        class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13px] bg-surface outline-hidden focus:border-accent transition-colors"
                     />
                 </section>
             </div>
@@ -1427,7 +1427,7 @@ onMounted(() => {
                                     type="number"
                                     min="0"
                                     max="5"
-                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                                 />
                                 <div class="flex gap-1 mt-1.5" aria-hidden="true">
                                     <span
@@ -1451,7 +1451,7 @@ onMounted(() => {
                                 <label class="block text-xs font-semibold text-ink mb-1">Statut du dossier</label>
                                 <select
                                     v-model="famille.etat_dossier"
-                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                                    class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                                 >
                                     <option v-for="e in ETATS" :key="e" :value="e">{{ e }}</option>
                                 </select>
@@ -1475,7 +1475,7 @@ onMounted(() => {
                             <textarea
                                 v-model="famille.ressentit"
                                 rows="2"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden resize-none transition-colors"
                             ></textarea>
                         </div>
                         <div>
@@ -1483,7 +1483,7 @@ onMounted(() => {
                             <textarea
                                 v-model="famille.specificites"
                                 rows="2"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden resize-none transition-colors"
                             ></textarea>
                         </div>
                         <div>
@@ -1491,7 +1491,7 @@ onMounted(() => {
                             <textarea
                                 v-model="famille.commentaire_dossier"
                                 rows="2"
-                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none resize-none transition-colors"
+                                class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden resize-none transition-colors"
                             ></textarea>
                         </div>
                     </div>
@@ -1514,7 +1514,7 @@ onMounted(() => {
                     </h3>
                     <select
                         v-model="famille.type_piece_identite"
-                        class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-none transition-colors"
+                        class="w-full px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden transition-colors"
                     >
                         <option :value="null">—</option>
                         <option v-for="opt in TYPES_PIECE_IDENTITE" :key="opt.code" :value="opt.code">

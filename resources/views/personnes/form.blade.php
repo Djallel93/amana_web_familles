@@ -64,14 +64,14 @@
                         <label for="prenom" class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Prénom</label>
                         <input type="text" id="prenom" name="prenom" value="{{ old('prenom', $personne->prenom ?? '') }}"
                             required autofocus
-                            class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                            class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-hidden transition
                                     focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
                         @error('prenom')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
                     </div>
                     <div>
                         <label for="nom" class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Nom</label>
                         <input type="text" id="nom" name="nom" value="{{ old('nom', $personne->nom ?? '') }}" required
-                            class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                            class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-hidden transition
                                     focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
                         @error('nom')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
                     </div>
@@ -81,7 +81,7 @@
                     <label for="email" class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Adresse email</label>
                     <input type="email" id="email" name="email" value="{{ old('email', $personne->email ?? '') }}"
                         {{ $personne ? 'readonly' : 'required' }}
-                        class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                        class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-hidden transition
                                 focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]
                                 {{ $personne ? 'opacity-60 cursor-not-allowed' : '' }}">
                     @if($personne)
@@ -93,7 +93,7 @@
                 <div class="mb-4">
                     <label for="telephone" class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Téléphone</label>
                     <input type="text" id="telephone" name="telephone" value="{{ old('telephone', $personne->telephone ?? '') }}"
-                        class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                        class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-hidden transition
                                 focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
                     @error('telephone')<span class="block text-xs text-rose-600 mt-1">{{ $message }}</span>@enderror
                 </div>
@@ -101,7 +101,7 @@
                 <div class="mb-6">
                     <label for="role" class="block text-xs font-bold text-ink mb-1.5 tracking-[0.2px]">Rôle sur AMANA Familles</label>
                     <select id="role" name="role" required onchange="document.getElementById('bloc-organisations').classList.toggle('hidden', this.value !== 'gestionnaire_externe')"
-                        class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                        class="w-full px-3.5 py-2.5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-hidden transition
                                 focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
                         <option value="" disabled {{ !old('role', $roleActuel) ? 'selected' : '' }}>Sélectionner un rôle…</option>
                         @foreach($roles as $role)
@@ -178,7 +178,7 @@
                 @else
                     <label for="select-journee" class="block text-[11.5px] font-semibold text-ink-muted mb-1">Campagne / date</label>
                     <select id="select-journee"
-                        class="w-full px-3.5 py-2.5 mb-5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-none transition
+                        class="w-full px-3.5 py-2.5 mb-5 border-[1.5px] border-ink-faint rounded-lg text-[14px] font-body text-ink bg-surface-2 outline-hidden transition
                                 focus:border-accent focus:bg-surface focus:shadow-[0_0_0_3px_rgba(180,83,9,0.2)]">
                         @foreach($groupesJournees as $groupe)
                             <optgroup label="{{ $groupe['libelle'] }}">

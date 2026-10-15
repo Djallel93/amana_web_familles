@@ -57,13 +57,13 @@
         <div class="max-w-2xl mx-auto flex items-center justify-between gap-4">
             <div class="flex items-center gap-3">
                 <img src="{{ asset('images/amana-logo.png') }}" alt="AMANA"
-                    class="w-11 h-11 rounded-full object-cover flex-shrink-0">
+                    class="w-11 h-11 rounded-full object-cover shrink-0">
                 <div>
                     <div class="font-heading text-white font-semibold text-[15px] leading-tight">AMANA</div>
                     <div class="text-white/45 text-[11.5px]">{{ $tagline }}</div>
                 </div>
             </div>
-            <div class="flex items-center gap-1.5 flex-shrink-0">
+            <div class="flex items-center gap-1.5 shrink-0">
                 @foreach(['fr' => ['🇫🇷', 'FR'], 'ar' => ['🇸🇦', 'ع'], 'en' => ['🇬🇧', 'EN']] as $code => $flagLabel)
                     <a href="{{ route($langueSwitchRoute, ['langue' => $code]) }}"
                         class="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[12px] font-semibold no-underline transition-colors

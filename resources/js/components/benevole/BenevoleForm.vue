@@ -642,7 +642,7 @@ onMounted(() => {
             <label class="block text-xs font-semibold text-ink mb-1">{{ t.organisation_select }} *</label>
             <select
                 v-model="form.id_organisation"
-                class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
             >
                 <option :value="null" disabled>{{ t.organisation_select }}…</option>
                 <option v-for="org in organisations" :key="org.id" :value="org.id">{{ org.nom }}</option>

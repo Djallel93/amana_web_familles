@@ -79,7 +79,7 @@
                                 <td class="px-4 py-2.5 align-top">
                                     @if($candidature->statut === 'Reçu')
                                         <select name="role" form="valider-benevole-{{ $candidature->id }}"
-                                            class="w-full min-w-[140px] px-2.5 py-1.5 border-[1.5px] border-ink-faint rounded-lg text-[12.5px] font-body text-ink bg-surface-2 outline-none transition
+                                            class="w-full min-w-[140px] px-2.5 py-1.5 border-[1.5px] border-ink-faint rounded-lg text-[12.5px] font-body text-ink bg-surface-2 outline-hidden transition
                                                    focus:border-accent focus:shadow-[0_0_0_3px_rgba(3,105,161,0.2)] cursor-pointer">
                                             @foreach($roles as $r)
                                                 @php $roleLabels = ['admin' => '🛡️ Administrateur', 'gestionnaire' => '⚙️ Gestionnaire', 'membre' => '👤 Membre', 'benevole' => '🤝 Bénévole']; @endphp
@@ -139,7 +139,7 @@
                                 </a>
                                 <div class="text-ink-muted text-[11.5px] truncate">{{ $candidature->personne?->email }}</div>
                             </div>
-                            <span class="inline-flex flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border
+                            <span class="inline-flex shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold border
                                 {{ $candidature->statut === 'Validé' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : ($candidature->statut === 'Rejeté' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200') }}">
                                 {{ $candidature->statut }}
                             </span>
@@ -156,7 +156,7 @@
                                     @csrf
                                 </form>
                                 <select name="role" form="valider-benevole-mobile-{{ $candidature->id }}"
-                                    class="btn-touch w-full px-2.5 py-1.5 border-[1.5px] border-ink-faint rounded-lg text-[12.5px] font-body text-ink bg-surface-2 outline-none transition
+                                    class="btn-touch w-full px-2.5 py-1.5 border-[1.5px] border-ink-faint rounded-lg text-[12.5px] font-body text-ink bg-surface-2 outline-hidden transition
                                            focus:border-accent focus:shadow-[0_0_0_3px_rgba(3,105,161,0.2)] cursor-pointer">
                                     @foreach($roles as $r)
                                         @php $roleLabels = ['admin' => '🛡️ Administrateur', 'gestionnaire' => '⚙️ Gestionnaire', 'membre' => '👤 Membre', 'benevole' => '🤝 Bénévole']; @endphp

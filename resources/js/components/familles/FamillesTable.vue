@@ -343,7 +343,7 @@ function ouvrir(id: number) {
                             <td v-show="colonnesVisibles.nom" class="px-4 py-2.5">
                                 <div class="flex items-center gap-2.5">
                                     <div
-                                        class="w-8 h-8 text-[11px] rounded-full flex items-center justify-center font-bold flex-shrink-0"
+                                        class="w-8 h-8 text-[11px] rounded-full flex items-center justify-center font-bold shrink-0"
                                         :class="[avatarStyle(ligne.id).bg, avatarStyle(ligne.id).text]"
                                     >
                                         {{ initiales(ligne) }}
@@ -523,7 +523,7 @@ function ouvrir(id: number) {
                     <div class="flex items-start justify-between gap-2 mb-2">
                         <div class="flex items-center gap-2.5 min-w-0">
                             <div
-                                class="w-9 h-9 text-[12px] rounded-full flex items-center justify-center font-bold flex-shrink-0"
+                                class="w-9 h-9 text-[12px] rounded-full flex items-center justify-center font-bold shrink-0"
                                 :class="[avatarStyle(ligne.id).bg, avatarStyle(ligne.id).text]"
                             >
                                 {{ initiales(ligne) }}

@@ -36,8 +36,11 @@ test:
 test-db-init:
 	docker compose exec mysql mysql -uroot -proot -e "CREATE DATABASE IF NOT EXISTS amana_familles_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE IF NOT EXISTS amana_commun_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON amana_familles_test.* TO 'root'@'%'; GRANT ALL PRIVILEGES ON amana_commun_test.* TO 'root'@'%'; FLUSH PRIVILEGES;"
 
+# Fresh database + reference data + one account per role for Playwright
+# (e2e-<role>@amana.test, see docs/e2e-playwright.md).
 fresh:
 	docker compose exec app php artisan migrate:fresh --seed
+	docker compose exec app php artisan db:seed --class='Database\Seeders\Docker\E2eRolesSeeder' --force
 
 %:
 	@:

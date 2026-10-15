@@ -71,9 +71,7 @@ function onSubmitCsv() {
         <!-- Upload CSV -->
         <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-6">
             <div class="flex items-center gap-2.5 mb-4">
-                <div class="w-8 h-8 bg-sky-50 rounded-md flex items-center justify-center text-sm flex-shrink-0">
-                    📄
-                </div>
+                <div class="w-8 h-8 bg-sky-50 rounded-md flex items-center justify-center text-sm shrink-0">📄</div>
                 <h2 class="font-heading text-[15px] font-semibold text-ink">Fichier CSV</h2>
             </div>
 
@@ -120,9 +118,7 @@ function onSubmitCsv() {
         <!-- Saisie manuelle -->
         <div class="bg-surface rounded-xl border border-surface-border shadow-sm p-6">
             <div class="flex items-center gap-2.5 mb-4">
-                <div class="w-8 h-8 bg-amber-50 rounded-md flex items-center justify-center text-sm flex-shrink-0">
-                    ✍️
-                </div>
+                <div class="w-8 h-8 bg-amber-50 rounded-md flex items-center justify-center text-sm shrink-0">✍️</div>
                 <h2 class="font-heading text-[15px] font-semibold text-ink">Saisie manuelle</h2>
             </div>
             <p class="text-[12.5px] text-ink-muted mb-3">

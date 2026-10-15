@@ -1113,7 +1113,7 @@ async function submit(): Promise<void> {
                 <input
                     v-model="form.hosted_by"
                     type="text"
-                    class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                    class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
                 />
                 <span v-if="errors.hosted_by" class="text-[11px] text-rose-600">{{ errors.hosted_by }}</span>
             </div>
@@ -1147,7 +1147,7 @@ async function submit(): Promise<void> {
                         v-model="form.adresse"
                         type="text"
                         autocomplete="off"
-                        class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                        class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
                     />
                     <!-- Faux clic sur "saisie manuelle" (ou sur une suggestion) : possibilité
                          de revenir à la recherche Google — voir revenirRechercheAutomatique(). -->
@@ -1167,7 +1167,7 @@ async function submit(): Promise<void> {
                         <input
                             v-model="form.code_postal"
                             type="text"
-                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
                         />
                         <span v-if="errors.code_postal" class="text-[11px] text-rose-600">{{
                             errors.code_postal
@@ -1178,7 +1178,7 @@ async function submit(): Promise<void> {
                         <input
                             v-model="form.ville_texte"
                             type="text"
-                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
                         />
                         <span v-if="errors.ville_texte" class="text-[11px] text-rose-600">{{
                             errors.ville_texte
@@ -1206,7 +1206,7 @@ async function submit(): Promise<void> {
                             v-model.number="form.nombre_adulte"
                             type="number"
                             min="0"
-                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
                         />
                     </div>
                     <div>
@@ -1215,7 +1215,7 @@ async function submit(): Promise<void> {
                             v-model.number="form.nombre_enfant"
                             type="number"
                             min="0"
-                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                            class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
                         />
                     </div>
                 </div>
@@ -1232,7 +1232,7 @@ async function submit(): Promise<void> {
                     <textarea
                         v-model="form.circonstances"
                         rows="4"
-                        class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent resize-none"
+                        class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent resize-none"
                     ></textarea>
                     <span v-if="errors.circonstances" class="text-[11px] text-rose-600">{{
                         errors.circonstances
@@ -1293,7 +1293,7 @@ async function submit(): Promise<void> {
                     :class="[adminUploadColorClasses.border, adminUploadColorClasses.bg]"
                 >
                     <div class="flex items-center gap-2">
-                        <span class="w-2 h-2 rounded-full flex-shrink-0" :class="adminUploadColorClasses.badge"></span>
+                        <span class="w-2 h-2 rounded-full shrink-0" :class="adminUploadColorClasses.badge"></span>
                         <span
                             class="text-[11px] font-semibold uppercase tracking-wide"
                             :class="adminUploadColorClasses.text"
@@ -1384,7 +1384,7 @@ async function submit(): Promise<void> {
                     type="number"
                     min="0"
                     max="4"
-                    class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-none focus:border-accent"
+                    class="w-full px-3 py-2.5 border border-ink-faint rounded-md text-[14px] bg-surface-2 outline-hidden focus:border-accent"
                 />
                 <span v-if="errors.work_days" class="text-[11px] text-rose-600">{{ errors.work_days }}</span>
             </div>
@@ -1415,7 +1415,7 @@ async function submit(): Promise<void> {
                     v-model="form.secteur_activite_autre"
                     type="text"
                     :placeholder="t.secteur_autre"
-                    class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface-2 outline-none focus:border-accent"
+                    class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface-2 outline-hidden focus:border-accent"
                 />
                 <span v-if="errors.secteurs_activite" class="block text-[11px] text-rose-600">{{
                     errors.secteurs_activite
@@ -1448,7 +1448,7 @@ async function submit(): Promise<void> {
                 v-model="form.organisme_aide_autre"
                 type="text"
                 :placeholder="t.organisme_autre"
-                class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface-2 outline-none focus:border-accent"
+                class="w-full mt-2 px-3 py-2 border border-ink-faint rounded-md text-[13.5px] bg-surface-2 outline-hidden focus:border-accent"
             />
 
             <div class="mt-4">

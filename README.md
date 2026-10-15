@@ -1,3 +1,5 @@
+> **Supported browsers (Tailwind 4):** Safari 16.4+, Chrome 111+, Firefox 128+.
+
 # Google Contacts (People API) integration — changed/new files
 
 Two repos are affected, each in its own top-level folder in this zip,
