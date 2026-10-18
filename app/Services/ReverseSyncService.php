@@ -376,6 +376,16 @@ class ReverseSyncService
             }
 
             if ($aModifie) {
+                // Trace dans le commentaire du dossier (17/10/2026) : un changement de statut venu de
+                // Google Contacts n'a pas d'auteur — source « sync_externe », auteur « System ».
+                $etatAvant = $avant['etat_dossier'] ?? null;
+                if ($etatAvant !== null && $famille->etat_dossier !== $etatAvant) {
+                    $famille->ajouterCommentaire(
+                        "Statut {$etatAvant} → {$famille->etat_dossier} (synchronisation Google Contacts).",
+                        'sync_externe',
+                        enregistrer: false,
+                    );
+                }
                 $famille->save();
                 audit('update', 'familles', $famille->id, $avant, $famille->toArray());
             }

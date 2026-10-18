@@ -74,7 +74,7 @@
                             <div class="info-title">{{ $t['currentInfo'] }}</div>
                             <div class="info-text">
                                 <strong>{{ $t['name'] }} :</strong> {{ $famille->prenom }} {{ $famille->nom }}<br>
-                                <strong>{{ $t['phone'] }} :</strong> {{ $famille->telephone }}<br>
+                                <strong>{{ $t['phone'] }} :</strong> {{ $famille->telephone_formate }}<br>
                                 <strong>{{ $t['address'] }} :</strong> {{ $famille->adresse }}
                                 @if($famille->code_postal || $famille->ville_texte)
                                     , {{ $famille->code_postal }} {{ $famille->ville_texte }}

@@ -18,7 +18,9 @@
             (voir PackagingController::calculerUrgencePackaging()).
         --}}
         {{-- Préparation prioritaire (11/10/2026) : bordure indigo + pastille, distincte de la bordure rouge « urgente ». --}}
-        <div class="border rounded-xl p-4
+        @php($livree = in_array($livraison->statut, ['livree', 'ignoree'], true))
+        {{-- Livrée / ignorée (17/10/2026) : la famille reste dans la file, grisée et en lecture seule. --}}
+        <div class="border rounded-xl p-4 {{ $livree ? 'opacity-60' : '' }}
             {{ $livraison->preparation_prioritaire ? 'border-indigo-600 border-l-8 ring-2 ring-indigo-200' : ($livraison->urgente ? 'border-rose-600 border-l-8' : 'border-surface-border') }}
             {{ $livraison->preparation_prioritaire ? 'bg-indigo-50' : ($livraison->famille->est_hotel ? 'bg-amber-50' : ($livraison->famille->etudiant ? 'bg-sky-50' : 'bg-surface')) }}"
             id="livraison-{{ $livraison->id }}">
@@ -39,6 +41,7 @@
                     <input type="checkbox" class="mt-1 case-famille" data-id-livraison="{{ $livraison->id }}"
                         data-statut-conditionnement="{{ $livraison->statut_conditionnement }}"
                         {{ $livraison->statut_conditionnement === 'prete' ? 'checked' : '' }}
+                        {{ $livree ? 'disabled' : '' }}
                         onchange="toggleFamille({{ $livraison->id }}, this.checked)">
                     <div>
                         {{--
@@ -80,7 +83,7 @@
                                 <label class="inline-flex items-center gap-1.5 text-[12px] px-2 py-1 rounded-lg border border-surface-border bg-white {{ $livraison->statut_conditionnement === 'prete' ? 'opacity-60' : '' }}">
                                     <input type="checkbox" class="case-colis" data-id-colis="{{ $colis->id }}" data-id-livraison="{{ $livraison->id }}"
                                         {{ $colis->statut === 'pret' ? 'checked' : '' }}
-                                        {{ $livraison->statut_conditionnement === 'prete' ? 'disabled' : '' }}
+                                        {{ $livraison->statut_conditionnement === 'prete' || $livree ? 'disabled' : '' }}
                                         onchange="toggleColis({{ $colis->id }}, {{ $livraison->id }}, this.checked)">
                                     Colis {{ $colis->numero }}/{{ $livraison->nombre_personnes }}
                                 </label>
@@ -101,6 +104,11 @@
                     toggle sans recharger la page.
                 --}}
                 {{-- Trois états depuis le 09/09/2026 (prompt de cette date §2.1, statut_conditionnement réellement à 3 valeurs désormais) — 'en_cours' inséré entre 'Restante' et 'Terminée', même palette ambre que le reste de l'app pour un état intermédiaire (voir chargement.blade.php/statuts route). --}}
+                @if($livree)
+                    <span class="shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full {{ $livraison->statut === 'livree' ? 'bg-teal-100 text-teal-700' : 'bg-rose-100 text-rose-700' }}">
+                        {{ $livraison->statut === 'livree' ? 'Livrée' : 'Ignorée' }}
+                    </span>
+                @else
                 <span class="statut-conditionnement shrink-0 text-[13px] font-medium px-2.5 py-1 rounded-full
                     {{ match($livraison->statut_conditionnement) {
                         'prete' => 'bg-emerald-100 text-emerald-700',
@@ -114,5 +122,6 @@
                         default => 'Restante',
                     } }}
                 </span>
+                @endif
             </div>
         </div>

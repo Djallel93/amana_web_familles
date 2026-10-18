@@ -46,7 +46,7 @@
             campagne/journée SEULE, pas affectés par ce filtre, voir son
             docblock).
         --}}
-        <div class="grid grid-cols-3 gap-3 mb-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
                 <p class="text-[11px] text-emerald-700 uppercase tracking-wide">Terminées</p>
                 <p id="stat-terminees" class="text-[20px] font-semibold text-emerald-700">{{ $stats['terminees'] }}</p>
@@ -59,9 +59,14 @@
                 <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restantes</p>
                 <p id="stat-restantes" class="text-[20px] font-semibold text-ink">{{ $stats['restantes'] }}</p>
             </div>
+            {{-- 17/10/2026 : les familles livrées ou ignorées restent dans la file. --}}
+            <div class="bg-teal-50 border border-teal-100 rounded-xl p-3">
+                <p class="text-[11px] text-teal-700 uppercase tracking-wide">Livrées</p>
+                <p id="stat-livrees" class="text-[20px] font-semibold text-teal-700">{{ $stats['livrees'] }}</p>
+            </div>
         </div>
-        <div class="flex gap-2 mb-6" id="filtre-conditionnement">
-            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'en_cours' => 'En cours', 'terminees' => 'Terminées'] as $valeur => $libelle)
+        <div class="flex flex-wrap gap-2 mb-6" id="filtre-conditionnement">
+            @foreach(['toutes' => 'Toutes', 'restantes' => 'Restantes', 'en_cours' => 'En cours', 'terminees' => 'Terminées', 'livrees' => 'Livrées'] as $valeur => $libelle)
                 <button type="button" data-valeur="{{ $valeur }}"
                     onclick="appliquerFiltreConditionnement('{{ $valeur }}')"
                     class="text-[12.5px] px-3 py-1.5 rounded-lg border {{ $filtreConditionnement === $valeur ? 'bg-accent text-white border-accent' : 'border-surface-border text-ink-muted' }}">
@@ -570,6 +575,7 @@
             document.getElementById('stat-terminees').textContent = donnees.stats.terminees;
             document.getElementById('stat-en-cours').textContent = donnees.stats.en_cours;
             document.getElementById('stat-restantes').textContent = donnees.stats.restantes;
+            document.getElementById('stat-livrees').textContent = donnees.stats.livrees;
             document.getElementById('liste-vide').classList.toggle('hidden', nouveauxIds.length > 0);
         }
 

@@ -892,6 +892,9 @@ class FamillesController extends Controller
             'langue' => ['required', 'string', 'in:fr,ar,en'],
             'etat_dossier' => ['required', 'string', 'in:' . implode(',', Famille::ETATS_SELECTIONNABLES)],
             'commentaire_dossier' => ['nullable', 'string'],
+            // Commentaire du CHANGEMENT de statut (17/10/2026) : obligatoire dès que etat_dossier
+            // diffère du statut affiché à l'ouverture — vérifié plus bas (il dépend de l'état en base).
+            'commentaire_statut' => ['nullable', 'string', 'max:1000'],
 
             // ── Champs collectés à l'intake, jusqu'ici non éditables
             // depuis le dossier (ajoutés le 12/08/2026, mêmes règles que
@@ -931,6 +934,21 @@ class FamillesController extends Controller
         $organismesAide = array_map('intval', $validated['organismes_aide'] ?? []);
         unset($validated['secteurs_activite'], $validated['organismes_aide']);
 
+        // Changer le statut du dossier exige un commentaire (17/10/2026). Référence = le statut vu à
+        // l'ouverture du panneau (voir Famille::etatDossierReference()) : ouvrir puis enregistrer un
+        // dossier sans toucher au statut n'en demande pas. L'interface bloque déjà l'enregistrement,
+        // ce contrôle est la garde côté serveur.
+        $etatReference = $famille->etatDossierReference();
+        $statutChange = $validated['etat_dossier'] !== $etatReference;
+        $commentaireStatut = trim((string) ($validated['commentaire_statut'] ?? ''));
+        unset($validated['commentaire_statut']);
+
+        if ($statutChange && $commentaireStatut === '') {
+            $message = 'Un commentaire est obligatoire pour changer le statut du dossier.';
+
+            return response()->json(['message' => $message, 'errors' => ['commentaire_statut' => [$message]]], 422);
+        }
+
         $avant = $famille->toArray();
         // Détecté AVANT fill() : sert à décider si on relance le géocodage
         // après l'enregistrement (voir plus bas).
@@ -952,6 +970,14 @@ class FamillesController extends Controller
         $famille->etat_dossier_avant_verrouillage = null;
         $famille->locked_by = null;
         $famille->locked_at = null;
+        // Après fill() : la ligne s'ajoute au commentaire tel que le staff vient de l'éditer.
+        if ($statutChange) {
+            $famille->ajouterCommentaire(
+                "Statut {$etatReference} → {$validated['etat_dossier']} : {$commentaireStatut}",
+                'manuel',
+                enregistrer: false,
+            );
+        }
         $famille->save();
 
         // sync() plutôt qu'attach() : remplace intégralement la sélection

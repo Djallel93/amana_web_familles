@@ -16,6 +16,7 @@ use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\CampagnePoidsMoyenHistorique;
 use App\Models\Livraison;
+use App\Models\LivraisonColis;
 use App\Models\Organisation;
 use App\Models\PersonneDesactivee;
 use App\Models\Quartier;
@@ -785,7 +786,7 @@ class CampagnesController extends Controller
     public function avancement(Campagne $campagne, CampagneDemarrageService $demarrage): JsonResponse
     {
         $livraisons = Livraison::where('id_campagne', $campagne->id)
-            ->select('statut_contact', 'statut_conditionnement', 'se_deplace', 'statut_retrait_hq')
+            ->select('statut_contact', 'statut_conditionnement', 'statut', 'se_deplace', 'statut_retrait_hq')
             ->get();
 
         $livraisonsTotal = $livraisons->count();
@@ -797,6 +798,22 @@ class CampagnesController extends Controller
         $retraits = $livraisons->where('statut_contact', 'confirme')->where('se_deplace', true);
         $retraitsTotal = $retraits->count();
         $retraitsDelivres = $retraits->where('statut_retrait_hq', 'delivre')->count();
+
+        // Familles confirmées à livrer sans tournée (17/10/2026) : même ensemble que « Familles pas encore
+        // dans une tournée » de Chargement (ChargementController::famillesSansTournee()) — confirmées, hors
+        // retrait QG, statut 'non_assignee'.
+        $famillesSansRoute = $livraisons->where('statut_contact', 'confirme')
+            ->where('se_deplace', false)
+            ->where('statut', 'non_assignee')
+            ->count();
+
+        // Cartes Réception / Pesée / Packaging du hub (17/10/2026) : personnes réceptionnées
+        // (campagne_arrivees.nombre_donateur), poids collecté (donations.poids_kg) et colis prêts / total
+        // des familles confirmées — livrées ou ignorées comprises, leurs colis comptent comme faits.
+        $colisQuery = LivraisonColis::query()
+            ->whereHas('livraison', fn($q) => $q->where('id_campagne', $campagne->id)->where('statut_contact', 'confirme'));
+        $colisTotal = (clone $colisQuery)->count();
+        $colisPrets = (clone $colisQuery)->where('statut', 'pret')->count();
 
         $routes = RouteLivraison::where('id_campagne', $campagne->id)->select('statut')->get();
         $routesTotal = $routes->count();
@@ -838,6 +855,11 @@ class CampagnesController extends Controller
                 'routes_terminees' => $routesTerminees,
                 'retraits_total' => $retraitsTotal,
                 'retraits_delivres' => $retraitsDelivres,
+                'familles_sans_route' => $famillesSansRoute,
+                'personnes_receptionnees' => $campagne->nombre_menages,
+                'poids_collecte_kg' => round($campagne->poids_collecte_kg, 1),
+                'colis_prets' => $colisPrets,
+                'colis_total' => $colisTotal,
                 // Carte « Incidents » du hub (03/10/2026) : nombre d'incidents
                 // ouverts (statut null — jalon chargement_termine — exclu par
                 // le where).

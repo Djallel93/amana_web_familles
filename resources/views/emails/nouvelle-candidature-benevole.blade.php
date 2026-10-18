@@ -35,7 +35,7 @@
                             <div class="info-text">
                                 {{ $candidat->email }}
                                 @if($candidat->telephone)
-                                    <br>{{ $candidat->telephone }}
+                                    <br>{{ \Amana\Shared\Support\PhoneFr::formater($candidat->telephone) }}
                                 @endif
                                 <br>Véhicule : {{ $profil->vehiculeType?->type }}
                                 @if($profil->permis)

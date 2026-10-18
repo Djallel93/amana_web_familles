@@ -14,7 +14,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { onMounted } from "vue";
-import { useToast } from "@amana/shared-ui";
+import { formaterTelephoneFr, useToast } from "@amana/shared-ui";
 import { apiGet, apiPost, buildQuery } from "../shared/api";
 import PaginationControls from "../shared/PaginationControls.vue";
 import FamilleFilterPanel from "../shared/FamilleFilterPanel.vue";
@@ -306,8 +306,10 @@ onMounted(() => {
                             <td class="px-3 py-2 text-ink-muted">#{{ famille.id }}</td>
                             <td class="px-3 py-2 text-ink">{{ famille.prenom }} {{ famille.nom }}</td>
                             <td class="px-3 py-2 text-ink-muted">
-                                {{ famille.telephone || "—" }}
-                                <span v-if="famille.telephone_bis"> / {{ famille.telephone_bis }}</span>
+                                {{ formaterTelephoneFr(famille.telephone) || "—" }}
+                                <span v-if="famille.telephone_bis">
+                                    / {{ formaterTelephoneFr(famille.telephone_bis) }}</span
+                                >
                             </td>
                             <td class="px-3 py-2 text-ink-muted">
                                 {{ famille.adresse || "—" }}

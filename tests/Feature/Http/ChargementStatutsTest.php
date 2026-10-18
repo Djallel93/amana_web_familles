@@ -121,12 +121,13 @@ class ChargementStatutsTest extends TestCase
         $this->assertSame([$route->id => 'prete'], $this->etats($this->liste()));
     }
 
-    public function test_une_tournee_chargee_est_chargee_et_une_tournee_demarree_disparait(): void
+    public function test_une_tournee_chargee_est_chargee_et_une_tournee_demarree_reste_visible_en_livraison(): void
     {
+        // 17/10/2026 : une tournée démarrée ne disparaît plus (voir ChargementEtPackagingApresLivraisonTest).
         $chargee = $this->route('charge', [$this->livraison('prete')]);
-        $this->route('en_cours', [$this->livraison('prete')]);
+        $partie = $this->route('en_cours', [$this->livraison('prete')]);
 
-        $this->assertSame([$chargee->id => 'chargee'], $this->etats($this->liste()));
+        $this->assertSame([$chargee->id => 'chargee', $partie->id => 'en_livraison'], $this->etats($this->liste()));
     }
 
     public function test_une_tournee_vide_est_listee_comme_restante_pour_pouvoir_etre_completee(): void
@@ -149,7 +150,7 @@ class ChargementStatutsTest extends TestCase
         $this->route('charge', [$this->livraison('prete')]);
 
         $this->assertSame(
-            ['chargees' => 1, 'restantes' => 2, 'en_preparation' => 1, 'pretes' => 1, 'vides' => 0],
+            ['chargees' => 1, 'restantes' => 2, 'en_preparation' => 1, 'pretes' => 1, 'en_livraison' => 0, 'terminees' => 0, 'vides' => 0],
             $this->liste()['stats'],
         );
     }

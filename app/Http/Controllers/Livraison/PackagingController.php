@@ -126,13 +126,16 @@ class PackagingController extends Controller
     }
 
     /**
-     * @return array{lignes: list<array{id: int, sig: string, html: string}>, stats: array{terminees: int, restantes: int, en_cours: int}}
+     * @return array{lignes: list<array{id: int, sig: string, html: string}>, stats: array{terminees: int, restantes: int, en_cours: int, livrees: int}}
      */
     private function construireLignes(Request $request, Campagne $campagne): array
     {
+        // Les familles livrées ou ignorées RESTENT dans la file (17/10/2026) : avant, un
+        // whereNotIn('statut', ['ignoree', 'livree']) les faisait disparaître — et décrémentait la
+        // carte « Terminées » au fil des livraisons. Elles s'affichent en grisé, en dernier, et ont
+        // leur propre filtre « Livrées ».
         $query = Livraison::where('id_campagne', $campagne->id)
-            ->where('statut_contact', 'confirme') // 07/09/2026, prompt §3.2
-            ->whereNotIn('statut', ['ignoree', 'livree']);
+            ->where('statut_contact', 'confirme'); // 07/09/2026, prompt §3.2
 
         if ($request->filled('id_campagne_journee')) {
             $query->where('id_campagne_journee', $request->input('id_campagne_journee'));
@@ -152,19 +155,27 @@ class PackagingController extends Controller
         // prêt — le whereHas('colis', ...) qui servait auparavant à
         // dériver ce sous-ensemble à la volée n'est plus nécessaire, ces
         // trois comptages sont désormais mutuellement exclusifs.
+        //
+        // 17/10/2026 : « Terminées » compte tout ce qui est prêt, livré compris (sinon la carte baisse à
+        // chaque livraison) ; « Restantes » et « En cours » ne comptent que ce qui reste réellement à
+        // préparer — une famille livrée ou ignorée n'a plus de colis à faire ; « Livrées » = livrées
+        // + ignorées.
         $stats = [
             'terminees' => (clone $query)->where('statut_conditionnement', 'prete')->count(),
-            'restantes' => (clone $query)->where('statut_conditionnement', 'en_attente')->count(),
-            'en_cours' => (clone $query)->where('statut_conditionnement', 'en_cours')->count(),
+            'restantes' => (clone $query)->where('statut_conditionnement', 'en_attente')->whereNotIn('statut', ['ignoree', 'livree'])->count(),
+            'en_cours' => (clone $query)->where('statut_conditionnement', 'en_cours')->whereNotIn('statut', ['ignoree', 'livree'])->count(),
+            'livrees' => (clone $query)->whereIn('statut', ['ignoree', 'livree'])->count(),
         ];
 
         $filtreConditionnement = $request->input('filtre_conditionnement', 'toutes');
         if ($filtreConditionnement === 'restantes') {
-            $query->where('statut_conditionnement', 'en_attente');
+            $query->where('statut_conditionnement', 'en_attente')->whereNotIn('statut', ['ignoree', 'livree']);
         } elseif ($filtreConditionnement === 'terminees') {
             $query->where('statut_conditionnement', 'prete');
         } elseif ($filtreConditionnement === 'en_cours') {
-            $query->where('statut_conditionnement', 'en_cours');
+            $query->where('statut_conditionnement', 'en_cours')->whereNotIn('statut', ['ignoree', 'livree']);
+        } elseif ($filtreConditionnement === 'livrees') {
+            $query->whereIn('statut', ['ignoree', 'livree']);
         }
 
         // 'creneaux' ajouté le 09/09/2026 (prompt de cette date §2.2) pour
@@ -175,13 +186,15 @@ class PackagingController extends Controller
             ->with(['famille:id,nom,prenom,criticite,etudiant,est_hotel,nombre_adulte,nombre_enfant', 'colis', 'creneaux'])
             ->get()
             ->map(function (Livraison $livraison) {
-                $livraison->urgente = $this->calculerUrgencePackaging($livraison);
+                // Pas d'urgence pour une famille déjà livrée / ignorée (17/10/2026).
+                $livraison->urgente = !$this->estLivree($livraison) && $this->calculerUrgencePackaging($livraison);
 
                 return $livraison;
             })
             // Ordre du 11/10/2026 : préparation prioritaire, poids du créneau (urgente = un seul
             // créneau confirmé, §2.2 du 09/09/2026), criticité, puis FIFO — voir OrdrePackaging.
-            ->sort(fn(Livraison $a, Livraison $b) => OrdrePackaging::cle($a) <=> OrdrePackaging::cle($b))
+            // Livrées / ignorées en dernier (17/10/2026), dans le même ordre entre elles.
+            ->sort(fn(Livraison $a, Livraison $b) => [$this->estLivree($a) ? 1 : 0, ...OrdrePackaging::cle($a)] <=> [$this->estLivree($b) ? 1 : 0, ...OrdrePackaging::cle($b)])
             ->values();
 
         $lignes = $livraisons->map(function (Livraison $livraison) {
@@ -269,6 +282,12 @@ class PackagingController extends Controller
      * tête de liste (voir le tri dans index() ci-dessus), une famille très
      * critique mais disponible sur tous les créneaux ne l'est pas.
      */
+    /** Famille déjà livrée ou ignorée : plus rien à préparer, la carte est en lecture seule. */
+    private function estLivree(Livraison $livraison): bool
+    {
+        return in_array($livraison->statut, ['livree', 'ignoree'], true);
+    }
+
     private function calculerUrgencePackaging(Livraison $livraison): bool
     {
         return $livraison->creneaux->count() === 1;

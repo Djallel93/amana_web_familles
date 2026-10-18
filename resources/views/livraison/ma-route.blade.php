@@ -1,3 +1,4 @@
+@use('Amana\Shared\Support\PhoneFr')
 {{-- resources/views/livraison/ma-route.blade.php --}}
 @extends('layouts.app')
 
@@ -138,13 +139,13 @@
                                 <div class="rounded-lg bg-stone-50 px-2 py-1">
                                     <p class="text-[10.5px] text-ink-muted">Téléphone</p>
                                     @if($etape['telephone'])
-                                        <a href="tel:{{ $etape['telephone'] }}" class="text-[13px] text-ink">{{ $etape['telephone'] }}</a>
+                                        <a href="tel:{{ PhoneFr::lien($etape['telephone']) }}" class="text-[13px] text-ink">{{ PhoneFr::formater($etape['telephone']) }}</a>
                                     @endif
                                 </div>
                                 <div class="rounded-lg bg-stone-50 px-2 py-1">
                                     <p class="text-[10.5px] text-ink-muted">Téléphone bis</p>
                                     @if($etape['telephone_bis'])
-                                        <a href="tel:{{ $etape['telephone_bis'] }}" class="text-[13px] text-ink">{{ $etape['telephone_bis'] }}</a>
+                                        <a href="tel:{{ PhoneFr::lien($etape['telephone_bis']) }}" class="text-[13px] text-ink">{{ PhoneFr::formater($etape['telephone_bis']) }}</a>
                                     @endif
                                 </div>
                             </div>

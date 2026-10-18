@@ -38,7 +38,7 @@
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
-import { useConfirm, usePrompt, useToast } from "@amana/shared-ui";
+import { formaterTelephoneFr, useConfirm, usePrompt, useToast } from "@amana/shared-ui";
 import { apiDelete, apiGet, apiPost, buildQuery } from "../shared/api";
 import PaginationControls from "../shared/PaginationControls.vue";
 import PersonSelect from "../shared/PersonSelect.vue";
@@ -871,6 +871,13 @@ onMounted(() => {
                             >
                                 🚶 Se déplace
                             </span>
+                            <!-- « Imposé » (17/10/2026) : pastille de statut, distincte du chauffeur qui suit. -->
+                            <span
+                                v-if="livraison.benevole_impose"
+                                class="inline-flex items-center gap-1 text-[11.5px] font-semibold px-2 py-0.5 rounded-full bg-sky-600 text-white"
+                            >
+                                📌 Imposé
+                            </span>
                             <span
                                 v-if="livraison.benevole_impose"
                                 class="inline-flex items-center gap-1 text-[11.5px] font-medium px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200"
@@ -887,8 +894,10 @@ onMounted(() => {
                             </span>
                         </div>
                         <p v-if="!ligneOuverte(livraison.id)" class="text-[12.5px] text-ink-muted mt-0.5 truncate">
-                            📞 {{ livraison.famille.telephone || "—" }}
-                            <span v-if="livraison.famille.telephone_bis"> · {{ livraison.famille.telephone_bis }}</span>
+                            📞 {{ formaterTelephoneFr(livraison.famille.telephone) || "—" }}
+                            <span v-if="livraison.famille.telephone_bis">
+                                · {{ formaterTelephoneFr(livraison.famille.telephone_bis) }}</span
+                            >
                         </p>
                     </div>
                     <!--
@@ -913,9 +922,12 @@ onMounted(() => {
                         <!-- Coordonnées — téléphone bis affiché (05/09/2026, prompt §2.5). -->
                         <div class="bg-stone-50 rounded-lg px-3 py-2.5 space-y-1">
                             <p class="text-[10px] font-bold text-ink-muted uppercase tracking-wide">Coordonnées</p>
-                            <p class="text-[13px] text-ink">📞 {{ livraison.famille.telephone || "—" }}</p>
+                            <p class="text-[13px] text-ink">
+                                📞 {{ formaterTelephoneFr(livraison.famille.telephone) || "—" }}
+                            </p>
                             <p v-if="livraison.famille.telephone_bis" class="text-[13px] text-ink">
-                                📞 {{ livraison.famille.telephone_bis }} <span class="text-ink-muted">(bis)</span>
+                                📞 {{ formaterTelephoneFr(livraison.famille.telephone_bis) }}
+                                <span class="text-ink-muted">(bis)</span>
                             </p>
                             <p class="text-[13px] text-ink break-all">
                                 ✉️ {{ livraison.famille.email || "pas d'email" }}

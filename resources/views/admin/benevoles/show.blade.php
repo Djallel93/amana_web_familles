@@ -49,7 +49,7 @@
             <h2 class="text-[11px] font-bold uppercase tracking-[0.6px] text-ink-muted mb-2">Identité</h2>
             <dl class="grid grid-cols-2 gap-3 text-[13.5px]">
                 <div><dt class="text-ink-muted text-[11.5px]">Email</dt><dd class="text-ink">{{ $profil->personne?->email }}</dd></div>
-                <div><dt class="text-ink-muted text-[11.5px]">Téléphone</dt><dd class="text-ink">{{ $profil->personne?->telephone }}</dd></div>
+                <div><dt class="text-ink-muted text-[11.5px]">Téléphone</dt><dd class="text-ink">{{ $profil->personne?->telephone_formate }}</dd></div>
                 <div><dt class="text-ink-muted text-[11.5px]">Langue préférée</dt><dd class="text-ink">{{ $profil->langue_preferee }}</dd></div>
                 <div><dt class="text-ink-muted text-[11.5px]">Statut</dt><dd class="text-ink">{{ $profil->statut }}</dd></div>
             </dl>

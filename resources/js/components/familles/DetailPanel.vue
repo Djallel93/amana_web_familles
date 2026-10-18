@@ -126,7 +126,7 @@ const CHAMPS_PAR_ONGLET: Record<TabId, string[]> = {
     // "Décision" : réservé au staff (statut du dossier, criticité, et le
     // reste des observations internes) — regroupé le 12/08/2026, jusqu'ici
     // dispersé entre "Identité" (Éligibilité) et "Situation" (le reste).
-    decision: ["criticite", "etat_dossier"],
+    decision: ["criticite", "etat_dossier", "commentaire_statut"],
     documents: ["type_piece_identite"],
 };
 
@@ -210,6 +210,15 @@ const saving = ref(false);
 const famille = ref<Famille | null>(null);
 const errors = ref<Record<string, string>>({});
 const activeTab = ref<TabId>("identite");
+
+// Changement de statut (17/10/2026) : l'enregistrement est refusé tant qu'aucun commentaire n'explique
+// le changement. `etatInitial` = statut tel qu'affiché à l'ouverture (le serveur renvoie déjà le vrai
+// statut, pas le 'En cours' du verrou — voir FamillesController::show()).
+const etatInitial = ref<string | null>(null);
+const commentaireStatut = ref("");
+const statutModifie = computed(
+    () => famille.value !== null && etatInitial.value !== null && famille.value.etat_dossier !== etatInitial.value,
+);
 
 // Sélections multi (secteurs d'activité / organismes d'aide) : listes
 // d'identifiants distinctes de famille.value.secteurs_activite (qui contient
@@ -296,6 +305,8 @@ async function openFamilleDetail(id: number): Promise<void> {
     loading.value = true;
     errors.value = {};
     famille.value = null;
+    etatInitial.value = null;
+    commentaireStatut.value = "";
     activeTab.value = "identite";
     // Recherche Google repart toujours masquée à l'ouverture d'un dossier
     // existant : la famille a déjà une adresse enregistrée, la voir
@@ -356,6 +367,7 @@ async function openFamilleDetail(id: number): Promise<void> {
         famille.value = await res.json();
         secteursSelectionnes.value = famille.value?.secteurs_activite?.map((s) => s.id) ?? [];
         organismesSelectionnes.value = famille.value?.organismes_aide?.map((o) => o.id) ?? [];
+        etatInitial.value = famille.value?.etat_dossier ?? null;
         // Photo de l'adresse au chargement — comparée à la volée dans
         // adresseModifieeDepuisChargement (voir plus bas) pour ne pas
         // afficher un quartier résolu qui ne correspond plus au texte
@@ -455,6 +467,17 @@ function ongletEnErreur(tab: TabId): boolean {
 
 async function enregistrer(): Promise<void> {
     if (!famille.value) return;
+
+    // Garde côté interface (le serveur revérifie) : pas de requête, on ramène l'utilisateur sur le champ.
+    if (statutModifie.value && commentaireStatut.value.trim() === "") {
+        errors.value = { commentaire_statut: "Un commentaire est obligatoire pour changer le statut du dossier." };
+        activeTab.value = "decision";
+        toast.warning(
+            `Le statut passe de « ${etatInitial.value} » à « ${famille.value.etat_dossier} » : ajoutez un commentaire avant d'enregistrer.`,
+        );
+        return;
+    }
+
     saving.value = true;
     errors.value = {};
     // Pas de battement PENDANT/APRÈS l'enregistrement : update() vide le verrou et
@@ -478,6 +501,7 @@ async function enregistrer(): Promise<void> {
                 ...famille.value,
                 secteurs_activite: secteursSelectionnes.value,
                 organismes_aide: organismesSelectionnes.value,
+                commentaire_statut: statutModifie.value ? commentaireStatut.value.trim() : null,
             }),
         });
 
@@ -1457,6 +1481,24 @@ onMounted(() => {
                                 </select>
                                 <span v-if="errors.etat_dossier" class="text-[11px] text-rose-600">{{
                                     errors.etat_dossier
+                                }}</span>
+                            </div>
+                            <!-- Commentaire obligatoire dès que le statut change (17/10/2026) : ajouté au
+                                 commentaire du dossier sous la forme « - date · auteur · manuel : … ». -->
+                            <div v-if="statutModifie" class="sm:col-span-2">
+                                <label class="block text-xs font-semibold text-ink mb-1"
+                                    >Pourquoi ce changement de statut ?
+                                    <span class="text-rose-600">(obligatoire)</span></label
+                                >
+                                <textarea
+                                    v-model="commentaireStatut"
+                                    rows="2"
+                                    :placeholder="`Statut « ${etatInitial} » → « ${famille.etat_dossier} »`"
+                                    class="w-full px-3 py-2 border rounded-md text-[13.5px] bg-surface focus:border-accent outline-hidden resize-none transition-colors"
+                                    :class="errors.commentaire_statut ? 'border-rose-400' : 'border-ink-faint'"
+                                ></textarea>
+                                <span v-if="errors.commentaire_statut" class="text-[11px] text-rose-600">{{
+                                    errors.commentaire_statut
                                 }}</span>
                             </div>
                         </div>

@@ -6,6 +6,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Jobs\ResoudreAdresseFamille;
+use App\Models\Famille;
 use App\Models\Livraison;
 
 /**
@@ -35,6 +36,22 @@ class FamilleConfirmationSyncService
         $adresseAChange = $donnees['adresse_confirmee'] !== $famille->adresse
             || $donnees['code_postal_confirme'] !== $famille->code_postal
             || $donnees['ville_confirmee'] !== $famille->ville_texte;
+        $foyerAChange = $donnees['nombre_adulte_confirme'] !== $famille->nombre_adulte
+            || $donnees['nombre_enfant_confirme'] !== $famille->nombre_enfant;
+
+        // Trace dans le commentaire du dossier (17/10/2026) : une confirmation de campagne qui
+        // corrige l'adresse ou le foyer modifie le dossier sans que personne ne le saisisse dans
+        // le panneau — la ligne dit d'où vient le changement (source « sync_confirmation »).
+        if ($adresseAChange || $foyerAChange) {
+            $modifs = array_filter([
+                $adresseAChange ? 'adresse' : null,
+                $foyerAChange ? 'composition du foyer' : null,
+            ]);
+            $this->tracerDansLeDossier(
+                $livraison,
+                'Mise à jour depuis la confirmation de la campagne #' . $livraison->id_campagne . ' : ' . implode(' et ', $modifs) . '.',
+            );
+        }
 
         if ($adresseAChange) {
             $famille->update([
@@ -48,8 +65,7 @@ class FamilleConfirmationSyncService
             ResoudreAdresseFamille::dispatch($famille->id);
         }
 
-        if ($donnees['nombre_adulte_confirme'] !== $famille->nombre_adulte
-            || $donnees['nombre_enfant_confirme'] !== $famille->nombre_enfant) {
+        if ($foyerAChange) {
             $famille->update([
                 'nombre_adulte' => $donnees['nombre_adulte_confirme'],
                 'nombre_enfant' => $donnees['nombre_enfant_confirme'],
@@ -66,7 +82,7 @@ class FamilleConfirmationSyncService
      * volontairement découplées pour que 'confirme' avec des informations
      * inchangées ne déclenche aucune écriture famille superflue.
      */
-    public function appliquerEffetStatut(Livraison $livraison, string $statut): void
+    public function appliquerEffetStatut(Livraison $livraison, string $statut, ?string $motif = null): void
     {
         $effet = Livraison::effetStatutContact($statut);
 
@@ -74,6 +90,27 @@ class FamilleConfirmationSyncService
             return;
         }
 
-        $livraison->famille->update(['etat_dossier' => $effet['etat_dossier']]);
+        /** @var Famille $famille */
+        $famille = $livraison->famille;
+        $avant = $famille->etat_dossier;
+        $famille->etat_dossier = $effet['etat_dossier'];
+
+        // Le motif saisi dans la popup (archiver / rejeter) est ajouté au commentaire du dossier
+        // (17/10/2026), en plus de livraisons.motif_statut_contact : une seule ligne, datée et signée.
+        $texte = "Statut {$avant} → {$effet['etat_dossier']} (campagne #{$livraison->id_campagne})";
+        $famille->ajouterCommentaire($motif !== null && trim($motif) !== '' ? "{$texte} : " . trim($motif) : $texte, 'manuel', enregistrer: false);
+        $famille->save();
+    }
+
+    /**
+     * Ajoute une ligne « sync_confirmation » au commentaire du dossier (17/10/2026). Variable typée
+     * ici plutôt que dans synchroniser() : la relation Livraison::famille() est vue comme un Model
+     * générique par l'analyse statique (voir phpstan-baseline.neon).
+     */
+    private function tracerDansLeDossier(Livraison $livraison, string $texte): void
+    {
+        /** @var Famille $famille */
+        $famille = $livraison->famille;
+        $famille->ajouterCommentaire($texte, 'sync_confirmation');
     }
 }

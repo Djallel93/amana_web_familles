@@ -82,10 +82,11 @@ class ChargementController extends Controller
      * retirer une famille, changer de chauffeur, annuler une tournée vide) sans qu'un
      * rafraîchissement ne vienne écraser une boîte de dialogue ouverte.
      *
-     * Ne filtre pas sur statut = 'chargement' (08/09/2026) : toutes les tournées non
-     * démarrées sont listées (planifiee / chargement / charge / packaging_annule), la
-     * chargée en dernier (§7.2), les vides en tête (à compléter ou annuler), puis les plus
-     * urgentes (§7.3, voir calculerUrgence()) et les prêtes avant les autres.
+     * Ne filtre pas sur statut = 'chargement' (08/09/2026) : toutes les tournées sont
+     * listées sauf les annulées (17/10/2026 : y compris celles déjà parties — en livraison,
+     * terminées — en lecture seule), la chargée puis celles en livraison / terminées en
+     * dernier (§7.2), les vides en tête (à compléter ou annuler), puis les plus urgentes
+     * (§7.3, voir calculerUrgence()) et les prêtes avant les autres.
      */
     public function index(Request $request, Campagne $campagne): InertiaResponse
     {
@@ -154,15 +155,21 @@ class ChargementController extends Controller
     private function donneesListe(Campagne $campagne, string $filtre): array
     {
         $routes = RouteLivraison::where('id_campagne', $campagne->id)
-            ->whereIn('statut', ['planifiee', 'chargement', 'charge', 'packaging_annule'])
+            // Toutes les tournées sauf les annulées (17/10/2026) : avant, seules les tournées non partie
+            // étaient listées et une tournée disparaissait dès que le chauffeur démarrait — même avec
+            // le filtre « Toutes ». Celles en livraison / terminées restent visibles, en lecture seule.
+            ->where('statut', '!=', 'annulee')
             // vehiculeType + colis (09/10/2026) : type de véhicule et nombre de colis à charger de la carte.
             ->with(['benevole', 'vehiculeType', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux', 'etapes.livraison.colis'])
             ->get()
             ->map(function (RouteLivraison $route) {
-                $route->urgence = $this->calculerUrgence($route);
+                // Une tournée déjà partie n'a plus rien à charger : pas d'urgence (17/10/2026).
+                $route->urgence = in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true) ? null : $this->calculerUrgence($route);
                 // Une tournée sans arrêt est « restante » à l'écran (StatutChargement::pourRoute()
                 // la déduirait « chargée » : `every()` est vrai sur une liste vide).
-                $route->etat = $route->etapes->isEmpty() ? StatutChargement::RESTANTE : StatutChargement::pourRoute($route);
+                $route->etat = $route->etapes->isEmpty() && !in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true)
+                    ? StatutChargement::RESTANTE
+                    : StatutChargement::pourRoute($route);
 
                 return $route;
             })
@@ -172,13 +179,16 @@ class ChargementController extends Controller
             ->sort(fn(RouteLivraison $a, RouteLivraison $b) => $this->cleDeTri($a) <=> $this->cleDeTri($b))
             ->values();
 
-        $vides = $routes->filter(fn(RouteLivraison $route) => $route->etapes->isEmpty());
-        $pleines = $routes->reject(fn(RouteLivraison $route) => $route->etapes->isEmpty());
+        // « Vide » = tournée sans arrêt encore modifiable ; une tournée partie ou terminée n'est jamais « vide ».
+        $vides = $routes->filter(fn(RouteLivraison $route) => $route->etapes->isEmpty() && !in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true));
+        $pleines = $routes->reject(fn(RouteLivraison $route) => $vides->contains('id', $route->id));
         $stats = [
             'chargees' => $pleines->where('etat', StatutChargement::CHARGEE)->count(),
             'restantes' => $pleines->whereIn('etat', [StatutChargement::RESTANTE, StatutChargement::PACKAGING_ANNULE])->count(),
             'en_preparation' => $pleines->where('etat', StatutChargement::EN_PREPARATION)->count(),
             'pretes' => $pleines->where('etat', StatutChargement::PRETE)->count(),
+            'en_livraison' => $pleines->where('etat', StatutChargement::EN_LIVRAISON)->count(),
+            'terminees' => $pleines->where('etat', StatutChargement::LIVREE)->count(),
             'vides' => $vides->count(),
         ];
 
@@ -205,7 +215,7 @@ class ChargementController extends Controller
 
     /**
      * Clé de tri d'une tournée, comparée terme à terme : les tournées vides en tête (à compléter
-     * ou annuler), la chargée en dernier (§7.2), puis les plus urgentes (§7.3, voir
+     * ou annuler), la chargée puis celles en livraison / terminées en dernier (§7.2, 17/10/2026), puis les plus urgentes (§7.3, voir
      * calculerUrgence()) et les prêtes avant les autres.
      *
      * @return array{0: int, 1: int, 2: int, 3: int}
@@ -213,8 +223,8 @@ class ChargementController extends Controller
     private function cleDeTri(RouteLivraison $route): array
     {
         return [
-            $route->etapes->isEmpty() ? 0 : 1,
-            $route->etat === StatutChargement::CHARGEE ? 1 : 0,
+            $route->etapes->isEmpty() && !in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true) ? 0 : 1,
+            StatutChargement::rangTri($route->etat),
             match ($route->urgence) {
                 'famille' => 0,
                 'benevole' => 1,
@@ -268,6 +278,8 @@ class ChargementController extends Controller
                 'est_hotel' => (bool) $famille->est_hotel,
                 'nombre_enfant' => (int) $famille->nombre_enfant,
                 'prioritaire' => (bool) $livraison->preparation_prioritaire,
+                // Statut de l'arrêt (en_attente / en_cours / livree / ignoree) — affiché une fois la tournée partie.
+                'statut_arret' => $etape->statut,
             ];
         }
 
@@ -281,7 +293,9 @@ class ChargementController extends Controller
             'etat_libelle' => StatutChargement::LIBELLES[$route->etat],
             'etat_style' => StatutChargement::STYLES[$route->etat],
             'urgence' => $route->urgence,
-            'vide' => $vide,
+            'vide' => $vide && !in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true),
+            // Route déjà partie (en livraison / terminée) : affichée en lecture seule (17/10/2026).
+            'partie' => in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true),
             'creneau_libelle' => $route->creneau ? Creneau::libelle($route->creneau) : 'Imposée',
             'benevole' => $benevole ? [
                 'id' => $benevole->getKey(),
@@ -313,7 +327,7 @@ class ChargementController extends Controller
      */
     private function famillesSansTournee(Campagne $campagne, string $filtre = 'toutes'): array
     {
-        if (in_array($filtre, ['chargees', 'vides'], true)) {
+        if (in_array($filtre, ['chargees', 'vides', 'en_livraison', 'terminees'], true)) {
             return [];
         }
 

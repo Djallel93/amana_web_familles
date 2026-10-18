@@ -179,6 +179,15 @@ class LivraisonChangementService
             ])->save();
         });
 
+        // Trace dans le commentaire du dossier (17/10/2026) : le statut de contact de la famille
+        // repasse à « À contacter » — qui l'a remise à zéro et pour quelle campagne.
+        /** @var Famille|null $famille */
+        $famille = $livraison->famille;
+        $famille?->ajouterCommentaire(
+            "Contact réinitialisé à « À contacter » (campagne #{$livraison->id_campagne}).",
+            'manuel',
+        );
+
         if ($etaitSeDeplace) {
             $this->replanifierJournee($livraison);
 

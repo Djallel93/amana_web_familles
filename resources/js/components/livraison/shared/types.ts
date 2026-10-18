@@ -638,6 +638,13 @@ export interface AvancementCampagne {
         /** Familles confirmées qui se déplacent au QG / dont le colis est remis (carte Retrait QG). */
         retraits_total: number;
         retraits_delivres: number;
+        /** Familles confirmées à livrer sans tournée (pastille de « Génération des routes »). */
+        familles_sans_route: number;
+        /** Personnes réceptionnées (somme de nombre_donateur), poids collecté (kg), colis prêts / total. */
+        personnes_receptionnees: number;
+        poids_collecte_kg: number;
+        colis_prets: number;
+        colis_total: number;
         incidents_ouverts: number;
     };
 }

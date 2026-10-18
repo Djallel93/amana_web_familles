@@ -556,7 +556,7 @@ class ContactTrackingController extends Controller
             // non-'sync') : voir STATUTS_CONTACT_EFFETS. 'contacte'/
             // 'injoignable' n'ont aucun effet dossier, appliquerEffetStatut()
             // est alors un no-op.
-            $this->syncService->appliquerEffetStatut($livraison, $statut);
+            $this->syncService->appliquerEffetStatut($livraison, $statut, $donnees['motif_statut_contact']);
         }
 
         return response()->json(['success' => true]);

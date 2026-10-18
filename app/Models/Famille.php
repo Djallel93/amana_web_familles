@@ -5,12 +5,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Amana\Shared\Support\PhoneFr;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Expression;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Remplace la feuille "Famille" de l'ancien système Google Apps Script
@@ -131,6 +133,16 @@ class Famille extends Model
     // ReverseSyncService (un "override" vers 'En cours' via la sync
     // retour n'a pas plus de sens qu'un choix manuel dans le panneau).
     public const ETATS_SELECTIONNABLES = ['En attente', 'Validé', 'Rejeté', 'Archivé'];
+
+    /**
+     * Sources d'une ligne de commentaire_dossier (17/10/2026) : d'où vient le changement, pour
+     * qu'une ligne écrite sans utilisateur (synchronisation) soit reconnaissable à la lecture.
+     * 'manuel' = action d'un membre du staff ; les autres = écriture automatique (auteur « System »).
+     */
+    public const SOURCES_COMMENTAIRE = ['manuel', 'sync_confirmation', 'sync_externe', 'import'];
+
+    /** Auteur d'une ligne de commentaire écrite sans utilisateur. */
+    public const AUTEUR_SYSTEME = 'System';
 
     // Durée au-delà de laquelle un verrou d'édition (locked_by/locked_at)
     // est considéré abandonné et peut être repris par un autre membre du
@@ -431,31 +443,64 @@ class Famille extends Model
         return $this->telephone_bis ? self::formaterTelephoneFr($this->telephone_bis) : null;
     }
 
+    /**
+     * Délègue à Amana\Shared\Support\PhoneFr::formater() (17/10/2026) : une seule règle d'affichage
+     * pour toutes les apps (amana_shared >= 3.2). Gardée ici car utilisée telle quelle par les
+     * accesseurs ci-dessus et les vues.
+     */
     public static function formaterTelephoneFr(?string $telephone): ?string
     {
-        if (!$telephone) {
-            return null;
+        return PhoneFr::formater($telephone);
+    }
+
+    /**
+     * Statut de dossier tel que le staff le voit à l'ouverture du panneau, donc la référence pour
+     * savoir s'il l'a CHANGÉ à l'enregistrement (17/10/2026). À l'ouverture, etat_dossier passe
+     * à 'En cours' (verrou) et le vrai statut est mis de côté dans etat_dossier_avant_verrouillage ;
+     * 'Recu' (hors ETATS_SELECTIONNABLES) est affiché 'En attente' — même règle que
+     * FamillesController::show().
+     */
+    public function etatDossierReference(): string
+    {
+        $avant = $this->etat_dossier_avant_verrouillage ?? $this->etat_dossier;
+
+        return in_array($avant, self::ETATS_SELECTIONNABLES, true) ? $avant : 'En attente';
+    }
+
+    /**
+     * Ajoute UNE ligne à commentaire_dossier (17/10/2026) :
+     *
+     *   - 17/10/2026 14:32 · Prénom N. · manuel : texte
+     *
+     * Toujours à la suite de l'existant (jamais d'écrasement), une ligne par appel. Les retours à
+     * la ligne du texte sont aplatis pour qu'une ligne reste une ligne. L'auteur est la personne
+     * connectée pour la source 'manuel', « System » sinon (synchronisations, imports).
+     *
+     * @param bool $enregistrer false : modifie seulement l'attribut (l'appelant fait son propre save())
+     */
+    public function ajouterCommentaire(string $texte, string $source = 'manuel', ?string $auteur = null, bool $enregistrer = true): void
+    {
+        $texte = trim((string) preg_replace('/\s+/u', ' ', $texte));
+        if ($texte === '') {
+            return;
         }
 
-        $chiffres = preg_replace('/\D/', '', $telephone);
-
-        // Normalise vers 9 chiffres significatifs (sans le 0 ou le 33 initial).
-        if (str_starts_with($chiffres, '33') && strlen($chiffres) === 11) {
-            $chiffres = substr($chiffres, 2);
-        } elseif (str_starts_with($chiffres, '0') && strlen($chiffres) === 10) {
-            $chiffres = substr($chiffres, 1);
+        if (!in_array($source, self::SOURCES_COMMENTAIRE, true)) {
+            throw new \InvalidArgumentException("Source de commentaire inconnue : {$source}");
         }
 
-        if (strlen($chiffres) !== 9) {
-            return $telephone; // Format non reconnu (ex : numéro étranger) — affiché tel quel.
-        }
+        $auteur ??= $source === 'manuel'
+            ? (Auth::user()?->nom_complet ?: self::AUTEUR_SYSTEME)
+            : self::AUTEUR_SYSTEME;
 
-        $groupes = [substr($chiffres, 0, 1)];
-        for ($i = 1; $i < 9; $i += 2) {
-            $groupes[] = substr($chiffres, $i, 2);
-        }
+        $ligne = sprintf('- %s · %s · %s : %s', now()->format('d/m/Y H:i'), $auteur, $source, $texte);
+        $existant = rtrim((string) $this->commentaire_dossier);
 
-        return '+33 ' . implode(' ', $groupes);
+        $this->commentaire_dossier = $existant === '' ? $ligne : $existant . "\n" . $ligne;
+
+        if ($enregistrer) {
+            $this->save();
+        }
     }
 
     /**

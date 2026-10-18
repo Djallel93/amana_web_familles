@@ -9,9 +9,11 @@
       Avant la campagne : sélection des familles, suivi des contacts, suivi
                           des bénévoles ;
       Préparation       : réception, pesée, packaging ;
-      Livraison         : « Démarrer la campagne » puis, une fois démarrée,
-                          « Génération des routes » (assistant en fenêtre) ;
-                          chargement, suivi livraison, retrait QG — grisés
+      Génération des routes (17/10/2026, section à part) : « Démarrer la
+                          campagne » puis, une fois démarrée, « Génération des
+                          routes » (assistant en fenêtre) avec, à côté du statut,
+                          le nombre de familles encore sans tournée ;
+      Livraison         : chargement, suivi livraison, retrait QG — grisés
                           tant que la campagne n'est pas démarrée ;
       Incidents         : section repliable avec badge du nombre d'incidents
                           ouverts (06/10/2026, remplace la carte et la page).
@@ -126,6 +128,10 @@ interface Carte {
     desactivee?: boolean;
     badge: string | null;
     ton: Ton;
+    /** Seconde pastille à côté du statut (17/10/2026) : compteur (personnes, kg, colis, familles restantes). */
+    extra?: { libelle: string; ton: Ton } | null;
+    /** Carte mise en avant (bordure ambre) : il reste quelque chose à faire. */
+    surbrillance?: boolean;
 }
 
 const TON_BADGE: Record<Ton, string> = {
@@ -197,6 +203,36 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                 ton: (a.value.compteurs.retraits_delivres >= a.value.compteurs.retraits_total ? "ok" : "cours") as Ton,
             };
 
+    // Compteurs à côté du statut (17/10/2026). Affichés seulement une fois le poste commencé :
+    // un « 0 » avant tout démarrage n'apprend rien.
+    const c = a.value?.compteurs;
+    const receptionExtra =
+        a.value && c && a.value.reception_demarree
+            ? {
+                  libelle: `👥 ${c.personnes_receptionnees} personne${c.personnes_receptionnees > 1 ? "s" : ""}`,
+                  ton: "neutre" as Ton,
+              }
+            : null;
+    const peseeExtra =
+        a.value && c && a.value.pesee_demarree
+            ? { libelle: `⚖️ ${c.poids_collecte_kg.toLocaleString("fr-FR")} kg`, ton: "neutre" as Ton }
+            : null;
+    const packagingExtra =
+        c && c.colis_total > 0
+            ? {
+                  libelle: `📦 ${c.colis_prets}/${c.colis_total} colis`,
+                  ton: (c.colis_prets >= c.colis_total ? "ok" : "cours") as Ton,
+              }
+            : null;
+    // Familles confirmées sans tournée : orange tant qu'il en reste, vert quand tout est placé.
+    const restantes = c?.familles_sans_route ?? 0;
+    const routesExtra =
+        a.value && c && demarree.value && c.livraisons_confirmees > 0
+            ? restantes > 0
+                ? { libelle: `${restantes} famille${restantes > 1 ? "s" : ""} sans route`, ton: "alerte" as Ton }
+                : { libelle: "Toutes placées", ton: "ok" as Ton }
+            : null;
+
     return [
         {
             titre: "Avant la campagne",
@@ -246,6 +282,7 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                     href: u.reception,
                     description: "Enregistrer les arrivées de dons.",
                     ...etat(a.value?.reception_demarree, "Démarrée", "À démarrer"),
+                    extra: receptionExtra,
                 },
                 {
                     cle: "pesee",
@@ -254,6 +291,7 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                     href: u.pesee,
                     description: "Peser les dons collectés.",
                     ...etat(a.value?.pesee_demarree, "Démarrée", "À démarrer"),
+                    extra: peseeExtra,
                 },
                 {
                     cle: "packaging",
@@ -262,13 +300,16 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                     href: u.packaging,
                     description: "Préparer les colis famille par famille.",
                     ...packaging,
+                    extra: packagingExtra,
                 },
             ],
         },
         {
-            titre: "Livraison",
-            emoji: "🚚",
-            bordure: "border-teal-300",
+            // Section à part (17/10/2026) : « Démarrer la campagne » avant le démarrage, puis
+            // « Génération des routes » — une seule carte, le même emplacement qu'avant.
+            titre: demarree.value ? "Génération des routes" : "Démarrage de la campagne",
+            emoji: "🗺️",
+            bordure: "border-orange-300",
             cartes: [
                 // Une seule des deux : « Démarrer la campagne » disparaît une
                 // fois la campagne démarrée, « Génération des routes » apparaît.
@@ -286,6 +327,8 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                                   : "À faire"
                               : null,
                           ton: a.value?.routes_generees ? "ok" : "cours",
+                          extra: routesExtra,
+                          surbrillance: restantes > 0 && !terminee.value,
                       }
                     : {
                           cle: "demarrer",
@@ -299,6 +342,13 @@ const sections = computed<{ titre: string; emoji: string; bordure: string; carte
                           badge: demarrageBloque.value !== null ? null : "Prête",
                           ton: "ok",
                       },
+            ],
+        },
+        {
+            titre: "Livraison",
+            emoji: "🚚",
+            bordure: "border-teal-300",
+            cartes: [
                 {
                     cle: "chargement",
                     emoji: "🚛",
@@ -488,20 +538,32 @@ async function rouvrir() {
                     :class="
                         carte.desactivee
                             ? 'bg-stone-50 border-stone-200 opacity-60 cursor-not-allowed'
-                            : `bg-surface ${section.bordure} hover:border-accent hover:shadow-md active:scale-[0.99] cursor-pointer`
+                            : carte.surbrillance
+                              ? 'bg-amber-50 border-amber-400 hover:border-accent hover:shadow-md active:scale-[0.99] cursor-pointer'
+                              : `bg-surface ${section.bordure} hover:border-accent hover:shadow-md active:scale-[0.99] cursor-pointer`
                     "
                 >
                     <div class="flex items-start justify-between gap-2">
                         <span class="text-[26px] leading-none" :class="carte.desactivee ? 'grayscale' : ''">{{
                             carte.emoji
                         }}</span>
-                        <span
-                            v-if="carte.badge && !carte.desactivee"
-                            class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                            :class="TON_BADGE[carte.ton]"
-                        >
-                            {{ carte.badge }}
-                        </span>
+                        <!-- Statut + compteur (17/10/2026) : deux pastilles côte à côte. -->
+                        <div class="flex flex-wrap justify-end gap-1">
+                            <span
+                                v-if="carte.badge && !carte.desactivee"
+                                class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                                :class="TON_BADGE[carte.ton]"
+                            >
+                                {{ carte.badge }}
+                            </span>
+                            <span
+                                v-if="carte.extra && !carte.desactivee"
+                                class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                                :class="TON_BADGE[carte.extra.ton]"
+                            >
+                                {{ carte.extra.libelle }}
+                            </span>
+                        </div>
                     </div>
                     <p class="text-[15px] font-semibold text-ink">{{ carte.titre }}</p>
                     <p class="text-[12.5px] text-ink-muted">{{ carte.description }}</p>

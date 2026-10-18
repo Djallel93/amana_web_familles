@@ -33,7 +33,7 @@
                     <tr>
                         <td class="warn-icon">📇</td>
                         <td class="warn-text">
-                            <strong>Téléphone :</strong> {{ $famille->telephone }}<br>
+                            <strong>Téléphone :</strong> {{ $famille->telephone_formate }}<br>
                             @if($famille->email)
                                 <strong>Email :</strong> {{ $famille->email }}<br>
                             @endif

@@ -2,7 +2,11 @@
 //
 // Formes renvoyées par ChargementController (index() et liste()) — écran Chargement, 11/10/2026.
 
-export type EtatChargement = "restante" | "en_preparation" | "prete" | "chargee" | "packaging_annule";
+export type EtatChargement =
+    "restante" | "en_preparation" | "prete" | "chargee" | "packaging_annule" | "en_livraison" | "livree";
+
+/** Statut d'un arrêt de tournée (route_etapes.statut) — lu une fois la tournée partie. */
+export type StatutArret = "en_attente" | "en_cours" | "livree" | "ignoree";
 
 export interface EtapeChargement {
     id: number;
@@ -15,6 +19,7 @@ export interface EtapeChargement {
     est_hotel: boolean;
     nombre_enfant: number;
     prioritaire: boolean;
+    statut_arret: StatutArret;
 }
 
 export interface RouteChargement {
@@ -25,6 +30,8 @@ export interface RouteChargement {
     etat_style: string;
     urgence: "famille" | "benevole" | null;
     vide: boolean;
+    /** Tournée déjà partie (en livraison / terminée) : lecture seule. */
+    partie: boolean;
     creneau_libelle: string;
     benevole: { id: number; prenom: string; nom: string; telephone: string | null } | null;
     vehicule: string | null;
@@ -53,6 +60,8 @@ export interface StatsChargement {
     restantes: number;
     en_preparation: number;
     pretes: number;
+    en_livraison: number;
+    terminees: number;
     vides: number;
 }
 
@@ -77,4 +86,5 @@ export interface UrlsChargement {
     supprimer: string;
 }
 
-export type FiltreChargement = "toutes" | "restantes" | "en_preparation" | "pretes" | "chargees" | "vides";
+export type FiltreChargement =
+    "toutes" | "restantes" | "en_preparation" | "pretes" | "chargees" | "en_livraison" | "terminees" | "vides";

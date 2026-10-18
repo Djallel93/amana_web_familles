@@ -25,7 +25,7 @@
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
-import { useToast } from "@amana/shared-ui";
+import { formaterTelephoneFr, useToast } from "@amana/shared-ui";
 import { apiGet, apiPost, buildQuery } from "../shared/api";
 import { useFormulaireCreneaux } from "../shared/useFormulaireCreneaux";
 import { usePolling } from "../shared/usePolling";
@@ -346,7 +346,7 @@ usePolling(() => chargerFile(true), 15_000);
                     <div>
                         <p class="text-[14px] font-medium text-ink">{{ ligne.prenom }} {{ ligne.nom }}</p>
                         <p class="text-[12.5px] text-ink-muted">
-                            {{ ligne.telephone || "—" }} · {{ ligne.email || "pas d'email" }}
+                            {{ formaterTelephoneFr(ligne.telephone) || "—" }} · {{ ligne.email || "pas d'email" }}
                         </p>
                     </div>
                     <span

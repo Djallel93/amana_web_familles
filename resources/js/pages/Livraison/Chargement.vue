@@ -56,6 +56,8 @@ const FILTRES: { valeur: FiltreChargement; libelle: string }[] = [
     { valeur: "en_preparation", libelle: "En préparation" },
     { valeur: "pretes", libelle: "Prêtes" },
     { valeur: "chargees", libelle: "Chargées" },
+    { valeur: "en_livraison", libelle: "En livraison" },
+    { valeur: "terminees", libelle: "Terminées" },
     { valeur: "vides", libelle: "Vides" },
 ];
 
@@ -113,7 +115,7 @@ onBeforeUnmount(() => window.clearInterval(minuteur));
 <template>
     <Head title="Chargement — AMANA Familles" />
 
-    <div class="max-w-3xl mx-auto py-8">
+    <div class="max-w-4xl mx-auto py-8">
         <Link
             :href="urlRetour"
             class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90"
@@ -122,7 +124,7 @@ onBeforeUnmount(() => window.clearInterval(minuteur));
         </Link>
 
         <div class="flex items-center justify-between gap-3 mb-6">
-            <h1 class="font-heading text-xl font-semibold text-ink">Chargement — tournées prêtes</h1>
+            <h1 class="font-heading text-xl font-semibold text-ink">Chargement — tournées</h1>
             <a
                 :href="urlEtiquettes"
                 target="_blank"
@@ -132,7 +134,7 @@ onBeforeUnmount(() => window.clearInterval(minuteur));
             </a>
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-4">
             <div class="bg-stone-50 border border-surface-border rounded-xl p-3">
                 <p class="text-[11px] text-ink-muted uppercase tracking-wide">Restantes</p>
                 <p class="text-[20px] font-semibold text-ink">{{ stats.restantes }}</p>
@@ -148,6 +150,15 @@ onBeforeUnmount(() => window.clearInterval(minuteur));
             <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
                 <p class="text-[11px] text-indigo-700 uppercase tracking-wide">Chargée(s)</p>
                 <p class="text-[20px] font-semibold text-indigo-700">{{ stats.chargees }}</p>
+            </div>
+            <!-- 17/10/2026 : les tournées parties restent visibles. -->
+            <div class="bg-sky-50 border border-sky-100 rounded-xl p-3">
+                <p class="text-[11px] text-sky-700 uppercase tracking-wide">En livraison</p>
+                <p class="text-[20px] font-semibold text-sky-700">{{ stats.en_livraison }}</p>
+            </div>
+            <div class="bg-teal-50 border border-teal-100 rounded-xl p-3">
+                <p class="text-[11px] text-teal-700 uppercase tracking-wide">Terminée(s)</p>
+                <p class="text-[20px] font-semibold text-teal-700">{{ stats.terminees }}</p>
             </div>
             <div class="bg-stone-100 border border-surface-border rounded-xl p-3">
                 <p class="text-[11px] text-ink-muted uppercase tracking-wide">Vide(s)</p>

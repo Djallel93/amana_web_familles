@@ -178,7 +178,7 @@
                                     @endif
                                 </td>
                                 <td class="px-5 py-3 text-ink-muted text-[12.5px]">{{ $personne->email }}</td>
-                                <td class="px-5 py-3 text-ink-muted text-[12.5px]">{{ $personne->telephone ?? '—' }}</td>
+                                <td class="px-5 py-3 text-ink-muted text-[12.5px]">{{ $personne->telephone_formate ?? '—' }}</td>
                                 <td class="px-5 py-3 text-right">
                                     <div class="flex items-center justify-end gap-2">
                                         <a href="{{ route('admin.personnes.edit', $personne->id) }}"

@@ -16,8 +16,8 @@
     pas le modèle avec ses relations).
 -->
 <script setup lang="ts">
-import { ref } from "vue";
-import { useConfirm, usePrompt, useToast } from "@amana/shared-ui";
+import { computed, ref } from "vue";
+import { formaterTelephoneFr, lienTelephone, useConfirm, usePrompt, useToast } from "@amana/shared-ui";
 import { apiDelete, apiPost } from "../shared/api";
 import PersonSelect from "../shared/PersonSelect.vue";
 import type { PersonneResume } from "../shared/types";
@@ -38,6 +38,25 @@ const emit = defineEmits<{ changed: [] }>();
 const toast = useToast();
 const confirmDialog = useConfirm();
 const promptDialog = usePrompt();
+
+// Bandeau de chiffres de la carte (17/10/2026) : avant le départ, les familles dont les colis sont
+// prêts ; une fois la tournée partie, les arrêts réglés (livrés ou ignorés).
+const nbPretes = computed(() => props.route.etapes.filter((e) => e.etat === "prete").length);
+const nbArretsRegles = computed(
+    () => props.route.etapes.filter((e) => e.statut_arret === "livree" || e.statut_arret === "ignoree").length,
+);
+const progression = computed(() => {
+    const total = props.route.etapes.length;
+    if (total === 0) return 0;
+    return Math.round(((props.route.partie ? nbArretsRegles.value : nbPretes.value) / total) * 100);
+});
+
+const ARRET_PASTILLES: Record<string, { libelle: string; style: string }> = {
+    en_attente: { libelle: "À livrer", style: "bg-stone-100 text-ink-muted" },
+    en_cours: { libelle: "En cours", style: "bg-sky-100 text-sky-700" },
+    livree: { libelle: "Livrée", style: "bg-teal-100 text-teal-700" },
+    ignoree: { libelle: "Ignorée", style: "bg-rose-100 text-rose-700" },
+};
 
 const occupe = ref(false);
 const idFamilleAAjouter = ref("");
@@ -177,23 +196,37 @@ async function supprimer() {
 
 <template>
     <div
-        class="border rounded-xl p-4"
+        class="border rounded-xl p-4 sm:p-5 shadow-sm"
         :class="[
             route.urgence === 'famille'
                 ? 'border-rose-400 border-2 bg-rose-50'
                 : route.urgence === 'benevole'
                   ? 'border-amber-400 border-2 bg-amber-50'
                   : 'border-surface-border bg-surface',
-            route.etat === 'chargee' ? 'opacity-60' : '',
+            route.etat === 'chargee' || route.etat === 'livree' ? 'opacity-70' : '',
             nouvelle ? 'ligne-nouvelle' : '',
         ]"
         :id="`route-${route.id}`"
     >
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-[14px] font-medium text-ink">
-                {{ route.benevole?.prenom ?? "" }} {{ route.benevole?.nom ?? "" }} — {{ route.etapes.length }} arrêt(s)
-            </span>
-            <div class="flex items-center gap-1.5">
+        <!-- En-tête (17/10/2026) : chauffeur + coordonnées à gauche, statut à droite. -->
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <p class="text-[15px] font-semibold text-ink truncate">
+                    {{ route.benevole?.prenom ?? "" }} {{ route.benevole?.nom ?? "Chauffeur non assigné" }}
+                </p>
+                <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12.5px] text-ink-muted">
+                    <span>🚗 {{ route.vehicule ?? "Véhicule non renseigné" }}</span>
+                    <a
+                        v-if="route.benevole?.telephone"
+                        :href="`tel:${lienTelephone(route.benevole.telephone)}`"
+                        class="text-accent underline"
+                        >📞 {{ formaterTelephoneFr(route.benevole.telephone) }}</a
+                    >
+                    <span v-else>📞 téléphone non renseigné</span>
+                    <span>🕒 {{ route.creneau_libelle }}</span>
+                </div>
+            </div>
+            <div class="flex flex-col items-end gap-1 shrink-0">
                 <span
                     v-if="route.urgence === 'famille'"
                     class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-rose-600 text-white"
@@ -204,51 +237,90 @@ async function supprimer() {
                     class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-600 text-white"
                     >🟠 Urgent — chauffeur</span
                 >
-                <span v-if="route.vide" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-stone-200 text-ink"
+                <span v-if="route.vide" class="text-[12px] font-semibold px-2.5 py-1 rounded-full bg-stone-200 text-ink"
                     >Vide</span
                 >
-                <span v-else class="text-[11px] font-medium px-2 py-0.5 rounded-full" :class="route.etat_style">{{
+                <span v-else class="text-[12px] font-semibold px-2.5 py-1 rounded-full" :class="route.etat_style">{{
                     route.etat_libelle
                 }}</span>
-                <span class="text-[12px] text-ink-muted">{{ route.creneau_libelle }}</span>
             </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-ink mb-3">
-            <span>🚗 {{ route.vehicule ?? "Véhicule non renseigné" }}</span>
-            <a v-if="route.benevole?.telephone" :href="`tel:${route.benevole.telephone}`" class="text-accent underline"
-                >📞 {{ route.benevole.telephone }}</a
-            >
-            <span v-else class="text-ink-muted">📞 téléphone non renseigné</span>
-            <span class="font-medium"
-                >📦 {{ route.colis }} {{ route.etat === "chargee" ? "colis chargés" : "colis à charger" }}</span
-            >
+        <!-- Bandeau de chiffres + progression. -->
+        <div v-if="!route.vide" class="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div class="rounded-lg bg-stone-50 border border-surface-border px-2 py-1.5">
+                <p class="text-[16px] font-semibold text-ink leading-tight">{{ route.etapes.length }}</p>
+                <p class="text-[10.5px] uppercase tracking-wide text-ink-muted">arrêt(s)</p>
+            </div>
+            <div class="rounded-lg bg-stone-50 border border-surface-border px-2 py-1.5">
+                <p class="text-[16px] font-semibold text-ink leading-tight">{{ route.colis }}</p>
+                <p class="text-[10.5px] uppercase tracking-wide text-ink-muted">
+                    {{ route.etat === "chargee" || route.partie ? "colis chargés" : "colis à charger" }}
+                </p>
+            </div>
+            <div class="rounded-lg bg-stone-50 border border-surface-border px-2 py-1.5">
+                <p class="text-[16px] font-semibold text-ink leading-tight">
+                    {{ route.partie ? nbArretsRegles : nbPretes }}/{{ route.etapes.length }}
+                </p>
+                <p class="text-[10.5px] uppercase tracking-wide text-ink-muted">
+                    {{ route.partie ? "arrêts réglés" : "familles prêtes" }}
+                </p>
+            </div>
+        </div>
+        <div v-if="!route.vide" class="mt-2 h-1.5 w-full rounded-full bg-stone-200 overflow-hidden" aria-hidden="true">
+            <div
+                class="h-full rounded-full transition-all"
+                :class="route.partie ? 'bg-teal-500' : 'bg-emerald-500'"
+                :style="{ width: `${progression}%` }"
+            ></div>
         </div>
 
-        <p v-if="route.vide" class="text-[12.5px] text-ink-muted mb-3">
+        <p v-if="route.vide" class="mt-3 text-[12.5px] text-ink-muted">
             Plus aucune famille dans cette tournée : ajoutez-en une ou annulez la tournée.
         </p>
-        <ul v-else class="text-[12px] text-ink-muted space-y-1 mb-3">
-            <li v-for="etape in route.etapes" :key="etape.id" class="flex items-center gap-1.5 flex-wrap">
-                <span>Famille #{{ etape.famille_id }}</span>
-                <span class="text-[10.5px] font-medium px-1.5 py-0.5 rounded-full" :class="etape.etat_style">{{
+        <ul v-else class="mt-3 divide-y divide-surface-border rounded-lg border border-surface-border bg-surface">
+            <li v-for="etape in route.etapes" :key="etape.id" class="flex items-center gap-2 px-3 py-2">
+                <div class="min-w-0 flex-1">
+                    <p class="text-[13px] font-medium text-ink">
+                        Famille #{{ etape.famille_id }}
+                        <span
+                            v-if="etape.prioritaire"
+                            class="ml-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-600 text-white"
+                            >⭐ Prioritaire</span
+                        >
+                    </p>
+                    <p
+                        v-if="etape.etudiant || etape.est_hotel || etape.nombre_enfant > 0"
+                        class="mt-0.5 flex flex-wrap gap-1 text-[10.5px]"
+                    >
+                        <span v-if="etape.etudiant" class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700"
+                            >étudiant</span
+                        >
+                        <span v-if="etape.est_hotel" class="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700"
+                            >hôtel</span
+                        >
+                        <span
+                            v-if="etape.nombre_enfant > 0"
+                            class="px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700"
+                            >👶 {{ etape.nombre_enfant }}</span
+                        >
+                    </p>
+                </div>
+                <!-- Tournée partie : statut de l'arrêt ; sinon conditionnement de la famille. -->
+                <span
+                    v-if="route.partie"
+                    class="text-[10.5px] font-medium px-2 py-0.5 rounded-full"
+                    :class="(ARRET_PASTILLES[etape.statut_arret] ?? ARRET_PASTILLES.en_attente).style"
+                    >{{ (ARRET_PASTILLES[etape.statut_arret] ?? ARRET_PASTILLES.en_attente).libelle }}</span
+                >
+                <span v-else class="text-[10.5px] font-medium px-2 py-0.5 rounded-full" :class="etape.etat_style">{{
                     etape.etat_libelle
                 }}</span>
-                <span
-                    v-if="etape.prioritaire"
-                    class="text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-600 text-white"
-                    >⭐ Prioritaire</span
-                >
-                <span v-if="etape.etudiant" class="text-sky-600">· étudiant</span>
-                <span v-if="etape.est_hotel" class="text-amber-600">· hôtel</span>
-                <span v-if="etape.nombre_enfant > 0" class="text-violet-600"
-                    >· {{ etape.nombre_enfant }} enfant(s)</span
-                >
                 <button
-                    v-if="!route.verrouillee"
+                    v-if="!route.verrouillee && !route.partie"
                     type="button"
                     :disabled="occupe"
-                    class="ml-auto text-[11px] text-rose-600 px-2 disabled:opacity-60"
+                    class="text-[11px] text-rose-600 px-1.5 disabled:opacity-60"
                     @click="retirerFamille(etape.id, etape.famille_id)"
                 >
                     retirer
@@ -256,7 +328,7 @@ async function supprimer() {
             </li>
         </ul>
 
-        <div class="flex flex-wrap gap-2">
+        <div class="mt-3 flex flex-wrap gap-2">
             <template v-if="route.peut_confirmer">
                 <button
                     type="button"
@@ -303,7 +375,8 @@ async function supprimer() {
             </button>
         </div>
 
-        <details class="mt-3 border-t border-surface-border pt-3">
+        <!-- Tournée partie (en livraison / terminée) : lecture seule, pas d'édition de composition (17/10/2026). -->
+        <details v-if="!route.partie" class="mt-3 border-t border-surface-border pt-3">
             <summary class="cursor-pointer text-[12.5px] text-ink-muted select-none">Modifier la composition</summary>
 
             <p v-if="route.verrouillee" class="text-[12px] text-ink-muted mt-2">
