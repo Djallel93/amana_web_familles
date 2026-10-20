@@ -12,6 +12,7 @@ use App\Models\Livraison;
 use App\Models\RouteLivraison;
 use App\Notifications\RouteModifieeNotification;
 use App\Support\RouteOptimizationConfig;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -230,6 +231,168 @@ class RouteMutationService
         $this->notifierBenevole($route->fresh(), 'Votre tournée a été scindée en deux — vous avez maintenant deux tournées distinctes.');
 
         return $nouvelleRoute->fresh();
+    }
+
+    /**
+     * Répartit une tournée pas encore partie entre plusieurs chauffeurs (18/10/2026) — résolution d'un incident
+     * « chauffeur indisponible » quand aucun véhicule de même type ou plus grand n'est disponible. La tournée
+     * existante (arrêts les plus proches du début, déjà ordonnés par TSP) revient au premier chauffeur, les autres
+     * parts deviennent de nouvelles tournées du même créneau. Les arrêts restent contigus (chaque part est un
+     * tronçon cohérent de la tournée TSP, comme diviser()) et chaque part est dimensionnée au prorata de la
+     * capacité (kg) du véhicule de son chauffeur.
+     *
+     * @param  array<int, array{id_benevole: int, id_vehicule_type: int, capacite_kg: float}>  $chauffeurs  au moins 2
+     * @return list<RouteLivraison> la tournée d'origine puis les nouvelles, dans l'ordre des chauffeurs
+     *
+     * @throws \RuntimeException message prêt à afficher
+     */
+    public function repartir(RouteLivraison $route, array $chauffeurs): array
+    {
+        $chauffeurs = array_values($chauffeurs);
+        if (count($chauffeurs) < 2) {
+            throw new \RuntimeException('Choisissez au moins deux chauffeurs pour répartir la tournée.');
+        }
+        if (!in_array($route->statut, RouteLivraison::STATUTS_PAS_PARTIE, true)) {
+            throw new \RuntimeException('Cette tournée est déjà partie ou annulée : elle ne peut plus être répartie.');
+        }
+
+        $campagne = Campagne::findOrFail($route->id_campagne);
+        $hq = $this->hqOuEchoue($campagne);
+
+        /** @var Collection<int, EtapeRoute> $etapes */
+        $etapes = $route->etapes()->with('livraison.famille')->orderBy('ordre')->get();
+        $etapes = $etapes->values();
+
+        if ($etapes->count() < count($chauffeurs)) {
+            throw new \RuntimeException('Cette tournée a trop peu d\'arrêts (' . $etapes->count() . ') pour être répartie entre ' . count($chauffeurs) . ' chauffeurs.');
+        }
+
+        // Poids des arrêts lus sur des Livraison chargées par id (et non via $etape->livraison, typé Model).
+        $poidsParLivraison = Livraison::whereIn('id', $etapes->pluck('id_livraison')->filter()->all())->get()->keyBy('id');
+
+        $groupes = self::partitionnerPoids(
+            $etapes->map(fn(EtapeRoute $e) => (float) ($poidsParLivraison->get($e->id_livraison)->poids_kg ?? 0))->all(),
+            array_map(fn(array $c) => (float) $c['capacite_kg'], $chauffeurs),
+        );
+
+        $ancienBenevole = $route->id_benevole;
+
+        $routes = DB::transaction(function () use ($route, $chauffeurs, $etapes, $groupes) {
+            $routes = [];
+            foreach ($groupes as $indexGroupe => $indexesEtapes) {
+                $chauffeur = $chauffeurs[$indexGroupe];
+
+                if ($indexGroupe === 0) {
+                    $cible = $route;
+                    $cible->update(['id_benevole' => $chauffeur['id_benevole'], 'id_vehicule_type' => $chauffeur['id_vehicule_type']]);
+                } else {
+                    $cible = RouteLivraison::create([
+                        'id_campagne' => $route->id_campagne,
+                        'id_campagne_journee' => $route->id_campagne_journee,
+                        'id_benevole' => $chauffeur['id_benevole'],
+                        'id_vehicule_type' => $chauffeur['id_vehicule_type'],
+                        'creneau' => $route->creneau,
+                        'statut' => 'planifiee',
+                    ]);
+
+                    foreach ($indexesEtapes as $position => $indexEtape) {
+                        $etape = $etapes[$indexEtape];
+                        EtapeRoute::create([
+                            'id_route' => $cible->id,
+                            'id_livraison' => $etape->id_livraison,
+                            'ordre' => $position + 1,
+                            'statut' => 'en_attente',
+                        ]);
+                        $etape->delete();
+                    }
+                }
+
+                $routes[] = $cible;
+            }
+
+            return $routes;
+        });
+
+        foreach ($routes as $cible) {
+            $this->recalculerMetriques($cible, $this->livraisonsOrdonnees($cible), $hq);
+            $this->notifierBenevole($cible->fresh(), 'Une tournée vous a été assignée (répartition d\'une tournée dont le chauffeur n\'est plus disponible).');
+        }
+
+        if (!in_array($ancienBenevole, array_column($chauffeurs, 'id_benevole'), true)) {
+            $this->notifierPersonne($ancienBenevole, 'Votre tournée a été répartie entre d\'autres chauffeurs.');
+        }
+
+        return array_map(fn(RouteLivraison $r) => $r->fresh(), $routes);
+    }
+
+    /**
+     * Livraisons d'une tournée, dans l'ordre de ses arrêts, sous la forme attendue par recalculerMetriques()
+     * (les arrêts sans livraison — non concernés ici — sont ignorés).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function livraisonsOrdonnees(RouteLivraison $route): array
+    {
+        /** @var Collection<int, EtapeRoute> $etapes */
+        $etapes = $route->etapes()->orderBy('ordre')->get();
+        $livraisons = Livraison::with('famille')->whereIn('id', $etapes->pluck('id_livraison')->filter()->all())->get()->keyBy('id');
+
+        $resultat = [];
+        foreach ($etapes as $etape) {
+            $livraison = $livraisons->get($etape->id_livraison);
+            if ($livraison instanceof Livraison) {
+                $resultat[] = $this->versArray($livraison);
+            }
+        }
+
+        return $resultat;
+    }
+
+    /**
+     * Découpe une liste d'arrêts ordonnée en tronçons contigus, un par chauffeur, au prorata de leur capacité
+     * (18/10/2026). Chaque tronçon contient au moins un arrêt (le nombre d'arrêts doit être ≥ au nombre de
+     * chauffeurs). Pure : ne touche à rien, utilisée par repartir().
+     *
+     * @param  float[]  $poids  poids de chaque arrêt, dans l'ordre de la tournée
+     * @param  float[]  $capacites  capacité de chaque chauffeur, dans l'ordre des tronçons
+     * @return array<int, int[]> index du tronçon => index des arrêts
+     */
+    public static function partitionnerPoids(array $poids, array $capacites): array
+    {
+        $poids = array_values($poids);
+        $capacites = array_values($capacites);
+        $n = count($capacites);
+        $m = count($poids);
+
+        if ($n === 0 || $m < $n) {
+            throw new \InvalidArgumentException('Il faut au moins autant d\'arrêts que de chauffeurs.');
+        }
+
+        $total = array_sum($poids);
+        $sommeCap = array_sum($capacites) > 0 ? array_sum($capacites) : (float) $n;
+        $groupes = array_fill(0, $n, []);
+        $g = 0;
+        $cumul = 0.0;
+
+        foreach ($poids as $i => $p) {
+            $groupes[$g][] = $i;
+            $cumul += $p;
+
+            $apres = $m - $i - 1;
+            $groupesRestants = $n - $g - 1;
+            if ($groupesRestants === 0) {
+                continue;
+            }
+
+            $seuil = $total * (array_sum(array_slice($capacites, 0, $g + 1)) / $sommeCap);
+            // On change de tronçon quand sa part est atteinte, ou quand il ne reste qu'un arrêt par
+            // chauffeur restant ; jamais si cela priverait un chauffeur suivant de tout arrêt.
+            if ($apres >= $groupesRestants && ($cumul >= $seuil || $apres === $groupesRestants)) {
+                $g++;
+            }
+        }
+
+        return $groupes;
     }
 
     /**

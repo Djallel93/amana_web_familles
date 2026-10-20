@@ -33,6 +33,9 @@ use Illuminate\Support\Facades\Notification;
  * @property float|null  $distance_totale_km
  * @property float|null  $poids_total_kg
  * @property string|null $lien_maps
+ * @property string|null $chauffeur_alerte   Posée à la volée par ChargementController (en_livraison|parti|null), jamais persistée
+ * @property bool|null   $retour_qg           Réponse à « Revenez-vous au QG ? » : null = sans réponse, true = oui, false = non (voir RetourQgService)
+ * @property Carbon|null $retour_qg_le
  * @property int|null    $locked_by
  * @property Carbon|null $locked_at
  * @property string|null $urgence             Posée à la volée par ChargementController (famille|benevole|null), jamais persistée
@@ -49,13 +52,15 @@ class RouteLivraison extends Model
 
     protected $fillable = [
         'id_campagne', 'id_campagne_journee', 'id_benevole', 'id_vehicule_type', 'creneau',
-        'statut', 'distance_totale_km', 'poids_total_kg', 'lien_maps',
+        'statut', 'distance_totale_km', 'poids_total_kg', 'lien_maps', 'retour_qg', 'retour_qg_le',
     ];
 
     protected $casts = [
         'distance_totale_km' => 'decimal:2',
         'poids_total_kg' => 'decimal:2',
         'locked_at' => 'datetime',
+        'retour_qg' => 'boolean',
+        'retour_qg_le' => 'datetime',
     ];
 
     /**
@@ -86,6 +91,19 @@ class RouteLivraison extends Model
      * cancel au lieu du hard delete d'origine de
      * RouteMutationService::supprimer()).
      */
+    /**
+     * Tournées dont les livraisons sont faites (18/10/2026) : « terminée » pour les compteurs du hub, de Suivi
+     * livraison et pour la clôture de campagne. 'livraisons_terminees' compte : un chauffeur qui répond « Non » à
+     * « Revenez-vous au QG ? » ne fait jamais passer sa tournée à 'terminee', et ne doit pas la laisser
+     * indéfiniment « non terminée » (compteur 0/2 alors que tout est livré).
+     */
+    public const STATUTS_TERMINES = ['livraisons_terminees', 'terminee'];
+
+    /**
+     * Statuts d'une tournée pas encore partie : le chauffeur peut encore être remplacé ou la tournée répartie.
+     */
+    public const STATUTS_PAS_PARTIE = ['planifiee', 'chargement', 'charge', 'packaging_annule'];
+
     public const STATUTS = ['planifiee', 'chargement', 'charge', 'en_cours', 'livraisons_terminees', 'terminee', 'packaging_annule', 'annulee'];
 
     /**

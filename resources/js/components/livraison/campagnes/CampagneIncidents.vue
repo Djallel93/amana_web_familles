@@ -20,7 +20,14 @@ import { computed, ref, watch } from "vue";
 import { Modal, useConfirm, useToast } from "@amana/shared-ui";
 import { apiGet, apiPost } from "../shared/api";
 import PersonSelect from "../shared/PersonSelect.vue";
-import type { LigneIncident, OptionsIncident, PersonneResume, ResoudreIncidentResultat } from "../shared/types";
+import type {
+    CandidatChauffeur,
+    LigneIncident,
+    OptionsChauffeurIndisponible,
+    OptionsIncident,
+    PersonneResume,
+    ResoudreIncidentResultat,
+} from "../shared/types";
 
 const props = defineProps<{
     incidents: LigneIncident[];
@@ -29,6 +36,8 @@ const props = defineProps<{
     rouvrirUrlTemplate: string;
     optionsUrlTemplate: string;
     resoudreSuiteUrlTemplate: string;
+    /** `__ID__` = id d'une TOURNÉE (18/10/2026). */
+    remettreDansLePoolUrlTemplate: string;
 }>();
 
 const emit = defineEmits<{
@@ -111,7 +120,16 @@ function ouvrir(incident: LigneIncident) {
 }
 
 // ── Suite à donner à la famille (09/10/2026) ────────────────────────────
-type ActionSuite = "reinitialiser" | "tournee" | "retrait_qg" | "chauffeur" | "reessayer" | "domicile" | "simple";
+type ActionSuite =
+    | "reinitialiser"
+    | "tournee"
+    | "retrait_qg"
+    | "chauffeur"
+    | "reessayer"
+    | "domicile"
+    | "reassigner"
+    | "repartir"
+    | "simple";
 
 const CHOIX_LIVRAISON_IGNOREE: { id: ActionSuite; label: string; aide: string }[] = [
     {
@@ -139,13 +157,36 @@ const CHOIX_RETRAIT_NON_LIVRE: { id: ActionSuite; label: string; aide: string }[
     { id: "simple", label: "Clore sans suite", aide: "L'incident est résolu, rien ne change pour la famille." },
 ];
 
+// 18/10/2026 : « chauffeur indisponible » — réassigner (véhicule de même type ou plus grand) ou répartir.
+const CHOIX_CHAUFFEUR_INDISPONIBLE: { id: ActionSuite; label: string; aide: string }[] = [
+    {
+        id: "reassigner",
+        label: "La réassigner à un autre chauffeur",
+        aide: "Un véhicule de même type ou plus grand, au choix.",
+    },
+    {
+        id: "repartir",
+        label: "La répartir entre plusieurs chauffeurs",
+        aide: "Quand aucun véhicule assez grand n'est disponible : au moins deux chauffeurs.",
+    },
+    { id: "simple", label: "Clore sans suite", aide: "L'incident est résolu, la tournée reste telle quelle." },
+];
+
 const avecSuite = computed(() => {
     const type = selection.value?.type;
-    return type === "livraison_ignoree" || type === "retrait_hq_non_livre";
+    return type === "livraison_ignoree" || type === "retrait_hq_non_livre" || type === "chauffeur_indisponible";
 });
 
-const choixSuite = computed(() =>
-    selection.value?.type === "retrait_hq_non_livre" ? CHOIX_RETRAIT_NON_LIVRE : CHOIX_LIVRAISON_IGNOREE,
+const choixSuite = computed(() => {
+    if (selection.value?.type === "retrait_hq_non_livre") return CHOIX_RETRAIT_NON_LIVRE;
+    if (selection.value?.type === "chauffeur_indisponible") return CHOIX_CHAUFFEUR_INDISPONIBLE;
+    return CHOIX_LIVRAISON_IGNOREE;
+});
+
+const questionSuite = computed(() =>
+    selection.value?.type === "chauffeur_indisponible"
+        ? "Que faire de cette tournée ?"
+        : "Que faire de cette famille ?",
 );
 
 const panneauSuite = ref(false);
@@ -154,6 +195,14 @@ const idRouteChoisie = ref<number | null>(null);
 const chauffeurChoisi = ref<PersonneResume | null>(null);
 const tournees = ref<OptionsIncident["tournees"]>([]);
 const chargementOptions = ref(false);
+// Incident « chauffeur indisponible » (18/10/2026).
+const optionsChauffeur = ref<OptionsChauffeurIndisponible | null>(null);
+const idChauffeurReassigne = ref<number | null>(null);
+const idsRepartition = ref<number[]>([]);
+
+const candidatsReassignation = computed<CandidatChauffeur[]>(
+    () => optionsChauffeur.value?.candidats.filter((c) => c.assez_grand) ?? [],
+);
 
 function reinitialiserSuite() {
     panneauSuite.value = false;
@@ -161,10 +210,25 @@ function reinitialiserSuite() {
     idRouteChoisie.value = null;
     chauffeurChoisi.value = null;
     tournees.value = [];
+    optionsChauffeur.value = null;
+    idChauffeurReassigne.value = null;
+    idsRepartition.value = [];
 }
 
 async function ouvrirPanneauSuite(incident: LigneIncident) {
     panneauSuite.value = true;
+
+    if (incident.type === "chauffeur_indisponible") {
+        chargementOptions.value = true;
+        const res = await apiGet<OptionsChauffeurIndisponible>(
+            props.optionsUrlTemplate.replace("__ID__", String(incident.id)),
+        );
+        chargementOptions.value = false;
+        if (res.ok) optionsChauffeur.value = res.data;
+        else toast.error(res.message);
+        return;
+    }
+
     if (incident.type !== "livraison_ignoree") return;
 
     chargementOptions.value = true;
@@ -178,6 +242,8 @@ const suiteValidable = computed(() => {
     if (suite.value === null) return false;
     if (suite.value === "tournee") return idRouteChoisie.value !== null;
     if (suite.value === "chauffeur") return chauffeurChoisi.value !== null;
+    if (suite.value === "reassigner") return idChauffeurReassigne.value !== null;
+    if (suite.value === "repartir") return idsRepartition.value.length >= 2;
     return true;
 });
 
@@ -191,7 +257,13 @@ async function validerSuite(incident: LigneIncident) {
         {
             action: suite.value,
             id_route: suite.value === "tournee" ? idRouteChoisie.value : undefined,
-            id_benevole: suite.value === "chauffeur" ? chauffeurChoisi.value?.id : undefined,
+            id_benevole:
+                suite.value === "chauffeur"
+                    ? chauffeurChoisi.value?.id
+                    : suite.value === "reassigner"
+                      ? (idChauffeurReassigne.value ?? undefined)
+                      : undefined,
+            ids_benevoles: suite.value === "repartir" ? idsRepartition.value : undefined,
         },
     );
     enCours.value = false;
@@ -205,6 +277,36 @@ async function validerSuite(incident: LigneIncident) {
     reinitialiserSuite();
     emit("change");
     toast.success("Incident résolu.");
+}
+
+function basculerRepartition(id: number) {
+    const i = idsRepartition.value.indexOf(id);
+    if (i === -1) idsRepartition.value.push(id);
+    else idsRepartition.value.splice(i, 1);
+}
+
+// « Remettre dans le pool » : le chauffeur a répondu « Non » mais est finalement revenu (18/10/2026).
+async function remettreDansLePool(incident: LigneIncident) {
+    const idRoute = optionsChauffeur.value?.id_route_non_retour ?? null;
+    if (idRoute === null) return;
+
+    enCours.value = true;
+    const resultat = await apiPost<{ success: boolean }>(
+        props.remettreDansLePoolUrlTemplate.replace("__ID__", String(idRoute)),
+    );
+    enCours.value = false;
+
+    if (!resultat.ok) {
+        toast.error(resultat.message);
+        return;
+    }
+
+    // Le serveur a résolu l'incident (le chauffeur est de retour au QG) : on ferme la fenêtre.
+    majStatut(incident.id, "resolu");
+    reinitialiserSuite();
+    selection.value = null;
+    emit("change");
+    toast.success("Chauffeur remis dans le pool.");
 }
 
 async function rouvrir(incident: LigneIncident) {
@@ -408,7 +510,7 @@ async function ignorer(incident: LigneIncident) {
                     class="rounded-lg border border-surface-border p-3 mb-4 space-y-2"
                 >
                     <p class="text-[12px] font-semibold uppercase tracking-wide text-ink-muted">
-                        Que faire de cette famille ?
+                        {{ questionSuite }}
                     </p>
                     <label
                         v-for="c in choixSuite"
@@ -435,6 +537,77 @@ async function ignorer(incident: LigneIncident) {
                             <option :value="null" disabled>Choisir une tournée…</option>
                             <option v-for="t in tournees" :key="t.id" :value="t.id">{{ t.libelle }}</option>
                         </select>
+                    </div>
+
+                    <!-- Chauffeur indisponible (18/10/2026) -->
+                    <div v-if="selection.type === 'chauffeur_indisponible'" class="pl-6 space-y-2">
+                        <p v-if="chargementOptions" class="text-[12px] text-ink-muted">Chargement des chauffeurs…</p>
+                        <p v-else-if="optionsChauffeur?.message" class="text-[12px] text-rose-600">
+                            {{ optionsChauffeur.message }}
+                        </p>
+                        <template v-else-if="optionsChauffeur">
+                            <p class="text-[12px] text-ink-muted">
+                                {{ optionsChauffeur.nb_arrets }} arrêt(s) · véhicule actuel
+                                {{ optionsChauffeur.vehicule_actuel?.type ?? "—" }} ({{
+                                    optionsChauffeur.vehicule_actuel?.capacite_kg
+                                }}
+                                kg, {{ optionsChauffeur.vehicule_actuel?.nombre_part_max }} colis)
+                            </p>
+
+                            <div v-if="suite === 'reassigner'">
+                                <p v-if="candidatsReassignation.length === 0" class="text-[12px] text-rose-600">
+                                    Aucun chauffeur disponible n'a un véhicule de même type ou plus grand : répartissez
+                                    la tournée entre plusieurs chauffeurs.
+                                </p>
+                                <select
+                                    v-else
+                                    v-model="idChauffeurReassigne"
+                                    class="w-full text-[13px] border border-surface-border rounded-lg px-2 py-1.5 bg-surface"
+                                >
+                                    <option :value="null" disabled>Choisir un chauffeur…</option>
+                                    <option
+                                        v-for="c in candidatsReassignation"
+                                        :key="c.id_personne"
+                                        :value="c.id_personne"
+                                    >
+                                        {{ c.prenom }} {{ c.nom }} — {{ c.vehicule }} · {{ c.capacite_kg }} kg ·
+                                        {{ c.nombre_part_max }} colis{{ c.en_livraison ? " · ⚠️ en livraison" : "" }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div v-if="suite === 'repartir'" class="space-y-1">
+                                <p v-if="optionsChauffeur.candidats.length < 2" class="text-[12px] text-rose-600">
+                                    Il faut au moins deux chauffeurs disponibles sur ce créneau pour répartir la
+                                    tournée.
+                                </p>
+                                <label
+                                    v-for="c in optionsChauffeur.candidats"
+                                    :key="c.id_personne"
+                                    class="flex items-center gap-2 text-[13px] cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="idsRepartition.includes(c.id_personne)"
+                                        @change="basculerRepartition(c.id_personne)"
+                                    />
+                                    <span>
+                                        {{ c.prenom }} {{ c.nom }} — {{ c.vehicule }} · {{ c.capacite_kg }} kg ·
+                                        {{ c.nombre_part_max }} colis{{ c.en_livraison ? " · ⚠️ en livraison" : "" }}
+                                    </span>
+                                </label>
+                            </div>
+
+                            <button
+                                v-if="optionsChauffeur.id_route_non_retour !== null"
+                                type="button"
+                                :disabled="enCours"
+                                @click="remettreDansLePool(selection)"
+                                class="px-3 py-1.5 rounded-lg border border-surface-border text-[12.5px] text-ink hover:bg-stone-50 disabled:opacity-60"
+                            >
+                                ↩️ Le chauffeur est finalement revenu — le remettre dans le pool
+                            </button>
+                        </template>
                     </div>
 
                     <div v-if="suite === 'chauffeur'" class="pl-6">

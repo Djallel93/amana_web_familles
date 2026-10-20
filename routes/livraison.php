@@ -223,6 +223,9 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // Rouvrir une tournée terminée (11/10/2026) — admin uniquement.
     Route::post('/routes/{route}/rouvrir', [MaRouteController::class, 'rouvrir'])
         ->middleware('role:admin')->name('routes.rouvrir');
+    // Chauffeur ayant répondu « Non » à « Revenez-vous au QG ? » → de nouveau dans le pool (18/10/2026).
+    Route::post('/routes/{route}/remettre-dans-le-pool', [MaRouteController::class, 'remettreDansLePool'])
+        ->name('routes.remettre-dans-le-pool');
     Route::post('/campagnes/{campagne}/routes-personnalisees', [LiveBoardController::class, 'construireRoutePersonnalisee'])
         ->name('routes.personnalisee');
 

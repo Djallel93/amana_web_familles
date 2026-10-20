@@ -94,6 +94,14 @@ return new class extends Migration
             $table->decimal('poids_total_kg', 7, 2)->nullable();
             $table->text('lien_maps')->nullable();
 
+            // Réponse du chauffeur à « Revenez-vous au QG ? » (18/10/2026) : null = pas encore de
+            // réponse, true = « Oui » (de retour, de nouveau disponible), false = « Non » (il ne
+            // revient pas : parti, hors du pool de chauffeurs disponibles). Avant, le « Non » ne
+            // laissait aucune trace — la tournée restait 'livraisons_terminees' sans qu'on puisse
+            // distinguer « pas répondu » de « ne revient pas ».
+            $table->boolean('retour_qg')->nullable();
+            $table->timestamp('retour_qg_le')->nullable();
+
             $table->unsignedInteger('locked_by')->nullable()
                 ->comment('ref_personnes.id — même verrouillage que familles.locked_by, pas de FK');
             $table->timestamp('locked_at')->nullable();
@@ -164,7 +172,7 @@ return new class extends Migration
             // id_campagne : renseigné quand id_route est null (type retrait_hq_non_livre) ;
             // sinon la campagne est celle de la route.
             $table->foreignId('id_campagne')->nullable()->constrained('campagnes')->cascadeOnDelete();
-            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace']);
+            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace', 'chauffeur_indisponible']);
             $table->foreignId('id_livraison')->nullable()
                 ->constrained('livraisons')
                 ->nullOnDelete()

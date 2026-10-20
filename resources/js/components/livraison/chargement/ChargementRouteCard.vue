@@ -246,6 +246,21 @@ async function supprimer() {
             </div>
         </div>
 
+        <!-- Avertissement (18/10/2026) : le chauffeur n'est pas rentré au QG — l'équipe chargement doit le savoir. -->
+        <p
+            v-if="route.chauffeur_alerte === 'en_livraison'"
+            class="mt-3 rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-[12.5px] text-amber-900"
+        >
+            ⚠️ Ce chauffeur n'est pas encore rentré au QG : sa tournée précédente est toujours en cours.
+        </p>
+        <p
+            v-else-if="route.chauffeur_alerte === 'parti'"
+            class="mt-3 rounded-lg border border-rose-300 bg-rose-100 px-3 py-2 text-[12.5px] text-rose-900"
+        >
+            ⚠️ Ce chauffeur a répondu « Non » au retour au QG : il ne reviendra pas. Voir l'incident pour réassigner ou
+            répartir cette tournée.
+        </p>
+
         <!-- Bandeau de chiffres + progression. -->
         <div v-if="!route.vide" class="mt-3 grid grid-cols-3 gap-2 text-center">
             <div class="rounded-lg bg-stone-50 border border-surface-border px-2 py-1.5">

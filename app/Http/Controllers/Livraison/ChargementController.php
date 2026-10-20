@@ -141,6 +141,34 @@ class ChargementController extends Controller
     }
 
     /**
+     * Chauffeurs de la campagne pas (encore) de retour au QG (18/10/2026) : id_benevole => 'parti' (réponse « Non »
+     * au retour) ou 'en_livraison' (tournée en cours, ou terminée sans réponse sur le retour).
+     *
+     * @param  \Illuminate\Support\Collection<int, RouteLivraison>  $routes
+     * @return array<int, string>
+     */
+    private function alertesChauffeurs(\Illuminate\Support\Collection $routes): array
+    {
+        $alertes = [];
+        foreach ($routes as $route) {
+            $idBenevole = (int) $route->id_benevole;
+            if ($idBenevole === 0) {
+                continue;
+            }
+            if ($route->retour_qg === false) {
+                $alertes[$idBenevole] = 'parti';
+            } elseif (
+                ($route->statut === 'en_cours' || ($route->statut === 'livraisons_terminees' && $route->retour_qg === null))
+                && ($alertes[$idBenevole] ?? null) !== 'parti'
+            ) {
+                $alertes[$idBenevole] = 'en_livraison';
+            }
+        }
+
+        return $alertes;
+    }
+
+    /**
      * Données de l'écran, partagées par index() et liste().
      *
      * Statut affiché dérivé du conditionnement (06/10/2026) — voir StatutChargement :
@@ -161,8 +189,17 @@ class ChargementController extends Controller
             ->where('statut', '!=', 'annulee')
             // vehiculeType + colis (09/10/2026) : type de véhicule et nombre de colis à charger de la carte.
             ->with(['benevole', 'vehiculeType', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux', 'etapes.livraison.colis'])
-            ->get()
-            ->map(function (RouteLivraison $route) {
+            ->get();
+
+        // 18/10/2026 : chauffeurs pas encore rentrés au QG, pour avertir l'équipe chargement.
+        $alertes = $this->alertesChauffeurs($routes);
+
+        $routes = $routes
+            ->map(function (RouteLivraison $route) use ($alertes) {
+                // Chauffeur d'une tournée à charger encore en livraison (ou parti) : l'équipe doit le savoir.
+                $route->chauffeur_alerte = in_array($route->statut, RouteLivraison::STATUTS_PAS_PARTIE, true)
+                    ? ($alertes[$route->id_benevole] ?? null)
+                    : null;
                 // Une tournée déjà partie n'a plus rien à charger : pas d'urgence (17/10/2026).
                 $route->urgence = in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true) ? null : $this->calculerUrgence($route);
                 // Une tournée sans arrêt est « restante » à l'écran (StatutChargement::pourRoute()
@@ -293,6 +330,8 @@ class ChargementController extends Controller
             'etat_libelle' => StatutChargement::LIBELLES[$route->etat],
             'etat_style' => StatutChargement::STYLES[$route->etat],
             'urgence' => $route->urgence,
+            // « en_livraison » : le chauffeur n'est pas encore rentré ; « parti » : il a répondu « Non » au retour au QG.
+            'chauffeur_alerte' => $route->chauffeur_alerte ?? null,
             'vide' => $vide && !in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true),
             // Route déjà partie (en livraison / terminée) : affichée en lecture seule (17/10/2026).
             'partie' => in_array($route->statut, StatutChargement::STATUTS_ROUTE_PARTIE, true),

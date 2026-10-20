@@ -42,7 +42,7 @@ class RouteIncident extends Model
      * l'équipe chargement doit savoir que ce colis n'est plus disponible
      * tant que gestionnaire/admin n'a pas marqué l'incident résolu.
      */
-    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace'];
+    public const TYPES = ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace', 'chauffeur_indisponible'];
 
     public const STATUTS = ['ouvert', 'ignore', 'resolu'];
 
@@ -65,6 +65,8 @@ class RouteIncident extends Model
         'retrait_hq_non_livre' => 'Retrait QG non livré',
         // 11/10/2026 : un chauffeur imposé l'emporte sur « se déplace au QG » — voir LivraisonChangementService.
         'se_deplace_remplace' => 'Retrait QG remplacé par une livraison',
+        // 18/10/2026 : un chauffeur retenu pour une tournée a répondu « Non » à « Revenez-vous au QG ? » — voir RetourQgService.
+        'chauffeur_indisponible' => 'Chauffeur indisponible',
     ];
 
     // Types pour lesquels `statut` est sans objet (jalon, pas alerte actionnable).
@@ -117,6 +119,8 @@ class RouteIncident extends Model
                 . '(confirmé par erreur). La tournée est de nouveau « prête à charger » : vérifier que le chauffeur n\'est pas déjà parti.',
             'se_deplace_remplace' => "{$famille} devait venir chercher son colis au QG, mais un chauffeur lui a été imposé : "
                 . 'sa livraison à domicile remplace le retrait. La contacter pour l\'informer qu\'elle n\'a plus besoin de se déplacer, puis résoudre l\'incident.',
+            'chauffeur_indisponible' => "{$chauffeur} a répondu « Non » à « Revenez-vous au QG ? » alors que la {$tournee} lui était déjà attribuée : "
+                . 'il ne sera pas là pour la livrer. Réassigner la tournée à un chauffeur au véhicule de même type ou plus grand, ou la répartir entre plusieurs chauffeurs.',
             default => 'Incident de tournée.',
         };
 

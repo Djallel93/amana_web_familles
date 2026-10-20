@@ -5,21 +5,19 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Livraison;
 
-use Amana\Shared\Models\Personne;
 use App\Http\Controllers\Controller;
 use App\Models\BenevoleRetourQg;
 use App\Models\Campagne;
 use App\Models\EtapeRoute;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
-use App\Notifications\DemandeNouvelleTourneeNotification;
 use App\Services\MaRouteVueService;
+use App\Services\RetourQgService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -125,7 +123,7 @@ class MaRouteController extends Controller
         }
 
         DB::transaction(function () use ($route) {
-            $route->update(['statut' => 'livraisons_terminees']);
+            $route->update(['statut' => 'livraisons_terminees', 'retour_qg' => null, 'retour_qg_le' => null]);
             BenevoleRetourQg::where('id_route_origine', $route->id)->delete();
         });
 
@@ -303,33 +301,36 @@ class MaRouteController extends Controller
      * persisté) par un état que le tableau de bord peut effectivement
      * interroger, plutôt qu'un email à repérer manuellement.
      */
-    public function retourQg(RouteLivraison $route): JsonResponse
+    public function retourQg(Request $request, RouteLivraison $route, RetourQgService $retourQg): JsonResponse
     {
         if (!$this->peutAgirSur($route)) {
             throw ValidationException::withMessages(['route' => "Cette tournée n'est pas la vôtre."]);
         }
 
-        if ($route->statut !== 'livraisons_terminees') {
-            throw ValidationException::withMessages(['route' => "La livraison n'est pas encore marquée terminée."]);
+        // 18/10/2026 : `retour` = false pour le « Non » (jusqu'ici rien n'était envoyé) ; absent = « Oui »,
+        // compatible avec les clients qui n'envoient pas le champ.
+        $retour = $request->boolean('retour', true);
+
+        try {
+            $retourQg->enregistrer($route, $retour, auth()->id());
+        } catch (\RuntimeException $e) {
+            throw ValidationException::withMessages(['route' => $e->getMessage()]);
         }
 
-        $route->update(['statut' => 'terminee']);
+        return response()->json(['success' => true, 'retour' => $retour]);
+    }
 
-        BenevoleRetourQg::create([
-            'id_campagne' => $route->id_campagne,
-            // Le chauffeur de la tournée, pas auth()->id() : un admin qui
-            // clôt la tournée à sa place (voirCommeChauffeur()) ne devient
-            // pas "disponible pour le prochain lot".
-            'id_personne' => $route->id_benevole,
-            'id_route_origine' => $route->id,
-            'disponible_depuis' => now(),
-        ]);
-
-        $destinataires = Personne::adminsDe()->orWhere(
-            fn($q) => $q->avecRole('gestionnaire'),
-        )->get();
-
-        Notification::send($destinataires, new DemandeNouvelleTourneeNotification($route));
+    /**
+     * « Remettre dans le pool » (18/10/2026, gestionnaire/admin — voir routes/livraison.php) : un chauffeur ayant
+     * répondu « Non » est de nouveau disponible pour les prochains lots de tournées.
+     */
+    public function remettreDansLePool(RouteLivraison $route, RetourQgService $retourQg): JsonResponse
+    {
+        try {
+            $retourQg->remettreDansLePool($route);
+        } catch (\RuntimeException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
 
         return response()->json(['success' => true]);
     }

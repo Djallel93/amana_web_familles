@@ -313,6 +313,58 @@ class CampagneHubTest extends TestCase
         $reponse->assertJsonPath('incidents_ouverts', 1)->assertJsonPath('statut', 'preparation');
     }
 
+    // ── « Tournée terminée » = livraisons terminées OU terminée (18/10/2026) ─────
+
+    public function test_avancement_compte_une_tournee_livraisons_terminees_comme_terminee(): void
+    {
+        // Les deux chauffeurs ont répondu « Non » à « Revenez-vous au QG ? » : leur tournée reste
+        // 'livraisons_terminees'. Avant : pastille « 0/2 tournées terminées » alors que tout était livré.
+        $campagne = $this->creerCampagne();
+        $this->creerRoute($campagne, 'livraisons_terminees')->update(['retour_qg' => false]);
+        $this->creerRoute($campagne, 'livraisons_terminees')->update(['retour_qg' => false]);
+
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.avancement', $campagne))
+            ->assertOk()
+            ->assertJsonPath('compteurs.routes_terminees', 2)
+            ->assertJsonPath('compteurs.routes_total', 2);
+    }
+
+    public function test_avancement_melange_terminee_et_livraisons_terminees_mais_pas_en_cours(): void
+    {
+        $campagne = $this->creerCampagne();
+        $this->creerRoute($campagne, 'terminee');
+        $this->creerRoute($campagne, 'livraisons_terminees');
+        $this->creerRoute($campagne, 'en_cours');
+
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.avancement', $campagne))
+            ->assertOk()
+            ->assertJsonPath('compteurs.routes_terminees', 2)
+            ->assertJsonPath('compteurs.routes_total', 3);
+    }
+
+    public function test_cloture_ne_bloque_plus_sur_une_tournee_livraisons_terminees(): void
+    {
+        $campagne = $this->creerCampagne();
+        $this->creerRoute($campagne, 'livraisons_terminees');
+        $enCours = $this->creerRoute($campagne, 'en_cours');
+
+        $reponse = $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.cloture', $campagne))->assertOk();
+
+        $this->assertSame([$enCours->id], collect($reponse->json('routes_non_terminees'))->pluck('id')->all());
+    }
+
+    public function test_statistiques_de_suivi_comptent_les_tournees_livraisons_terminees(): void
+    {
+        $campagne = $this->creerCampagne();
+        $this->creerRoute($campagne, 'livraisons_terminees');
+        $this->creerRoute($campagne, 'terminee');
+        $this->creerRoute($campagne, 'en_cours');
+
+        $this->actingAs($this->gestionnaire())->getJson(route('livraison.campagnes.suivi-livraison-statistiques', $campagne))
+            ->assertOk()
+            ->assertJsonPath('tournees_terminees', 2);
+    }
+
     public function test_terminer_est_refuse_tant_quune_tournee_nest_pas_terminee(): void
     {
         $campagne = $this->creerCampagne();

@@ -264,11 +264,17 @@ class RouteGenerationService
      * créneau). Source de la liste de l'assistant (modes automatique et
      * personnalisé) — mêmes règles que vehiculesDisponiblesPour().
      *
-     * @return array<int, array{id_personne: int, nom: string, prenom: string, id_vehicule_type: int, vehicule: string, capacite_kg: float, nombre_part_max: int, ids_secteurs: int[], occupe: bool, id_route: int|null}>
+     * Depuis le 18/10/2026 : `parti` (le chauffeur a répondu « Non » à « Revenez-vous au QG ? » sur une tournée de
+     * la journée — il ne revient pas, jamais proposé) et `en_livraison` (une tournée de la journée est en cours ou
+     * terminée sans réponse sur le retour : sélectionnable, mais l'assistant affiche un avertissement indicatif —
+     * un créneau dure 2 h, il peut enchaîner plusieurs allers-retours).
+     *
+     * @return array<int, array{id_personne: int, nom: string, prenom: string, id_vehicule_type: int, vehicule: string, capacite_kg: float, nombre_part_max: int, ids_secteurs: int[], occupe: bool, id_route: int|null, parti: bool, en_livraison: bool}>
      */
     public function chauffeursDisponibles(CampagneJournee $journee, string $creneau): array
     {
         $occupes = $this->routesActivesParChauffeur($journee, $creneau);
+        $etats = $this->etatsRetourParChauffeur($journee);
 
         $liste = [];
         foreach ($this->candidatsPour($journee, $creneau) as $candidat) {
@@ -284,10 +290,12 @@ class RouteGenerationService
                 'ids_secteurs' => $candidat['ids_secteurs'],
                 'occupe' => isset($occupes[$candidat['id_benevole']]),
                 'id_route' => $occupes[$candidat['id_benevole']] ?? null,
+                'parti' => $etats[$candidat['id_benevole']]['parti'] ?? false,
+                'en_livraison' => $etats[$candidat['id_benevole']]['en_livraison'] ?? false,
             ];
         }
 
-        usort($liste, fn($a, $b) => [$a['occupe'], $a['nom'], $a['prenom']] <=> [$b['occupe'], $b['nom'], $b['prenom']]);
+        usort($liste, fn($a, $b) => [$a['parti'], $a['occupe'], $a['nom'], $a['prenom']] <=> [$b['parti'], $b['occupe'], $b['nom'], $b['prenom']]);
 
         return $liste;
     }
@@ -327,6 +335,52 @@ class RouteGenerationService
     private function geocodees(Collection $pool): Collection
     {
         return $pool->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)->values();
+    }
+
+    /**
+     * Ce chauffeur a-t-il répondu « Non » à « Revenez-vous au QG ? » sur une tournée de cette journée (18/10/2026) ?
+     * Si oui il n'est plus dans le pool : ni l'assistant (automatique ou personnalisé), ni la génération ne le
+     * retiennent, quel que soit le créneau — jusqu'à ce qu'il réponde « Oui » ou qu'un gestionnaire le remette dans
+     * le pool (RetourQgService::remettreDansLePool()).
+     */
+    public function chauffeurEstParti(CampagneJournee $journee, int $idBenevole): bool
+    {
+        return $this->etatsRetourParChauffeur($journee)[$idBenevole]['parti'] ?? false;
+    }
+
+    /**
+     * État « retour au QG » des chauffeurs d'une journée (18/10/2026) : id_benevole => [parti, en_livraison].
+     *  - parti        : au moins une de ses tournées de la journée a retour_qg = false (réponse « Non ») ;
+     *  - en_livraison : une tournée 'en_cours', ou 'livraisons_terminees' SANS réponse (retour_qg null), et il
+     *                   n'est pas parti.
+     *
+     * @return array<int, array{parti: bool, en_livraison: bool}>
+     */
+    private function etatsRetourParChauffeur(CampagneJournee $journee): array
+    {
+        $routes = RouteLivraison::where('id_campagne_journee', $journee->id)
+            ->whereNotNull('id_benevole')
+            ->whereIn('statut', ['en_cours', 'livraisons_terminees', 'terminee'])
+            ->get(['id_benevole', 'statut', 'retour_qg']);
+
+        $etats = [];
+        foreach ($routes as $route) {
+            $etat = $etats[$route->id_benevole] ?? ['parti' => false, 'en_livraison' => false];
+            if ($route->retour_qg === false) {
+                $etat['parti'] = true;
+            } elseif ($route->statut === 'en_cours' || ($route->statut === 'livraisons_terminees' && $route->retour_qg === null)) {
+                $etat['en_livraison'] = true;
+            }
+            $etats[$route->id_benevole] = $etat;
+        }
+
+        foreach ($etats as $idBenevole => $etat) {
+            if ($etat['parti']) {
+                $etats[$idBenevole]['en_livraison'] = false;
+            }
+        }
+
+        return $etats;
     }
 
     /**
@@ -709,12 +763,19 @@ class RouteGenerationService
     private function vehiculesDisponiblesPour(CampagneJournee $journee, string $creneau, ?array $idsBenevoles = null): array
     {
         $occupes = $this->routesActivesParChauffeur($journee, $creneau);
+        $etats = $this->etatsRetourParChauffeur($journee);
         $vehicules = [];
 
         foreach ($this->candidatsPour($journee, $creneau) as $candidat) {
             // Chauffeur déjà en tournée sur ce créneau : jamais une seconde
             // tournée au même moment (06/10/2026).
             if (isset($occupes[$candidat['id_benevole']])) {
+                continue;
+            }
+
+            // Chauffeur parti (réponse « Non » au retour au QG, 18/10/2026) : hors du pool, même si
+            // l'assistant l'avait coché (la coche a pu être posée avant sa réponse).
+            if ($etats[$candidat['id_benevole']]['parti'] ?? false) {
                 continue;
             }
 

@@ -545,6 +545,8 @@ export const TYPES_INCIDENT = [
     "retrait_hq_non_livre",
     // 11/10/2026 : famille se_deplace remplacée par un chauffeur imposé — pas de tournée (id_route null).
     "se_deplace_remplace",
+    // 18/10/2026 : chauffeur retenu pour une tournée pas encore partie qui répond « Non » au retour au QG.
+    "chauffeur_indisponible",
 ] as const;
 export type TypeIncident = (typeof TYPES_INCIDENT)[number];
 
@@ -685,6 +687,10 @@ export interface ChauffeurDisponible {
     /** Déjà une tournée active sur ce créneau : affiché grisé, non sélectionnable. */
     occupe: boolean;
     id_route: number | null;
+    /** A répondu « Non » à « Revenez-vous au QG ? » (18/10/2026) : hors du pool, grisé, non sélectionnable. */
+    parti: boolean;
+    /** Tournée en cours (ou terminée sans réponse sur le retour) : sélectionnable, avertissement indicatif. */
+    en_livraison: boolean;
 }
 
 /** Réponse de LiveBoardController::apercuGeneration(). */
@@ -723,9 +729,39 @@ export interface IncidentsUrls {
     options: string;
     /** Résoudre avec une suite à donner à la famille (livraison ignorée / retrait QG non livré). */
     resoudreSuite: string;
+    /** Remettre dans le pool un chauffeur ayant répondu « Non » (18/10/2026) ; `__ID__` = id de la tournée. */
+    remettreDansLePool: string;
 }
 
 /** Réponse de IncidentsController::options(). */
 export interface OptionsIncident {
     tournees: { id: number; libelle: string }[];
+}
+
+/** Candidat à la reprise d'une tournée (incident « chauffeur indisponible », 18/10/2026). */
+export interface CandidatChauffeur {
+    id_personne: number;
+    nom: string;
+    prenom: string;
+    id_vehicule_type: number;
+    vehicule: string;
+    capacite_kg: number;
+    nombre_part_max: number;
+    /** Encore en livraison : sélectionnable, avertissement indicatif. */
+    en_livraison: boolean;
+    /** Véhicule de même type ou plus grand (capacité kg ET colis) : peut reprendre la tournée en entier. */
+    assez_grand: boolean;
+}
+
+/** Réponse de IncidentsController::options() pour un incident « chauffeur indisponible ». */
+export interface OptionsChauffeurIndisponible {
+    resoluble: boolean;
+    message: string | null;
+    id_route: number | null;
+    /** Tournée où le chauffeur a répondu « Non » (cible de « Remettre dans le pool »). */
+    id_route_non_retour: number | null;
+    nb_arrets: number;
+    chauffeur_actuel: string | null;
+    vehicule_actuel: { type: string | null; capacite_kg: number; nombre_part_max: number } | null;
+    candidats: CandidatChauffeur[];
 }

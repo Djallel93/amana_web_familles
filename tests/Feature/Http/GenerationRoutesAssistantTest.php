@@ -520,6 +520,56 @@ class GenerationRoutesAssistantTest extends TestCase
         $this->assertSame('non_assignee', $imposee->fresh()->statut);
     }
 
+    // ── Chauffeur parti / en livraison (18/10/2026) ──────────────────────
+
+    public function test_le_mode_personnalise_refuse_un_chauffeur_qui_a_repondu_non_au_retour_au_qg(): void
+    {
+        $chauffeur = $this->chauffeur();
+        $livraison = $this->livraison();
+        RouteLivraison::create([
+            'id_campagne' => $this->campagne->id,
+            'id_campagne_journee' => $this->journee->id,
+            'id_benevole' => $chauffeur->id,
+            'id_vehicule_type' => $this->vehicules['voiture'],
+            'creneau' => null,
+            'statut' => 'livraisons_terminees',
+            'retour_qg' => false,
+        ]);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.routes.personnalisee', $this->campagne), $this->parametres([
+                'id_benevole' => $chauffeur->id,
+                'ids_livraisons' => [$livraison->id],
+            ]))
+            ->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertSame(1, RouteLivraison::where('id_benevole', $chauffeur->id)->count());
+    }
+
+    public function test_le_mode_personnalise_accepte_un_chauffeur_encore_en_livraison(): void
+    {
+        // L'avertissement « en livraison » est indicatif : un créneau dure 2 h, le chauffeur peut enchaîner.
+        $chauffeur = $this->chauffeur();
+        $livraison = $this->livraison();
+        RouteLivraison::create([
+            'id_campagne' => $this->campagne->id,
+            'id_campagne_journee' => $this->journee->id,
+            'id_benevole' => $chauffeur->id,
+            'id_vehicule_type' => $this->vehicules['voiture'],
+            'creneau' => null,
+            'statut' => 'en_cours',
+        ]);
+
+        $this->actingAs($this->gestionnaire())
+            ->postJson(route('livraison.routes.personnalisee', $this->campagne), $this->parametres([
+                'id_benevole' => $chauffeur->id,
+                'ids_livraisons' => [$livraison->id],
+            ]))
+            ->assertOk()
+            ->assertJsonPath('success', true);
+    }
+
     // ── Familles proposées au mode personnalisé ──────────────────────────
 
     public function test_le_tableau_des_familles_filtre_par_creneau_et_exclut_retrait_qg_et_imposees(): void

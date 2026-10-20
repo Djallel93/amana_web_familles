@@ -80,6 +80,7 @@ class RouteIncidentNotification extends Notification
             'chargement_annule' => 'Chargement annulé',
             'retrait_hq_non_livre' => 'Retrait QG non livré',
             'se_deplace_remplace' => 'Retrait QG remplacé par une livraison',
+            'chauffeur_indisponible' => 'Chauffeur indisponible',
             default => $this->incident->type,
         };
     }

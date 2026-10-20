@@ -29,6 +29,8 @@ export interface RouteChargement {
     etat_libelle: string;
     etat_style: string;
     urgence: "famille" | "benevole" | null;
+    /** Chauffeur pas encore rentré au QG (18/10/2026) : « en_livraison » ou « parti » (a répondu « Non »). */
+    chauffeur_alerte: "en_livraison" | "parti" | null;
     vide: boolean;
     /** Tournée déjà partie (en livraison / terminée) : lecture seule. */
     partie: boolean;

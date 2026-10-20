@@ -104,6 +104,7 @@ onUnmounted(() => {
                 :rouvrir-url-template="urls.rouvrir"
                 :options-url-template="urls.options"
                 :resoudre-suite-url-template="urls.resoudreSuite"
+                :remettre-dans-le-pool-url-template="urls.remettreDansLePool"
                 @change="emit('change')"
             />
         </div>

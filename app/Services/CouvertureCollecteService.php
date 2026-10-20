@@ -26,16 +26,22 @@ use App\Models\Livraison;
  * Définitions (mêmes livraisons que l'écran packaging : statut_contact =
  * 'confirme', hors 'ignoree') :
  *  - collecte    : somme des donations.poids_kg ;
- *  - engagé      : poids_kg des livraisons déjà livrées OU déjà
- *                  conditionnées / en cours de conditionnement — ces colis
- *                  existent physiquement à l'ancien poids, et
- *                  recalculerPoids() n'y touche jamais ;
- *  - reste       : poids des livraisons pas encore conditionnées
- *                  (statut_conditionnement = 'en_attente', ni livrées),
- *                  calculé AUX POIDS MOYENS ACTUELS via
- *                  Livraison::calculerPoidsKg() — ce que recalculerPoids()
- *                  leur donnerait — et non d'après leur poids_kg figé, qui
- *                  peut dater d'avant une modification du poids moyen ;
+ *  - engagé      : poids_kg des livraisons déjà livrées OU entièrement
+ *                  conditionnées ('prete'), plus, pour une livraison en cours
+ *                  de conditionnement ('en_cours'), la part de son poids_kg
+ *                  correspondant à ses colis DÉJÀ PRÊTS (poids_kg × prêts /
+ *                  total) — ces colis existent physiquement à l'ancien poids,
+ *                  et recalculerPoids() n'y touche jamais ;
+ *  - reste       : poids de ce qui n'est pas encore conditionné, calculé AUX
+ *                  POIDS MOYENS ACTUELS via Livraison::calculerPoidsKg() — ce
+ *                  que recalculerPoids() leur donnerait — et non d'après leur
+ *                  poids_kg figé, qui peut dater d'avant une modification du
+ *                  poids moyen : les livraisons 'en_attente' en entier, et la
+ *                  part des colis 'a_preparer' des livraisons 'en_cours'
+ *                  (18/10/2026 : avant, une famille dont au moins un colis
+ *                  était prêt sortait du reste ET comptait en entier dans
+ *                  l'engagé — « Reste à conditionner » tombait à 0 alors que
+ *                  des familles n'avaient pas tous leurs colis prêts) ;
  *  - disponible  : collecte − engagé ;
  *  - couverture  : disponible / reste (peut dépasser 1 = surplus).
  *
@@ -67,24 +73,47 @@ class CouvertureCollecteService
             ->where('statut_contact', 'confirme')
             ->where('statut', '!=', 'ignoree');
 
+        // Livrées ou entièrement conditionnées : poids_kg en entier.
         $engage = (float) $base()
             ->where(function ($q) {
                 $q->where('statut', 'livree')
-                    ->orWhereIn('statut_conditionnement', ['prete', 'en_cours']);
+                    ->orWhere('statut_conditionnement', 'prete');
             })
             ->sum('poids_kg');
 
+        // Pas livrées, ni entièrement prêtes : 'en_attente' (aucun colis prêt) ou 'en_cours' (conditionnement
+        // commencé). Pour chaque livraison, nombre de colis prêts et total — la part prête est engagée à son
+        // poids figé, la part à préparer reste à conditionner aux poids moyens actuels.
         $restantes = $base()
             ->where('statut', '!=', 'livree')
-            ->where('statut_conditionnement', 'en_attente')
+            ->whereIn('statut_conditionnement', ['en_attente', 'en_cours'])
             ->with('famille:id,etudiant,est_hotel')
-            ->select(['id', 'id_famille', 'nombre_personnes', 'poids_kg'])
+            // select() AVANT withCount() : select() remplace la liste des colonnes, donc l'appeler après
+            // withCount() supprimait les sous-requêtes de comptage (colis_total/colis_prets valaient alors
+            // toujours 0 et chaque livraison commencée était comptée comme non commencée).
+            ->select(['id', 'id_famille', 'nombre_personnes', 'poids_kg', 'statut_conditionnement'])
+            ->withCount([
+                'colis as colis_total',
+                'colis as colis_prets' => fn($q) => $q->where('statut', 'pret'),
+            ])
             ->get();
 
         $resteAuTauxActuel = 0.0;
-        $resteFige = 0.0;
+        $resteFigeComparable = 0.0;
+        $resteActuelComparable = 0.0;
         $exclues = 0;
         foreach ($restantes as $livraison) {
+            // Part de colis à préparer (1 pour une livraison 'en_attente'). Une livraison 'en_cours' sans colis
+            // enregistrés (ne devrait pas arriver) est traitée comme non commencée.
+            // Attributs posés par withCount() : lus via getAttribute() (ce ne sont pas des colonnes du modèle).
+            $total = (int) $livraison->getAttribute('colis_total');
+            $prets = $total > 0 ? min((int) $livraison->getAttribute('colis_prets'), $total) : 0;
+            $partPreparer = $total > 0 ? ($total - $prets) / $total : 1.0;
+            $partPrete = 1.0 - $partPreparer;
+
+            // La part déjà prête est engagée à son poids figé, quoi qu'il arrive au calcul du reste ci-dessous.
+            $engage += (float) $livraison->poids_kg * $partPrete;
+
             // calculerPoidsKg() lève LogicException pour une famille à la
             // fois etudiant ET est_hotel (anomalie de données, voir son
             // docblock) : on l'écarte de l'estimation et on la compte,
@@ -105,8 +134,15 @@ class CouvertureCollecteService
                 continue;
             }
 
-            $resteAuTauxActuel += $poidsActuel;
-            $resteFige += (float) $livraison->poids_kg;
+            $resteAuTauxActuel += $poidsActuel * $partPreparer;
+
+            // recalcul_necessaire ne porte que sur les livraisons 'en_attente' : recalculerPoids() ne touche
+            // pas aux livraisons déjà commencées (leur poids_kg figé reste), les comparer ferait afficher
+            // « recalcul nécessaire » en permanence.
+            if ($livraison->statut_conditionnement === 'en_attente') {
+                $resteFigeComparable += (float) $livraison->poids_kg;
+                $resteActuelComparable += $poidsActuel;
+            }
         }
 
         $disponible = $collecte - $engage;
@@ -141,7 +177,7 @@ class CouvertureCollecteService
             'poids_moyen_realisable' => $realisable,
             // poids_kg figés ≠ poids aux taux actuels : un poids moyen a été
             // modifié sans "Recalculer les livraisons non conditionnées".
-            'recalcul_necessaire' => abs($resteFige - $resteAuTauxActuel) > 0.05,
+            'recalcul_necessaire' => abs($resteFigeComparable - $resteActuelComparable) > 0.05,
             'livraisons_exclues' => $exclues,
         ];
     }

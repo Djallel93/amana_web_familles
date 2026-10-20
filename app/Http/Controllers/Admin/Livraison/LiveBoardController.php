@@ -262,7 +262,8 @@ class LiveBoardController extends Controller
             'tournees_total' => $routes->count(),
             'tournees_actives' => $routes->count() - ($routesParStatut['annulee'] ?? 0),
             'tournees_annulees' => $routesParStatut['annulee'] ?? 0,
-            'tournees_terminees' => $routesParStatut['terminee'] ?? 0,
+            // 18/10/2026 : 'livraisons_terminees' compte (voir RouteLivraison::STATUTS_TERMINES).
+            'tournees_terminees' => ($routesParStatut['terminee'] ?? 0) + ($routesParStatut['livraisons_terminees'] ?? 0),
             'livraisons_restantes' => $etapesParStatut['en_attente'] ?? 0,
             'livraisons_en_cours' => $etapesParStatut['en_cours'] ?? 0,
             'livraisons_livrees' => $etapesLivrees,
@@ -479,6 +480,14 @@ class LiveBoardController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Ce chauffeur a déjà une tournée sur ce créneau : ajoutez-lui des familles depuis Suivi livraison.',
+            ], 422);
+        }
+
+        // 18/10/2026 : un chauffeur qui a répondu « Non » à « Revenez-vous au QG ? » ne revient pas — hors du pool.
+        if ($chauffeur['parti']) {
+            return response()->json([
+                'success' => false,
+                'message' => "Ce chauffeur a répondu « Non » au retour au QG : il n'est plus disponible. Remettez-le dans le pool depuis Suivi livraison s'il est finalement revenu.",
             ], 422);
         }
 

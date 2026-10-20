@@ -522,7 +522,15 @@ async function rouvrir() {
             <h2 class="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-ink-muted mb-3">
                 <span>{{ section.emoji }}</span> {{ section.titre }}
             </h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <!-- Section à carte unique (« Génération des routes » / « Démarrage », 18/10/2026) : la carte est
+                 centrée au lieu de rester calée à gauche d'une grille de 3 colonnes presque vide. -->
+            <div
+                :class="
+                    section.cartes.length === 1
+                        ? 'flex justify-center'
+                        : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3'
+                "
+            >
                 <!-- Carte-lien, carte-bouton (démarrer / générer) ou carte grisée
                      (campagne pas encore démarrée). -->
                 <component
@@ -535,13 +543,14 @@ async function rouvrir() {
                     :title="carte.desactivee && !carte.action ? 'Démarrez la campagne pour y accéder' : undefined"
                     @click="carte.action ? clicCarte(carte) : undefined"
                     class="group flex flex-col gap-1.5 rounded-xl border-2 p-4 text-left no-underline transition-all"
-                    :class="
+                    :class="[
+                        section.cartes.length === 1 ? 'w-full sm:max-w-md' : '',
                         carte.desactivee
                             ? 'bg-stone-50 border-stone-200 opacity-60 cursor-not-allowed'
                             : carte.surbrillance
                               ? 'bg-amber-50 border-amber-400 hover:border-accent hover:shadow-md active:scale-[0.99] cursor-pointer'
-                              : `bg-surface ${section.bordure} hover:border-accent hover:shadow-md active:scale-[0.99] cursor-pointer`
-                    "
+                              : `bg-surface ${section.bordure} hover:border-accent hover:shadow-md active:scale-[0.99] cursor-pointer`,
+                    ]"
                 >
                     <div class="flex items-start justify-between gap-2">
                         <span class="text-[26px] leading-none" :class="carte.desactivee ? 'grayscale' : ''">{{

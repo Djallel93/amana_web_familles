@@ -227,13 +227,23 @@ const chauffeursVisibles = computed(() => {
     });
 });
 
-const libres = computed(() => chauffeursVisibles.value.filter((c) => !c.occupe));
+// Indisponible = déjà en tournée sur ce créneau OU parti (« Non » au retour au QG, 18/10/2026).
+function indisponible(c: ChauffeurDisponible): boolean {
+    return c.occupe || c.parti;
+}
+
+const libres = computed(() => chauffeursVisibles.value.filter((c) => !indisponible(c)));
+
+// Chauffeurs retenus encore en livraison : avertissement indicatif, la sélection reste possible.
+const retenusEnLivraison = computed(() =>
+    chauffeurs.value.filter((c) => c.en_livraison && !indisponible(c) && estChoisi(c)),
+);
 const toutSelectionne = computed(
     () => libres.value.length > 0 && libres.value.every((c) => selection.has(c.id_personne)),
 );
 
 function basculerChauffeur(c: ChauffeurDisponible) {
-    if (c.occupe) return;
+    if (indisponible(c)) return;
     if (mode.value === "custom") {
         idChauffeur.value = idChauffeur.value === c.id_personne ? null : c.id_personne;
         return;
@@ -797,7 +807,7 @@ async function autreTournee() {
                         :key="c.id_personne"
                         class="flex items-center gap-3 rounded-xl border p-3 select-none"
                         :class="
-                            c.occupe
+                            indisponible(c)
                                 ? 'opacity-50 cursor-not-allowed bg-stone-50 border-surface-border'
                                 : estChoisi(c)
                                   ? 'border-accent bg-accent/5 cursor-pointer'
@@ -808,7 +818,7 @@ async function autreTournee() {
                             :type="mode === 'auto' ? 'checkbox' : 'radio'"
                             name="chauffeur"
                             :checked="estChoisi(c)"
-                            :disabled="c.occupe"
+                            :disabled="indisponible(c)"
                             @change="basculerChauffeur(c)"
                             class="w-4 h-4 accent-accent"
                         />
@@ -824,8 +834,32 @@ async function autreTournee() {
                         >
                             Déjà en tournée<template v-if="c.id_route"> (#{{ c.id_route }})</template>
                         </span>
+                        <span
+                            v-else-if="c.parti"
+                            class="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-stone-200 text-stone-600"
+                            title="A répondu « Non » à « Revenez-vous au QG ? »"
+                        >
+                            Parti · ne revient pas
+                        </span>
+                        <span
+                            v-else-if="c.en_livraison"
+                            class="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800"
+                        >
+                            ⚠️ En livraison
+                        </span>
                     </label>
                 </div>
+
+                <p
+                    v-if="retenusEnLivraison.length > 0"
+                    class="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900"
+                >
+                    ⚠️
+                    {{ retenusEnLivraison.map((c) => `${c.prenom} ${c.nom}`).join(", ") }}
+                    {{ retenusEnLivraison.length > 1 ? "sont" : "est" }} encore en livraison. Si
+                    {{ retenusEnLivraison.length > 1 ? "un chauffeur répond" : "il répond" }} « Non » à « Revenez-vous
+                    au QG ? », un incident sera levé pour réassigner ou répartir sa tournée.
+                </p>
 
                 <div class="flex items-center justify-between gap-2 pt-2">
                     <button

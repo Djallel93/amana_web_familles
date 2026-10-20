@@ -81,6 +81,11 @@ class IncidentsController extends Controller
      */
     public function options(RouteIncident $incident): JsonResponse
     {
+        // 18/10/2026 : « chauffeur indisponible » — chauffeurs candidats au lieu des tournées d'accueil.
+        if ($incident->type === 'chauffeur_indisponible') {
+            return response()->json($this->incidents->optionsChauffeurIndisponible($incident));
+        }
+
         $idCampagne = $incident->idCampagneEffectif();
 
         $tournees = $idCampagne === null ? collect() : RouteLivraison::where('id_campagne', $idCampagne)
@@ -113,13 +118,17 @@ class IncidentsController extends Controller
     public function resoudreAvecSuite(Request $request, RouteIncident $incident): JsonResponse
     {
         $donnees = $request->validate([
-            'action' => 'required|string|in:reinitialiser,tournee,retrait_qg,chauffeur,reessayer,domicile',
+            'action' => 'required|string|in:reinitialiser,tournee,retrait_qg,chauffeur,reessayer,domicile,reassigner,repartir',
             'id_route' => 'nullable|integer',
             'id_benevole' => 'nullable|integer',
+            'ids_benevoles' => 'nullable|array',
+            'ids_benevoles.*' => 'integer',
         ]);
 
         try {
-            if ($incident->type === 'retrait_hq_non_livre') {
+            if ($incident->type === 'chauffeur_indisponible') {
+                $this->incidents->resoudreChauffeurIndisponible($incident, $donnees['action'], $donnees);
+            } elseif ($incident->type === 'retrait_hq_non_livre') {
                 $this->incidents->resoudreRetraitNonLivre($incident, $donnees['action']);
             } else {
                 $this->incidents->resoudreLivraisonIgnoree($incident, $donnees['action'], $donnees);

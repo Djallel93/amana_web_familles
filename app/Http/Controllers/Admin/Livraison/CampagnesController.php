@@ -238,6 +238,8 @@ class CampagnesController extends Controller
                 'rouvrir' => route('livraison.incidents.rouvrir', ['incident' => '__ID__']),
                 'options' => route('livraison.incidents.options', ['incident' => '__ID__']),
                 'resoudreSuite' => route('livraison.incidents.resoudre-suite', ['incident' => '__ID__']),
+                // __ID__ = id de la TOURNÉE (18/10/2026) : « Remettre dans le pool » d'un chauffeur ayant répondu « Non ».
+                'remettreDansLePool' => route('livraison.routes.remettre-dans-le-pool', ['route' => '__ID__']),
             ],
             'clotureUrl' => route('livraison.campagnes.cloture', $campagne),
             'terminerUrl' => route('livraison.campagnes.terminer', $campagne),
@@ -824,7 +826,10 @@ class CampagnesController extends Controller
         // ou qu'elle est déjà plus loin.
         $routesChargees = $routes->whereIn('statut', ['charge', 'en_cours', 'livraisons_terminees', 'terminee'])->count();
         $routesEnLivraison = $routes->whereIn('statut', ['en_cours', 'livraisons_terminees', 'terminee'])->count();
-        $routesTerminees = $routes->where('statut', 'terminee')->count();
+        // 18/10/2026 : 'livraisons_terminees' compte aussi — un chauffeur qui répond « Non » à « Revenez-vous au
+        // QG ? » ne fait jamais passer sa tournée à 'terminee' (pastille « 0/2 tournées terminées » alors que
+        // tout était livré). Voir RouteLivraison::STATUTS_TERMINES.
+        $routesTerminees = $routes->whereIn('statut', RouteLivraison::STATUTS_TERMINES)->count();
 
         return response()->json([
             // statut + demarrage_bloque (06/10/2026) : le hub bascule du
@@ -879,13 +884,14 @@ class CampagnesController extends Controller
      * Pré-contrôle de la clôture (03/10/2026) — alimente la fenêtre
      * « Terminer la campagne » du hub : tournées non terminées (BLOQUANT),
      * incidents ouverts et livraisons confirmées pas encore livrées/ignorées
-     * (simples avertissements). « Non terminée » = ni 'terminee' ni
+     * (simples avertissements). « Non terminée » = ni 'livraisons_terminees' (18/10/2026 : un chauffeur
+     * qui ne revient pas au QG ne bloque plus la clôture) ni 'terminee' ni
      * 'annulee' (packaging_annule compte : sa tournée n'est pas finie).
      */
     public function cloture(Campagne $campagne): JsonResponse
     {
         $routes = $campagne->routes()
-            ->whereNotIn('statut', ['terminee', 'annulee'])
+            ->whereNotIn('statut', [...RouteLivraison::STATUTS_TERMINES, 'annulee'])
             ->with('benevole:id,nom,prenom')
             ->orderBy('id')
             ->get()
@@ -921,7 +927,7 @@ class CampagnesController extends Controller
             return response()->json(['success' => false, 'message' => 'Cette campagne est déjà terminée.'], 422);
         }
 
-        $routes = $campagne->routes()->whereNotIn('statut', ['terminee', 'annulee'])->count();
+        $routes = $campagne->routes()->whereNotIn('statut', [...RouteLivraison::STATUTS_TERMINES, 'annulee'])->count();
         if ($routes > 0) {
             return response()->json([
                 'success' => false,

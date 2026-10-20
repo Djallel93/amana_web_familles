@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use Amana\Shared\Http\Controllers\AuthController;
+use App\Http\Controllers\GuideController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,6 +41,10 @@ Route::get('/reinitialiser-mot-de-passe/{token}', [AuthController::class, 'showR
 Route::post('/reinitialiser-mot-de-passe', [AuthController::class, 'resetPassword'])
     ->name('password.update')
     ->middleware('throttle:10,1');
+
+// Guide d'utilisation (18/10/2026) : le bouton ❓ de la sidebar partagée apparaît dès que cette route existe
+// (config 'amana-shared.guide_route', défaut 'guide.index'). Contenu filtré par rôle côté serveur.
+Route::middleware('auth')->get('/guide', [GuideController::class, 'index'])->name('guide.index');
 
 require __DIR__ . '/familles.php';
 require __DIR__ . '/livraison.php';

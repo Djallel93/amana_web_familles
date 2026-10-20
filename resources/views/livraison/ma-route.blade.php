@@ -50,6 +50,14 @@
                         class="text-[13px] font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90">Rouvrir la tournée</button>
                 </div>
             @endif
+            {{-- Chauffeur ayant répondu « Non » à « Revenez-vous au QG ? » (18/10/2026) : le remettre dans le pool. --}}
+            @if($routeAdmin->statut === 'livraisons_terminees' && $routeAdmin->retour_qg === false && auth()->user()?->hasAtLeastRole('gestionnaire'))
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+                    <p class="text-[13px] text-ink mb-3">Ce chauffeur a répondu « Non » à « Revenez-vous au QG ? » : il n'est plus proposé pour les prochaines tournées.</p>
+                    <button type="button" onclick="remettreDansLePool({{ $routeAdmin->id }})"
+                        class="text-[13px] font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90">Remettre dans le pool</button>
+                </div>
+            @endif
         @else
             <h1 class="font-heading text-xl font-semibold text-ink mb-6">Ma tournée</h1>
         @endif
@@ -242,6 +250,20 @@
             if (resultat) window.location.reload();
         }
 
+        // Remettre dans le pool un chauffeur ayant répondu « Non » (18/10/2026, gestionnaire/admin) : tournée
+        // terminée, chauffeur de nouveau disponible pour les prochains lots.
+        async function remettreDansLePool(routeId) {
+            const ok = await window.amanaConfirm({
+                title: 'Remettre dans le pool',
+                message: 'Le chauffeur est de retour au QG : la tournée sera terminée et il sera de nouveau disponible. Continuer ?',
+                confirmLabel: 'Oui',
+                cancelLabel: 'Non',
+            });
+            if (!ok) return;
+            const resultat = await poster(`/livraison/routes/${routeId}/remettre-dans-le-pool`);
+            if (resultat) window.location.reload();
+        }
+
         async function demarrerTournee(routeId) {
             const bouton = document.getElementById(`btn-demarrer-${routeId}`);
             if (bouton) bouton.disabled = true;
@@ -337,7 +359,10 @@
                 confirmLabel: 'Oui',
                 cancelLabel: 'Non',
             });
-            if (retour) await poster(`/livraison/benevole/routes/${routeId}/retour-qg`);
+            // 18/10/2026 : le « Non » est enregistré aussi (il sort le chauffeur du pool des chauffeurs
+            // disponibles et peut lever un incident s'il avait déjà une autre tournée) — avant, il ne
+            // laissait aucune trace. Un « Oui » ultérieur reste possible (bouton « Livraison terminé »).
+            await poster(`/livraison/benevole/routes/${routeId}/retour-qg`, { retour: !!retour });
         }
 
         // Bouton « Livraison terminé » : rouvre la fenêtre (ou seulement la
