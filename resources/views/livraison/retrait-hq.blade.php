@@ -91,7 +91,7 @@
             aller-retour serveur : le nom/dossier est déjà visible sur
             chaque carte (voir retrait-hq-ligne.blade.php).
         --}}
-        <input type="search" id="recherche-retrait-hq" placeholder="Rechercher par nom ou n° de dossier…"
+        <input type="search" id="recherche-retrait-hq" placeholder="Rechercher par nom ou n° (#123)…"
             class="w-full text-[13px] border border-surface-border rounded-lg px-3 py-2 mb-4"
             oninput="filtrerRecherche(this.value)">
 

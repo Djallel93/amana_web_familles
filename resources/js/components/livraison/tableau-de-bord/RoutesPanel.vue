@@ -44,14 +44,22 @@
     suivi du jour J : avancement, correction manuelle du statut d'un arrêt, lien vers l'écran
     chauffeur, et un lien vers le chargement pour modifier la composition.
 -->
+<!--
+    Octobre 2026 : ligne repliable redessinée — repliée : avatar du chauffeur, nom, véhicule et
+    créneau, barre d'avancement, pastille de statut ; dépliée : boutons d'action (vue chauffeur,
+    impression de la feuille de tournée, modification de la composition — de vrais boutons, plus de
+    liens texte) puis un bloc par arrêt avec numéro d'ordre, famille, adresse et statut modifiable.
+-->
+
 <script setup lang="ts">
 import { reactive } from "vue";
 import { useToast } from "@amana/shared-ui";
 import { apiPost } from "../shared/api";
 import {
+    CRENEAU_LIBELLES,
     LIBELLES_STATUT_ETAPE,
     LIBELLES_STATUT_ROUTE,
-    STATUTS_ETAPE,
+    STATUTS_ETAPE_MANUELS,
     STYLES_STATUT_ETAPE,
     STYLES_STATUT_ROUTE,
     type Etape,
@@ -68,6 +76,8 @@ const props = defineProps<{
     urlChargement: string;
     /** Gabarit __ID__ vers l'écran chauffeur d'une tournée (MaRouteController::voirCommeChauffeur()). */
     urlVueChauffeur: string;
+    /** Gabarit __ID__ vers la feuille de tournée imprimable (MaRouteController::imprimer(), octobre 2026). */
+    urlImprimer: string;
 }>();
 
 const emit = defineEmits<{ changed: [] }>();
@@ -75,14 +85,11 @@ const emit = defineEmits<{ changed: [] }>();
 const toast = useToast();
 
 // Pastilles de statut tournée/arrêt : palettes partagées dans shared/types.ts
-// (STYLES_STATUT_ROUTE / STYLES_STATUT_ETAPE, une couleur par statut —
-// 29/09/2026, prompt §6.1/§6.3). Avant : définies ici, avec chargement/charge,
-// livraisons_terminees/terminee et packaging_annule/annulee en doublon.
+// (STYLES_STATUT_ROUTE / STYLES_STATUT_ETAPE, une couleur par statut).
 
 interface EtatRoute {
     statutEnCours: Record<number, boolean>;
-    // Repliée par défaut (09/09/2026, prompt §5.2.3) — même patron
-    // <details>/<summary> que FamilleFilterPanel.vue.
+    // Repliée par défaut (09/09/2026, prompt §5.2.3).
     ouverte: boolean;
 }
 
@@ -100,17 +107,29 @@ function etapesFamilles(route: RouteLivraison): Etape[] {
     return route.etapes.filter((e) => e.livraison !== null);
 }
 
-/** "3/5" — avancement affiché en résumé de la ligne repliée (prompt §5.2.3). */
-function avancement(route: RouteLivraison): string {
-    const familles = etapesFamilles(route);
+/** Arrêts réglés (livrés ou ignorés) — les arrêts annulés (tournée abandonnée) ne comptent pas. */
+function avancement(route: RouteLivraison): { traitees: number; total: number; pct: number } {
+    const familles = etapesFamilles(route).filter((e) => e.statut !== "annulee");
     const traitees = familles.filter((e) => e.statut === "livree" || e.statut === "ignoree").length;
-    return `${traitees}/${familles.length}`;
+    const total = familles.length;
+    return { traitees, total, pct: total > 0 ? Math.round((traitees / total) * 100) : 0 };
+}
+
+function initiales(route: RouteLivraison): string {
+    const b = route.benevole;
+    if (!b) return "?";
+    return `${b.prenom?.charAt(0) ?? ""}${b.nom?.charAt(0) ?? ""}`.toUpperCase() || "?";
+}
+
+function adresseFamille(e: Etape): string {
+    const f = e.livraison?.famille;
+    if (!f) return "";
+    return [f.adresse, [f.code_postal, f.ville_texte].filter(Boolean).join(" ")].filter(Boolean).join(", ");
 }
 
 /**
- * Override manuel du statut d'un arrêt (09/09/2026, prompt §5.2.3 : "User
- * needs to be able to manually change these in case driver does not") —
- * voir LiveBoardController::changerStatutEtape().
+ * Override manuel du statut d'un arrêt (09/09/2026, prompt §5.2.3 : "User needs to be able to
+ * manually change these in case driver does not") — voir LiveBoardController::changerStatutEtape().
  */
 async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: StatutEtape) {
     if (etape.statut === statut) return;
@@ -130,6 +149,9 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
 
     emit("changed");
 }
+
+const BOUTON =
+    "inline-flex items-center gap-1.5 min-h-[2.25rem] px-3.5 py-1.5 rounded-full border border-surface-border bg-surface text-[12.5px] font-medium text-ink no-underline hover:bg-surface-2 transition-colors";
 </script>
 
 <template>
@@ -142,128 +164,138 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
             <details
                 v-for="route in routes"
                 :key="route.id"
-                class="group bg-surface border border-surface-border rounded-xl p-4"
+                class="group bg-surface border border-surface-border rounded-2xl shadow-sm overflow-hidden"
+                :class="route.statut === 'annulee' ? 'opacity-70' : ''"
                 :open="etat(route.id).ouverte"
                 @toggle="etat(route.id).ouverte = ($event.target as HTMLDetailsElement).open"
             >
                 <summary
-                    class="cursor-pointer list-none flex items-center justify-between gap-2 select-none -mx-1 -my-1 px-1 py-1 mb-2 rounded-lg hover:bg-surface-2 transition-colors"
+                    class="cursor-pointer list-none flex flex-wrap items-center gap-x-4 gap-y-2 select-none px-4 py-3 hover:bg-surface-2 transition-colors"
                 >
-                    <span class="flex items-center gap-2 text-[14px] font-medium text-ink min-w-0">
-                        <span
-                            class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-90 shrink-0"
-                            >▸</span
-                        >
-                        <span class="truncate">
-                            #{{ route.id }} — {{ route.benevole?.prenom ?? "" }} {{ route.benevole?.nom ?? "" }} ({{
-                                route.creneau ?? "imposée"
-                            }}) — {{ avancement(route) }}
+                    <span
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent text-[13px] font-semibold"
+                        aria-hidden="true"
+                        >{{ initiales(route) }}</span
+                    >
+                    <span class="min-w-0 flex-1 basis-48">
+                        <span class="block truncate text-[14.5px] font-semibold text-ink">
+                            {{
+                                route.benevole
+                                    ? `${route.benevole.prenom} ${route.benevole.nom}`
+                                    : "Chauffeur non assigné"
+                            }}
+                        </span>
+                        <span class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-ink-muted">
+                            <span>Tournée #{{ route.id }}</span>
+                            <span v-if="route.vehicule_type">· 🚗 {{ route.vehicule_type.type }}</span>
+                            <span>· 🕒 {{ route.creneau ? CRENEAU_LIBELLES[route.creneau] : "Imposée" }}</span>
                         </span>
                     </span>
-                    <span class="flex items-center gap-2 shrink-0">
-                        <!-- Accès admin à l'écran du chauffeur (29/09/2026, prompt §6.2) :
-                             .stop pour ne pas replier/déplier le <details> au clic. -->
-                        <a
-                            :href="urlVueChauffeur.replace('__ID__', String(route.id))"
-                            @click.stop
-                            class="text-[12px] text-accent underline min-h-[1.75rem] inline-flex items-center px-1"
-                        >
-                            Vue chauffeur
-                        </a>
+                    <span class="flex w-36 shrink-0 flex-col gap-1">
+                        <span class="flex items-baseline justify-between text-[11.5px] text-ink-muted">
+                            <span>Avancement</span>
+                            <span class="font-semibold text-ink">
+                                {{ avancement(route).traitees }}/{{ avancement(route).total }}
+                            </span>
+                        </span>
+                        <span class="h-1.5 w-full overflow-hidden rounded-full bg-stone-200" aria-hidden="true">
+                            <span
+                                class="block h-full rounded-full bg-emerald-500 transition-all"
+                                :style="{ width: `${avancement(route).pct}%` }"
+                            ></span>
+                        </span>
+                    </span>
+                    <span class="flex shrink-0 items-center gap-2">
                         <span
-                            class="text-[13px] font-medium px-2.5 py-1 rounded-full"
+                            class="text-[12.5px] font-medium px-3 py-1 rounded-full"
                             :class="STYLES_STATUT_ROUTE[route.statut]"
                         >
                             {{ LIBELLES_STATUT_ROUTE[route.statut] }}
                         </span>
+                        <span
+                            class="text-ink-muted text-[13px] transition-transform duration-200 group-open:rotate-90"
+                            aria-hidden="true"
+                            >▸</span
+                        >
                     </span>
                 </summary>
 
-                <table class="w-full text-[12.5px] mb-3">
-                    <thead>
-                        <tr class="text-left text-ink-muted border-b border-surface-border">
-                            <th class="py-1.5 font-medium">#</th>
-                            <th class="py-1.5 font-medium">Famille</th>
-                            <th class="py-1.5 font-medium">Statut</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="e in route.etapes" :key="e.id" class="border-b border-surface-border last:border-0">
-                            <td class="py-1.5 text-ink-muted">{{ e.ordre }}</td>
-                            <td class="py-1.5 text-ink">
-                                {{
-                                    e.livraison
-                                        ? `${e.livraison.famille.prenom} ${e.livraison.famille.nom}`
-                                        : "Retour QG"
-                                }}
-                            </td>
-                            <td class="py-1.5">
-                                <!--
-                                    Ajouté le 09/09/2026 (prompt de cette
-                                    date §3.1) : "the down arrow is
-                                    overlapping on the text" — la pastille
-                                    (rounded-full px-2 py-0.5) était trop
-                                    étroite pour à la fois le texte et la
-                                    flèche native du select. appearance-none
-                                    retire cette flèche native (jamais
-                                    réintroduite en CSS ici : la pastille
-                                    colorée suffit déjà à signaler qu'il
-                                    s'agit d'un contrôle cliquable, comme les
-                                    autres pastilles de statut de l'app qui
-                                    n'ont pas de flèche du tout) et pr-2
-                                    remplace le pr-2 implicite qui laissait
-                                    la place à cette flèche.
+                <div class="border-t border-surface-border px-4 py-4">
+                    <!-- Actions : de vrais boutons en pastille (octobre 2026), plus de liens texte. -->
+                    <div class="mb-4 flex flex-wrap gap-2">
+                        <a :href="urlVueChauffeur.replace('__ID__', String(route.id))" role="button" :class="BOUTON">
+                            👁️ Vue chauffeur
+                        </a>
+                        <a
+                            :href="urlImprimer.replace('__ID__', String(route.id))"
+                            target="_blank"
+                            rel="noopener"
+                            role="button"
+                            :class="BOUTON"
+                        >
+                            🖨️ Imprimer la tournée
+                        </a>
+                        <a :href="urlChargement" role="button" :class="BOUTON">✏️ Modifier la composition</a>
+                    </div>
 
-                                    Corrigé le 12/09/2026 (Section E4 du
-                                    refactor) : ce commentaire utilisait par
-                                    erreur la syntaxe Blade {{-- --}} au lieu
-                                    d'un commentaire HTML/Vue — cassait le
-                                    parsing TypeScript de tout le fichier
-                                    (vue-tsc --noEmit : 18 erreurs en
-                                    cascade à partir de cette seule ligne,
-                                    seule source d'erreur de type-check dans
-                                    tout le dépôt) et faisait échouer
-                                    `npm run lint` (vue/no-parsing-error).
-
-                                    Corrigé le 29/09/2026 (prompt §6.3 : « la flèche
-                                    du dropdown chevauche le libellé ») : la
-                                    supposition ci-dessus était fausse —
-                                    appearance-none retire la flèche NATIVE mais
-                                    @tailwindcss/forms dessine son propre chevron en
-                                    background-image sur tout <select>, et pr-2
-                                    écrasait le padding-right: 2.5rem prévu pour lui.
-                                    Le chevron est donc bien là : pr-7 lui laisse la
-                                    place, et la règle .statut-select (bas du
-                                    fichier) le réduit/repositionne pour la pastille.
-                                -->
-                                <select
-                                    v-if="e.livraison"
-                                    :value="e.statut"
-                                    :disabled="etat(route.id).statutEnCours[e.id]"
-                                    @change="
-                                        changerStatutEtape(
-                                            route,
-                                            e,
-                                            ($event.target as HTMLSelectElement).value as StatutEtape,
-                                        )
-                                    "
-                                    class="statut-select text-[11.5px] font-medium rounded-full pl-2.5 pr-7 py-0.5 border-0 appearance-none disabled:opacity-60 cursor-pointer"
-                                    :class="STYLES_STATUT_ETAPE[e.statut]"
-                                >
-                                    <option v-for="s in STATUTS_ETAPE" :key="s" :value="s">
-                                        {{ LIBELLES_STATUT_ETAPE[s] }}
-                                    </option>
-                                </select>
-                                <span v-else class="text-[11.5px] text-ink-muted">—</span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <div class="border-t border-surface-border pt-3">
-                    <a :href="urlChargement" class="text-[12px] text-accent underline">
-                        Modifier la composition de la tournée → écran Chargement
-                    </a>
+                    <p v-if="etapesFamilles(route).length === 0" class="text-[12.5px] text-ink-muted">
+                        Aucun arrêt dans cette tournée.
+                    </p>
+                    <ol v-else class="space-y-2">
+                        <li
+                            v-for="e in route.etapes"
+                            :key="e.id"
+                            class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-surface-border bg-stone-50 px-3 py-2.5"
+                        >
+                            <span
+                                class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-[12px] font-semibold text-white"
+                                >{{ e.ordre }}</span
+                            >
+                            <span class="min-w-0 flex-1 basis-48">
+                                <span class="block truncate text-[13.5px] font-medium text-ink">
+                                    {{
+                                        e.livraison
+                                            ? `${e.livraison.famille.prenom} ${e.livraison.famille.nom}`
+                                            : "Retour QG"
+                                    }}
+                                </span>
+                                <span v-if="e.livraison" class="block truncate text-[12px] text-ink-muted">
+                                    {{ adresseFamille(e) }}
+                                </span>
+                            </span>
+                            <!--
+                                Pastille de statut modifiable à la main (09/09/2026). appearance-none +
+                                pr-7 : @tailwindcss/forms dessine son propre chevron, la règle
+                                .statut-select (bas du fichier) le réduit pour la pastille. Un arrêt
+                                « annulée » (tournée abandonnée) est posé par le système : pastille fixe.
+                            -->
+                            <span
+                                v-if="e.statut === 'annulee'"
+                                class="text-[11.5px] font-medium rounded-full px-2.5 py-0.5"
+                                :class="STYLES_STATUT_ETAPE.annulee"
+                                >{{ LIBELLES_STATUT_ETAPE.annulee }}</span
+                            >
+                            <select
+                                v-else-if="e.livraison"
+                                :value="e.statut"
+                                :disabled="etat(route.id).statutEnCours[e.id]"
+                                @change="
+                                    changerStatutEtape(
+                                        route,
+                                        e,
+                                        ($event.target as HTMLSelectElement).value as StatutEtape,
+                                    )
+                                "
+                                class="statut-select text-[11.5px] font-medium rounded-full pl-2.5 pr-7 py-0.5 border-0 appearance-none disabled:opacity-60 cursor-pointer"
+                                :class="STYLES_STATUT_ETAPE[e.statut]"
+                            >
+                                <option v-for="s in STATUTS_ETAPE_MANUELS" :key="s" :value="s">
+                                    {{ LIBELLES_STATUT_ETAPE[s] }}
+                                </option>
+                            </select>
+                            <span v-else class="text-[11.5px] text-ink-muted">—</span>
+                        </li>
+                    </ol>
                 </div>
             </details>
         </div>
@@ -271,8 +303,7 @@ async function changerStatutEtape(route: RouteLivraison, etape: Etape, statut: S
 </template>
 
 <style scoped>
-/* Chevron @tailwindcss/forms adapté à une pastille (voir le commentaire du
-   <select> de statut ci-dessus) : plus petit et plus près du bord que le
+/* Chevron @tailwindcss/forms adapté à une pastille : plus petit et plus près du bord que le
    1.5em / .5rem par défaut, pour ne jamais empiéter sur le libellé. */
 .statut-select {
     background-size: 1.1em 1.1em;

@@ -25,18 +25,26 @@
             'en_cours' => 'bg-sky-100 text-sky-700',
             'livree' => 'bg-emerald-100 text-emerald-700',
             'ignoree' => 'bg-rose-100 text-rose-700',
+            'annulee' => 'bg-stone-200 text-stone-600',
         ];
-        $libellesPill = ['en_attente' => 'En attente', 'en_cours' => 'En cours', 'livree' => 'Livrée', 'ignoree' => 'Ignorée'];
+        $libellesPill = ['en_attente' => 'En attente', 'en_cours' => 'En cours', 'livree' => 'Livrée', 'ignoree' => 'Ignorée', 'annulee' => 'Annulée'];
         $signatures = [];
     @endphp
     <div class="max-w-xl mx-auto py-8">
         @if($modeAdmin ?? false)
             @php $routeAdmin = $routes->first(); @endphp
             {{-- Même bouton plein bg-ink que Chargement/Packaging/Suivi livraison. --}}
-            <a href="{{ route('livraison.suivi-livraison.index', $routeAdmin->id_campagne) }}"
-                class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg mb-4 hover:opacity-90">
-                ← Retour au suivi livraison
-            </a>
+            <div class="flex items-center justify-between gap-3 mb-4">
+                <a href="{{ route('livraison.suivi-livraison.index', $routeAdmin->id_campagne) }}"
+                    class="inline-flex items-center gap-2 text-[14px] font-semibold text-white bg-ink px-4 py-2 rounded-lg hover:opacity-90">
+                    ← Retour au suivi livraison
+                </a>
+                {{-- Feuille de tournée papier pour un chauffeur peu à l'aise avec l'appli (octobre 2026). --}}
+                <a href="{{ route('livraison.routes.imprimer', $routeAdmin) }}" target="_blank" rel="noopener"
+                    class="inline-flex items-center gap-2 text-[14px] font-semibold text-ink bg-surface border border-surface-border px-4 py-2 rounded-lg hover:bg-surface-2">
+                    🖨️ Imprimer la tournée
+                </a>
+            </div>
             <h1 class="font-heading text-xl font-semibold text-ink mb-1">Tournée #{{ $routeAdmin->id }} — vue chauffeur</h1>
             <p class="text-[13px] text-ink-muted mb-6">
                 Chauffeur : {{ $routeAdmin->benevole ? $routeAdmin->benevole->prenom . ' ' . $routeAdmin->benevole->nom : 'non assigné' }}

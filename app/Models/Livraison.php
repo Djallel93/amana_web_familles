@@ -247,6 +247,26 @@ class Livraison extends Model
         return $this->hasMany(ContactToken::class, 'id_livraison');
     }
 
+    /**
+     * Nombre de colis de la famille pour l'affichage et l'impression (octobre 2026) : les lignes
+     * livraison_colis créées à la génération (LivraisonGenerationService) — à défaut (famille pas
+     * encore générée), nombre_personnes, la convention « un colis = une personne du foyer ».
+     * Utilise colis_count (withCount) ou la relation colis chargée quand elles sont là, pour ne
+     * pas ajouter une requête par famille.
+     */
+    public function getNombreColisAttribute(): int
+    {
+        if ($this->relationLoaded('colis')) {
+            $total = $this->colis->count();
+        } elseif (isset($this->attributes['colis_count'])) {
+            $total = (int) $this->attributes['colis_count'];
+        } else {
+            $total = $this->colis()->count();
+        }
+
+        return $total > 0 ? $total : (int) $this->nombre_personnes;
+    }
+
     public function etapesRoute(): HasMany
     {
         return $this->hasMany(EtapeRoute::class, 'id_livraison');

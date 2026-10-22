@@ -22,6 +22,8 @@
     ici la même lecture de props pour chaque instance.
 -->
 <script setup lang="ts">
+import { computed } from "vue";
+
 export interface ReglageData {
     type: "boolean" | "encrypted" | "float" | "integer" | "string";
     libelle: string;
@@ -32,14 +34,16 @@ export interface ReglageData {
 const props = defineProps<{
     cle: string;
     data: ReglageData;
-    oldValeur: unknown;
+    /** Valeur ressaisie après un échec de validation — inutilisée depuis que la page reste montée (octobre 2026). */
+    oldValeur?: unknown;
     erreur?: string;
 }>();
 
 // Reprend exactement old("settings.{cle}", $data['valeur']) : la valeur
 // précédemment soumise (si soumission invalide) prime sur la valeur
-// actuelle en base.
-const valeurAffichee = props.oldValeur !== undefined ? props.oldValeur : props.data.valeur;
+// actuelle en base. `computed` (octobre 2026) : avec une page qui reste montée après
+// enregistrement, la valeur de la prop change — une simple const figeait l'ancienne.
+const valeurAffichee = computed(() => (props.oldValeur !== undefined ? props.oldValeur : props.data.valeur));
 </script>
 
 <template>

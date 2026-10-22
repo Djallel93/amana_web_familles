@@ -55,7 +55,7 @@ final class GeographiePicker
      */
     public static function vehiculesAvecPermis(): array
     {
-        return VehiculeType::query()
+        return VehiculeType::actifs()
             ->where('type', '!=', self::LIBELLE_SANS_PERMIS)
             ->orderBy('id')
             ->get(['id', 'type'])

@@ -109,7 +109,8 @@ class RetraitHqController extends Controller
         $livraisons = Livraison::where('id_campagne', $campagne->id)
             ->where('statut_contact', 'confirme')
             ->where('se_deplace', true)
-            ->with(['famille:id,nom,prenom,email,etudiant,est_hotel,nombre_enfant'])
+            ->with(['famille:id,nom,prenom,email,telephone,telephone_bis,etudiant,est_hotel,nombre_enfant'])
+            ->withCount('colis')
             ->orderByRaw('heure_arrivee_prevue_hq IS NULL, heure_arrivee_prevue_hq ASC')
             ->get()
             ->map(function (Livraison $livraison) {

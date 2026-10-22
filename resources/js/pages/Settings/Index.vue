@@ -1,49 +1,24 @@
 <!-- resources/js/pages/Settings/Index.vue -->
 <!--
-    Page Inertia "Paramètres" — Section E4 du refactor (16/09/2026,
-    chunk settings, dernier de la section), remplace resources/views/
-    settings/index.blade.php (supprimée dans ce même chunk, plus aucun
-    consommateur une fois SettingsController::index() converti en
-    Inertia::render()).
+    Page Inertia « Paramètres ». Refonte d'octobre 2026 : les sept <form> POST natifs (rechargement
+    pleine page → onglet « Général » à chaque enregistrement, saisie rejetée recopiée dans TOUTES
+    les lignes, aucun message de succès — cette page n'affiche pas le flash) laissent la place à
+    des envois Inertia (router.visit) :
 
-    À la différence de TOUTE autre page convertie dans ce refactor, les
-    sept <form> ci-dessous restent des soumissions natives classiques :
-    SettingsControllerBase::update() (vendor), VehiculeTypesController::
-    update(), Admin\OrganisationsController::store()/update()/destroy(),
-    Admin\HotelAddressesController::store()/update()/destroy() ne sont
-    PAS convertis — Inertia n'intercepte jamais un <form> HTML natif
-    (seuls <Link>/router.* le sont), donc leur redirection pleine page
-    continue de fonctionner sans rien y changer. Voir le docblock de
-    SettingsController::index() pour le détail de cette décision.
-
-    old()/@error() Blade (utilisés PARTOUT sur cette page — réglages
-    génériques, HQ, véhicules, organisations, adresses hôtel) sont
-    devenus des lectures de usePage().props.old/errors : 'errors' est
-    partagé automatiquement par la classe Middleware Inertia de base,
-    'old' a été ajouté spécifiquement pour cette page dans
-    HandleInertiaRequests::share() (ce même chunk) — Inertia ne le
-    partage PAS par défaut, contrairement à 'errors'.
-
-    $defaultTab n'est plus calculé côté serveur (ancien @php de la
-    Blade) : recalculé ici en TypeScript depuis la prop 'errors', même
-    logique de préfixes de clé portée telle quelle.
-
-    Le jeton CSRF de chaque <form> est lu depuis <meta name="csrf-token">
-    (posée par la racine Blade), comme le fait déjà shared/api.ts pour
-    les requêtes XHR de l'app — pas de différence entre un <form> natif
-    sur une page Inertia et un <form> natif sur une page Blade classique
-    de ce point de vue.
-
-    SettingsTabs.vue/HqCoordinatesAutocomplete.vue/
-    HotelAddressAutocomplete.vue sont désormais des enfants Vue normaux
-    plutôt que des îlots séparés montés par app.ts — les deux derniers
-    perdent dans ce même chunk leur repli sur point de montage Blade
-    (voir leurs propres docblocks), cette page étant leur dernier
-    consommateur sous cette forme.
+      - la page reste montée : l'onglet actif (v-model sur SettingsTabs, aussi reflété dans le #hash)
+        et la saisie en cours survivent à l'enregistrement ;
+      - chaque formulaire a son « error bag » (errorBag) : une erreur de la ligne « organisation 3 »
+        ne s'affiche plus dans le formulaire d'ajout, ni dans les autres lignes. La prop partagée
+        `old` n'a plus de consommateur et a été retirée de HandleInertiaRequests ;
+      - succès → toast (flash.success), échec → erreurs au bon endroit + toast ;
+      - les lignes éditables vivent dans un état local réactif (plus de <form> dans un <tr>, HTML
+        invalide) ; le formulaire « Général / Itinéraires » reste un <form> lu par FormData parce que
+        HqCoordinatesAutocomplete et HotelAddressAutocomplete remplissent les champs par id.
 -->
 <script setup lang="ts">
-import { Head, usePage } from "@inertiajs/vue3";
-import { computed } from "vue";
+import { Head, router, usePage } from "@inertiajs/vue3";
+import { onMounted, reactive, ref, watch } from "vue";
+import { useConfirm, useToast } from "@amana/shared-ui";
 import SettingsTabs from "../../components/admin/SettingsTabs.vue";
 import SettingsReglageRow, { type ReglageData } from "../../components/admin/SettingsReglageRow.vue";
 import HqCoordinatesAutocomplete from "../../components/admin/HqCoordinatesAutocomplete.vue";
@@ -54,6 +29,9 @@ interface Vehicule {
     type: string;
     capacite_kg: number;
     nombre_part_max: number;
+    actif: boolean;
+    /** Jamais retirable (« Non véhiculé », « Sans permis »). */
+    protege: boolean;
 }
 
 interface OrganisationRow {
@@ -69,7 +47,7 @@ interface HotelAddressRow {
     adresse: string;
 }
 
-defineProps<{
+const props = defineProps<{
     settings: Record<string, ReglageData>;
     reglagesGeneraux: Record<string, ReglageData>;
     reglagesItineraires: Record<string, ReglageData>;
@@ -79,6 +57,9 @@ defineProps<{
     googlePlacesKey: string;
     updateUrl: string;
     vehiculesUpdateUrl: string;
+    vehiculesStoreUrl: string;
+    vehiculesDestroyUrlTemplate: string;
+    vehiculesReactiverUrlTemplate: string;
     organisationsStoreUrl: string;
     organisationsUpdateUrlTemplate: string;
     hotelAddressesStoreUrl: string;
@@ -86,39 +67,224 @@ defineProps<{
     hotelAddressesDestroyUrlTemplate: string;
 }>();
 
-const page = usePage<{ errors: Record<string, string>; old: Record<string, any> }>();
+const page = usePage();
+const toast = useToast();
+const confirmDialog = useConfirm();
 
-// Même logique de préfixes que l'ancien @php de settings/index.blade.php,
-// portée telle quelle depuis $errors->keys() vers la prop 'errors'.
-const defaultTab = computed(() => {
-    const cles = Object.keys(page.props.errors ?? {});
-    if (cles.some((cle) => cle.startsWith("settings.route_"))) return "itineraires";
-    if (cles.includes("code") || cles.includes("nom")) return "organisations";
-    if (cles.includes("adresse")) return "hotels";
-    if (cles.some((cle) => cle.startsWith("vehicules."))) return "vehicules";
-    return "general";
+// ── Onglet actif : état Vue, reflété dans le #hash (rechargement manuel de la page) ──────────────
+const IDS_ONGLETS = ["general", "itineraires", "vehicules", "organisations", "hotels"];
+const onglet = ref("general");
+
+onMounted(() => {
+    const depuisHash = window.location.hash.replace("#", "");
+    if (IDS_ONGLETS.includes(depuisHash)) onglet.value = depuisHash;
 });
 
-function erreur(cle: string): string | undefined {
-    return page.props.errors?.[cle];
+watch(onglet, (id) => {
+    window.history.replaceState(window.history.state, "", `#${id}`);
+});
+
+// ── Erreurs par formulaire (error bags Inertia) ──────────────────────────────────────────────────
+function erreur(bag: string, cle: string): string | undefined {
+    const erreurs = (page.props.errors as Record<string, unknown> | undefined)?.[bag];
+    if (erreurs && typeof erreurs === "object") {
+        const message = (erreurs as Record<string, unknown>)[cle];
+        return typeof message === "string" ? message : undefined;
+    }
+    return undefined;
 }
 
-function oldSettings(cle: string): unknown {
-    return page.props.old?.settings?.[cle];
+/** Toutes les erreurs d'un formulaire dont la clé commence par `prefixe` (ex. « vehicules. »). */
+function erreursAvecPrefixe(bag: string, prefixe: string): string[] {
+    const erreurs = (page.props.errors as Record<string, unknown> | undefined)?.[bag];
+    if (!erreurs || typeof erreurs !== "object") return [];
+    return Object.entries(erreurs as Record<string, unknown>)
+        .filter(([cle, message]) => cle.startsWith(prefixe) && typeof message === "string")
+        .map(([, message]) => message as string);
 }
 
-function oldVehicule(id: number, champ: "capacite_kg" | "nombre_part_max"): unknown {
-    return page.props.old?.vehicules?.[String(id)]?.[champ];
+// ── Envoi ────────────────────────────────────────────────────────────────────────────────────────
+const occupes = reactive<Record<string, boolean>>({});
+
+interface OptionsEnvoi {
+    bag: string;
+    onSucces?: () => void;
 }
 
-const oldCode = computed(() => page.props.old?.code as string | undefined);
-const oldNom = computed(() => page.props.old?.nom as string | undefined);
-const oldAdresse = computed(() => page.props.old?.adresse as string | undefined);
+function envoyer(
+    methode: "post" | "put" | "delete",
+    url: string,
+    donnees: Record<string, unknown> | FormData,
+    options: OptionsEnvoi,
+): void {
+    occupes[options.bag] = true;
+    router.visit(url, {
+        method: methode,
+        data: donnees as Record<string, never>,
+        errorBag: options.bag,
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: (nouvellePage) => {
+            const succes = (nouvellePage.props as { flash?: { success?: string | null } }).flash?.success;
+            if (succes) toast.success(succes);
+            options.onSucces?.();
+        },
+        onError: () => toast.error("Enregistrement impossible : vérifiez les champs en erreur."),
+        onFinish: () => {
+            occupes[options.bag] = false;
+        },
+    });
+}
 
-// Voir le docblock ci-dessus : les <form> de cette page restent des
-// soumissions natives, le jeton CSRF est lu comme partout ailleurs dans
-// l'app pour ce cas de figure (shared/api.ts, formulaires publics).
-const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? "";
+/** Formulaire natif lu par FormData — voir le docblock (champs remplis par id par les widgets Google). */
+function envoyerFormulaire(evenement: Event, url: string, bag: string, reinitialiser = false): void {
+    const formulaire = evenement.target as HTMLFormElement;
+    envoyer("post", url, new FormData(formulaire), {
+        bag,
+        onSucces: reinitialiser ? () => formulaire.reset() : undefined,
+    });
+}
+
+/**
+ * Garde l'état local des lignes éditables synchronisé avec les props, sans écraser la saisie en
+ * cours d'une ligne dont les données serveur n'ont pas changé.
+ */
+function synchroniser<T extends { id: number }, E>(
+    source: () => T[],
+    cible: Record<number, E>,
+    projeter: (ligne: T) => E,
+): void {
+    watch(
+        source,
+        (nouvelles, anciennes) => {
+            const avant = new Map((anciennes ?? []).map((ligne) => [ligne.id, JSON.stringify(projeter(ligne))]));
+            for (const ligne of nouvelles) {
+                if (avant.get(ligne.id) !== JSON.stringify(projeter(ligne))) {
+                    cible[ligne.id] = projeter(ligne);
+                }
+            }
+        },
+        { immediate: true },
+    );
+}
+
+// ── Véhicules ────────────────────────────────────────────────────────────────────────────────────
+const edVehicules = reactive<Record<number, { capacite_kg: number | string; nombre_part_max: number | string }>>({});
+synchroniser(
+    () => props.vehicules,
+    edVehicules,
+    (v) => ({ capacite_kg: v.capacite_kg, nombre_part_max: v.nombre_part_max }),
+);
+
+const nouveauVehicule = reactive({ type: "", capacite_kg: "", nombre_part_max: "" });
+
+function enregistrerVehicules(): void {
+    envoyer("post", props.vehiculesUpdateUrl, { vehicules: { ...edVehicules } }, { bag: "vehicules" });
+}
+
+function ajouterVehicule(): void {
+    envoyer(
+        "post",
+        props.vehiculesStoreUrl,
+        { ...nouveauVehicule },
+        {
+            bag: "vehicule-nouveau",
+            onSucces: () => Object.assign(nouveauVehicule, { type: "", capacite_kg: "", nombre_part_max: "" }),
+        },
+    );
+}
+
+async function retirerVehicule(vehicule: Vehicule): Promise<void> {
+    const ok = await confirmDialog.ask({
+        title: "Retirer ce type de véhicule ?",
+        message: `« ${vehicule.type} » ne sera plus proposé dans les formulaires ni les sélecteurs. Les bénévoles et tournées qui l'utilisent déjà le conservent, et vous pourrez le réactiver.`,
+        confirmLabel: "Retirer",
+        danger: true,
+    });
+    if (!ok) return;
+    envoyer(
+        "delete",
+        props.vehiculesDestroyUrlTemplate.replace("__ID__", String(vehicule.id)),
+        {},
+        { bag: "vehicules-ligne" },
+    );
+}
+
+function reactiverVehicule(vehicule: Vehicule): void {
+    envoyer(
+        "post",
+        props.vehiculesReactiverUrlTemplate.replace("__ID__", String(vehicule.id)),
+        {},
+        { bag: "vehicules-ligne" },
+    );
+}
+
+// ── Organisations ────────────────────────────────────────────────────────────────────────────────
+const edOrganisations = reactive<Record<number, { nom: string; actif: boolean }>>({});
+synchroniser(
+    () => props.organisations,
+    edOrganisations,
+    (o) => ({ nom: o.nom, actif: o.actif }),
+);
+
+const nouvelleOrganisation = reactive({ code: "", nom: "" });
+
+function enregistrerOrganisation(organisation: OrganisationRow): void {
+    const saisie = edOrganisations[organisation.id];
+    // La ligne principale ne peut pas être désactivée : on n'envoie pas « actif ».
+    const donnees: Record<string, unknown> = organisation.est_principale
+        ? { nom: saisie.nom }
+        : { nom: saisie.nom, actif: saisie.actif ? 1 : 0 };
+    envoyer("put", props.organisationsUpdateUrlTemplate.replace("__ID__", String(organisation.id)), donnees, {
+        bag: `org-${organisation.id}`,
+    });
+}
+
+function ajouterOrganisation(): void {
+    envoyer(
+        "post",
+        props.organisationsStoreUrl,
+        { ...nouvelleOrganisation },
+        {
+            bag: "org-nouvelle",
+            onSucces: () => Object.assign(nouvelleOrganisation, { code: "", nom: "" }),
+        },
+    );
+}
+
+// ── Adresses hôtel ───────────────────────────────────────────────────────────────────────────────
+const edHotels = reactive<Record<number, { adresse: string }>>({});
+synchroniser(
+    () => props.hotelAddresses,
+    edHotels,
+    (h) => ({ adresse: h.adresse }),
+);
+
+function enregistrerHotel(hotel: HotelAddressRow): void {
+    envoyer(
+        "put",
+        props.hotelAddressesUpdateUrlTemplate.replace("__ID__", String(hotel.id)),
+        { adresse: edHotels[hotel.id].adresse },
+        {
+            bag: `hotel-${hotel.id}`,
+        },
+    );
+}
+
+async function supprimerHotel(hotel: HotelAddressRow): Promise<void> {
+    const ok = await confirmDialog.ask({
+        message: "Supprimer cette adresse hôtel ? Les dossiers déjà marqués « hôtel » ne seront pas modifiés.",
+        confirmLabel: "Supprimer",
+        danger: true,
+    });
+    if (!ok) return;
+    envoyer(
+        "delete",
+        props.hotelAddressesDestroyUrlTemplate.replace("__ID__", String(hotel.id)),
+        {},
+        { bag: `hotel-${hotel.id}` },
+    );
+}
 </script>
 
 <template>
@@ -131,12 +297,16 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
         </div>
     </div>
 
-    <SettingsTabs :default-tab="defaultTab" />
+    <SettingsTabs v-model="onglet" />
 
-    <form :action="updateUrl" method="POST" class="max-w-2xl mb-8">
-        <input type="hidden" name="_token" :value="csrfToken" />
-
-        <div data-settings-tab="general">
+    <!-- Général + Itinéraires : un seul formulaire, donc un seul « Enregistrer » — masqué sur les autres onglets
+         (avant, ce bouton restait visible partout et enregistrait les réglages généraux, pas l'onglet affiché). -->
+    <form
+        v-show="onglet === 'general' || onglet === 'itineraires'"
+        class="max-w-2xl mb-8"
+        @submit.prevent="envoyerFormulaire($event, updateUrl, 'general')"
+    >
+        <div v-show="onglet === 'general'">
             <div class="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border">
                 <template v-if="Object.keys(reglagesGeneraux).length">
                     <SettingsReglageRow
@@ -144,15 +314,14 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                         :key="cle"
                         :cle="cle"
                         :data="data"
-                        :old-valeur="oldSettings(cle)"
-                        :erreur="erreur(`settings.${cle}`)"
+                        :erreur="erreur('general', `settings.${cle}`)"
                     />
                 </template>
                 <p v-else class="p-4 text-sm text-ink-muted">Aucun paramètre configuré pour cette application.</p>
             </div>
         </div>
 
-        <div data-settings-tab="itineraires">
+        <div v-show="onglet === 'itineraires'">
             <div class="bg-surface border border-surface-border rounded-lg divide-y divide-surface-border">
                 <template v-if="Object.keys(reglagesItineraires).length">
                     <SettingsReglageRow
@@ -160,8 +329,7 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                         :key="cle"
                         :cle="cle"
                         :data="data"
-                        :old-valeur="oldSettings(cle)"
-                        :erreur="erreur(`settings.${cle}`)"
+                        :erreur="erreur('general', `settings.${cle}`)"
                     />
                 </template>
                 <p v-else class="p-4 text-sm text-ink-muted">Aucun réglage d'itinéraire configuré.</p>
@@ -192,14 +360,18 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                         maxlength="255"
                         id="setting-route_hq_adresse"
                         name="settings[route_hq_adresse]"
-                        :value="oldSettings('route_hq_adresse') ?? settings.route_hq_adresse?.valeur"
+                        :value="settings.route_hq_adresse?.valeur"
                         class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface text-ink"
                     />
-                    <span v-if="erreur('settings.route_hq_adresse')" class="block text-xs text-rose-600 mt-1">{{
-                        erreur("settings.route_hq_adresse")
-                    }}</span>
+                    <span
+                        v-if="erreur('general', 'settings.route_hq_adresse')"
+                        class="block text-xs text-rose-600 mt-1"
+                        >{{ erreur("general", "settings.route_hq_adresse") }}</span
+                    >
                 </div>
 
+                <!-- Latitude / longitude saisissables à la main (elles étaient en lecture seule alors que le
+                     texte ci-dessus promet une saisie manuelle). -->
                 <div class="flex gap-3 max-w-md mt-3">
                     <div class="flex-1">
                         <label for="setting-route_hq_latitude" class="block text-xs font-bold text-ink mb-1.5"
@@ -210,9 +382,8 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                             step="any"
                             id="setting-route_hq_latitude"
                             name="settings[route_hq_latitude]"
-                            :value="oldSettings('route_hq_latitude') ?? settings.route_hq_latitude?.valeur"
-                            readonly
-                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted"
+                            :value="settings.route_hq_latitude?.valeur"
+                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface text-ink"
                         />
                     </div>
                     <div class="flex-1">
@@ -224,49 +395,47 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                             step="any"
                             id="setting-route_hq_longitude"
                             name="settings[route_hq_longitude]"
-                            :value="oldSettings('route_hq_longitude') ?? settings.route_hq_longitude?.valeur"
-                            readonly
-                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink-muted"
+                            :value="settings.route_hq_longitude?.valeur"
+                            class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface text-ink"
                         />
                     </div>
                 </div>
-                <span v-if="erreur('settings.route_hq_latitude')" class="block text-xs text-rose-600 mt-1">{{
-                    erreur("settings.route_hq_latitude")
+                <span v-if="erreur('general', 'settings.route_hq_latitude')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("general", "settings.route_hq_latitude")
                 }}</span>
-                <span v-if="erreur('settings.route_hq_longitude')" class="block text-xs text-rose-600 mt-1">{{
-                    erreur("settings.route_hq_longitude")
-                }}</span>
+                <span
+                    v-if="erreur('general', 'settings.route_hq_longitude')"
+                    class="block text-xs text-rose-600 mt-1"
+                    >{{ erreur("general", "settings.route_hq_longitude") }}</span
+                >
             </div>
         </div>
 
         <button
             type="submit"
-            class="mt-5 px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer"
+            :disabled="occupes.general"
+            class="mt-5 px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer disabled:opacity-60"
         >
             Enregistrer
         </button>
     </form>
 
-    <div class="max-w-2xl" data-settings-tab="vehicules">
+    <!-- ── Véhicules ─────────────────────────────────────────────────────────────────────────────── -->
+    <div v-show="onglet === 'vehicules'" class="max-w-2xl">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Types de véhicule</h2>
         <p class="text-[13px] text-ink-muted mb-4">
             Capacité de charge et nombre de colis transportables par type de véhicule — utilisés par le formulaire de
-            candidature bénévole et le futur moteur de répartition des livraisons. Le libellé de chaque type n'est pas
-            modifiable ici.
+            candidature bénévole et le moteur de répartition des livraisons. Le libellé se fixe à la création. Retirer
+            un type le masque des formulaires sans toucher aux bénévoles et tournées qui l'utilisent déjà.
         </p>
 
-        <form
-            :action="vehiculesUpdateUrl"
-            method="POST"
-            class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden"
-        >
-            <input type="hidden" name="_token" :value="csrfToken" />
+        <div class="bg-surface rounded-xl border border-surface-border shadow-sm overflow-hidden mb-4">
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
                         <tr>
                             <th
-                                v-for="col in ['Type', 'Capacité (kg)', 'Nb. colis max']"
+                                v-for="col in ['Type', 'Capacité (kg)', 'Nb. colis max', '']"
                                 :key="col"
                                 class="text-left px-4 py-2.5 text-[10.5px] font-bold text-ink-muted uppercase tracking-[0.6px] bg-surface-2 border-b border-surface-3 whitespace-nowrap"
                             >
@@ -279,44 +448,141 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                             v-for="vehicule in vehicules"
                             :key="vehicule.id"
                             class="border-b border-surface-3 last:border-0"
+                            :class="vehicule.actif ? '' : 'opacity-60'"
                         >
-                            <td class="px-4 py-2.5 text-ink font-semibold">{{ vehicule.type }}</td>
+                            <td class="px-4 py-2.5 text-ink font-semibold">
+                                {{ vehicule.type }}
+                                <span
+                                    v-if="!vehicule.actif"
+                                    class="ml-1.5 px-1.5 py-0.5 rounded bg-stone-200 text-ink-muted text-[10px] font-bold uppercase tracking-wide"
+                                    >Retiré</span
+                                >
+                            </td>
                             <td class="px-4 py-2.5">
                                 <input
+                                    v-model="edVehicules[vehicule.id].capacite_kg"
                                     type="number"
                                     step="0.01"
                                     min="0"
-                                    :name="`vehicules[${vehicule.id}][capacite_kg]`"
-                                    :value="oldVehicule(vehicule.id, 'capacite_kg') ?? vehicule.capacite_kg"
                                     class="w-28 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
                                 />
                             </td>
                             <td class="px-4 py-2.5">
                                 <input
+                                    v-model="edVehicules[vehicule.id].nombre_part_max"
                                     type="number"
                                     step="1"
                                     min="0"
-                                    :name="`vehicules[${vehicule.id}][nombre_part_max]`"
-                                    :value="oldVehicule(vehicule.id, 'nombre_part_max') ?? vehicule.nombre_part_max"
                                     class="w-24 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
                                 />
+                            </td>
+                            <td class="px-4 py-2.5 text-right whitespace-nowrap">
+                                <button
+                                    v-if="!vehicule.actif"
+                                    type="button"
+                                    class="px-3 py-1.5 rounded-full border border-surface-border text-[12px] font-medium text-ink hover:bg-surface-2 cursor-pointer"
+                                    @click="reactiverVehicule(vehicule)"
+                                >
+                                    Réactiver
+                                </button>
+                                <button
+                                    v-else-if="!vehicule.protege"
+                                    type="button"
+                                    class="px-3 py-1.5 rounded-full border border-rose-200 text-[12px] font-medium text-rose-600 hover:bg-rose-50 cursor-pointer"
+                                    @click="retirerVehicule(vehicule)"
+                                >
+                                    Retirer
+                                </button>
+                                <span
+                                    v-else
+                                    class="text-[11px] text-ink-muted"
+                                    title="Utilisé par la logique de répartition"
+                                    >Non retirable</span
+                                >
                             </td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+            <ul v-if="erreursAvecPrefixe('vehicules', 'vehicules').length" class="px-4 pt-3 text-xs text-rose-600">
+                <li v-for="message in erreursAvecPrefixe('vehicules', 'vehicules')" :key="message">{{ message }}</li>
+            </ul>
+            <p v-if="erreur('vehicules-ligne', 'vehicule')" class="px-4 pt-3 text-xs text-rose-600">
+                {{ erreur("vehicules-ligne", "vehicule") }}
+            </p>
             <div class="px-4 py-3 border-t border-surface-3">
                 <button
-                    type="submit"
-                    class="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer min-h-[44px]"
+                    type="button"
+                    :disabled="occupes.vehicules"
+                    class="px-4 py-2.5 bg-accent hover:bg-accent-dark text-white text-[13px] font-semibold rounded-lg transition-colors cursor-pointer min-h-[44px] disabled:opacity-60"
+                    @click="enregistrerVehicules"
                 >
                     Enregistrer
                 </button>
             </div>
+        </div>
+
+        <form
+            class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex flex-wrap items-end gap-3"
+            @submit.prevent="ajouterVehicule"
+        >
+            <div class="flex-1 min-w-[10rem]">
+                <label for="vehicule-type" class="block text-xs font-bold text-ink mb-1.5">Nouveau type</label>
+                <input
+                    id="vehicule-type"
+                    v-model="nouveauVehicule.type"
+                    type="text"
+                    maxlength="50"
+                    required
+                    placeholder="ex : Camionnette"
+                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+                />
+                <span v-if="erreur('vehicule-nouveau', 'type')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("vehicule-nouveau", "type")
+                }}</span>
+            </div>
+            <div class="w-28">
+                <label for="vehicule-capacite" class="block text-xs font-bold text-ink mb-1.5">Capacité (kg)</label>
+                <input
+                    id="vehicule-capacite"
+                    v-model="nouveauVehicule.capacite_kg"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+                />
+                <span v-if="erreur('vehicule-nouveau', 'capacite_kg')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("vehicule-nouveau", "capacite_kg")
+                }}</span>
+            </div>
+            <div class="w-28">
+                <label for="vehicule-parts" class="block text-xs font-bold text-ink mb-1.5">Nb. colis max</label>
+                <input
+                    id="vehicule-parts"
+                    v-model="nouveauVehicule.nombre_part_max"
+                    type="number"
+                    step="1"
+                    min="0"
+                    required
+                    class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
+                />
+                <span v-if="erreur('vehicule-nouveau', 'nombre_part_max')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("vehicule-nouveau", "nombre_part_max")
+                }}</span>
+            </div>
+            <button
+                type="submit"
+                :disabled="occupes['vehicule-nouveau']"
+                class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+            >
+                + Ajouter
+            </button>
         </form>
     </div>
 
-    <div class="max-w-2xl mt-10" data-settings-tab="organisations">
+    <!-- ── Organisations ─────────────────────────────────────────────────────────────────────────── -->
+    <div v-show="onglet === 'organisations'" class="max-w-2xl">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Organisations partenaires</h2>
         <p class="text-[13px] text-ink-muted mb-4">
             Organisations pouvant enregistrer des familles dans un dossier commun avec AMANA — voir le rôle
@@ -338,18 +604,11 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                     </tr>
                 </thead>
                 <tbody>
-                    <tr
-                        v-for="organisation in organisations"
-                        :key="organisation.id"
-                        class="border-b border-surface-3 last:border-0"
-                    >
-                        <form
-                            :action="organisationsUpdateUrlTemplate.replace('__ID__', String(organisation.id))"
-                            method="POST"
-                            class="contents"
-                        >
-                            <input type="hidden" name="_token" :value="csrfToken" />
-                            <input type="hidden" name="_method" value="PUT" />
+                    <tr v-if="organisations.length === 0">
+                        <td colspan="4" class="px-4 py-4 text-ink-muted text-center">Aucune organisation.</td>
+                    </tr>
+                    <template v-for="organisation in organisations" :key="organisation.id">
+                        <tr class="border-b border-surface-3 last:border-0">
                             <td class="px-4 py-2.5 text-ink-muted font-mono text-xs">
                                 {{ organisation.code }}
                                 <span
@@ -360,78 +619,90 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                             </td>
                             <td class="px-4 py-2.5">
                                 <input
+                                    v-model="edOrganisations[organisation.id].nom"
                                     type="text"
-                                    name="nom"
-                                    :value="oldNom ?? organisation.nom"
                                     class="w-full px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
+                                    @keydown.enter.prevent="enregistrerOrganisation(organisation)"
                                 />
                             </td>
                             <td class="px-4 py-2.5">
                                 <select
-                                    name="actif"
+                                    v-model="edOrganisations[organisation.id].actif"
                                     :disabled="organisation.est_principale"
                                     class="px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink disabled:opacity-60"
                                 >
-                                    <option value="1" :selected="organisation.actif">Active</option>
-                                    <option value="0" :selected="!organisation.actif">Désactivée</option>
+                                    <option :value="true">Active</option>
+                                    <option :value="false">Désactivée</option>
                                 </select>
                             </td>
                             <td class="px-4 py-2.5 text-right">
                                 <button
-                                    type="submit"
-                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer"
+                                    type="button"
+                                    :disabled="occupes[`org-${organisation.id}`]"
+                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer disabled:opacity-60"
+                                    @click="enregistrerOrganisation(organisation)"
                                 >
                                     Enregistrer
                                 </button>
                             </td>
-                        </form>
-                    </tr>
+                        </tr>
+                        <!-- Erreurs de CETTE ligne seulement (error bag « org-{id} »). -->
+                        <tr v-if="erreur(`org-${organisation.id}`, 'nom') || erreur(`org-${organisation.id}`, 'actif')">
+                            <td colspan="4" class="px-4 pb-2.5 text-xs text-rose-600">
+                                {{
+                                    erreur(`org-${organisation.id}`, "nom") ?? erreur(`org-${organisation.id}`, "actif")
+                                }}
+                            </td>
+                        </tr>
+                    </template>
                 </tbody>
             </table>
         </div>
 
         <form
-            :action="organisationsStoreUrl"
-            method="POST"
             class="bg-surface rounded-xl border border-surface-border shadow-sm p-4 flex items-end gap-3"
+            @submit.prevent="ajouterOrganisation"
         >
-            <input type="hidden" name="_token" :value="csrfToken" />
             <div class="flex-1">
                 <label for="org-code" class="block text-xs font-bold text-ink mb-1.5">Code</label>
                 <input
-                    type="text"
                     id="org-code"
-                    name="code"
-                    :value="oldCode"
+                    v-model="nouvelleOrganisation.code"
+                    type="text"
                     required
                     placeholder="ex : secours-machin"
                     class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
                 />
-                <span v-if="erreur('code')" class="block text-xs text-rose-600 mt-1">{{ erreur("code") }}</span>
+                <span v-if="erreur('org-nouvelle', 'code')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("org-nouvelle", "code")
+                }}</span>
             </div>
             <div class="flex-1">
                 <label for="org-nom" class="block text-xs font-bold text-ink mb-1.5">Nom</label>
                 <input
-                    type="text"
                     id="org-nom"
-                    name="nom"
-                    :value="oldNom"
+                    v-model="nouvelleOrganisation.nom"
+                    type="text"
                     required
                     placeholder="ex : Secours Machin"
                     class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
                 />
-                <span v-if="erreur('nom')" class="block text-xs text-rose-600 mt-1">{{ erreur("nom") }}</span>
+                <span v-if="erreur('org-nouvelle', 'nom')" class="block text-xs text-rose-600 mt-1">{{
+                    erreur("org-nouvelle", "nom")
+                }}</span>
             </div>
             <button
                 type="submit"
-                class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer"
+                :disabled="occupes['org-nouvelle']"
+                class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer disabled:opacity-60"
             >
                 + Ajouter
             </button>
         </form>
     </div>
 
-    <div class="max-w-2xl mt-10" data-settings-tab="hotels">
+    <!-- ── Adresses hôtel ────────────────────────────────────────────────────────────────────────── -->
+    <div v-show="onglet === 'hotels'" class="max-w-2xl">
         <h2 class="font-heading text-lg font-semibold text-ink tracking-tight mb-1">Adresses hôtel</h2>
         <p class="text-[13px] text-ink-muted mb-4">
             Adresses d'hébergement d'urgence connues (hôtels, appart-hôtels). Quand l'adresse d'une famille correspond à
@@ -456,64 +727,53 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                     <tr v-if="hotelAddresses.length === 0">
                         <td colspan="2" class="px-4 py-4 text-ink-muted text-center">Aucune adresse enregistrée.</td>
                     </tr>
-                    <tr
-                        v-for="hotelAddress in hotelAddresses"
-                        :key="hotelAddress.id"
-                        class="border-b border-surface-3 last:border-0"
-                    >
-                        <td class="px-4 py-2.5">
-                            <form
-                                :action="hotelAddressesUpdateUrlTemplate.replace('__ID__', String(hotelAddress.id))"
-                                method="POST"
-                                class="flex items-center gap-2"
-                            >
-                                <input type="hidden" name="_token" :value="csrfToken" />
-                                <input type="hidden" name="_method" value="PUT" />
-                                <input
-                                    type="text"
-                                    name="adresse"
-                                    :value="oldAdresse ?? hotelAddress.adresse"
-                                    required
-                                    class="flex-1 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
-                                />
-                                <button
-                                    type="submit"
-                                    class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap"
+                    <template v-for="hotelAddress in hotelAddresses" :key="hotelAddress.id">
+                        <tr class="border-b border-surface-3 last:border-0">
+                            <td class="px-4 py-2.5">
+                                <div class="flex items-center gap-2">
+                                    <input
+                                        v-model="edHotels[hotelAddress.id].adresse"
+                                        type="text"
+                                        required
+                                        class="flex-1 px-2.5 py-1.5 border border-surface-border rounded-md text-[13px] bg-surface text-ink"
+                                        @keydown.enter.prevent="enregistrerHotel(hotelAddress)"
+                                    />
+                                    <button
+                                        type="button"
+                                        :disabled="occupes[`hotel-${hotelAddress.id}`]"
+                                        class="px-3 py-1.5 bg-accent hover:bg-accent-dark text-white text-[12px] font-semibold rounded-md transition-colors cursor-pointer whitespace-nowrap disabled:opacity-60"
+                                        @click="enregistrerHotel(hotelAddress)"
+                                    >
+                                        Enregistrer
+                                    </button>
+                                </div>
+                                <!-- Erreur de CETTE ligne seulement : plus de recopie de la saisie rejetée dans toutes les lignes. -->
+                                <span
+                                    v-if="erreur(`hotel-${hotelAddress.id}`, 'adresse')"
+                                    class="block text-xs text-rose-600 mt-1"
+                                    >{{ erreur(`hotel-${hotelAddress.id}`, "adresse") }}</span
                                 >
-                                    Enregistrer
-                                </button>
-                            </form>
-                        </td>
-                        <td class="px-1 py-2.5 text-right">
-                            <form
-                                :action="hotelAddressesDestroyUrlTemplate.replace('__ID__', String(hotelAddress.id))"
-                                method="POST"
-                                data-confirm="Supprimer cette adresse hôtel ? Les dossiers déjà marqués « hôtel » ne seront pas modifiés."
-                                data-confirm-danger
-                                data-confirm-label="Supprimer"
-                            >
-                                <input type="hidden" name="_token" :value="csrfToken" />
-                                <input type="hidden" name="_method" value="DELETE" />
+                            </td>
+                            <td class="px-1 py-2.5 text-right">
                                 <button
-                                    type="submit"
+                                    type="button"
                                     class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-rose-200 bg-rose-50 hover:bg-rose-100 text-sm transition-colors cursor-pointer min-h-[44px] min-w-[44px]"
                                     title="Supprimer"
+                                    @click="supprimerHotel(hotelAddress)"
                                 >
                                     🗑️
                                 </button>
-                            </form>
-                        </td>
-                    </tr>
+                            </td>
+                        </tr>
+                    </template>
                 </tbody>
             </table>
         </div>
 
         <form
-            :action="hotelAddressesStoreUrl"
-            method="POST"
             class="bg-surface rounded-xl border border-surface-border shadow-sm p-4"
+            @submit.prevent="envoyerFormulaire($event, hotelAddressesStoreUrl, 'hotel-nouvelle', true)"
         >
-            <input type="hidden" name="_token" :value="csrfToken" />
             <label for="hotel-address-adresse" class="block text-xs font-bold text-ink mb-1.5">Nouvelle adresse</label>
             <div class="flex items-end gap-3">
                 <div class="flex-1">
@@ -521,18 +781,15 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                         type="text"
                         id="hotel-address-adresse"
                         name="adresse"
-                        :value="oldAdresse"
                         required
                         placeholder="ex : 12 Rue de la Johardière, 44800 Saint-Herblain"
                         class="w-full px-3 py-2 border-[1.5px] border-ink-faint rounded-lg text-sm bg-surface-2 text-ink"
                     />
-                    <span v-if="erreur('adresse')" class="block text-xs text-rose-600 mt-1">{{
-                        erreur("adresse")
+                    <span v-if="erreur('hotel-nouvelle', 'adresse')" class="block text-xs text-rose-600 mt-1">{{
+                        erreur("hotel-nouvelle", "adresse")
                     }}</span>
-                    <!-- Widget d'appoint : bouton "Rechercher via Google Maps" qui
-                         remplit le champ ci-dessus au lieu de le remplacer — voir
-                         HotelAddressAutocomplete.vue. La saisie manuelle reste
-                         toujours possible sans JS. -->
+                    <!-- Widget d'appoint : bouton "Rechercher via Google Maps" qui remplit le champ ci-dessus au lieu de
+                         le remplacer — voir HotelAddressAutocomplete.vue. La saisie manuelle reste toujours possible. -->
                     <HotelAddressAutocomplete
                         :google-places-key="googlePlacesKey"
                         target-input-id="hotel-address-adresse"
@@ -541,7 +798,8 @@ const csrfToken = document.querySelector<HTMLMetaElement>('meta[name="csrf-token
                 </div>
                 <button
                     type="submit"
-                    class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer"
+                    :disabled="occupes['hotel-nouvelle']"
+                    class="px-5 py-2.5 bg-accent hover:bg-accent-dark text-white font-bold text-sm rounded-lg transition-colors cursor-pointer disabled:opacity-60"
                 >
                     + Ajouter
                 </button>

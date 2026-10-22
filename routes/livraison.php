@@ -19,6 +19,7 @@ use App\Http\Controllers\Livraison\MaRouteController;
 use App\Http\Controllers\Livraison\PackagingController;
 use App\Http\Controllers\Livraison\PosteReleveController;
 use App\Http\Controllers\Livraison\RetraitHqController;
+use App\Http\Controllers\Livraison\ScanLivraisonController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -220,6 +221,10 @@ Route::middleware(['auth', 'role:gestionnaire'])->prefix('livraison')->name('liv
     // voir MaRouteController::voirCommeChauffeur().
     Route::get('/routes/{route}/vue-chauffeur', [MaRouteController::class, 'voirCommeChauffeur'])
         ->name('routes.vue-chauffeur');
+    // Feuille de tournée imprimable pour un chauffeur peu à l'aise avec l'appli (octobre 2026) —
+    // voir MaRouteController::imprimer().
+    Route::get('/routes/{route}/imprimer', [MaRouteController::class, 'imprimer'])
+        ->name('routes.imprimer');
     // Rouvrir une tournée terminée (11/10/2026) — admin uniquement.
     Route::post('/routes/{route}/rouvrir', [MaRouteController::class, 'rouvrir'])
         ->middleware('role:admin')->name('routes.rouvrir');
@@ -437,6 +442,11 @@ Route::middleware('auth')->prefix('livraison/chargement')->name('livraison.charg
 // le docblock de RetraitHqController) : groupe séparé uniquement parce que
 // le préfixe d'URL/les noms de route sont distincts de livraison/chargement,
 // pas parce que l'autorisation diffère.
+// Cible des QR codes imprimés sur les étiquettes de colis (octobre 2026) : résout la famille vers
+// l'arrêt de tournée courant ou le retrait QG — voir ScanLivraisonController.
+Route::middleware('auth')->get('/livraison/scan/{livraison}', ScanLivraisonController::class)
+    ->name('livraison.scan');
+
 Route::middleware('auth')->prefix('livraison/retrait-hq')->name('livraison.retrait-hq.')->group(function () {
     Route::get('/', [RetraitHqController::class, 'choisir'])
         ->middleware('livraison_role:equipe_chargement')->name('choisir');

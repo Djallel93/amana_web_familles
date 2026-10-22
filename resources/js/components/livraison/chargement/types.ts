@@ -2,11 +2,13 @@
 //
 // Formes renvoyées par ChargementController (index() et liste()) — écran Chargement, 11/10/2026.
 
+import type { Campagne, GenerationUrls, Organisation, Quartier, Secteur, Ville } from "../shared/types";
+
 export type EtatChargement =
     "restante" | "en_preparation" | "prete" | "chargee" | "packaging_annule" | "en_livraison" | "livree";
 
 /** Statut d'un arrêt de tournée (route_etapes.statut) — lu une fois la tournée partie. */
-export type StatutArret = "en_attente" | "en_cours" | "livree" | "ignoree";
+export type StatutArret = "en_attente" | "en_cours" | "livree" | "ignoree" | "annulee";
 
 export interface EtapeChargement {
     id: number;
@@ -18,6 +20,12 @@ export interface EtapeChargement {
     etudiant: boolean;
     est_hotel: boolean;
     nombre_enfant: number;
+    /** Nombre de colis de la famille. */
+    colis: number;
+    /** Coordonnées pour l'équipe — jamais le nom (octobre 2026). */
+    adresse: string;
+    telephone: string | null;
+    telephone_bis: string | null;
     prioritaire: boolean;
     statut_arret: StatutArret;
 }
@@ -55,6 +63,10 @@ export interface FamilleSansTournee {
     etudiant: boolean;
     est_hotel: boolean;
     nombre_enfant: number;
+    colis: number;
+    adresse: string;
+    telephone: string | null;
+    telephone_bis: string | null;
 }
 
 export interface StatsChargement {
@@ -72,6 +84,19 @@ export interface RappelRoutes {
     peut_generer: boolean;
     url_generer: string;
     url_campagne: string;
+}
+
+/**
+ * Données de l'assistant « Génération des routes » (GenererRoutesWizard), envoyées par
+ * ChargementController::index() tant que le rappel « générez les routes » est affiché — null sinon.
+ */
+export interface DonneesGeneration {
+    campagne: Campagne;
+    urls: GenerationUrls;
+    villes: Ville[];
+    secteurs: Secteur[];
+    quartiers: Quartier[];
+    organisations: Organisation[];
 }
 
 export interface UrlsChargement {

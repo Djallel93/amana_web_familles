@@ -133,7 +133,10 @@ return new class extends Migration
                 ->nullOnDelete()
                 ->comment('Null = arrêt retour QG, pas de famille associée');
             $table->unsignedSmallInteger('ordre');
-            $table->enum('statut', ['en_attente', 'en_cours', 'livree', 'ignoree'])->default('en_attente');
+            // 'annulee' : arrêt d'une tournée abandonnée (bénévole absent signalé
+            // depuis le chargement) — posé par le système, jamais par le parcours
+            // bénévole ni par l'override manuel.
+            $table->enum('statut', ['en_attente', 'en_cours', 'livree', 'ignoree', 'annulee'])->default('en_attente');
 
             $table->index(['id_route', 'ordre']);
         });

@@ -437,14 +437,18 @@ export interface VehiculeType {
  * parcours bénévole, seulement via l'override manuel gestionnaire (voir
  * changerStatutEtape() dans RoutesPanel.vue).
  */
-export const STATUTS_ETAPE = ["en_attente", "en_cours", "livree", "ignoree"] as const;
+export const STATUTS_ETAPE = ["en_attente", "en_cours", "livree", "ignoree", "annulee"] as const;
 export type StatutEtape = (typeof STATUTS_ETAPE)[number];
+
+/** Statuts posables à la main par un gestionnaire — « annulee » est posé par le système (tournée abandonnée). */
+export const STATUTS_ETAPE_MANUELS = ["en_attente", "en_cours", "livree", "ignoree"] as const;
 
 export const LIBELLES_STATUT_ETAPE: Record<StatutEtape, string> = {
     en_attente: "Restante",
     en_cours: "En cours",
     livree: "Livrée",
     ignoree: "Ignorée",
+    annulee: "Annulée",
 };
 
 /**
@@ -458,6 +462,7 @@ export const STYLES_STATUT_ETAPE: Record<StatutEtape, string> = {
     en_cours: "bg-sky-100 text-sky-700 ring-1 ring-inset ring-sky-200",
     livree: "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200",
     ignoree: "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200",
+    annulee: "bg-stone-200 text-stone-600 ring-1 ring-inset ring-stone-300 line-through",
 };
 
 export interface Etape {

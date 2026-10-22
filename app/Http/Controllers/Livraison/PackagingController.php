@@ -397,8 +397,12 @@ class PackagingController extends Controller
      */
     public function feuillePreparation(Campagne $campagne): View
     {
+        // Familles confirmées seulement (octobre 2026), comme la planche d'étiquettes : une famille
+        // rejetée ou sans réponse n'a pas de colis à préparer.
         $livraisons = Livraison::where('id_campagne', $campagne->id)
-            ->with('famille:id,nom,prenom,criticite,etudiant,est_hotel,nombre_adulte,nombre_enfant')
+            ->where('statut_contact', 'confirme')
+            ->with(['famille:id,nom,prenom,criticite,etudiant,est_hotel,nombre_adulte,nombre_enfant', 'benevoleImpose'])
+            ->withCount('colis')
             ->get()
             ->sortByDesc(fn(Livraison $l) => $l->famille->criticite ?? 0)
             ->values();

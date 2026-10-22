@@ -40,6 +40,9 @@ class BenevoleProfileExtension implements ProfileExtension
             return [];
         }
 
+        // Lu une seule fois : le motif ignoré de phpstan.neon compte les accès à cette propriété.
+        $idVehicule = $profil->id_vehicule_type;
+
         return [
             [
                 'name' => 'langue_preferee',
@@ -61,8 +64,10 @@ class BenevoleProfileExtension implements ProfileExtension
                 'label' => 'Véhicule',
                 'type' => 'select',
                 'required' => true,
-                'options' => VehiculeType::orderBy('id')->pluck('type', 'id')->all(),
-                'value' => $profil->id_vehicule_type,
+                // Types actifs, plus celui déjà choisi par ce bénévole s'il a été retiré depuis (octobre 2026).
+                'options' => VehiculeType::where(fn($requete) => $requete->where('actif', true)->orWhereKey($idVehicule))
+                    ->orderBy('id')->pluck('type', 'id')->all(),
+                'value' => $idVehicule,
             ],
             [
                 'name' => 'secteurs',

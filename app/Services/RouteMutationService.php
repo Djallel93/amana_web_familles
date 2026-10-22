@@ -141,7 +141,7 @@ class RouteMutationService
      */
     public function changerStatutEtape(EtapeRoute $etape, string $statut): EtapeRoute
     {
-        if (!in_array($statut, EtapeRoute::STATUTS, true)) {
+        if (!in_array($statut, EtapeRoute::STATUTS_MANUELS, true)) {
             throw new \RuntimeException("Statut d'arrêt invalide : {$statut}.");
         }
 

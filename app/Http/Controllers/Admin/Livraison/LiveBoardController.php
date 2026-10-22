@@ -103,6 +103,7 @@ class LiveBoardController extends Controller
                 // Accès admin à l'écran chauffeur de chaque tournée (29/09/2026,
                 // prompt §6.2) — voir MaRouteController::voirCommeChauffeur().
                 'routeVueChauffeur' => route('livraison.routes.vue-chauffeur', ['route' => '__ID__']),
+                'routeImprimer' => route('livraison.routes.imprimer', ['route' => '__ID__']),
                 // Composition des tournées : écran chargement (11/10/2026).
                 'chargement' => route('livraison.chargement.index', ['campagne' => '__CAMPAGNE__']),
             ],
@@ -407,7 +408,7 @@ class LiveBoardController extends Controller
     public function changerStatutEtape(Request $request, RouteLivraison $route, EtapeRoute $etape): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'statut' => 'required|in:' . implode(',', EtapeRoute::STATUTS),
+            'statut' => 'required|in:' . implode(',', EtapeRoute::STATUTS_MANUELS),
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);

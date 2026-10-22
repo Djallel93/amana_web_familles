@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int      $id_route
  * @property int|null $id_livraison
  * @property int      $ordre
- * @property string   $statut  en_attente|en_cours|livree|ignoree
+ * @property string   $statut  en_attente|en_cours|livree|ignoree|annulee
  */
 class EtapeRoute extends Model
 {
@@ -51,7 +51,13 @@ class EtapeRoute extends Model
      * 'en_cours' ajouté le 09/09/2026 (prompt de cette date §5.2.3) — voir
      * le docblock de la migration etapes_route pour le raisonnement.
      */
-    public const STATUTS = ['en_attente', 'en_cours', 'livree', 'ignoree'];
+    public const STATUTS = ['en_attente', 'en_cours', 'livree', 'ignoree', 'annulee'];
+
+    /**
+     * Statuts qu'un gestionnaire peut poser à la main (override du suivi
+     * terrain) — 'annulee' est réservé au système (tournée abandonnée).
+     */
+    public const STATUTS_MANUELS = ['en_attente', 'en_cours', 'livree', 'ignoree'];
 
     public function route(): BelongsTo
     {

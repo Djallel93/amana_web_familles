@@ -21,7 +21,7 @@ class MaRouteVueService
      * milieu, livrés en bas (ordre de tournée optimisé conservé à
      * l'intérieur de chaque groupe).
      */
-    private const RANG_STATUT = ['en_cours' => 0, 'en_attente' => 0, 'ignoree' => 1, 'livree' => 2];
+    private const RANG_STATUT = ['en_cours' => 0, 'en_attente' => 0, 'ignoree' => 1, 'livree' => 2, 'annulee' => 3];
 
     public function __construct(private readonly GeoCalculationService $geo) {}
 

@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BenevoleRetourQg;
 use App\Models\Campagne;
 use App\Models\EtapeRoute;
+use App\Models\Livraison;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Services\MaRouteVueService;
@@ -64,6 +65,48 @@ class MaRouteController extends Controller
         $route->load('benevole:id,nom,prenom');
 
         return view('livraison.ma-route', $this->donneesVue(collect([$route]), true));
+    }
+
+    /**
+     * Feuille de tournée imprimable pour un chauffeur peu à l'aise avec l'application (octobre
+     * 2026) : tous les arrêts dans l'ordre, avec adresse complète, téléphones, nombre de colis et
+     * besoins particuliers — de quoi livrer sans écran. Réservée au staff (même groupe de routes que
+     * voirCommeChauffeur()) : c'est l'admin/gestionnaire qui valide ensuite la tournée à la main,
+     * d'où ni QR ni statut sur cette feuille, seulement des cases à cocher pour le chauffeur.
+     * Les arrêts annulés (tournée abandonnée) n'y figurent pas.
+     */
+    public function imprimer(RouteLivraison $route): View
+    {
+        $route->load(['benevole', 'vehiculeType', 'campagne', 'campagneJournee']);
+
+        /** @var \Illuminate\Database\Eloquent\Collection<int, EtapeRoute> $etapes */
+        $etapes = $route->etapes()
+            ->whereNotNull('id_livraison')
+            ->where('statut', '!=', 'annulee')
+            ->with([
+                'livraison' => fn($requete) => $requete->withCount('colis'),
+                'livraison.famille.quartier.secteur.ville',
+            ])
+            ->orderBy('ordre')
+            ->get();
+
+        $totalColis = 0;
+        $poidsTotal = 0.0;
+        foreach ($etapes as $etape) {
+            /** @var Livraison|null $livraison La relation est typée Model par l'analyse statique. */
+            $livraison = $etape->livraison;
+            if ($livraison) {
+                $totalColis += $livraison->nombre_colis;
+                $poidsTotal += (float) $livraison->poids_kg;
+            }
+        }
+
+        return view('livraison.route-impression', [
+            'route' => $route,
+            'etapes' => $etapes,
+            'totalColis' => $totalColis,
+            'poidsTotal' => round($poidsTotal, 1),
+        ]);
     }
 
     /**

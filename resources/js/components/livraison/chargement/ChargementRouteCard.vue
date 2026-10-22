@@ -20,6 +20,7 @@ import { computed, ref } from "vue";
 import { formaterTelephoneFr, lienTelephone, useConfirm, usePrompt, useToast } from "@amana/shared-ui";
 import { apiDelete, apiPost } from "../shared/api";
 import PersonSelect from "../shared/PersonSelect.vue";
+import FamilleResume from "./FamilleResume.vue";
 import type { PersonneResume } from "../shared/types";
 import type { FamilleSansTournee, RouteChargement, UrlsChargement } from "./types";
 
@@ -56,6 +57,7 @@ const ARRET_PASTILLES: Record<string, { libelle: string; style: string }> = {
     en_cours: { libelle: "En cours", style: "bg-sky-100 text-sky-700" },
     livree: { libelle: "Livrée", style: "bg-teal-100 text-teal-700" },
     ignoree: { libelle: "Ignorée", style: "bg-rose-100 text-rose-700" },
+    annulee: { libelle: "Annulée", style: "bg-stone-200 text-stone-600" },
 };
 
 const occupe = ref(false);
@@ -294,52 +296,44 @@ async function supprimer() {
             Plus aucune famille dans cette tournée : ajoutez-en une ou annulez la tournée.
         </p>
         <ul v-else class="mt-3 divide-y divide-surface-border rounded-lg border border-surface-border bg-surface">
-            <li v-for="etape in route.etapes" :key="etape.id" class="flex items-center gap-2 px-3 py-2">
-                <div class="min-w-0 flex-1">
-                    <p class="text-[13px] font-medium text-ink">
-                        Famille #{{ etape.famille_id }}
-                        <span
-                            v-if="etape.prioritaire"
-                            class="ml-1 text-[10.5px] font-semibold px-1.5 py-0.5 rounded-full bg-indigo-600 text-white"
-                            >⭐ Prioritaire</span
-                        >
-                    </p>
-                    <p
-                        v-if="etape.etudiant || etape.est_hotel || etape.nombre_enfant > 0"
-                        class="mt-0.5 flex flex-wrap gap-1 text-[10.5px]"
+            <li
+                v-for="etape in route.etapes"
+                :key="etape.id"
+                class="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+            >
+                <FamilleResume
+                    class="flex-1"
+                    :famille-id="etape.famille_id"
+                    :etudiant="etape.etudiant"
+                    :est-hotel="etape.est_hotel"
+                    :nombre-enfant="etape.nombre_enfant"
+                    :colis="etape.colis"
+                    :adresse="etape.adresse"
+                    :telephone="etape.telephone"
+                    :telephone-bis="etape.telephone_bis"
+                    :prioritaire="etape.prioritaire"
+                />
+                <div class="flex items-center gap-2 sm:flex-col sm:items-end sm:gap-1.5 shrink-0">
+                    <!-- Tournée partie : statut de l'arrêt ; sinon conditionnement de la famille. -->
+                    <span
+                        v-if="route.partie"
+                        class="text-[11px] font-medium px-2 py-0.5 rounded-full"
+                        :class="(ARRET_PASTILLES[etape.statut_arret] ?? ARRET_PASTILLES.en_attente).style"
+                        >{{ (ARRET_PASTILLES[etape.statut_arret] ?? ARRET_PASTILLES.en_attente).libelle }}</span
                     >
-                        <span v-if="etape.etudiant" class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700"
-                            >étudiant</span
-                        >
-                        <span v-if="etape.est_hotel" class="px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700"
-                            >hôtel</span
-                        >
-                        <span
-                            v-if="etape.nombre_enfant > 0"
-                            class="px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-700"
-                            >👶 {{ etape.nombre_enfant }}</span
-                        >
-                    </p>
+                    <span v-else class="text-[11px] font-medium px-2 py-0.5 rounded-full" :class="etape.etat_style">{{
+                        etape.etat_libelle
+                    }}</span>
+                    <button
+                        v-if="!route.verrouillee && !route.partie"
+                        type="button"
+                        :disabled="occupe"
+                        class="text-[11.5px] text-rose-600 px-2 py-0.5 rounded-full border border-rose-200 hover:bg-rose-50 disabled:opacity-60"
+                        @click="retirerFamille(etape.id, etape.famille_id)"
+                    >
+                        Retirer
+                    </button>
                 </div>
-                <!-- Tournée partie : statut de l'arrêt ; sinon conditionnement de la famille. -->
-                <span
-                    v-if="route.partie"
-                    class="text-[10.5px] font-medium px-2 py-0.5 rounded-full"
-                    :class="(ARRET_PASTILLES[etape.statut_arret] ?? ARRET_PASTILLES.en_attente).style"
-                    >{{ (ARRET_PASTILLES[etape.statut_arret] ?? ARRET_PASTILLES.en_attente).libelle }}</span
-                >
-                <span v-else class="text-[10.5px] font-medium px-2 py-0.5 rounded-full" :class="etape.etat_style">{{
-                    etape.etat_libelle
-                }}</span>
-                <button
-                    v-if="!route.verrouillee && !route.partie"
-                    type="button"
-                    :disabled="occupe"
-                    class="text-[11px] text-rose-600 px-1.5 disabled:opacity-60"
-                    @click="retirerFamille(etape.id, etape.famille_id)"
-                >
-                    retirer
-                </button>
             </li>
         </ul>
 

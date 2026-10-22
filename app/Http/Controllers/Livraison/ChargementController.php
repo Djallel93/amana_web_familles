@@ -6,14 +6,19 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Livraison;
 
 use Amana\Shared\Models\Personne;
+use Amana\Shared\Models\Secteur;
+use Amana\Shared\Models\Ville;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Livraison\Concerns\FiltreCampagnesEquipe;
 use App\Http\Controllers\Livraison\Concerns\UrlRetourEquipe;
+use App\Http\Resources\CampagneResource;
 use App\Models\BenevoleDisponibilite;
 use App\Models\Campagne;
 use App\Models\EtapeRoute;
 use App\Models\Famille;
 use App\Models\Livraison;
+use App\Models\Organisation;
+use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Notifications\RouteChargeeNotification;
@@ -27,6 +32,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
@@ -92,6 +98,7 @@ class ChargementController extends Controller
     {
         $filtre = $this->filtreDepuisRequete($request);
         $utilisateur = Auth::user();
+        $donnees = $this->donneesListe($campagne, $filtre);
 
         return Inertia::render('Livraison/Chargement', [
             'campagne' => ['id' => $campagne->id],
@@ -114,8 +121,60 @@ class ChargementController extends Controller
                 'diviser' => route('livraison.chargement.routes.diviser', ['route' => '__ID__']),
                 'supprimer' => route('livraison.chargement.routes.supprimer', ['route' => '__ID__']),
             ],
-            ...$this->donneesListe($campagne, $filtre),
+            // Assistant « Génération des routes » ouvert directement depuis cet écran (octobre
+            // 2026) : ses référentiels ne sont envoyés que tant que le rappel « générez les
+            // routes » est affiché ET que l'utilisateur peut générer — ensuite l'écran reste léger.
+            'generation' => $this->donneesAssistantGeneration($campagne, $donnees['rappel']),
+            ...$donnees,
         ]);
+    }
+
+    /**
+     * Données de l'assistant GenererRoutesWizard (mêmes que CampagnesController::show()), ou
+     * null quand le rappel n'est pas affiché, que la campagne n'est pas démarrée ou que
+     * l'utilisateur n'a pas le droit de générer.
+     *
+     * @param  array<string, mixed>|null  $rappel
+     * @return array<string, mixed>|null
+     */
+    private function donneesAssistantGeneration(Campagne $campagne, ?array $rappel): ?array
+    {
+        if ($rappel === null || !$rappel['peut_generer'] || !$rappel['demarree']) {
+            return null;
+        }
+
+        return [
+            'campagne' => new CampagneResource($campagne->load('journees')),
+            'quartiers' => Quartier::orderBy('nom')->get(['id', 'nom', 'id_secteur']),
+            'villes' => Ville::orderBy('nom')->get(['id', 'nom']),
+            'secteurs' => Secteur::orderBy('nom')->get(['id', 'nom', 'id_ville']),
+            'organisations' => Organisation::actifs()->orderBy('nom')->get(['id', 'nom']),
+            'urls' => [
+                'chauffeurs' => route('livraison.campagnes.chauffeurs-disponibles', $campagne),
+                'apercu' => route('livraison.campagnes.apercu-generation', $campagne),
+                'generer' => route('livraison.campagnes.generer-routes', $campagne),
+                'personnalisee' => route('livraison.routes.personnalisee', $campagne),
+                'nonCouvertesTableau' => route('livraison.campagnes.non-couvertes-tableau', $campagne),
+            ],
+        ];
+    }
+
+    /**
+     * Coordonnées d'une famille pour l'équipe chargement (octobre 2026) : adresse complète et
+     * téléphones, JAMAIS le nom — l'équipe identifie les familles par leur numéro.
+     *
+     * @return array{adresse: string, telephone: string|null, telephone_bis: string|null}
+     */
+    private function coordonneesFamille(Famille $famille): array
+    {
+        $localite = trim(($famille->code_postal ?? '') . ' ' . ($famille->ville_texte ?? ''));
+
+        return [
+            'adresse' => implode(', ', array_filter([$famille->adresse, $localite !== '' ? $localite : null])),
+            // Bruts : l'écran les formate (formaterTelephoneFr) et en tire le lien tel:.
+            'telephone' => $famille->telephone,
+            'telephone_bis' => $famille->telephone_bis,
+        ];
     }
 
     /**
@@ -188,7 +247,7 @@ class ChargementController extends Controller
             // le filtre « Toutes ». Celles en livraison / terminées restent visibles, en lecture seule.
             ->where('statut', '!=', 'annulee')
             // vehiculeType + colis (09/10/2026) : type de véhicule et nombre de colis à charger de la carte.
-            ->with(['benevole', 'vehiculeType', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant', 'etapes.livraison.creneaux', 'etapes.livraison.colis'])
+            ->with(['benevole', 'vehiculeType', 'etapes.livraison.famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant,adresse,code_postal,ville_texte,telephone,telephone_bis', 'etapes.livraison.creneaux', 'etapes.livraison.colis'])
             ->get();
 
         // 18/10/2026 : chauffeurs pas encore rentrés au QG, pour avertir l'équipe chargement.
@@ -314,8 +373,10 @@ class ChargementController extends Controller
                 'etudiant' => (bool) $famille->etudiant,
                 'est_hotel' => (bool) $famille->est_hotel,
                 'nombre_enfant' => (int) $famille->nombre_enfant,
+                'colis' => $livraison->colis->count(),
+                ...$this->coordonneesFamille($famille),
                 'prioritaire' => (bool) $livraison->preparation_prioritaire,
-                // Statut de l'arrêt (en_attente / en_cours / livree / ignoree) — affiché une fois la tournée partie.
+                // Statut de l'arrêt (en_attente / en_cours / livree / ignoree / annulee) — affiché une fois la tournée partie.
                 'statut_arret' => $etape->statut,
             ];
         }
@@ -376,7 +437,7 @@ class ChargementController extends Controller
             ->where('statut_contact', 'confirme')
             ->where('se_deplace', false)
             ->where('statut', 'non_assignee')
-            ->with('famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant')
+            ->with(['famille:id,nom,prenom,etudiant,est_hotel,nombre_enfant,adresse,code_postal,ville_texte,telephone,telephone_bis', 'colis'])
             ->orderBy('id')
             ->get()
             ->filter(fn(Livraison $livraison) => $etatVoulu === null || StatutChargement::pourFamille($livraison) === $etatVoulu)
@@ -395,6 +456,8 @@ class ChargementController extends Controller
                     'etudiant' => (bool) $famille->etudiant,
                     'est_hotel' => (bool) $famille->est_hotel,
                     'nombre_enfant' => (int) $famille->nombre_enfant,
+                    'colis' => $livraison->colis->count(),
+                    ...$this->coordonneesFamille($famille),
                 ];
             })
             ->all();
@@ -494,20 +557,67 @@ class ChargementController extends Controller
     {
         $livraisons = Livraison::where('id_campagne', $campagne->id)
             ->where('statut_contact', 'confirme')
-            ->with(['famille:id,nom,prenom', 'etapesRoute'])
+            ->withCount('colis')
+            ->orderBy('id_famille')
             ->get();
 
-        $qrParLivraison = $livraisons->mapWithKeys(function (Livraison $livraison) {
-            $etape = $livraison->etapesRoute->first();
+        // Une étiquette par colis (octobre 2026) : numéro de famille au recto, « n/total » en bas à
+        // droite, QR au verso. Le QR vise l'URL de scan PAR FAMILLE (livraison.scan), qui résout la
+        // tournée courante au moment du scan (ou le retrait QG pour une famille se_deplace) : il
+        // reste valable quand les tournées sont recomposées, et existe avant même leur génération.
+        $etiquettes = [];
+        foreach ($livraisons as $livraison) {
+            $total = $livraison->nombre_colis;
+            $qr = $this->qrCode->genererSvg(route('livraison.scan', $livraison));
 
-            return [$livraison->id => $etape ? $this->qrCode->genererSvg(route('livraison.benevole.etapes.scan', $etape)) : null];
-        });
+            for ($numero = 1; $numero <= $total; $numero++) {
+                $etiquettes[] = [
+                    'famille_id' => (int) $livraison->id_famille,
+                    'numero' => $numero,
+                    'total' => $total,
+                    'qr' => $qr,
+                ];
+            }
+        }
 
         return view('livraison.etiquettes-campagne', [
             'campagne' => $campagne,
-            'livraisons' => $livraisons,
-            'qrParLivraison' => $qrParLivraison,
+            'pages' => $this->paginerEtiquettes($etiquettes),
+            'nombreEtiquettes' => count($etiquettes),
         ]);
+    }
+
+    /** Planche A4 : 3 colonnes × 4 lignes. */
+    public const ETIQUETTES_COLONNES = 3;
+
+    public const ETIQUETTES_LIGNES = 4;
+
+    /**
+     * Découpe les étiquettes en planches de 12 et prépare, pour chacune, l'ordre du recto et celui
+     * du verso. Le verso est imprimé sur la page suivante (recto-verso, retournement sur le bord
+     * long) : chaque ligne y est donc inversée, pour que le QR tombe exactement derrière
+     * l'étiquette correspondante. La dernière planche est complétée de cases vides (null) pour que
+     * l'alignement reste le même.
+     *
+     * @param  list<array{famille_id: int, numero: int, total: int, qr: string}>  $etiquettes
+     * @return list<array{recto: list<array<string, mixed>|null>, verso: list<array<string, mixed>|null>}>
+     */
+    private function paginerEtiquettes(array $etiquettes): array
+    {
+        $parPage = self::ETIQUETTES_COLONNES * self::ETIQUETTES_LIGNES;
+        $pages = [];
+
+        foreach (array_chunk($etiquettes, $parPage) as $groupe) {
+            $recto = array_pad($groupe, $parPage, null);
+            $verso = [];
+            foreach (array_chunk($recto, self::ETIQUETTES_COLONNES) as $ligne) {
+                array_push($verso, ...array_reverse($ligne));
+            }
+
+            $pages[] = ['recto' => $recto, 'verso' => $verso];
+        }
+
+        return $pages;
     }
 
     /**
@@ -618,7 +728,14 @@ class ChargementController extends Controller
             $etape->livraison?->update(['statut' => 'non_assignee']);
         }
 
-        $route->update(['statut' => 'terminee']);
+        // Tournée abandonnée, pas terminée : 'annulee' (et non 'terminee', qui
+        // la ferait compter comme une tournée finie dans le suivi) — ses arrêts
+        // non livrés passent 'annulee' aussi, les arrêts déjà traités gardent
+        // leur statut. Les familles repartent en non_assignee ci-dessus.
+        DB::transaction(function () use ($route, $etapesNonLivrees) {
+            $route->etapes()->whereIn('id', $etapesNonLivrees->pluck('id'))->update(['statut' => 'annulee']);
+            $route->update(['statut' => 'annulee']);
+        });
 
         $incident = RouteIncident::create([
             'id_route' => $route->id,

@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Inertia\Inertia;
 use Inertia\Response as InertiaResponse;
@@ -151,7 +152,7 @@ class BenevoleIntakeController extends Controller
                 // Type de véhicule : sélection dans le référentiel ref_vehicules
                 // (amana/shared) — capacite_kg/nombre_part_max ne sont plus
                 // saisis ici, voir docblock de classe.
-                'id_vehicule_type' => ['required', 'integer', 'exists:commun.ref_vehicules,id'],
+                'id_vehicule_type' => ['required', 'integer', Rule::exists('commun.ref_vehicules', 'id')->where('actif', true)],
 
                 // Organisation — ajoutée le 28/08/2026, obligatoire (voir
                 // showForm()).

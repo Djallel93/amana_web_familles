@@ -24,18 +24,9 @@ use Inertia\Middleware;
  * n'est PAS remplacé : toutes les vues non encore migrées continuent de
  * l'@extends comme aujourd'hui.
  *
- * share() : 'auth'/'flash' depuis la création de ce middleware (12/09/2026),
- * plus 'old' depuis le 16/09/2026 (Section E4, chunk settings) — premier
- * et seul consommateur à ce jour : resources/js/pages/Settings/Index.vue,
- * dont les sept formulaires classiques (POST natif, pas de router.post())
- * s'appuient sur le repli automatique withInput() de Laravel après une
- * ValidationException pour réafficher la saisie précédente en cas
- * d'échec — mécanisme distinct du partage 'errors' déjà inclus
- * automatiquement par la classe Middleware parente (...parent::share()),
- * qui ne couvre PAS old(). 'flash' reste sans consommateur (voir
- * ci-dessous) — 'old' ne doit pas non plus être considéré comme un
- * précédent pour ajouter des clés spéculatives : ajouté ici précisément
- * parce qu'un consommateur réel existe dans ce même chunk.
+ * share() : 'auth'/'flash' depuis la création de ce middleware (12/09/2026). Le partage
+ * de 'old' (16/09/2026) a été retiré en octobre 2026 : la page Paramètres envoie désormais ses
+ * formulaires via Inertia (error bags, saisie conservée côté client) et n'en a plus besoin.
  */
 class HandleInertiaRequests extends Middleware
 {
@@ -63,14 +54,6 @@ class HandleInertiaRequests extends Middleware
                 'warning' => fn() => $request->session()->get('warning'),
                 'info' => fn() => $request->session()->get('info'),
             ],
-            // Ajouté le 16/09/2026 (Section E4, chunk settings) — voir le
-            // docblock de classe. getOldInput() sans clé retourne
-            // l'intégralité du tableau flashé par withInput() (imbriqué :
-            // ['settings' => [...], 'vehicules' => [...], 'code' => ...,
-            // 'nom' => ..., 'adresse' => ...] selon quel formulaire a
-            // échoué), jamais null — un tableau vide hors contexte
-            // d'échec de validation.
-            'old' => fn() => $request->session()->getOldInput(),
         ];
     }
 }

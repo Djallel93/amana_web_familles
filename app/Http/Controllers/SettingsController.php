@@ -56,25 +56,11 @@ class SettingsController extends SettingsControllerBase
      * restent des redirections classiques inchangées — seule cette
      * action change, comme pour toutes les conversions de ce refactor.
      *
-     * Contrairement à toutes les pages converties jusqu'ici, les sept
-     * <form> de cette page restent des soumissions natives classiques
-     * (pas de router.post()) : Inertia n'intercepte jamais un <form> HTML
-     * natif, donc leur redirection pleine page (avec withErrors()/
-     * withInput() automatiques de Laravel après une ValidationException)
-     * continue de fonctionner sans rien changer côté serveur au-delà de
-     * cette seule action de rendu.
-     *
-     * $defaultTab n'est plus calculé ici : la Blade le calculait depuis
-     * $errors->keys() (variable Blade globale, invisible depuis Vue) ;
-     * resources/js/pages/Settings/Index.vue le recalcule côté client à
-     * partir de la prop 'errors' (partagée automatiquement par la classe
-     * Middleware Inertia parente — voir HandleInertiaRequests::share()),
-     * même logique de préfixes portée telle quelle en TypeScript.
-     *
-     * 'old' (voir HandleInertiaRequests::share(), ajouté dans ce même
-     * chunk) fournit l'équivalent de old() pour les sept formulaires —
-     * settings.route_hq_latitude/longitude, vehicules.{id}.*, code, nom,
-     * adresse.
+     * Octobre 2026 : les formulaires de la page sont envoyés par Inertia (router.visit, un « error
+     * bag » par formulaire) — la page reste montée, l'onglet actif et la saisie survivent à
+     * l'enregistrement, et le message de succès (flash) s'affiche en toast. Les actions
+     * d'écriture (SettingsControllerBase::update(), VehiculeTypesController, OrganisationsController,
+     * HotelAddressesController) continuent de répondre par une redirection vers settings.index.
      */
     public function index(): InertiaResponse
     {
@@ -86,12 +72,18 @@ class SettingsController extends SettingsControllerBase
             'reglagesItineraires' => $settings->filter(
                 fn($_, $cle) => str_starts_with($cle, 'route_') && !in_array($cle, self::CLES_HQ, true)
             ),
-            'vehicules' => VehiculeType::orderBy('id')->get(),
+            // Tous les types, y compris les retirés (réactivables) ; 'protege' = jamais retirable.
+            'vehicules' => VehiculeType::orderBy('id')->get()
+                ->map(fn(VehiculeType $vehicule) => [...$vehicule->toArray(), 'protege' => $vehicule->estProtege()])
+                ->all(),
             'organisations' => Organisation::orderByDesc('est_principale')->orderBy('nom')->get(),
             'hotelAddresses' => HotelAddress::orderBy('adresse')->get(),
             'googlePlacesKey' => config('services.google.maps.places_api_key'),
             'updateUrl' => route('settings.update'),
             'vehiculesUpdateUrl' => route('vehicules.update'),
+            'vehiculesStoreUrl' => route('vehicules.store'),
+            'vehiculesDestroyUrlTemplate' => route('vehicules.destroy', ['vehiculeType' => '__ID__']),
+            'vehiculesReactiverUrlTemplate' => route('vehicules.reactiver', ['vehiculeType' => '__ID__']),
             'organisationsStoreUrl' => route('admin.organisations.store'),
             'organisationsUpdateUrlTemplate' => route('admin.organisations.update', ['organisation' => '__ID__']),
             'hotelAddressesStoreUrl' => route('hotel-addresses.store'),

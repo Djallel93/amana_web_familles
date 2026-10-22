@@ -292,6 +292,7 @@ onUnmounted(() => {
                 :url-etape-statut="urls.etapeStatut ?? ''"
                 :url-chargement="(urls.chargement ?? '').replace('__CAMPAGNE__', campagneId)"
                 :url-vue-chauffeur="urls.routeVueChauffeur ?? ''"
+                :url-imprimer="urls.routeImprimer ?? ''"
                 @changed="apresChangementTournee"
             />
 

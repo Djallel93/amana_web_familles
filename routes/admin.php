@@ -126,6 +126,11 @@ Route::middleware(['auth', 'role:gestionnaire'])->group(function () {
     // Pas de route GET dédiée : le formulaire vit dans /settings (voir
     // SettingsController::index() et resources/views/settings/index.blade.php).
     Route::post('/vehicules', [VehiculeTypesController::class, 'update'])->name('vehicules.update');
+    // Ajout / retrait (désactivation) / réactivation d'un type (octobre 2026) — voir le docblock de
+    // VehiculeTypesController.
+    Route::post('/vehicules/nouveau', [VehiculeTypesController::class, 'store'])->name('vehicules.store');
+    Route::delete('/vehicules/{vehiculeType}', [VehiculeTypesController::class, 'destroy'])->name('vehicules.destroy');
+    Route::post('/vehicules/{vehiculeType}/reactiver', [VehiculeTypesController::class, 'reactiver'])->name('vehicules.reactiver');
 
     // ── Référentiel des adresses hôtel (ajouté le 30/08/2026) ─────────────
     // Même groupe que /vehicules ci-dessus (admin + gestionnaire) — voir

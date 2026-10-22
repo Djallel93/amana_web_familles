@@ -10,8 +10,7 @@
     id="retrait-{{ $livraison->id }}" data-statut="{{ $livraison->statutRetraitHqAffiche }}">
     <div class="flex items-center justify-between mb-2">
         <span class="text-[14px] font-medium text-ink">
-            {{ $livraison->famille->prenom }} {{ $livraison->famille->nom }}
-            <span class="text-ink-muted font-normal">— dossier #{{ $livraison->famille->id }}</span>
+            #{{ $livraison->famille->id }} {{ $livraison->famille->prenom }} {{ $livraison->famille->nom }}
         </span>
         <div class="flex items-center gap-1.5">
             {{--
@@ -45,11 +44,26 @@
         </div>
     </div>
 
-    <p class="text-[12px] text-ink-muted mb-3">
-        {{ $livraison->heure_arrivee_prevue_hq?->translatedFormat('H:i') ?? 'Créneau pas encore planifié' }}
-        @if($livraison->famille->etudiant)<span class="text-sky-600"> · étudiant</span>@endif
-        @if($livraison->famille->est_hotel)<span class="text-amber-600"> · hôtel</span>@endif
-        @if($livraison->famille->nombre_enfant > 0)<span class="text-violet-600"> · {{ $livraison->famille->nombre_enfant }} enfant(s)</span>@endif
+    <p class="text-[12px] text-ink-muted mb-2">
+        🕒 {{ $livraison->heure_arrivee_prevue_hq?->translatedFormat('H:i') ?? 'Créneau pas encore planifié' }}
+    </p>
+
+    {{-- Pastilles « émoji + nombre + libellé » (octobre 2026), mêmes règles que l'écran Chargement. --}}
+    <div class="flex flex-wrap gap-1.5 mb-2 text-[11px] font-medium">
+        @if($livraison->famille->etudiant)<span class="px-2 py-0.5 rounded-full bg-sky-50 text-sky-700">🎓 Étudiant</span>@endif
+        @if($livraison->famille->est_hotel)<span class="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">🏨 Hôtel</span>@endif
+        @if($livraison->famille->nombre_enfant > 0)<span class="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700">👶 {{ $livraison->famille->nombre_enfant }} {{ $livraison->famille->nombre_enfant > 1 ? 'enfants' : 'enfant' }}</span>@endif
+        @if($livraison->nombre_colis > 0)<span class="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">📦 {{ $livraison->nombre_colis }} colis</span>@endif
+    </div>
+
+    {{-- Coordonnées (octobre 2026) : téléphones et email quand ils existent. --}}
+    <p class="mb-3 flex flex-wrap gap-x-3 gap-y-0.5 text-[12.5px]">
+        @foreach(array_filter([$livraison->famille->telephone, $livraison->famille->telephone_bis]) as $numero)
+            <a href="tel:{{ preg_replace('/[^\d+]/', '', $numero) }}" class="text-accent underline whitespace-nowrap">📞 {{ \App\Models\Famille::formaterTelephoneFr($numero) }}</a>
+        @endforeach
+        @if($livraison->famille->email)
+            <a href="mailto:{{ $livraison->famille->email }}" class="text-accent underline break-all">✉️ {{ $livraison->famille->email }}</a>
+        @endif
     </p>
 
     {{-- Préparation prioritaire (11/10/2026) : tant que le colis n'est pas prêt. Ne se retire pas. --}}

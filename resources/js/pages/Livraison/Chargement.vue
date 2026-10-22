@@ -17,7 +17,10 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Head, Link, router } from "@inertiajs/vue3";
 import { apiGet } from "../../components/livraison/shared/api";
 import ChargementRouteCard from "../../components/livraison/chargement/ChargementRouteCard.vue";
+import FamilleResume from "../../components/livraison/chargement/FamilleResume.vue";
+import GenererRoutesWizard from "../../components/livraison/campagnes/GenererRoutesWizard.vue";
 import type {
+    DonneesGeneration,
     FamilleSansTournee,
     FiltreChargement,
     RappelRoutes,
@@ -37,6 +40,8 @@ const props = defineProps<{
     routes: RouteChargement[];
     familles: FamilleSansTournee[];
     rappel: RappelRoutes | null;
+    /** Référentiels de l'assistant de génération — présents tant que le rappel est affiché (et si l'utilisateur peut générer). */
+    generation: DonneesGeneration | null;
 }>();
 
 const POLL_MS = 20000;
@@ -45,6 +50,8 @@ const stats = ref<StatsChargement>(props.stats);
 const routes = ref<RouteChargement[]>(props.routes);
 const familles = ref<FamilleSansTournee[]>(props.familles);
 const rappel = ref<RappelRoutes | null>(props.rappel);
+// Assistant « Génération des routes » ouvert depuis le rappel, sans repasser par le hub (octobre 2026).
+const assistantOuvert = ref(false);
 const nouvelles = ref<Set<number>>(new Set());
 let idsVus = new Set(props.routes.map((r) => r.id));
 let minuteur: number | undefined;
@@ -188,8 +195,17 @@ onBeforeUnmount(() => window.clearInterval(minuteur));
                 <p class="text-[13.5px] text-amber-800 leading-relaxed max-w-md mx-auto mb-5">
                     Des familles sont confirmées mais aucune tournée n'a encore été créée pour cette campagne.
                 </p>
+                <button
+                    v-if="rappel.peut_generer && generation"
+                    type="button"
+                    class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 rounded-lg bg-accent hover:bg-accent-dark text-white text-[14px] font-semibold transition-colors active:scale-95"
+                    @click="assistantOuvert = true"
+                >
+                    🗺️ Générer les routes
+                </button>
+                <!-- Repli : rappel apparu après le chargement de la page (les référentiels n'ont pas été envoyés). -->
                 <a
-                    v-if="rappel.peut_generer"
+                    v-else-if="rappel.peut_generer"
                     :href="rappel.url_generer"
                     class="inline-flex items-center gap-2 min-h-[44px] px-5 py-2.5 rounded-lg bg-accent hover:bg-accent-dark text-white text-[14px] font-semibold no-underline transition-colors active:scale-95"
                 >
@@ -243,21 +259,36 @@ onBeforeUnmount(() => window.clearInterval(minuteur));
                     class="bg-surface border border-surface-border rounded-xl p-4 opacity-90"
                     :id="`famille-${f.id}`"
                 >
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-[14px] font-medium text-ink">Famille #{{ f.famille_id }}</span>
-                        <span class="text-[11px] font-medium px-2 py-0.5 rounded-full" :class="f.etat_style">{{
+                    <div class="flex items-start justify-between gap-3">
+                        <FamilleResume
+                            :famille-id="f.famille_id"
+                            :etudiant="f.etudiant"
+                            :est-hotel="f.est_hotel"
+                            :nombre-enfant="f.nombre_enfant"
+                            :colis="f.colis"
+                            :adresse="f.adresse"
+                            :telephone="f.telephone"
+                            :telephone-bis="f.telephone_bis"
+                        />
+                        <span class="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full" :class="f.etat_style">{{
                             f.etat_libelle
                         }}</span>
                     </div>
-                    <p class="text-[12px] text-ink-muted">
-                        <span v-if="f.etudiant" class="text-sky-600">· étudiant </span>
-                        <span v-if="f.est_hotel" class="text-amber-600">· hôtel </span>
-                        <span v-if="f.nombre_enfant > 0" class="text-violet-600"
-                            >· {{ f.nombre_enfant }} enfant(s)</span
-                        >
-                    </p>
                 </div>
             </div>
         </div>
+
+        <GenererRoutesWizard
+            v-if="generation"
+            :open="assistantOuvert"
+            :campagne="generation.campagne"
+            :urls="generation.urls"
+            :villes="generation.villes"
+            :secteurs="generation.secteurs"
+            :quartiers="generation.quartiers"
+            :organisations="generation.organisations"
+            @close="assistantOuvert = false"
+            @done="rafraichir(false)"
+        />
     </div>
 </template>

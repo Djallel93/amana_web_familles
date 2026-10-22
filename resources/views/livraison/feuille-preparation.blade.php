@@ -18,6 +18,8 @@
         th { background: #f5f5f4; }
         .badge { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 999px; background: #e7e5e4; margin-right: 3px; }
         .notes { color: #be123c; }
+        .cases { white-space: nowrap; }
+        .case { font-size: 18px; line-height: 1; margin-right: 4px; }
         @media print {
             .no-print { display: none; }
             body { font-size: 11px; }
@@ -56,9 +58,18 @@
                     <td>
                         @if($livraison->famille->etudiant)<span class="badge">Étudiant</span>@endif
                         @if($livraison->famille->est_hotel)<span class="badge">Hôtel</span>@endif
+                        {{-- Livraison imposée (octobre 2026) : le chauffeur imposé est nommé. --}}
+                        @if($livraison->id_benevole_impose)
+                            <span class="badge">Imposée — {{ $livraison->benevoleImpose?->prenom }} {{ $livraison->benevoleImpose?->nom }}</span>
+                        @endif
                     </td>
                     <td class="notes">{{ $livraison->note_besoins_speciaux }}</td>
-                    <td>{{ $livraison->statut_conditionnement === 'prete' ? '✓' : '' }}</td>
+                    {{-- Une case par colis, à cocher au fur et à mesure du conditionnement (octobre 2026). --}}
+                    <td class="cases">
+                        @for($i = 0; $i < $livraison->nombre_colis; $i++)
+                            <span class="case">{{ $livraison->statut_conditionnement === 'prete' ? '☑' : '☐' }}</span>
+                        @endfor
+                    </td>
                 </tr>
             @endforeach
         </tbody>

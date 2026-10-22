@@ -52,7 +52,9 @@ class OrganisationsController extends Controller
     {
         $validated = $request->validate([
             'nom' => ['required', 'string', 'max:150', Rule::unique('organisations', 'nom')->ignore($organisation->id)],
-            'actif' => ['required', 'boolean'],
+            // 'sometimes' : le <select> de la ligne principale est désactivé donc jamais soumis — avec
+            // 'required', enregistrer AMANA échouait en silence (erreur sur une clé jamais affichée).
+            'actif' => [$organisation->est_principale ? 'sometimes' : 'required', 'boolean'],
         ], [
             'nom.unique' => 'Une organisation porte déjà ce nom.',
         ]);
