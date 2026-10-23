@@ -27,7 +27,12 @@
             ← Retour à la campagne
         </a>
 
-        <h1 class="font-heading text-xl font-semibold text-ink mb-6">Retrait QG — familles se déplaçant</h1>
+        <div class="flex items-center justify-between gap-3 mb-6 flex-wrap">
+            <h1 class="font-heading text-xl font-semibold text-ink">Retrait QG — familles se déplaçant</h1>
+            {{-- Liste imprimable avec case « Livré » (23/10/2026) --}}
+            <a href="{{ route('livraison.retrait-hq.imprimer', $campagne) }}" target="_blank" rel="noopener"
+                class="text-[13px] px-3 py-1.5 rounded-lg border border-surface-border text-ink hover:bg-stone-50">🖨️ Imprimer la liste</a>
+        </div>
         <form id="csrf-holder">@csrf</form>
 
         {{--
@@ -139,13 +144,40 @@
             ligne.querySelector('.actions-prete').style.display = 'none';
             // « Non livré » : le bouton d'annulation apparaît tout de suite (09/10/2026).
             ligne.querySelector('.actions-non-livre').style.display = statut === 'non_delivre' ? '' : 'none';
+            // « Livré » : le bouton d'annulation apparaît tout de suite (23/10/2026).
+            ligne.querySelector('.actions-livre').style.display = statut === 'delivre' ? '' : 'none';
         }
 
+        // Confirmation avant « Livré » (23/10/2026) : un clic par erreur marquait la famille livrée sans retour.
         async function marquerLivre(id) {
+            const ok = await window.amanaConfirm({
+                title: 'Confirmer la remise',
+                message: 'Confirmer que le colis a bien été remis à cette famille ?',
+                confirmLabel: 'Oui, livré',
+                cancelLabel: 'Annuler',
+            });
+            if (!ok) return;
             await occuper(id, async () => {
                 const r = await poster(`/livraison/retrait-hq/livraisons/${id}/livre`);
                 if (!r.success) { if (r.message) window.amanaToast(r.message, 'error'); return; }
                 appliquerStatutLocal(id, 'delivre', 'Livré', 'bg-emerald-100 text-emerald-700');
+            });
+        }
+
+        // « Livré » marqué par erreur (23/10/2026) : confirmation, puis la famille redevient « Prête » ;
+        // on recharge la page pour retrouver ses boutons et des cartes de stats à jour.
+        async function annulerLivre(id) {
+            const ok = await window.amanaConfirm({
+                title: 'Annuler « Livré »',
+                message: 'La famille redeviendra « Prête » : le colis sera considéré comme non remis. Continuer ?',
+                confirmLabel: 'Oui, annuler',
+                cancelLabel: 'Retour',
+            });
+            if (!ok) return;
+            await occuper(id, async () => {
+                const r = await poster(`/livraison/retrait-hq/livraisons/${id}/annuler-livre`);
+                if (!r.success) { if (r.message) window.amanaToast(r.message, 'error'); return; }
+                window.location.reload();
             });
         }
 

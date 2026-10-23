@@ -225,5 +225,11 @@ class ResoudreAdresseFamille implements ShouldQueue
 
         $famille->probleme_traitement = 'La résolution automatique de l\'adresse a échoué après plusieurs tentatives (problème technique) — vérifier/renseigner le quartier manuellement.';
         $famille->save();
+
+        // 23/10/2026 : en plus du drapeau sur la fiche, un incident visible pour l'équipe de la campagne.
+        try {
+            app(\App\Services\IncidentDetectionService::class)->signalerEchecJob($this->idFamille, 'localisation de l\'adresse', $exception->getMessage());
+        } catch (\Throwable) {
+        }
     }
 }

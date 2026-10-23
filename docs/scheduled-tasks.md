@@ -29,6 +29,7 @@ variable que celle du cron.
 |---|---|---|
 | `familles:nettoyer-demandes-attente` | quotidienne (`->daily()`) | Supprime les demandes du formulaire public non confirmées après 48h (voir `IntakeAttenteService`) ainsi que leurs fichiers temporaires sous `storage/app/private/intake-attente/`. Activée par défaut depuis l'ajout de la confirmation par email (11/08/2026) — évite une fuite d'espace disque silencieuse. |
 | `familles:liberer-verrous-perimes` | toutes les 5 minutes (`->everyFiveMinutes()->withoutOverlapping()`) | Libère les verrous d'édition de dossiers périmés (TTL 20 min, voir `Famille::libererVerrousPerimes()`). |
+| `livraison:detecter-incidents` | toutes les 5 minutes (`->everyFiveMinutes()->withoutOverlapping()`) | Détecte les incidents évitables des campagnes **en cours** (famille non localisée, tournée qui ne démarre pas, packaging en retard, collecte insuffisante…) et referme ceux dont le problème a disparu — voir `docs/incidents.md`. Aucun workflow à modifier : le cron `schedule:run` des workflows de déploiement la lance déjà. |
 
 ## Commandes disponibles mais désactivées
 

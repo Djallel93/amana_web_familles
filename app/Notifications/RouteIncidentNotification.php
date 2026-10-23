@@ -53,7 +53,7 @@ class RouteIncidentNotification extends Notification
                 'libelle' => $this->libelleType(),
                 'numeroTournee' => $this->incident->id_route,
                 'notes' => $this->incident->notes,
-                'suiviUrl' => route('livraison.suivi-livraison.index'),
+                'suiviUrl' => $this->urlIncident(),
                 'logoCid' => $this->logoCid(),
             ]);
     }
@@ -62,8 +62,11 @@ class RouteIncidentNotification extends Notification
     {
         return [
             'titre' => $this->libelleType(),
-            'message' => "Tournée #{$this->incident->id_route}" . ($this->incident->notes ? " — {$this->incident->notes}" : ''),
-            'url' => route('livraison.suivi-livraison.index'),
+            // 23/10/2026 : plus de « Tournée # » quand l'incident n'a pas de tournée (types de campagne
+            // ou de famille), et le lien mène au hub de la campagne, seul emplacement des incidents.
+            'message' => trim(($this->incident->id_route ? "Tournée #{$this->incident->id_route}" : '')
+                . ($this->incident->notes ? ($this->incident->id_route ? ' — ' : '') . $this->incident->notes : '')),
+            'url' => $this->urlIncident(),
             'id_incident' => $this->incident->id,
             'id_route' => $this->incident->id_route,
         ];
@@ -71,17 +74,16 @@ class RouteIncidentNotification extends Notification
 
     private function libelleType(): string
     {
-        return match ($this->incident->type) {
-            'benevole_absent' => 'Bénévole absent',
-            'capacite' => 'Problème de capacité',
-            'chargement_termine' => 'Chargement terminé',
-            'livraison_ignoree' => 'Livraison ignorée',
-            'packaging_annule' => 'Packaging annulé',
-            'chargement_annule' => 'Chargement annulé',
-            'retrait_hq_non_livre' => 'Retrait QG non livré',
-            'se_deplace_remplace' => 'Retrait QG remplacé par une livraison',
-            'chauffeur_indisponible' => 'Chauffeur indisponible',
-            default => $this->incident->type,
-        };
+        return RouteIncident::LABELS_TYPE[$this->incident->type] ?? $this->incident->type;
+    }
+
+    /** Hub de la campagne (section Incidents) ; repli sur le suivi livraison si la campagne est inconnue. */
+    private function urlIncident(): string
+    {
+        $idCampagne = $this->incident->idCampagneEffectif();
+
+        return $idCampagne
+            ? route('livraison.campagnes.show', $idCampagne)
+            : route('livraison.suivi-livraison.index');
     }
 }

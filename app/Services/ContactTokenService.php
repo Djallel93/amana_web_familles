@@ -66,6 +66,11 @@ class ContactTokenService
                 'id_livraison' => $livraison->id,
                 'message' => $e->getMessage(),
             ]);
+            // 23/10/2026 : l'échec ouvre un incident (jamais bloquant pour l'appelant).
+            try {
+                app(IncidentDetectionService::class)->signalerEchecEmail($livraison, 'confirmation de disponibilité', $e->getMessage());
+            } catch (\Throwable) {
+            }
 
             return false;
         }

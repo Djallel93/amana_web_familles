@@ -6,8 +6,9 @@
     français uniquement) — destinataires : admins/gestionnaires, voir
     RouteIncident::booted().
 
-    Variables : $prenom, $libelle (type d'incident lisible), $numeroTournee,
-    $notes (nullable), $suiviUrl, $logoCid.
+    Variables : $prenom, $libelle (type d'incident lisible), $numeroTournee (nullable : 23/10/2026,
+    les incidents de campagne ou de famille n'ont pas de tournée), $notes (nullable), $suiviUrl
+    (hub de la campagne), $logoCid.
 --}}
 <!DOCTYPE html>
 <html lang="fr" dir="ltr">
@@ -32,7 +33,7 @@
             <div class="body">
 
                 <p class="body-text">
-                    Un incident « <strong>{{ $libelle }}</strong> » a été signalé sur la tournée #{{ $numeroTournee }}.
+                    Un incident « <strong>{{ $libelle }}</strong> » @if($numeroTournee)a été signalé sur la tournée #{{ $numeroTournee }}.@else a été signalé sur votre campagne.@endif
                 </p>
 
                 @if(!empty($notes))
@@ -48,11 +49,11 @@
                 @endif
 
                 <div class="cta-wrap">
-                    <a href="{{ $suiviUrl }}" class="cta-button">📋 Voir le suivi livraison</a>
+                    <a href="{{ $suiviUrl }}" class="cta-button">📋 Voir l'incident</a>
                 </div>
 
                 <p class="body-text" style="text-align:center; font-size:12px; opacity:0.65;">
-                    Résolvez l'incident depuis le suivi livraison une fois traité.
+                    Ouvrez la section Incidents de la campagne : un guide pas à pas vous aide à le résoudre.
                 </p>
 
                 @include('amana-shared::emails.partials._closing')

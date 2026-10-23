@@ -40,6 +40,10 @@ class PlanificationTest extends TestCase
         $this->assertArrayHasKey('familles:liberer-verrous-perimes', $evenements);
         $this->assertSame('*/5 * * * *', $evenements['familles:liberer-verrous-perimes']->expression);
         $this->assertTrue($evenements['familles:liberer-verrous-perimes']->withoutOverlapping);
+
+        $this->assertArrayHasKey('livraison:detecter-incidents', $evenements);
+        $this->assertSame('*/5 * * * *', $evenements['livraison:detecter-incidents']->expression);
+        $this->assertTrue($evenements['livraison:detecter-incidents']->withoutOverlapping);
     }
 
     public function test_chaque_commande_est_relancee_via_le_binaire_php_configure(): void

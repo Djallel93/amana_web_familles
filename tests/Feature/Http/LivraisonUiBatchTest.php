@@ -302,7 +302,8 @@ class LivraisonUiBatchTest extends TestCase
         $this->assertStringContainsString('Bonjour, Farid', $html);
         $this->assertStringContainsString("tournée #{$route->id}", $html);
         $this->assertStringContainsString('Le camion est plein à 80 %', $html);
-        $this->assertStringContainsString(route('livraison.suivi-livraison.index'), $html);
+        // 23/10/2026 : le lien mène au hub de la campagne, seul emplacement des incidents.
+        $this->assertStringContainsString(route('livraison.campagnes.show', $campagne->id), $html);
         // Gabarit amana_shared (et non le « Hello! » / « Regards » de Laravel).
         $this->assertStringNotContainsString('Regards', $html);
     }

@@ -175,7 +175,16 @@ return new class extends Migration
             // id_campagne : renseigné quand id_route est null (type retrait_hq_non_livre) ;
             // sinon la campagne est celle de la route.
             $table->foreignId('id_campagne')->nullable()->constrained('campagnes')->cascadeOnDelete();
-            $table->enum('type', ['benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule', 'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace', 'chauffeur_indisponible']);
+            // 23/10/2026 : 12 types détectés automatiquement (IncidentDetectionService) — voir
+            // RouteIncident::TYPES_DETECTES. Liste synchronisée avec RouteIncident::TYPES et le TS
+            // TYPES_INCIDENT (test IncidentTypesTest).
+            $table->enum('type', [
+                'benevole_absent', 'capacite', 'chargement_termine', 'livraison_ignoree', 'packaging_annule',
+                'chargement_annule', 'retrait_hq_non_livre', 'se_deplace_remplace', 'chauffeur_indisponible',
+                'famille_non_geocodee', 'livraisons_non_couvertes', 'famille_injoignable', 'tournee_non_demarree',
+                'packaging_en_retard', 'chargement_en_retard', 'retrait_hq_en_retard', 'email_echec', 'job_echec',
+                'collecte_insuffisante', 'chauffeur_retire', 'chauffeurs_insuffisants',
+            ]);
             $table->foreignId('id_livraison')->nullable()
                 ->constrained('livraisons')
                 ->nullOnDelete()

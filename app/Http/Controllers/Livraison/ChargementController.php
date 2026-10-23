@@ -647,6 +647,11 @@ class ChargementController extends Controller
 
         $route->update(['statut' => 'charge']);
 
+        // 23/10/2026 : un chargement annulé puis reconfirmé n'a plus rien d'ouvert à traiter.
+        $incidents = app(\App\Services\IncidentResolutionService::class);
+        RouteIncident::where('id_route', $route->id)->where('type', 'chargement_annule')->where('statut', 'ouvert')->get()
+            ->each(fn(RouteIncident $i) => $incidents->resoudreAutomatiquement($i, 'Chargement confirmé de nouveau.'));
+
         RouteIncident::create([
             'id_route' => $route->id,
             'type' => 'chargement_termine',

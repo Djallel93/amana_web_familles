@@ -552,6 +552,19 @@ export const TYPES_INCIDENT = [
     "se_deplace_remplace",
     // 18/10/2026 : chauffeur retenu pour une tournée pas encore partie qui répond « Non » au retour au QG.
     "chauffeur_indisponible",
+    // 23/10/2026 : incidents détectés automatiquement (RouteIncident::TYPES_DETECTES, IncidentDetectionService).
+    "famille_non_geocodee",
+    "livraisons_non_couvertes",
+    "famille_injoignable",
+    "tournee_non_demarree",
+    "packaging_en_retard",
+    "chargement_en_retard",
+    "retrait_hq_en_retard",
+    "email_echec",
+    "job_echec",
+    "collecte_insuffisante",
+    "chauffeur_retire",
+    "chauffeurs_insuffisants",
 ] as const;
 export type TypeIncident = (typeof TYPES_INCIDENT)[number];
 
@@ -674,6 +687,13 @@ export interface LigneIncident {
     famille: string | null;
     signale_par: string | null;
     created_at: string | null;
+    /** 23/10/2026 : de quoi joindre la personne concernée depuis le détail. */
+    chauffeur_telephone: string | null;
+    famille_telephone: string[];
+    famille_email: string | null;
+    route_statut: string | null;
+    /** Levé automatiquement par IncidentDetectionService (signale_par = 0). */
+    detecte: boolean;
 }
 
 // ── Assistant « Génération des routes » du hub (06/10/2026) ──────────────
@@ -741,6 +761,21 @@ export interface IncidentsUrls {
 /** Réponse de IncidentsController::options(). */
 export interface OptionsIncident {
     tournees: { id: number; libelle: string }[];
+}
+
+/** Réponse de IncidentsController::options() pour un incident « capacité » (23/10/2026). */
+export interface OptionsCapacite {
+    resoluble: boolean;
+    message: string | null;
+    poids_total_kg?: number;
+    capacite_kg?: number | null;
+    arrets?: { id_etape: number; famille: string; poids_kg: number }[];
+    candidats?: CandidatChauffeur[];
+}
+
+/** Réponse de IncidentsController::options() pour « familles sans tournée ». */
+export interface OptionsNonCouvertes {
+    familles: { id_livraison: number; nom: string }[];
 }
 
 /** Candidat à la reprise d'une tournée (incident « chauffeur indisponible », 18/10/2026). */

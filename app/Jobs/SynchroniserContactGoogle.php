@@ -129,4 +129,13 @@ class SynchroniserContactGoogle implements ShouldQueue
             'google_resource_name' => $famille->google_resource_name,
         ]);
     }
+
+    /** 23/10/2026 : échec définitif → incident pour les campagnes actives de la famille. */
+    public function failed(\Throwable $exception): void
+    {
+        try {
+            app(\App\Services\IncidentDetectionService::class)->signalerEchecJob($this->idFamille, 'synchronisation du contact Google', $exception->getMessage());
+        } catch (\Throwable) {
+        }
+    }
 }
