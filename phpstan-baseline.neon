@@ -1,19 +1,3 @@
-# Baseline PHPStan — générée par `composer analyse -- --generate-baseline`.
-#
-# Elle absorbe les signalements déjà présents dans app/ au moment où
-# l'analyse statique a été ajoutée à la porte de qualité (niveau 5, voir
-# phpstan.neon) : dette connue, pas des erreurs ignorées par principe. La
-# majorité vient de relations Eloquent typées `Model` (propriétés / méthodes
-# « introuvables » sur la classe de base) et d'arguments `Model` là où une
-# sous-classe est attendue.
-#
-# Règles d'usage :
-#   - le fichier ne doit que RÉTRÉCIR : en corrigeant du code, régénérer la
-#     baseline (`composer analyse -- --generate-baseline`) et committer la
-#     différence. Ne jamais y ajouter une entrée à la main pour « faire
-#     passer » la CI — corriger le code, ou à défaut justifier l'exception.
-#   - la baseline est calculée avec PHP 8.4 (celui de la CI).
-
 parameters:
 	ignoreErrors:
 		-
@@ -59,49 +43,7 @@ parameters:
 			path: app/Http/Controllers/Admin/ImportsController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Admin/Livraison/BenevoleDisponibiliteController.php
-
-		-
-			message: '#^Parameter \#2 \$journee of method App\\Services\\BenevoleDisponibiliteService\:\:confirmer\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/BenevoleDisponibiliteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prenom\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
-
-		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array\{id\: int, statut\: string, benevole\: string\|null\}, Closure\(App\\Models\\RouteLivraison\)\: array\{id\: int, statut\: string, benevole\: string\|null\} given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
-
-		-
-			message: '#^Parameter \#1 \$famille of static method App\\Models\\Livraison\:\:calculerPoidsKg\(\) expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
-
-		-
-			message: '#^Parameter \#2 \$journee of method App\\Services\\RetraitHqSchedulingService\:\:planifierPour\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
-
-		-
-			message: '#^Parameter \#3 \$journee of method App\\Services\\LivraisonGenerationService\:\:genererPour\(\) expects App\\Models\\CampagneJournee\|null, Illuminate\\Database\\Eloquent\\Model given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/Admin/Livraison/CampagnesController.php
@@ -111,42 +53,6 @@ parameters:
 			identifier: phpDoc.parseError
 			count: 1
 			path: app/Http/Controllers/Admin/Livraison/ContactTrackingController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$benevole\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$famille\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prenom\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/IncidentsController.php
-
-		-
-			message: '#^Parameter \#2 \$journee of method App\\Services\\LivraisonGenerationService\:\:nonCouvertesEligibles\(\) expects App\\Models\\CampagneJournee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
-
-		-
-			message: '#^Parameter \#2 \$journee of method App\\Services\\RouteGenerationService\:\:livraisonsNonCouvertes\(\) expects App\\Models\\CampagneJournee\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Admin/Livraison/LiveBoardController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_vehicule_type\.$#'
@@ -245,12 +151,6 @@ parameters:
 			path: app/Http/Controllers/FamillesController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Livraison/ChargementController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$famille\.$#'
 			identifier: property.notFound
 			count: 1
@@ -267,18 +167,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/Livraison/ContactConfirmationController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Livraison/DisponibiliteController.php
-
-		-
-			message: '#^Parameter \#2 \$journee of method App\\Services\\BenevoleDisponibiliteService\:\:confirmer\(\) expects App\\Models\\CampagneJournee, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Livraison/DisponibiliteController.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$statut\.$#'
@@ -1271,18 +1159,6 @@ parameters:
 			path: app/Http/Resources/VehiculeTypeResource.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Campagne.php
-
-		-
-			message: '#^Method App\\Models\\Campagne\:\:ajouterJournee\(\) should return App\\Models\\CampagneJournee but returns Illuminate\\Database\\Eloquent\\Model\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Models/Campagne.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$secteur\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1307,24 +1183,6 @@ parameters:
 			path: app/Models/Livraison.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$benevole\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/RouteIncident.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$famille\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/RouteIncident.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/RouteIncident.php
-
-		-
 			message: '#^Property App\\Notifications\\FamilleVerificationNotification\:\:\$verification is never read, only written\.$#'
 			identifier: property.onlyWritten
 			count: 1
@@ -1341,18 +1199,6 @@ parameters:
 			identifier: notIdentical.alwaysTrue
 			count: 1
 			path: app/Notifications/RoutePretePourChargementNotification.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nom\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Notifications/RouteTermineeNotification.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$prenom\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Notifications/RouteTermineeNotification.php
 
 		-
 			message: '#^Parameter \#2 \$campagne of method App\\Policies\\CampagneArriveePolicy\:\:autoriseEquipe\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
@@ -1377,12 +1223,6 @@ parameters:
 			identifier: argument.type
 			count: 2
 			path: app/Policies/LivraisonPolicy.php
-
-		-
-			message: '#^Parameter \#2 \$campagne of method App\\Policies\\RouteLivraisonPolicy\:\:autoriseEquipe\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Policies/RouteLivraisonPolicy.php
 
 		-
 			message: '#^Method App\\Services\\BenevoleIntakeAttenteService\:\:confirmer\(\) should return array\{personne\: App\\Models\\Personne, profil\: App\\Models\\BenevoleProfil, personneExistante\: bool\} but returns array\{personne\: Amana\\Shared\\Models\\Personne, profil\: App\\Models\\BenevoleProfil, personneExistante\: bool\}\.$#'
@@ -1421,76 +1261,10 @@ parameters:
 			path: app/Services/BenevoleProfileExtension.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CampagneStatsService.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$date_livraison\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/CampagneStatsService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/CampagneStatsService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CampagneStatsService.php
-
-		-
-			message: '#^Parameter \#2 \$famille of class App\\Notifications\\LivraisonConfirmationNotification constructor expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/ContactTokenService.php
-
-		-
-			message: '#^Parameter \#1 \$famille of static method App\\Models\\Livraison\:\:calculerPoidsKg\(\) expects App\\Models\\Famille, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/CouvertureCollecteService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$adresse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/FamilleConfirmationSyncService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code_postal\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/FamilleConfirmationSyncService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/FamilleConfirmationSyncService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nombre_adulte\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/FamilleConfirmationSyncService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$nombre_enfant\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/FamilleConfirmationSyncService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ville_texte\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/FamilleConfirmationSyncService.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cree\.$#'
@@ -1565,64 +1339,10 @@ parameters:
 			path: app/Services/GoogleContactsService.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$campagne\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/IncidentResolutionService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_benevole\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/IncidentResolutionService.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:etapes\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Services/IncidentResolutionService.php
-
-		-
 			message: '#^Negated boolean expression is always false\.$#'
 			identifier: booleanNot.alwaysFalse
 			count: 1
 			path: app/Services/IntakeAttenteService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/MaRouteVueService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/MaRouteVueService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$ordre\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/MaRouteVueService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$statut\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/MaRouteVueService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Services/MaRouteVueService.php
-
-		-
-			message: '#^Parameter \#1 \$campagne of static method App\\Support\\RouteOptimizationConfig\:\:coordonneesHqPourCampagne\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/MaRouteVueService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Livraison\:\:\$total\.$#'
@@ -1655,88 +1375,10 @@ parameters:
 			path: app/Services/ReverseSyncService.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RouteChargementService.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:personnesAvecRole\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Services/RouteChargementService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_quartier\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RouteGenerationService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/RouteGenerationService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/RouteGenerationService.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$route\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/RouteGenerationService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_livraison\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RouteMutationService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id_quartier\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RouteMutationService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$latitude\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RouteMutationService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$livraison\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RouteMutationService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$longitude\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/RouteMutationService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) expects callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: array, Closure\(App\\Models\\EtapeRoute\)\: array given\.$#'
-			identifier: argument.type
-			count: 4
-			path: app/Services/RouteMutationService.php
-
-		-
-			message: '#^Parameter \#1 \$campagne of method App\\Services\\RouteMutationService\:\:hqOuEchoue\(\) expects App\\Models\\Campagne, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 3
-			path: app/Services/RouteMutationService.php
-
-		-
-			message: '#^Parameter \#1 \$livraison of method App\\Services\\RouteMutationService\:\:versArray\(\) expects App\\Models\\Livraison, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
-			identifier: argument.type
-			count: 4
-			path: app/Services/RouteMutationService.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\:\:recherche\(\)\.$#'

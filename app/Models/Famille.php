@@ -55,6 +55,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class Famille extends Model
 {
+    /** @use HasFactory<\Database\Factories\FamilleFactory> */
     use HasFactory;
 
     /**

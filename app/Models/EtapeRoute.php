@@ -64,6 +64,7 @@ class EtapeRoute extends Model
         return $this->belongsTo(RouteLivraison::class, 'id_route');
     }
 
+    /** @return BelongsTo<Livraison, $this> */
     public function livraison(): BelongsTo
     {
         return $this->belongsTo(Livraison::class, 'id_livraison');

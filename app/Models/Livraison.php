@@ -184,6 +184,7 @@ class Livraison extends Model
 
     // ── Relations ─────────────────────────────────────────────────────────
 
+    /** @return BelongsTo<Famille, $this> */
     public function famille(): BelongsTo
     {
         return $this->belongsTo(Famille::class, 'id_famille');
