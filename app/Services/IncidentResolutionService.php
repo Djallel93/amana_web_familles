@@ -84,7 +84,7 @@ class IncidentResolutionService
 
             // 23/10/2026 : des familles restées sans tournée après le re-clustering ne doivent plus se perdre
             // en silence — elles ouvrent leur propre incident, avec ses actions de résolution.
-            if (($resultat['non_couvertes'] ?? 0) > 0) {
+            if ($resultat['non_couvertes'] > 0) {
                 $this->detection->lever(
                     $incident->route->id_campagne,
                     'livraisons_non_couvertes',
@@ -398,7 +398,7 @@ class IncidentResolutionService
                 'poids_kg' => (float) $e->livraison->poids_kg,
             ])->values()->all(),
             // Seuls les chauffeurs dont le véhicule est assez grand pour TOUTE la tournée.
-            'candidats' => array_values(array_filter($base['candidats'] ?? [], fn($c) => $c['assez_grand'])),
+            'candidats' => array_values(array_filter($base['candidats'], fn($c) => $c['assez_grand'])),
         ];
     }
 
@@ -543,7 +543,7 @@ class IncidentResolutionService
             ->whereNull('id_benevole_impose')
             ->with('famille:id,nom,prenom,latitude,longitude')
             ->get()
-            ->filter(fn(Livraison $l) => $l->famille?->latitude !== null && $l->famille?->longitude !== null)
+            ->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null)
             ->values();
     }
 

@@ -141,7 +141,7 @@ class IncidentDetectionService
             ->with('famille:id,nom,prenom,latitude,longitude')
             ->get()
             // Les familles sans coordonnées ont leur propre incident (famille_non_geocodee).
-            ->filter(fn(Livraison $l) => $l->famille?->latitude !== null && $l->famille?->longitude !== null);
+            ->filter(fn(Livraison $l) => $l->famille->latitude !== null && $l->famille->longitude !== null);
 
         if ($orphelines->isEmpty()) {
             return [];
@@ -407,10 +407,11 @@ class IncidentDetectionService
 
     private function debutCreneau(RouteLivraison $route, Campagne $campagne): ?CarbonInterface
     {
-        $jour = $route->campagneJournee?->date ?? $campagne->date_livraison;
-        if ($jour === null || $route->creneau === null) {
+        if ($route->creneau === null) {
             return null;
         }
+        // id_campagne_journee est nullable (tournée sans journée) : repli sur la date de livraison de la campagne.
+        $jour = $route->id_campagne_journee !== null ? $route->campagneJournee->date : $campagne->date_livraison;
         $heure = (int) explode('-', $route->creneau)[0];
 
         return Carbon::parse($jour->format('Y-m-d'), config('app.timezone'))->setTime($heure, 0);

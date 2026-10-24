@@ -7,8 +7,8 @@ namespace App\Support\ApercuEmail;
 
 use Illuminate\Notifications\Channels\MailChannel;
 use Illuminate\Notifications\Messages\MailMessage;
+use Illuminate\Notifications\Notification;
 use Symfony\Component\Mime\Email;
-use Symfony\Component\Mime\Part\DataPart;
 
 /**
  * Rendu et envoi d'un email du CatalogueEmails (23/10/2026) — utilisé par la commande
@@ -38,8 +38,7 @@ final class ApercuEmail
     {
         [$notification, $notifiable] = $this->catalogue->construire($cle, $langue, $adresse);
 
-        /** @var MailMessage $mail */
-        $mail = $notification->toMail($notifiable);
+        $mail = $this->versMail($notification, $notifiable);
 
         return [
             'sujet' => (string) $mail->subject,
@@ -74,10 +73,7 @@ final class ApercuEmail
 
         app(MailChannel::class)->send($notifiable, $notification);
 
-        /** @var MailMessage $mail */
-        $mail = $notification->toMail($notifiable);
-
-        return (string) $mail->subject;
+        return (string) $this->versMail($notification, $notifiable)->subject;
     }
 
     /**
@@ -93,9 +89,6 @@ final class ApercuEmail
         }
 
         foreach ($message->getAttachments() as $piece) {
-            if (!$piece instanceof DataPart) {
-                continue;
-            }
 
             $uri = 'data:' . $piece->getMediaType() . '/' . $piece->getMediaSubtype()
                 . ';base64,' . base64_encode($piece->getBody());
@@ -103,5 +96,24 @@ final class ApercuEmail
         }
 
         return $html;
+    }
+
+    /**
+     * Message mail d'une notification du catalogue. `Notification` ne déclare pas `toMail()` (c'est une
+     * convention du canal mail) : on vérifie plutôt que de supposer, pour qu'une notification ajoutée
+     * au catalogue sans gabarit mail échoue avec un message clair.
+     */
+    private function versMail(Notification $notification, object $notifiable): MailMessage
+    {
+        if (!method_exists($notification, 'toMail')) {
+            throw new \LogicException($notification::class . ' n\'a pas de toMail() : elle n\'a pas sa place dans le catalogue des emails.');
+        }
+
+        $mail = $notification->toMail($notifiable);
+        if (!$mail instanceof MailMessage) {
+            throw new \LogicException($notification::class . '::toMail() ne renvoie pas un MailMessage.');
+        }
+
+        return $mail;
     }
 }

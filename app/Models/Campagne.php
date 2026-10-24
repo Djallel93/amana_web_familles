@@ -92,6 +92,8 @@ class Campagne extends Model
      * 03/09/2026 (gestion multi-jours) et create_campagnes_domain_tables.php.
      * Ordonnées par `ordre` (pas forcément par date, voir commentaire sur
      * cette colonne dans la migration).
+     *
+     * @return HasMany<CampagneJournee, $this>
      */
     public function journees(): HasMany
     {

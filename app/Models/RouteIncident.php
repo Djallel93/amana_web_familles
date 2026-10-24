@@ -105,16 +105,19 @@ class RouteIncident extends Model
     // Types pour lesquels `statut` est sans objet (jalon, pas alerte actionnable).
     public const TYPES_SANS_STATUT = ['chargement_termine'];
 
+    /** @return BelongsTo<RouteLivraison, $this> */
     public function route(): BelongsTo
     {
         return $this->belongsTo(RouteLivraison::class, 'id_route');
     }
 
+    /** @return BelongsTo<Livraison, $this> */
     public function livraison(): BelongsTo
     {
         return $this->belongsTo(Livraison::class, 'id_livraison');
     }
 
+    /** @return BelongsTo<Personne, $this> */
     public function signalePar(): BelongsTo
     {
         return $this->belongsTo(Personne::class, 'signale_par');

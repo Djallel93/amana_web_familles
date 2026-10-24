@@ -26,6 +26,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  * create_familles_table) — remplacés par type_hebergement/type_activite
  * (enums) et par les relations secteursActivite()/organismesAide()
  * (pivots), jamais mis à jour ici jusqu'à ce que FamilleSeeder échoue.
+ *
+ * @extends Factory<Famille>
  */
 class FamilleFactory extends Factory
 {

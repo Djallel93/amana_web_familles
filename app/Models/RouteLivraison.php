@@ -134,11 +134,13 @@ class RouteLivraison extends Model
 
     // ── Relations ─────────────────────────────────────────────────────────
 
+    /** @return BelongsTo<Campagne, $this> */
     public function campagne(): BelongsTo
     {
         return $this->belongsTo(Campagne::class, 'id_campagne');
     }
 
+    /** @return BelongsTo<CampagneJournee, $this> */
     public function campagneJournee(): BelongsTo
     {
         return $this->belongsTo(CampagneJournee::class, 'id_campagne_journee');
@@ -204,16 +206,19 @@ class RouteLivraison extends Model
         });
     }
 
+    /** @return BelongsTo<Personne, $this> */
     public function benevole(): BelongsTo
     {
         return $this->belongsTo(Personne::class, 'id_benevole');
     }
 
+    /** @return BelongsTo<VehiculeType, $this> */
     public function vehiculeType(): BelongsTo
     {
         return $this->belongsTo(VehiculeType::class, 'id_vehicule_type');
     }
 
+    /** @return HasMany<EtapeRoute, $this> */
     public function etapes(): HasMany
     {
         return $this->hasMany(EtapeRoute::class, 'id_route')->orderBy('ordre');
