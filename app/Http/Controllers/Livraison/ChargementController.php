@@ -22,6 +22,7 @@ use App\Models\Quartier;
 use App\Models\RouteIncident;
 use App\Models\RouteLivraison;
 use App\Notifications\RouteChargeeNotification;
+use App\Services\IncidentResolutionService;
 use App\Services\PreparationPrioritaireService;
 use App\Services\QrCodeService;
 use App\Services\RouteMutationService;
@@ -646,6 +647,11 @@ class ChargementController extends Controller
         }
 
         $route->update(['statut' => 'charge']);
+
+        // 23/10/2026 : un chargement annulé puis reconfirmé n'a plus rien d'ouvert à traiter.
+        $incidents = app(IncidentResolutionService::class);
+        RouteIncident::where('id_route', $route->id)->where('type', 'chargement_annule')->where('statut', 'ouvert')->get()
+            ->each(fn(RouteIncident $i) => $incidents->resoudreAutomatiquement($i, 'Chargement confirmé de nouveau.'));
 
         RouteIncident::create([
             'id_route' => $route->id,

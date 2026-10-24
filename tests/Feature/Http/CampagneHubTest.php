@@ -259,7 +259,7 @@ class CampagneHubTest extends TestCase
         $this->assertFalse(Route::has('livraison.campagnes.gestion-incidents'));
     }
 
-    public function test_une_ligne_dincident_porte_libelles_description_et_guide_vide(): void
+    public function test_une_ligne_dincident_porte_libelles_description_et_guide(): void
     {
         $campagne = $this->creerCampagne();
         $incident = $this->creerIncident($this->creerRoute($campagne), 'packaging_annule', 'ouvert');
@@ -268,7 +268,9 @@ class CampagneHubTest extends TestCase
             ->assertJsonPath('0.id', $incident->id)
             ->assertJsonPath('0.type_label', 'Packaging annulé')
             ->assertJsonPath('0.statut', 'ouvert')
-            ->assertJsonPath('0.guide', null)
+            // 23/10/2026 : le guide de résolution pas à pas existe pour chaque type actionnable.
+            ->assertJsonPath('0.guide', RouteIncident::GUIDES['packaging_annule'])
+            ->assertJsonPath('0.detecte', false)
             ->assertJson(fn($json) => $json->has('0.description')->etc());
     }
 

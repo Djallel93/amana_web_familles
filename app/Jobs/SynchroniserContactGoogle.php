@@ -7,6 +7,7 @@ namespace App\Jobs;
 
 use App\Models\Famille;
 use App\Services\GoogleContactsService;
+use App\Services\IncidentDetectionService;
 use Google\Service\Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -128,5 +129,14 @@ class SynchroniserContactGoogle implements ShouldQueue
             'action' => $action,
             'google_resource_name' => $famille->google_resource_name,
         ]);
+    }
+
+    /** 23/10/2026 : échec définitif → incident pour les campagnes actives de la famille. */
+    public function failed(\Throwable $exception): void
+    {
+        try {
+            app(IncidentDetectionService::class)->signalerEchecJob($this->idFamille, 'synchronisation du contact Google', $exception->getMessage());
+        } catch (\Throwable) {
+        }
     }
 }

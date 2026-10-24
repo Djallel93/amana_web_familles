@@ -34,7 +34,7 @@ class IncidentsController extends Controller
     {
         $incidents = RouteIncident::whereNotNull('statut')
             ->deCampagne($campagne->id)
-            ->with(['route.benevole:id,nom,prenom', 'livraison.famille:id,nom,prenom', 'signalePar:id,nom,prenom'])
+            ->with(['route.benevole', 'livraison.famille', 'signalePar:id,nom,prenom'])
             ->orderByDesc('created_at')
             ->get()
             ->map(fn(RouteIncident $i) => [
@@ -50,6 +50,12 @@ class IncidentsController extends Controller
                 'id_campagne_journee' => data_get($i, 'livraison.id_campagne_journee'),
                 'id_campagne' => $i->idCampagneEffectif(),
                 'chauffeur' => $i->route?->benevole ? trim("{$i->route->benevole->prenom} {$i->route->benevole->nom}") : null,
+                // 23/10/2026 : de quoi joindre la personne concernée depuis le détail de l'incident.
+                'chauffeur_telephone' => $i->route?->benevole?->telephone_formate,
+                'famille_telephone' => $i->livraison?->famille ? array_values(array_filter([$i->livraison->famille->telephone_formate, $i->livraison->famille->telephone_bis_formate])) : [],
+                'famille_email' => $i->livraison?->famille?->email,
+                'route_statut' => $i->route?->statut,
+                'detecte' => in_array($i->type, RouteIncident::TYPES_DETECTES, true),
                 'famille' => $i->livraison?->famille ? trim("{$i->livraison->famille->prenom} {$i->livraison->famille->nom}") : null,
                 'signale_par' => $i->signalePar ? trim("{$i->signalePar->prenom} {$i->signalePar->nom}") : null,
                 'created_at' => $i->created_at?->toIso8601String(),
@@ -86,6 +92,11 @@ class IncidentsController extends Controller
             return response()->json($this->incidents->optionsChauffeurIndisponible($incident));
         }
 
+        // 23/10/2026 : types à aide dédiée (capacité, familles sans tournée).
+        if (in_array($incident->type, ['capacite', 'livraisons_non_couvertes'], true)) {
+            return response()->json($this->incidents->optionsAutres($incident));
+        }
+
         $idCampagne = $incident->idCampagneEffectif();
 
         $tournees = $idCampagne === null ? collect() : RouteLivraison::where('id_campagne', $idCampagne)
@@ -118,15 +129,21 @@ class IncidentsController extends Controller
     public function resoudreAvecSuite(Request $request, RouteIncident $incident): JsonResponse
     {
         $donnees = $request->validate([
-            'action' => 'required|string|in:reinitialiser,tournee,retrait_qg,chauffeur,reessayer,domicile,reassigner,repartir',
+            'action' => 'required|string|in:reinitialiser,tournee,retrait_qg,chauffeur,reessayer,domicile,reassigner,repartir,retirer,diviser,prevenue,annuler_imposition,regeocoder,a_recontacter,renvoyer',
+            'ids_etapes' => 'nullable|array',
+            'ids_etapes.*' => 'integer',
             'id_route' => 'nullable|integer',
             'id_benevole' => 'nullable|integer',
             'ids_benevoles' => 'nullable|array',
             'ids_benevoles.*' => 'integer',
         ]);
 
+        $message = null;
         try {
-            if ($incident->type === 'chauffeur_indisponible') {
+            if (in_array($incident->type, ['capacite', 'se_deplace_remplace', 'livraisons_non_couvertes', 'famille_non_geocodee', 'famille_injoignable', 'email_echec'], true)
+            ) {
+                $message = $this->incidents->resoudreAutre($incident, $donnees['action'], $donnees);
+            } elseif ($incident->type === 'chauffeur_indisponible') {
                 $this->incidents->resoudreChauffeurIndisponible($incident, $donnees['action'], $donnees);
             } elseif ($incident->type === 'retrait_hq_non_livre') {
                 $this->incidents->resoudreRetraitNonLivre($incident, $donnees['action']);
@@ -137,6 +154,6 @@ class IncidentsController extends Controller
             return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
         }
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'message' => $message]);
     }
 }

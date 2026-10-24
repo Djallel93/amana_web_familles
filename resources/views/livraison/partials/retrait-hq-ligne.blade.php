@@ -90,6 +90,12 @@
             class="text-[12px] px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600">Non livré (absent)</button>
     </div>
 
+    {{-- « Livré » marqué par erreur (23/10/2026) : retour à « Prête », avec confirmation. --}}
+    <div class="flex gap-2 actions-livre" @if($livraison->statutRetraitHqAffiche !== 'delivre') style="display:none" @endif>
+        <button type="button" onclick="annulerLivre({{ $livraison->id }})"
+            class="text-[12px] px-3 py-1.5 rounded-lg border border-accent text-accent">Annuler « Livré »</button>
+    </div>
+
     {{-- « Non livré » marqué par erreur (09/10/2026) : retour à « Prête » (l'incident ouvert est résolu avec). --}}
     <div class="flex gap-2 actions-non-livre" @if($livraison->statutRetraitHqAffiche !== 'non_delivre') style="display:none" @endif>
         <button type="button" onclick="annulerNonLivre({{ $livraison->id }})"

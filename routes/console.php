@@ -51,3 +51,11 @@ Schedule::exec("{$phpPourCron} {$artisan} familles:liberer-verrous-perimes")
     ->everyFiveMinutes()
     ->withoutOverlapping()
     ->name('familles:liberer-verrous-perimes');
+
+// Détection automatique des incidents des campagnes en cours (23/10/2026) : famille non localisée,
+// tournée qui ne démarre pas, packaging en retard, collecte insuffisante… voir docs/incidents.md.
+// Aucun nouveau workflow : les workflows de déploiement installent déjà le cron « schedule:run ».
+Schedule::exec("{$phpPourCron} {$artisan} livraison:detecter-incidents")
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->name('livraison:detecter-incidents');

@@ -8,6 +8,7 @@ namespace App\Services;
 use Amana\Shared\Models\Personne;
 use Amana\Shared\Models\VehiculeType;
 use Amana\Shared\Services\NotificationCenterService;
+use App\Jobs\ResoudreAdresseFamille;
 use App\Models\Campagne;
 use App\Models\CampagneJournee;
 use App\Models\Livraison;
@@ -51,6 +52,8 @@ class IncidentResolutionService
         private readonly LivraisonChangementService $changements,
         private readonly ChauffeursConfirmesService $chauffeursConfirmes,
         private readonly RouteMutationService $mutations,
+        private readonly RetraitHqNotificationService $retraitHq,
+        private readonly IncidentDetectionService $detection,
     ) {}
 
     /**
@@ -78,6 +81,17 @@ class IncidentResolutionService
                 'notes' => trim(($incident->notes ?? '') . "\n[Re-cluster] " . json_encode($resultat)),
             ]);
             $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
+
+            // 23/10/2026 : des familles restées sans tournée après le re-clustering ne doivent plus se perdre
+            // en silence — elles ouvrent leur propre incident, avec ses actions de résolution.
+            if (($resultat['non_couvertes'] ?? 0) > 0) {
+                $this->detection->lever(
+                    $incident->route->id_campagne,
+                    'livraisons_non_couvertes',
+                    'camp' . $incident->route->id_campagne,
+                    $resultat['non_couvertes'] . ' famille(s) n\'ont pas pu être replacées après l\'absence du chauffeur #' . $incident->route->id_benevole . '.',
+                );
+            }
 
             return $resultat;
         }
@@ -328,6 +342,209 @@ class IncidentResolutionService
         $routes = $this->mutations->repartir($route, $chauffeurs);
 
         return 'Tournée #' . $route->id . ' répartie entre ' . count($routes) . ' chauffeurs (tournées ' . implode(', ', array_map(fn(RouteLivraison $r) => '#' . $r->id, $routes)) . ').';
+    }
+
+    /**
+     * Résolution automatique (sans action humaine) : ex. chargement_annule quand la tournée est de nouveau
+     * confirmée (23/10/2026). Note posée avec le marqueur d'auto-résolution.
+     */
+    public function resoudreAutomatiquement(RouteIncident $incident, string $raison): void
+    {
+        $incident->update([
+            'statut' => 'resolu',
+            'notes' => trim(($incident->notes ?? '') . "\n" . IncidentDetectionService::MARQUEUR_AUTO_RESOLU . ' ' . $raison),
+        ]);
+        $this->notificationCenter->resoudreParDonnee('id_incident', $incident->id);
+    }
+
+    // ── Aides à la résolution des autres types (23/10/2026) ─────────────
+
+    /**
+     * Données du formulaire « Résoudre » des types sans formulaire historique : de quoi décider sans quitter l'écran.
+     *
+     * @return array<string, mixed>
+     */
+    public function optionsAutres(RouteIncident $incident): array
+    {
+        return match ($incident->type) {
+            'capacite' => $this->optionsCapacite($incident),
+            'livraisons_non_couvertes' => ['familles' => $this->famillesNonCouvertes($incident)->map(fn(Livraison $l) => [
+                'id_livraison' => $l->id,
+                'nom' => trim("{$l->famille?->prenom} {$l->famille?->nom}"),
+            ])->values()->all()],
+            default => [],
+        };
+    }
+
+    /** @return array<string, mixed> */
+    private function optionsCapacite(RouteIncident $incident): array
+    {
+        $route = $incident->id_route ? RouteLivraison::with(['vehiculeType', 'etapes.livraison.famille:id,nom,prenom'])->find($incident->id_route) : null;
+        if ($route === null) {
+            return ['resoluble' => false, 'message' => 'La tournée de cet incident n\'existe plus : résolvez simplement l\'incident.'];
+        }
+
+        $vehicule = $route->vehiculeType;
+        $base = $this->optionsChauffeurIndisponible($incident);
+
+        return [
+            'resoluble' => in_array($route->statut, RouteLivraison::STATUTS_PAS_PARTIE, true),
+            'message' => in_array($route->statut, RouteLivraison::STATUTS_PAS_PARTIE, true) ? null : 'Cette tournée est déjà partie ou annulée.',
+            'poids_total_kg' => (float) $route->poids_total_kg,
+            'capacite_kg' => $vehicule instanceof VehiculeType ? (float) $vehicule->capacite_kg : null,
+            'arrets' => $route->etapes->filter(fn($e) => $e->livraison !== null)->map(fn($e) => [
+                'id_etape' => $e->id,
+                'famille' => trim("{$e->livraison->famille?->prenom} {$e->livraison->famille?->nom}"),
+                'poids_kg' => (float) $e->livraison->poids_kg,
+            ])->values()->all(),
+            // Seuls les chauffeurs dont le véhicule est assez grand pour TOUTE la tournée.
+            'candidats' => array_values(array_filter($base['candidats'] ?? [], fn($c) => $c['assez_grand'])),
+        ];
+    }
+
+    /**
+     * Résolution des types sans suite historique.
+     *
+     * @param  array<string, mixed>  $parametres
+     * @return string|null Message à afficher (null : rien de spécial)
+     *
+     * @throws \RuntimeException message prêt à afficher quand l'action est refusée
+     */
+    public function resoudreAutre(RouteIncident $incident, string $action, array $parametres = []): ?string
+    {
+        if ($incident->statut !== 'ouvert') {
+            throw new \RuntimeException('Cet incident n\'est plus ouvert.');
+        }
+
+        $livraison = $incident->id_livraison !== null ? Livraison::find($incident->id_livraison) : null;
+
+        switch ([$incident->type, $action]) {
+            case ['capacite', 'retirer']:
+                $note = $this->suiteCapaciteRetirer($incident, array_map('intval', $parametres['ids_etapes'] ?? []));
+                break;
+            case ['capacite', 'diviser']:
+                $route = $this->routeOuEchoue($incident);
+                $nouvelle = $this->mutations->diviser($route);
+                $note = "Tournée #{$route->id} divisée : nouvelle tournée #{$nouvelle->id}.";
+                break;
+            case ['capacite', 'reassigner']:
+                $options = $this->optionsCapacite($incident);
+                $candidat = collect($options['candidats'] ?? [])->firstWhere('id_personne', (int) ($parametres['id_benevole'] ?? 0));
+                if ($candidat === null) {
+                    throw new \RuntimeException('Choisissez un chauffeur au véhicule assez grand pour cette tournée.');
+                }
+                $route = $this->routeOuEchoue($incident);
+                $this->mutations->reassigner($route, (int) $candidat['id_personne'], (int) $candidat['id_vehicule_type']);
+                $note = "Tournée #{$route->id} confiée au chauffeur #{$candidat['id_personne']} (véhicule plus grand).";
+                break;
+
+            case ['se_deplace_remplace', 'prevenue']:
+                $note = 'Famille prévenue.';
+                break;
+            case ['se_deplace_remplace', 'annuler_imposition']:
+                $livraison ?? throw new \RuntimeException('La famille n\'est plus dans la campagne : résolvez simplement l\'incident.');
+                $this->changements->retirerImposition($livraison);
+                $this->changements->changerSeDeplace($livraison->fresh(), true);
+                $note = 'Livraison imposée annulée : la famille revient au QG.';
+                break;
+
+            case ['livraisons_non_couvertes', 'retrait_qg']:
+                $familles = $this->famillesNonCouvertes($incident);
+                if ($familles->isEmpty()) {
+                    throw new \RuntimeException('Plus aucune famille sans tournée : résolvez simplement l\'incident.');
+                }
+                foreach ($familles as $l) {
+                    $this->changements->changerSeDeplace($l, true);
+                }
+                $note = $familles->count() . ' famille(s) basculée(s) en retrait au QG.';
+                break;
+
+            case ['famille_non_geocodee', 'regeocoder']:
+                $livraison ?? throw new \RuntimeException('La famille n\'est plus dans la campagne.');
+                ResoudreAdresseFamille::dispatch($livraison->id_famille);
+
+                // Pas de clôture : l'incident se résout seul dès que l'adresse est localisée.
+                return 'Localisation relancée : l\'incident se fermera tout seul si l\'adresse est trouvée.';
+
+            case ['famille_injoignable', 'a_recontacter']:
+                $livraison ?? throw new \RuntimeException('La famille n\'est plus dans la campagne.');
+                // reinitialiserContact() exige une famille confirmée : ici elle est injoignable, on la repasse
+                // simplement dans le suivi des contacts.
+                $livraison->update(['statut_contact' => 'a_contacter', 'motif_statut_contact' => null]);
+                $note = 'Famille remise à contacter.';
+                break;
+            case ['famille_injoignable', 'retirer']:
+                $livraison ?? throw new \RuntimeException('La famille n\'est plus dans la campagne.');
+                $this->changements->retirerDeLaCampagne($livraison);
+                $note = 'Famille retirée de la campagne.';
+                break;
+
+            case ['email_echec', 'renvoyer']:
+                $livraison ?? throw new \RuntimeException('La famille n\'est plus dans la campagne.');
+                $issue = $this->retraitHq->envoyerPour($livraison);
+                if ($issue !== RetraitHqNotificationService::ENVOYE) {
+                    throw new \RuntimeException(match ($issue) {
+                        RetraitHqNotificationService::SANS_EMAIL => 'Cette famille n\'a pas d\'adresse email : corrigez sa fiche ou appelez-la.',
+                        RetraitHqNotificationService::NON_PLANIFIE => 'Aucun rendez-vous au QG n\'est planifié pour cette famille : rien à renvoyer.',
+                        default => 'L\'envoi a de nouveau échoué : voir les notes de l\'incident.',
+                    });
+                }
+                $note = 'Email renvoyé.';
+                break;
+
+            default:
+                throw new \RuntimeException('Action inconnue pour ce type d\'incident.');
+        }
+
+        $this->cloreAvecNote($incident, $note);
+
+        return $note;
+    }
+
+    private function routeOuEchoue(RouteIncident $incident): RouteLivraison
+    {
+        $route = $incident->id_route ? RouteLivraison::find($incident->id_route) : null;
+        if ($route === null) {
+            throw new \RuntimeException('La tournée de cet incident n\'existe plus : résolvez simplement l\'incident.');
+        }
+        if (!in_array($route->statut, RouteLivraison::STATUTS_PAS_PARTIE, true)) {
+            throw new \RuntimeException('Cette tournée est déjà partie ou annulée : on ne peut plus la modifier ainsi.');
+        }
+
+        return $route;
+    }
+
+    /** @param int[] $idsEtapes */
+    private function suiteCapaciteRetirer(RouteIncident $incident, array $idsEtapes): string
+    {
+        if ($idsEtapes === []) {
+            throw new \RuntimeException('Choisissez au moins une famille à retirer de la tournée.');
+        }
+        $route = $this->routeOuEchoue($incident);
+        $n = 0;
+        foreach ($route->etapes()->whereIn('id', $idsEtapes)->get() as $etape) {
+            $this->mutations->retirerLivraison($route, $etape);
+            $n++;
+        }
+        if ($n === 0) {
+            throw new \RuntimeException('Ces familles ne sont pas dans cette tournée.');
+        }
+
+        return "{$n} famille(s) retirée(s) de la tournée #{$route->id} (à replanifier).";
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Collection<int, Livraison> */
+    private function famillesNonCouvertes(RouteIncident $incident)
+    {
+        return Livraison::where('id_campagne', $incident->idCampagneEffectif())
+            ->where('statut_contact', 'confirme')
+            ->where('statut', 'non_assignee')
+            ->where('se_deplace', false)
+            ->whereNull('id_benevole_impose')
+            ->with('famille:id,nom,prenom,latitude,longitude')
+            ->get()
+            ->filter(fn(Livraison $l) => $l->famille?->latitude !== null && $l->famille?->longitude !== null)
+            ->values();
     }
 
     private function cloreAvecNote(RouteIncident $incident, string $note): void

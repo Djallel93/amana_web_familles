@@ -93,6 +93,8 @@ class RetraitHqNotificationService
                 'exception' => $e::class,
                 'message' => $e->getMessage(),
             ]);
+            // 23/10/2026 : l'échec était invisible hors des logs — il ouvre désormais un incident.
+            $this->signalerEchec($livraison, 'retrait QG', $e);
 
             return self::ECHEC;
         }
@@ -136,5 +138,15 @@ class RetraitHqNotificationService
     private function familleAvecEmail(Livraison $livraison): ?Famille
     {
         return Famille::find($livraison->id_famille);
+    }
+
+    /** Ne doit jamais faire échouer l'appelant : le signalement est un bonus par rapport au log. */
+    private function signalerEchec(Livraison $livraison, string $contexte, \Throwable $e): void
+    {
+        try {
+            app(IncidentDetectionService::class)->signalerEchecEmail($livraison, $contexte, $e->getMessage());
+        } catch (\Throwable $signalement) {
+            Log::warning('[RetraitHqNotificationService] Incident d\'échec email non créé', ['message' => $signalement->getMessage()]);
+        }
     }
 }

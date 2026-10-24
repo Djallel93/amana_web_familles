@@ -15,6 +15,7 @@ use App\Models\RouteIncident;
 use App\Services\PreparationPrioritaireService;
 use App\Support\StatutChargement;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -106,13 +107,7 @@ class RetraitHqController extends Controller
      */
     private function construireListe(Campagne $campagne, string $filtre): array
     {
-        $livraisons = Livraison::where('id_campagne', $campagne->id)
-            ->where('statut_contact', 'confirme')
-            ->where('se_deplace', true)
-            ->with(['famille:id,nom,prenom,email,telephone,telephone_bis,etudiant,est_hotel,nombre_enfant'])
-            ->withCount('colis')
-            ->orderByRaw('heure_arrivee_prevue_hq IS NULL, heure_arrivee_prevue_hq ASC')
-            ->get()
+        $livraisons = $this->livraisonsRetraitHq($campagne)
             ->map(function (Livraison $livraison) {
                 $livraison->statutRetraitHqAffiche = $this->statutAffiche($livraison);
 
@@ -151,6 +146,37 @@ class RetraitHqController extends Controller
     }
 
     private const STATUTS_AFFICHES = ['restante', 'en_preparation', 'prete', 'delivre', 'non_delivre'];
+
+    /**
+     * Familles se_deplace confirmées d'une campagne, dans l'ordre de passage prévu — la même
+     * sélection pour l'écran, le polling et la liste imprimable (23/10/2026).
+     *
+     * @return Collection<int, Livraison>
+     */
+    private function livraisonsRetraitHq(Campagne $campagne): Collection
+    {
+        return Livraison::where('id_campagne', $campagne->id)
+            ->where('statut_contact', 'confirme')
+            ->where('se_deplace', true)
+            ->with(['famille:id,nom,prenom,email,telephone,telephone_bis,etudiant,est_hotel,nombre_enfant'])
+            ->withCount('colis')
+            ->orderByRaw('heure_arrivee_prevue_hq IS NULL, heure_arrivee_prevue_hq ASC')
+            ->get();
+    }
+
+    /**
+     * Liste imprimable du Retrait QG (23/10/2026) : une ligne par famille se_deplace confirmée —
+     * n°, nom complet, téléphones, créneau de réception, nombre de colis — et une case « Livré »
+     * (cochée d'avance pour les familles déjà livrées) à cocher à la main sur papier.
+     * Page autonome comme feuille-preparation.blade.php.
+     */
+    public function imprimer(Campagne $campagne): View
+    {
+        return view('livraison.retrait-hq-impression', [
+            'campagne' => $campagne,
+            'livraisons' => $this->livraisonsRetraitHq($campagne),
+        ]);
+    }
 
     /**
      * Voir le docblock de classe pour le détail des 4 états — dérivés,
@@ -259,20 +285,30 @@ class RetraitHqController extends Controller
     }
 
     /**
-     * Cible du QR envoyé par RetraitHqNotification — même principe que
-     * MaRouteController::confirmerScan() (scan = confirmation directe,
-     * pas un aller-retour "voir puis confirmer" séparé) : un scan sur une
-     * ligne "Prête" la marque livrée immédiatement ; idempotent (rescanner
-     * une ligne déjà "Livré" ne fait que la réafficher, voir le garde
-     * statutAffiche() !== 'prete' ci-dessous — pas d'erreur pour autant,
-     * l'équipe doit pouvoir rouvrir l'écran de confirmation sans risque).
+     * Annule un « Livré » marqué par erreur (23/10/2026) : la famille redevient « Prête » et
+     * peut de nouveau être marquée livrée ou non livrée. `livraisons.statut` repasse à
+     * `non_assignee` : une famille se_deplace n'est jamais dans une tournée, et `livree`
+     * alimente les statistiques de campagne et la couverture de la collecte.
+     */
+    public function annulerLivre(Livraison $livraison): JsonResponse
+    {
+        if ($livraison->statut_retrait_hq !== 'delivre') {
+            return response()->json(['success' => false, 'message' => 'Cette famille n\'est pas (ou plus) marquée « Livré ».'], 422);
+        }
+
+        $livraison->update(['statut_retrait_hq' => null, 'statut' => 'non_assignee']);
+
+        return response()->json(['success' => true, 'statut' => $this->statutAffiche($livraison->fresh())]);
+    }
+
+    /**
+     * Cible du QR envoyé par RetraitHqNotification. Depuis le 23/10/2026 le scan ne marque PLUS
+     * la famille livrée tout seul (un scan par erreur était irréversible) : sur une ligne
+     * « Prête », la page demande une confirmation explicite qui appelle `livre` ; idempotent —
+     * rescanner une ligne déjà « Livré » ne fait que l'afficher.
      */
     public function scan(Livraison $livraison): View
     {
-        if ($this->statutAffiche($livraison) === 'prete') {
-            $livraison->update(['statut_retrait_hq' => 'delivre', 'statut' => 'livree']);
-        }
-
         return view('livraison.retrait-hq-scan', [
             'livraison' => $livraison,
             'statutAffiche' => $this->statutAffiche($livraison),

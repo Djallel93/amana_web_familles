@@ -9,6 +9,7 @@ use App\Exceptions\GeocodingConfigException;
 use App\Exceptions\GeocodingTransientException;
 use App\Models\Famille;
 use App\Services\GoogleGeocodingService;
+use App\Services\IncidentDetectionService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -225,5 +226,11 @@ class ResoudreAdresseFamille implements ShouldQueue
 
         $famille->probleme_traitement = 'La résolution automatique de l\'adresse a échoué après plusieurs tentatives (problème technique) — vérifier/renseigner le quartier manuellement.';
         $famille->save();
+
+        // 23/10/2026 : en plus du drapeau sur la fiche, un incident visible pour l'équipe de la campagne.
+        try {
+            app(IncidentDetectionService::class)->signalerEchecJob($this->idFamille, 'localisation de l\'adresse', $exception->getMessage());
+        } catch (\Throwable) {
+        }
     }
 }

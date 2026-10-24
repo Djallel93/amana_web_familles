@@ -12,8 +12,11 @@
     « Résoudre » garde le comportement historique (LiveBoardController::
     resoudreIncident()) : pour benevole_absent, confirmation puis re-
     clustering des arrêts orphelins. « Ignorer » ferme sans effet de bord.
-    Le guide de résolution pas à pas viendra dans une évolution ultérieure :
-    l'emplacement est déjà réservé dans la fenêtre.
+
+    23/10/2026 : la fenêtre affiche le guide de résolution pas à pas du type (RouteIncident::GUIDES), de quoi
+    joindre la personne concernée (téléphone, email) et, pour les types qui s'y prêtent, des actions de
+    résolution directes (capacité, familles sans tournée, famille non localisée / injoignable, email en échec…).
+    Les incidents levés automatiquement portent le badge « Détecté automatiquement ».
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
@@ -23,8 +26,10 @@ import PersonSelect from "../shared/PersonSelect.vue";
 import type {
     CandidatChauffeur,
     LigneIncident,
+    OptionsCapacite,
     OptionsChauffeurIndisponible,
     OptionsIncident,
+    OptionsNonCouvertes,
     PersonneResume,
     ResoudreIncidentResultat,
 } from "../shared/types";
@@ -129,6 +134,13 @@ type ActionSuite =
     | "domicile"
     | "reassigner"
     | "repartir"
+    | "retirer"
+    | "diviser"
+    | "prevenue"
+    | "annuler_imposition"
+    | "regeocoder"
+    | "a_recontacter"
+    | "renvoyer"
     | "simple";
 
 const CHOIX_LIVRAISON_IGNOREE: { id: ActionSuite; label: string; aide: string }[] = [
@@ -172,14 +184,60 @@ const CHOIX_CHAUFFEUR_INDISPONIBLE: { id: ActionSuite; label: string; aide: stri
     { id: "simple", label: "Clore sans suite", aide: "L'incident est résolu, la tournée reste telle quelle." },
 ];
 
+// 23/10/2026 : actions de résolution des autres types (IncidentResolutionService::resoudreAutre()).
+const CHOIX_PAR_TYPE: Record<string, { id: ActionSuite; label: string; aide: string }[]> = {
+    capacite: [
+        { id: "retirer", label: "Retirer quelques familles de la tournée", aide: "Elles repassent à planifier." },
+        { id: "diviser", label: "Scinder la tournée en deux", aide: "Une seconde tournée est créée." },
+        { id: "reassigner", label: "La confier à un véhicule plus grand", aide: "Parmi les chauffeurs disponibles." },
+        { id: "simple", label: "Clore sans suite", aide: "L'incident est résolu, la tournée reste telle quelle." },
+    ],
+    se_deplace_remplace: [
+        { id: "prevenue", label: "Famille prévenue", aide: "Clôt l'incident." },
+        {
+            id: "annuler_imposition",
+            label: "Annuler la livraison imposée",
+            aide: "La famille revient chercher son colis au QG.",
+        },
+    ],
+    livraisons_non_couvertes: [
+        {
+            id: "retrait_qg",
+            label: "Les faire venir au QG",
+            aide: "Toutes ces familles reçoivent un rendez-vous au QG.",
+        },
+        { id: "simple", label: "Clore sans suite", aide: "Les familles restent sans tournée." },
+    ],
+    famille_non_geocodee: [
+        { id: "regeocoder", label: "Relancer la localisation", aide: "Se ferme tout seul si l'adresse est trouvée." },
+        { id: "simple", label: "Clore sans suite", aide: "L'adresse reste non localisée." },
+    ],
+    famille_injoignable: [
+        { id: "a_recontacter", label: "Remettre à contacter", aide: "Elle revient dans le suivi des contacts." },
+        { id: "retirer", label: "Retirer de la campagne", aide: "Elle ne sera pas livrée." },
+        { id: "simple", label: "Clore sans suite", aide: "Elle reste en attente." },
+    ],
+    email_echec: [
+        { id: "renvoyer", label: "Renvoyer l'email", aide: "Email de rendez-vous au QG." },
+        { id: "simple", label: "Clore sans suite", aide: "La famille sera prévenue autrement." },
+    ],
+};
+
 const avecSuite = computed(() => {
     const type = selection.value?.type;
-    return type === "livraison_ignoree" || type === "retrait_hq_non_livre" || type === "chauffeur_indisponible";
+    return (
+        type === "livraison_ignoree" ||
+        type === "retrait_hq_non_livre" ||
+        type === "chauffeur_indisponible" ||
+        (type !== undefined && type in CHOIX_PAR_TYPE)
+    );
 });
 
 const choixSuite = computed(() => {
-    if (selection.value?.type === "retrait_hq_non_livre") return CHOIX_RETRAIT_NON_LIVRE;
-    if (selection.value?.type === "chauffeur_indisponible") return CHOIX_CHAUFFEUR_INDISPONIBLE;
+    const type = selection.value?.type;
+    if (type !== undefined && type in CHOIX_PAR_TYPE) return CHOIX_PAR_TYPE[type];
+    if (type === "retrait_hq_non_livre") return CHOIX_RETRAIT_NON_LIVRE;
+    if (type === "chauffeur_indisponible") return CHOIX_CHAUFFEUR_INDISPONIBLE;
     return CHOIX_LIVRAISON_IGNOREE;
 });
 
@@ -199,6 +257,16 @@ const chargementOptions = ref(false);
 const optionsChauffeur = ref<OptionsChauffeurIndisponible | null>(null);
 const idChauffeurReassigne = ref<number | null>(null);
 const idsRepartition = ref<number[]>([]);
+// Incident « capacité » / « familles sans tournée » (23/10/2026).
+const optionsCapacite = ref<OptionsCapacite | null>(null);
+const optionsNonCouvertes = ref<OptionsNonCouvertes | null>(null);
+const idsEtapesRetirees = ref<number[]>([]);
+
+function basculerEtape(id: number) {
+    const i = idsEtapesRetirees.value.indexOf(id);
+    if (i === -1) idsEtapesRetirees.value.push(id);
+    else idsEtapesRetirees.value.splice(i, 1);
+}
 
 const candidatsReassignation = computed<CandidatChauffeur[]>(
     () => optionsChauffeur.value?.candidats.filter((c) => c.assez_grand) ?? [],
@@ -213,6 +281,9 @@ function reinitialiserSuite() {
     optionsChauffeur.value = null;
     idChauffeurReassigne.value = null;
     idsRepartition.value = [];
+    optionsCapacite.value = null;
+    optionsNonCouvertes.value = null;
+    idsEtapesRetirees.value = [];
 }
 
 async function ouvrirPanneauSuite(incident: LigneIncident) {
@@ -226,6 +297,18 @@ async function ouvrirPanneauSuite(incident: LigneIncident) {
         chargementOptions.value = false;
         if (res.ok) optionsChauffeur.value = res.data;
         else toast.error(res.message);
+        return;
+    }
+
+    if (incident.type === "capacite" || incident.type === "livraisons_non_couvertes") {
+        chargementOptions.value = true;
+        const res = await apiGet<OptionsCapacite & OptionsNonCouvertes>(
+            props.optionsUrlTemplate.replace("__ID__", String(incident.id)),
+        );
+        chargementOptions.value = false;
+        if (!res.ok) toast.error(res.message);
+        else if (incident.type === "capacite") optionsCapacite.value = res.data;
+        else optionsNonCouvertes.value = res.data;
         return;
     }
 
@@ -244,6 +327,7 @@ const suiteValidable = computed(() => {
     if (suite.value === "chauffeur") return chauffeurChoisi.value !== null;
     if (suite.value === "reassigner") return idChauffeurReassigne.value !== null;
     if (suite.value === "repartir") return idsRepartition.value.length >= 2;
+    if (suite.value === "retirer" && selection.value?.type === "capacite") return idsEtapesRetirees.value.length > 0;
     return true;
 });
 
@@ -252,7 +336,7 @@ async function validerSuite(incident: LigneIncident) {
     if (suite.value === "simple") return resoudre(incident);
 
     enCours.value = true;
-    const resultat = await apiPost<{ success: boolean }>(
+    const resultat = await apiPost<{ success: boolean; message?: string | null }>(
         props.resoudreSuiteUrlTemplate.replace("__ID__", String(incident.id)),
         {
             action: suite.value,
@@ -264,12 +348,21 @@ async function validerSuite(incident: LigneIncident) {
                       ? (idChauffeurReassigne.value ?? undefined)
                       : undefined,
             ids_benevoles: suite.value === "repartir" ? idsRepartition.value : undefined,
+            ids_etapes:
+                suite.value === "retirer" && selection.value?.type === "capacite" ? idsEtapesRetirees.value : undefined,
         },
     );
     enCours.value = false;
 
     if (!resultat.ok) {
         toast.error(resultat.message);
+        return;
+    }
+
+    // « Relancer la localisation » ne clôt pas : l'incident se ferme tout seul quand l'adresse est trouvée.
+    if (suite.value === "regeocoder") {
+        reinitialiserSuite();
+        toast.success(resultat.data.message ?? "Localisation relancée.");
         return;
     }
 
@@ -452,7 +545,14 @@ async function ignorer(incident: LigneIncident) {
         <Modal :open="selection !== null" max-width="max-w-lg" @close="selection = null">
             <div v-if="selection">
                 <div class="flex items-start justify-between gap-3 mb-3">
-                    <h2 class="text-[16px] font-semibold text-ink">{{ selection.type_label }}</h2>
+                    <h2 class="text-[16px] font-semibold text-ink">
+                        {{ selection.type_label }}
+                        <span
+                            v-if="selection.detecte"
+                            class="ml-1 align-middle text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200"
+                            >Détecté automatiquement</span
+                        >
+                    </h2>
                     <span
                         class="shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full border"
                         :class="STYLE_STATUT[selection.statut]"
@@ -488,16 +588,44 @@ async function ignorer(incident: LigneIncident) {
                     </div>
                 </dl>
 
-                <!-- Emplacement réservé : le guide de résolution (explications pas à pas) sera ajouté dans une évolution ultérieure. -->
-                <div class="rounded-lg border border-dashed border-surface-border p-3 mb-4">
+                <!-- Contacts utiles (23/10/2026) -->
+                <p
+                    v-if="
+                        selection.chauffeur_telephone || selection.famille_telephone.length || selection.famille_email
+                    "
+                    class="text-[13px] text-ink mb-4"
+                >
+                    <span v-if="selection.chauffeur_telephone">
+                        📞 Chauffeur :
+                        <a :href="`tel:${selection.chauffeur_telephone}`" class="text-accent font-medium">{{
+                            selection.chauffeur_telephone
+                        }}</a>
+                        <br />
+                    </span>
+                    <span v-if="selection.famille_telephone.length">
+                        📞 Famille :
+                        <a
+                            v-for="t in selection.famille_telephone"
+                            :key="t"
+                            :href="`tel:${t}`"
+                            class="text-accent font-medium mr-2"
+                            >{{ t }}</a
+                        >
+                        <br />
+                    </span>
+                    <span v-if="selection.famille_email">
+                        ✉️
+                        <a :href="`mailto:${selection.famille_email}`" class="text-accent font-medium">{{
+                            selection.famille_email
+                        }}</a>
+                    </span>
+                </p>
+
+                <div v-if="selection.guide" class="rounded-lg border border-surface-border bg-surface-2 p-3 mb-4">
                     <p class="text-[12px] font-semibold uppercase tracking-wide text-ink-muted mb-1">
                         Guide de résolution
                     </p>
-                    <p class="text-[13px] text-ink-muted whitespace-pre-line">
-                        {{
-                            selection.guide ?? "Le guide pas à pas pour résoudre cet incident sera bientôt disponible."
-                        }}
-                    </p>
+                    <p class="text-[13px] text-ink whitespace-pre-line">{{ selection.guide }}</p>
                 </div>
 
                 <p v-if="selection.notes" class="text-[12px] text-ink-muted whitespace-pre-line mb-4">
@@ -608,6 +736,61 @@ async function ignorer(incident: LigneIncident) {
                                 ↩️ Le chauffeur est finalement revenu — le remettre dans le pool
                             </button>
                         </template>
+                    </div>
+
+                    <!-- Capacité (23/10/2026) -->
+                    <div v-if="selection.type === 'capacite'" class="pl-6 space-y-1">
+                        <p v-if="chargementOptions" class="text-[12px] text-ink-muted">Chargement…</p>
+                        <p v-else-if="optionsCapacite?.message" class="text-[12px] text-rose-600">
+                            {{ optionsCapacite.message }}
+                        </p>
+                        <template v-else-if="optionsCapacite">
+                            <p class="text-[12px] text-ink-muted">
+                                {{ Math.round(optionsCapacite.poids_total_kg ?? 0) }} kg pour une capacité de
+                                {{ optionsCapacite.capacite_kg ?? "—" }} kg.
+                            </p>
+                            <div v-if="suite === 'retirer'" class="space-y-1">
+                                <label
+                                    v-for="a in optionsCapacite.arrets"
+                                    :key="a.id_etape"
+                                    class="flex items-center gap-2 text-[13px] cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        :checked="idsEtapesRetirees.includes(a.id_etape)"
+                                        @change="basculerEtape(a.id_etape)"
+                                    />
+                                    <span>{{ a.famille }} — {{ a.poids_kg }} kg</span>
+                                </label>
+                            </div>
+                            <div v-if="suite === 'reassigner'">
+                                <p v-if="!optionsCapacite.candidats?.length" class="text-[12px] text-rose-600">
+                                    Aucun chauffeur disponible n'a un véhicule assez grand.
+                                </p>
+                                <select
+                                    v-else
+                                    v-model="idChauffeurReassigne"
+                                    class="w-full text-[13px] border border-surface-border rounded-lg px-2 py-1.5 bg-surface"
+                                >
+                                    <option :value="null" disabled>Choisir un chauffeur…</option>
+                                    <option
+                                        v-for="c in optionsCapacite.candidats"
+                                        :key="c.id_personne"
+                                        :value="c.id_personne"
+                                    >
+                                        {{ c.prenom }} {{ c.nom }} — {{ c.vehicule }} · {{ c.capacite_kg }} kg
+                                    </option>
+                                </select>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Familles sans tournée (23/10/2026) -->
+                    <div v-if="selection.type === 'livraisons_non_couvertes'" class="pl-6">
+                        <p v-if="chargementOptions" class="text-[12px] text-ink-muted">Chargement…</p>
+                        <ul v-else-if="optionsNonCouvertes" class="text-[12.5px] text-ink-muted list-disc pl-4">
+                            <li v-for="f in optionsNonCouvertes.familles" :key="f.id_livraison">{{ f.nom }}</li>
+                        </ul>
                     </div>
 
                     <div v-if="suite === 'chauffeur'" class="pl-6">

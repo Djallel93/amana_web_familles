@@ -379,6 +379,12 @@ class LiveBoardController extends Controller
      */
     public function resoudreIncident(Request $request, RouteIncident $incident): JsonResponse
     {
+        // 23/10/2026 : un double clic ou un onglet périmé ne doit pas relancer le re-clustering d'un
+        // incident déjà traité (ni rouvrir/refermer un incident ignoré).
+        if ($incident->statut !== 'ouvert') {
+            return response()->json(['success' => false, 'message' => 'Cet incident n\'est plus ouvert.'], 422);
+        }
+
         return response()->json(['success' => true, ...$this->incidentService->resoudre($incident)]);
     }
 

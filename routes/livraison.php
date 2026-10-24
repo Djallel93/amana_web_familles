@@ -454,10 +454,16 @@ Route::middleware('auth')->prefix('livraison/retrait-hq')->name('livraison.retra
         ->middleware('can:equipeChargement,campagne')->name('index');
     Route::get('/{campagne}/liste', [RetraitHqController::class, 'liste'])
         ->middleware('can:equipeChargement,campagne')->name('liste');
+    // Liste imprimable (23/10/2026) — voir RetraitHqController::imprimer().
+    Route::get('/{campagne}/imprimer', [RetraitHqController::class, 'imprimer'])
+        ->middleware('can:equipeChargement,campagne')->name('imprimer');
     Route::post('/livraisons/{livraison}/livre', [RetraitHqController::class, 'marquerLivre'])
         ->middleware('can:gererRetraitHq,livraison')->name('livre');
     Route::post('/livraisons/{livraison}/non-livre', [RetraitHqController::class, 'marquerNonLivre'])
         ->middleware('can:gererRetraitHq,livraison')->name('non-livre');
+    // Annule un « Livré » marqué par erreur (23/10/2026).
+    Route::post('/livraisons/{livraison}/annuler-livre', [RetraitHqController::class, 'annulerLivre'])
+        ->middleware('can:gererRetraitHq,livraison')->name('annuler-livre');
     // Préparation prioritaire d'une famille (11/10/2026) — voir
     // RetraitHqController::preparationPrioritaire().
     Route::post('/livraisons/{livraison}/preparation-prioritaire', [RetraitHqController::class, 'preparationPrioritaire'])
